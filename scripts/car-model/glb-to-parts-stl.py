@@ -23,7 +23,8 @@ Which primitive becomes which material is the `gltf` block of model.source.json:
 
 `relief` (list) flattens lens rows that step in and out deeper than the real lamp: `"relief": [{"materials": ["brakecover",
 "amber"], "z": [-3, -2], "k": 0.3, "|x|": [0, 0.68], "fade": 0.04}]` moves each vertex of those parts toward the lens face (the outermost
-rear-facing depth per 1 cm of |x|), keeping k of its depth (`relief()`; worked example `cars/merc-190/`).
+rear-facing depth per 1 cm of |x|), keeping k of its depth; `"to": "in"` moves them in to the deepest row instead (the lens
+sits by its reflector, behind the body lip; `relief()`; worked example `cars/merc-190/`).
 
 `panels` adds flat downward-facing patches for holes the model leaves open: `"panels": [{"material": "trim", "y": 0.19, "poly": [[x, z], ...], "mirror": true}]`
 (source coordinates, convex polygon, mirrored in x with `mirror`; cars/ford-gt3/ closes the open front underbody).
@@ -703,7 +704,8 @@ def relief(T, L, labels, rl, off):
     """`gltf.relief`: flatten a lens whose rows step in and out too deep (stair edges off-axis). For the triangles labelled
     `materials` (centre in the model-space `z` range), per `bin` of |x| the outermost depth along -z of the rear-facing faces (nz <= -0.9) is the
     lens face; a vertex up to `depth`[0] behind it moves toward it (z' = z_out + k (z - z_out)), one deeper than `depth`[1]
-    stays (the lens walls still meet the housing), linear between. Inside `|x|` fully, fading out over `fade` beyond it (a lens
+    stays (the lens walls still meet the housing), linear between. `"to": "in"` instead moves the rows in to the deepest
+    rear face within `depth`[1] of the lens face (z' = z_in - k (z_in - z)): the lens sits by its reflector, behind the body lip. Inside `|x|` fully, fading out over `fade` beyond it (a lens
     wrapping round the corner keeps its shape there). In place."""
     sel = np.isin(L, labels)
     if 'z' in rl:  # model-space z range of the lamp (front lamps share the materials)
@@ -728,8 +730,26 @@ def relief(T, L, labels, rl, off):
     lo, hi = rl.get('|x|', [0, 10])
     fade = rl.get('fade', 0.04)
     w = np.clip(1 - np.maximum(lo - vx, vx - hi) / fade, 0, 1)
-    d = V[:, 2] - z_out
     d1, d2 = rl.get('depth', [0.022, 0.045])
+    if rl.get('to') == 'in':  # rows go in to the deepest lens face within depth[1] of the outermost: the lens sits by its reflector
+        # each face counts in every bin its |x| span covers (long thin lens faces have their centre in one bin only)
+        A = np.abs(S[face][:, :, 0])
+        spans = [(int(a / b), int(c / b), z) for a, c, z in zip(A.min(1), A.max(1), S.mean(1)[face, 2])]
+        zo, zi = {}, {}
+        for i0, i1, z in spans:
+            for i in range(i0, i1 + 1):
+                zo[i] = min(zo.get(i, z), z)
+        for i0, i1, z in spans:
+            for i in range(i0, i1 + 1):
+                if z <= zo[i] + d2:
+                    zi[i] = max(zi.get(i, z), z)
+        keys = np.array(sorted(zi))
+        z_in = np.interp(vx / b - 0.5, keys, np.array([zi[i] for i in keys]))
+        d = np.maximum(z_in - V[:, 2], 0)
+        V[:, 2] += w * (1 - rl['k']) * d
+        T[sel] = V.reshape(-1, 3, 3) - off
+        return
+    d = V[:, 2] - z_out
     dn = np.where(d <= d1, rl['k'] * d, np.where(d >= d2, d, rl['k'] * d1 + (d - d1) * (d2 - rl['k'] * d1) / (d2 - d1)))
     V[:, 2] = z_out + d + w * (dn - d)
     T[sel] = V.reshape(-1, 3, 3) - off

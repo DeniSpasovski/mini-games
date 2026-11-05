@@ -96,6 +96,13 @@
         "material": "mirror"
       },
       {
+        "$comment": "tail lamps: the reflector's flat top / bottom flanges (seen through the lens from above / below) dark like the housing, not a bright chrome strip along the lens edge",
+        "mat": "head_light",
+        "z": [-3, -1.5],
+        "facing": { "|y|": [0.7, 1] },
+        "material": "lamphousing"
+      },
+      {
         "mat": "head_light",
         "material": "chrome"
       },
@@ -269,6 +276,7 @@
       {
         "$comment": "tail lamp lens: its five rows step in and out 2 cm (the real lens has shallow ribs), so off-axis every colour edge staggered row by row (stairs, a jagged reverse lens). Rows brought out to the lens face, keeping 15 % of the step: the ribs stay, the edges line up. The corner wrap (|x| > 0.68) keeps its shape",
         "materials": ["brakecover", "lenscover", "amber"],
+        "to": "in",
         "z": [-3, -2],
         "k": 0.15,
         "|x|": [0, 0.68],

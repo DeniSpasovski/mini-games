@@ -33,13 +33,21 @@
     },
     "chartBoxes": [
       {
+        "$comment": "rear bumper ledge beside the ducts (|x| < 0.7, y 0.53 - 0.64, faces up and back): its triangles split between the rear chart's light-blue line and the white top chart (light-blue shards) - all of it reads the rear chart, one straight line",
+        "chart": "rear",
+        "minNy": -0.2,
+        "x": [0, 0.7],
+        "y": [0.53, 0.64],
+        "z": [-2.2, -1.8]
+      },
+      {
         "$comment": "the two aero blades in front of each rear wheel (|x| 0.8 - 0.95, y 0.22 / 0.48, z -0.85 .. -0.42): their tops faced up onto the top chart's white -> the side chart, the livery round them",
         "chart": "side",
         "maxNy": 1.01,
         "minNy": 0.2,
         "x": [0.78, 1.0],
-        "y": [0.18, 0.54],
-        "z": [-0.9, -0.4]
+        "y": [0.18, 0.78],
+        "z": [-1.2, -0.4]
       }
     ]
   },
@@ -143,11 +151,29 @@
         "material": "interior"
       },
       {
+        "$comment": "rear ducts: the fins' upper faces (normals up and forward, seen from above) carbon too",
+        "mat": "WCCARBODY",
+        "x": [0.63, 0.89],
+        "y": [0.15, 0.6],
+        "z": [-1.87, -1.5],
+        "facing": { "y": [0.3, 1], "z": [0, 1] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts (right): the fins' upper faces",
+        "mat": "WCCARBODY",
+        "x": [-0.89, -0.63],
+        "y": [0.15, 0.6],
+        "z": [-1.87, -1.5],
+        "facing": { "y": [0.3, 1], "z": [0, 1] },
+        "material": "carbon"
+      },
+      {
         "$comment": "rear ducts behind the rear wheels (left): the louvre fins (normals down and back) are carbon like the real car's, not livery",
         "mat": "WCCARBODY",
         "x": [0.63, 0.89],
-        "y": [0.27, 0.65],
-        "z": [-1.87, -1.63],
+        "y": [0.15, 0.65],
+        "z": [-1.87, -1.5],
         "facing": { "y": [-1, -0.2], "z": [-1, -0.5] },
         "material": "carbon"
       },
@@ -155,8 +181,8 @@
         "$comment": "rear ducts (right): louvre fins",
         "mat": "WCCARBODY",
         "x": [-0.89, -0.63],
-        "y": [0.27, 0.65],
-        "z": [-1.87, -1.63],
+        "y": [0.15, 0.65],
+        "z": [-1.87, -1.5],
         "facing": { "y": [-1, -0.2], "z": [-1, -0.5] },
         "material": "carbon"
       },
@@ -164,8 +190,8 @@
         "$comment": "rear ducts (left): the side walls between the fins",
         "mat": "WCCARBODY",
         "x": [0.63, 0.89],
-        "y": [0.27, 0.65],
-        "z": [-1.87, -1.63],
+        "y": [0.15, 0.65],
+        "z": [-1.87, -1.5],
         "facing": { "|x|": [0.9, 1], "z": [-0.25, 0.25] },
         "material": "carbon"
       },
@@ -173,8 +199,8 @@
         "$comment": "rear ducts (right): side walls",
         "mat": "WCCARBODY",
         "x": [-0.89, -0.63],
-        "y": [0.27, 0.65],
-        "z": [-1.87, -1.63],
+        "y": [0.15, 0.65],
+        "z": [-1.87, -1.5],
         "facing": { "|x|": [0.9, 1], "z": [-0.25, 0.25] },
         "material": "carbon"
       },
