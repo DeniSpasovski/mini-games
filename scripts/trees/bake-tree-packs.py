@@ -34,8 +34,6 @@ PACKS = {
     'bush': ('Bark_material', 'Brunch_material', ['Bush_big_002', 'Bush_medium_005', 'Bush_big_005']),
 }
 # Texture sizes (px across): bark colour / normal, leaf colour / normal.
-# Model metres the root foot sinks into the ground (the pines' root flares rise ~0.5 m from their tips).
-SINK = {'pine': 0.3}
 SIZES = {'pine': (512, 512, 1024, 512), 'lilac': (512, 512, 1024, 512), 'bush': (512, 256, 512, 256)}
 
 
@@ -168,7 +166,14 @@ def main():
                         band = P[(P[:, 1] > y0 + 1.5) & (P[:, 1] < y0 + 3)][:, [0, 2]]
                         band = band[np.hypot(*(band - np.median(band, axis=0)).T) < 1]
                         c = (band.min(axis=0) + band.max(axis=0)) / 2
-                    origin = np.array([c[0], y0 + SINK.get(pid, 0), c[1]])
+                        # The pack's root flares spread wide (up to 6 trunk radii) and rise up to 0.8 m: the ground
+                        # line goes where they reach 2.5 trunk radii, the rest is buried as a real tree's roots are.
+                        trunk = (band.max(axis=0) - band.min(axis=0)).mean() / 2
+                        reach = np.hypot(*(P[:, [0, 2]] - c).T)
+                        wide = P[(reach > 2.5 * trunk) & (P[:, 1] < y0 + 1.2), 1]
+                        if len(wide):
+                            y0 = wide.max()
+                    origin = np.array([c[0], y0, c[1]])
                     allp = np.concatenate([parts['bark'][0], parts['leaf'][0]]) - origin
                     height = float(allp[:, 1].max())
                     radius = float(np.hypot(allp[:, 0], allp[:, 2]).max())
