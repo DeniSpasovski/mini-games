@@ -265,6 +265,16 @@
         "material": "trim"
       }
     ],
+    "relief": [
+      {
+        "$comment": "tail lamp lens: its five rows step in and out 2 cm (the real lens has shallow ribs), so off-axis every colour edge staggered row by row (stairs, a jagged reverse lens). Rows brought out to the lens face, keeping 15 % of the step: the ribs stay, the edges line up. The corner wrap (|x| > 0.68) keeps its shape",
+        "materials": ["brakecover", "lenscover", "amber"],
+        "z": [-3, -2],
+        "k": 0.15,
+        "|x|": [0, 0.68],
+        "fade": 0.04
+      }
+    ],
     "default": "trim"
   },
   "parts": {

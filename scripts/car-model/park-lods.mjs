@@ -48,6 +48,8 @@ export const PARK_CARS = [
   'merc_190',
   'audi_rs6',
   'peugeot_206',
+  'subie_22b',
+  'subie_wrx_sti',
 ];
 
 /** Triangle targets per LOD: the whole body (paint shell + parts, simplified as one surface) and one rim. */
@@ -65,6 +67,7 @@ const PART_COLORS = {
   winggreen: '#2eaa4a',
   mesh: '#2c2f33',
   carbon: '#1c1d20',
+  carbonmatte: '#1c1d20',
   glass: '#0a0d10',
   ventglass: '#0a0d10',
   headlight: '#d5dbe0',
@@ -98,6 +101,9 @@ const PART_COLORS = {
   recess: '#101112',
   satin: '#b4b8be',
   brakestrip: '#a30f17',
+  brakestripred: '#a30f17',
+  brakered: '#b3151c',
+  steel: '#dfe3e8',
   lampred: '#b01018',
   lampclear: '#d9dde0',
   'src:shell': '#0b0b0c',

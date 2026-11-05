@@ -27,6 +27,7 @@ export type PartName =
   | 'gloss'
   | 'mesh'
   | 'carbon'
+  | 'carbonmatte'
   | 'wingblue'
   | 'winggreen'
   | 'glass'
@@ -688,6 +689,21 @@ function srcPart(name: string): Material {
   );
   if (SOLID_CENTRE.has(file)) m.userData.brakeLamp.solidCentre = true;
   return m;
+}
+
+/** 2 x 2 twill carbon weave, ~5 mm tows (tiling, box-projected UVs in metres). */
+function carbonWeave(): CanvasTexture {
+  return tiling(
+    canvas(16, 16, (g) => {
+      g.fillStyle = '#17181b';
+      g.fillRect(0, 0, 16, 16);
+      g.fillStyle = '#2b2d32';
+      for (let j = 0; j < 4; j++)
+        for (let i = 0; i < 4; i++)
+          if ((i + j) % 4 < 2) g.fillRect(i * 4, j * 4, 4, 4);
+    }),
+    0.02,
+  );
 }
 
 /** Tiling texture for metre UVs: `tile` = size of one canvas repeat in metres. */
@@ -2010,22 +2026,21 @@ const BUILDERS: Record<PartName, () => Material> = {
   /** Clear-coated carbon: 2 x 2 twill weave, ~5 mm tows. */
   carbon: () =>
     new MeshPhysicalMaterial({
-      map: tiling(
-        canvas(16, 16, (g) => {
-          g.fillStyle = '#17181b';
-          g.fillRect(0, 0, 16, 16);
-          g.fillStyle = '#2b2d32';
-          for (let j = 0; j < 4; j++)
-            for (let i = 0; i < 4; i++)
-              if ((i + j) % 4 < 2) g.fillRect(i * 4, j * 4, 4, 4);
-        }),
-        0.02,
-      ),
+      map: carbonWeave(),
       roughness: 0.5,
       metalness: 0.1,
       clearcoat: 0.35,
       clearcoatRoughness: 0.3,
       envMapIntensity: 0.6,
+    }),
+  /** Unlacquered (satin) carbon, same weave: big flat aero plates that face the sky (Ford GT3 diffuser end plates), where
+   * the clear-coated one mirrors the bright sky and reads white. */
+  carbonmatte: () =>
+    new MeshStandardMaterial({
+      map: carbonWeave(),
+      roughness: 0.8,
+      metalness: 0.1,
+      envMapIntensity: 0.5,
     }),
   /** Dark tinted glazing (opaque: imported bodies have no interior). */
   glass: () =>

@@ -3,6 +3,7 @@ import type { LiveryInfo } from '../shared/livery';
 import type { CarAtlas } from '../shared/types';
 import { Rng } from '../../../../shared/rng';
 import { CELL, blocks } from './livery-pattern';
+import girth from './girth.json';
 import source from './model.source.json';
 
 /**
@@ -14,18 +15,98 @@ import source from './model.source.json';
 const A = source.atlas;
 const { K, B, CH, Painter } = atlasKit(A);
 
-/** Where the pattern's across-car coordinate p turns from the roof into the side: p = X_CREST is y = Y_CREST. */
-const X_CREST = 0.8;
-const Y_CREST = 1.15;
-/** The crest is lower over the front wing / hood (z > Z_HOOD), blended over 0.7 m so the pattern stays continuous. */
-const Y_CREST_HOOD = 0.98;
-const Z_HOOD = 0.5;
-/** Side height of pattern coordinate p (the side charts show the pattern running down the body). */
-const sideY = (z: number, p: number) => {
-  const t = Math.min(1, Math.max(0, (z - Z_HOOD) / 0.7));
-  const crest = Y_CREST + (Y_CREST_HOOD - Y_CREST) * t;
-  return crest - (Math.abs(p) - X_CREST);
+/**
+ * The pattern's across-car coordinate p follows the girth: arc length round the body from the roof centre line
+ * (`girth.json`, scripts/car-model/girth-table.py). The top chart reads it at |x|, the side charts at y, so a pillar or
+ * shoulder that switches charts face by face gets the same block from both.
+ */
+const G = girth;
+/** Girth below which a block is all roof (no side-chart face sits that high). */
+const SIDE_P = 0.3;
+/** Row of the table at z (linear between the two nearest cuts), metres; cached per millimetre of z. */
+const rowCache = new Map<string, number[]>();
+const girthRow = (rows: number[][], z: number): number[] => {
+  const key = `${rows === G.top ? 't' : 's'}${Math.round(z * 1000)}`;
+  let row = rowCache.get(key);
+  if (!row) {
+    const t = Math.min(rows.length - 1, Math.max(0, (z - G.z0) / G.dz));
+    const i = Math.min(rows.length - 2, Math.floor(t));
+    const f = t - i;
+    row = rows[i].map((v, k) => ((1 - f) * v + f * rows[i + 1][k]) / 1000);
+    rowCache.set(key, row);
+  }
+  return row;
 };
+/** Inverse of a monotone row: the sample coordinate (k * d) where the row reaches girth g; 1:1 past either end. */
+const invert = (row: number[], g: number, rising: boolean): number => {
+  const n = row.length;
+  const at = (k: number) => (rising ? row[k] : -row[k]);
+  const v = rising ? g : -g;
+  if (v <= at(0)) return v - at(0);
+  for (let k = 1; k < n; k++)
+    if (v <= at(k)) {
+      const f = (v - at(k - 1)) / (at(k) - at(k - 1) || 1);
+      return (k - 1 + f) * G.d;
+    }
+  return (n - 1) * G.d + v - at(n - 1);
+};
+/**
+ * Below the waist the side keeps straight rows: p = P_REF + (yRef - y), so the rear quarter and doors read level although
+ * the section shrinks behind the cabin (boot lower than the roof). Above it p is the girth scaled to fit the section
+ * (P_REF at yRef); where that would squash the top more than F_MIN (hood, nose), yRef drops instead (rows dip forward).
+ */
+const Y_REF = 0.75;
+const P_REF = 1.18;
+/** Least top squash: the boot corner takes more (its rows stay level by the vent), the hood less. */
+const F_MIN = (z: number) => (z < 0 ? 0.65 : 0.8);
+/** Table rows past the body ends cut the wing / diffuser: read the end rows instead. */
+const zClamp = (z: number) => Math.min(2.1, Math.max(-2.2, z));
+const refCache = new Map<number, [number, number]>();
+/** [yRef, girth at yRef] at z. */
+const ref = (z: number): [number, number] => {
+  const key = Math.round(z * 1000);
+  let r = refCache.get(key);
+  if (!r) {
+    const row = girthRow(G.side, z);
+    const y = Math.min(Y_REF, invert(row, F_MIN(z) * P_REF, false));
+    const t = Math.min(row.length - 1.001, Math.max(0, y / G.d));
+    const k = Math.floor(t);
+    r = [y, row[k] + (t - k) * (row[k + 1] - row[k])];
+    refCache.set(key, r);
+  }
+  return r;
+};
+/** Body girth of pattern coordinate |p| at z. */
+const girthOf = (z: number, p: number) => {
+  const [, s] = ref(z);
+  return p <= P_REF ? (p * s) / P_REF : s + p - P_REF;
+};
+/** x on the top chart of pattern coordinate p at z (signed like p). */
+const topX = (z: number, p: number) => {
+  const zc = zClamp(z);
+  return (
+    Math.sign(p) * invert(girthRow(G.top, zc), girthOf(zc, Math.abs(p)), true)
+  );
+};
+/** y on the side charts of pattern coordinate |p| at z. */
+const sideY = (z: number, p: number) => {
+  const zc = zClamp(z);
+  const a = Math.abs(p);
+  return a >= P_REF
+    ? ref(zc)[0] - (a - P_REF)
+    : invert(girthRow(G.side, zc), girthOf(zc, a), false);
+};
+/** Pattern polygon with its edges cut into STEP pieces, so the curved mapping bends them with the body. */
+const STEP = 0.02;
+const dense = (poly: Pt[]): Pt[] =>
+  poly.flatMap(([z0, p0], i) => {
+    const [z1, p1] = poly[(i + 1) % poly.length];
+    const n = Math.max(1, Math.ceil(Math.hypot(z1 - z0, p1 - p0) / STEP));
+    return Array.from({ length: n }, (_, k): Pt => [
+      z0 + ((z1 - z0) * k) / n,
+      p0 + ((p1 - p0) * k) / n,
+    ]);
+  });
 
 /** |x| where the red blocks start on the rear end (half-way across a tail light). */
 const REAR_X = 0.5;
@@ -104,18 +185,25 @@ function paint(
     bands[band][shade % bands[band].length];
 
   const draw = (poly: Pt[], fill: string) => {
+    const pts = dense(poly);
     P.top(
-      poly.map(([z, p]): Pt => [z, p]),
+      pts.map(([z, p]): Pt => [z, topX(z, p)]),
       fill,
       false,
     );
-    // sides: the left side shows p > 0, the right side p < 0 (both read y = sideY(p))
-    const sidePoly = (sign: 1 | -1) =>
-      poly.map(([z, p]): Pt => [z, sideY(z, sign * p)]);
-    if (poly.some(([, p]) => p > X_CREST - 0.05))
-      P.side(sidePoly(1), fill, 'left');
-    if (poly.some(([, p]) => p < -(X_CREST - 0.05)))
-      P.side(sidePoly(-1), fill, 'right');
+    // sides: the left side shows p > 0, the right side p < 0 (a block over the centre line never reaches a side)
+    if (poly.some(([, p]) => p > SIDE_P))
+      P.side(
+        pts.map(([z, p]): Pt => [z, sideY(z, Math.max(0, p))]),
+        fill,
+        'left',
+      );
+    if (poly.some(([, p]) => p < -SIDE_P))
+      P.side(
+        pts.map(([z, p]): Pt => [z, sideY(z, Math.min(0, p))]),
+        fill,
+        'right',
+      );
   };
 
   // a chessboard grown in 3D: every square keeps its full face, and the lines grow back from the faces that start one.

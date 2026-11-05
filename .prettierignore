@@ -12,3 +12,5 @@ src/games/rally/maps/*/route.json
 src/games/rally/maps/*/horizon.json
 # Baked stage cards (tools/stage-card-bake.ts)
 src/games/rally/maps/*/preview/stage-card.json
+# Generated car girth tables (scripts/car-model/girth-table.py)
+src/games/rally/cars/*/girth.json

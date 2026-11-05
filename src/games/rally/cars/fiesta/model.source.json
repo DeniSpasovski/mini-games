@@ -437,6 +437,112 @@
         "material": "trim"
       },
       {
+        "$comment": "front splitter: the bolted lip plate below the bumper (front view, model coords, full width up to its top edge): unpainted black like the real car's splitter",
+        "node": "bumper_fr_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.97, 0.0],
+            [0.97, 0.0],
+            [0.97, 0.162],
+            [-0.97, 0.162]
+          ],
+          "depth": [1.4, 2.2]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "front splitter: its top deck behind the lip and the strut feet, between the end blocks (front view, cut at y 0.196 just under the end blocks' top)",
+        "node": "bumper_fr_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.74, 0.155],
+            [0.74, 0.155],
+            [0.74, 0.196],
+            [-0.74, 0.196]
+          ],
+          "depth": [1.4, 2.2]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "front splitter: the raised end blocks at both corners in front of the wheels (front view step from x 0.735 to 0.795, top y 0.212), side faces included",
+        "node": "bumper_fr_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.735, 0.161],
+            [0.97, 0.161],
+            [0.97, 0.212],
+            [0.795, 0.212]
+          ],
+          "depth": [1.4, 2.2],
+          "mirror": true
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "front splitter: the body's fender corner behind each end block, cut at the block's top (side view, both sides)",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [1.5, 0.0],
+            [1.8, 0.0],
+            [1.8, 0.212],
+            [1.5, 0.212]
+          ],
+          "depth": [0.55, 1.0]
+        },
+        "material": "trim"
+      },
+      {
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [1.5, 0.0],
+            [1.8, 0.0],
+            [1.8, 0.212],
+            [1.5, 0.212]
+          ],
+          "depth": [-1.0, -0.55]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "undertray: the body's floor pan and the low walls of the bays below the side-skirt line (front view, cut at y 0.18 like the skirt): black, not livery - its up-facing faces took the top chart's white and showed through the gap between bumper and front arch",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-1.0, -0.1],
+            [1.0, -0.1],
+            [1.0, 0.18],
+            [-1.0, 0.18]
+          ],
+          "depth": [-2.2, 2.2]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "front splitter: the two support struts between splitter and bumper (front view)",
+        "node": "bumper_fr_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.428, 0.155],
+            [0.46, 0.155],
+            [0.46, 0.302],
+            [0.428, 0.302]
+          ],
+          "depth": [1.86, 1.96],
+          "mirror": true
+        },
+        "material": "trim"
+      },
+      {
         "$comment": "black behind the main grille opening (hexagon, exact outline cut, front view, model coords): the engine bay shows through it",
         "mat": "WCCARBODY",
         "region": {
@@ -480,6 +586,23 @@
             [-0.95, 0.281]
           ],
           "depth": [-2.1, -1.5]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "rear diffuser: its fins and top plate reach y 0.335 and the curved end plates to y 0.315; black up to the bumper face above them",
+        "node": "bumper_WCCARBODY_0",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [-0.8, 0.27],
+            [0.8, 0.27],
+            [0.8, 0.315],
+            [0.7, 0.338],
+            [-0.7, 0.338],
+            [-0.8, 0.315]
+          ],
+          "depth": [-2.1, -1.6]
         },
         "material": "trim"
       },

@@ -2,7 +2,7 @@
 
 The Fabia R5 (2015-19), the Rally2 class before it was called Rally2. The body is the CC BY "Skoda Fabia R5 Rally Car" model by SenturyUK, converted to the game
 (`scripts/car-model/glb-to-parts-stl.py` + `stl-to-glb.mjs`, wheels and badges dropped, parts mapped to our materials) and
-painted at runtime with our own white + green speed-stripe livery. If the GLB can't load, a boxy
+painted at runtime with our own white + green speed-stripe livery; the front splitter and the rear bumper's lower section (diffuser, exhaust) are black like the real car. If the GLB can't load, a boxy
 extrusion of its side outline (`profile`) stands in, wearing the same livery. R5 package: 2.47 m wheelbase, 1.6 turbo with the restrictor, 5-speed sequential, mechanical diffs.
 
 ![Front three-quarter](screenshots/front-34.jpg)

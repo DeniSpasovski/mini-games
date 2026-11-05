@@ -156,6 +156,8 @@ only the UV chart assignment may differ. Keep a copy of the old GLB in the scrat
 
 - **Put the seam inside one cell/shape painted the same on both charts.** Measure it first (`--seam`, normals), then choose cell
   edges around it: the Bimmer side's last column = the rear's outer column; the side's crest row = the top chart's outer cell.
+- **A pattern that wraps a pillar / shoulder** (top <-> side chart, cells stretched or mosaic): draw it in (z, girth) and map
+  through a baked girth table, `scripts/car-model/girth-table.py` (worked example `cars/bimmer-gt2/livery.ts`).
 - **A cell edge on a crest/seam makes teeth.** The quarter-panel crest at |x| ~0.72 inside a 43 cm cell -> clean; an edge at 0.72
   -> saw-teeth. Move the edge past the crest (or widen the cell).
 - **One colour across a strip that holds several heights** (quarter-panel top + bumper ledge on the same top-chart strip): give the
