@@ -111,7 +111,7 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
 - **Replay** (`game/replay/replay.css`): the HUD stays (clock, splits, dash above the bar); top right a camera plate (`REPLAY`
   on amber, then the shot); along the bottom one slanted glass slab with an amber edge: time, timeline (amber fill, white
   playhead, split / finish ticks with labels), transport (play = the one amber button), speed and camera `.menu-seg`s
-  (camera = a dropdown under 1360 px), Save ("Saved", inactive, once named; absent on a replay opened from the menu) / Clean feed / Record video (not in the release build) / Exit, and a key-hint line (hidden on touch and phones).
+  (camera = a dropdown under 1360 px), Save ("Saved", inactive, once named; absent on a replay opened from the menu) / Clean feed / Export / Exit, and a key-hint line (hidden on touch and phones).
   Clean feed hides everything; a hint fades out after 3 s. Stage times lists replays with ▶ chips (`.menu-replay`; a named
   save's edge in `--ui-best`), quiet row actions (Name / Rename, ×) and a storage line; anything destructive asks once
   (`.replay-confirm.armed`: "Delete?" in `--ui-penalty`). The name field (`.replay-name`) is an amber-edged input with
