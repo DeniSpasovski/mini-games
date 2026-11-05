@@ -155,9 +155,12 @@ def main():
                     if re.fullmatch(rf'{stem}_LOD{lod}_.*', node):
                         for mat, P, N, U, I in prims:
                             parts['bark' if mat == bark_m else 'leaf'] = (P, N, U, I)
-                bark = parts['bark']
+                # The pack lays each level out beside the last (20 m apart): every level is shifted onto level 0 by
+                # its bark's bounding box (the levels drop leaves and twigs, never the trunk and limbs).
+                P = parts['bark'][0]
+                box = (P.min(axis=0) + P.max(axis=0)) / 2
                 if origin is None:
-                    P = bark[0]
+                    box0 = box
                     y0 = P[:, 1].min()
                     low = P[P[:, 1] < y0 + 0.3]
                     c = low[:, [0, 2]].mean(axis=0)
@@ -177,7 +180,9 @@ def main():
                     allp = np.concatenate([parts['bark'][0], parts['leaf'][0]]) - origin
                     height = float(allp[:, 1].max())
                     radius = float(np.hypot(allp[:, 0], allp[:, 2]).max())
-                levels.append((pack(*parts['bark'], origin), pack(*parts['leaf'], origin)))
+                at = origin + (box - box0) * [1, 0, 1]
+                levels.append((pack(*parts['bark'], at), pack(*parts['leaf'], at)))
+                print(pid, stem, 'LOD', lod, 'shift', np.round(box - box0, 2))
                 print(pid, stem, 'LOD', lod, len(parts['bark'][3]) // 3 + len(parts['leaf'][3]) // 3, 'tris')
             lines.append(f'    {{ height: {height:.2f}, radius: {radius:.2f}, lods: [')
             for b, lf in levels:
