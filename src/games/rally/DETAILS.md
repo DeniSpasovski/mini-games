@@ -67,14 +67,14 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 
 ## Controls
 
-| Input    | Keys                                                                                                                                                                                                                           |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                               |
-|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                      |
-|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset)                                                                                                     |
-| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit |
-| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                        |
+| Input    | Keys                                                                                                                                                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                                |
+|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                       |
+|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                 |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset)                                                    |
+| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `V` export, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit |
+| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                         |
 
 ## Game flow
 
@@ -148,8 +148,12 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
   line of sight past tree crowns / colliders of the corridor, planned at the finish in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). Broadcast shows big corners from their trackside camera and cycles
   the others between them; no cut under 2.5 s or in the air.
 - **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed
-  0.25-2x, camera picker (a dropdown under 1360 px), Save (name; it turns to an inactive "Saved" once named, and is not there for a replay opened from the menu: rename it in Stage times), Clean feed, Record video (not in the release build), Exit (back to results, or the menu for a URL replay).
-- **Video** (`video.ts`; dev server and `build:test` only until it is fixed, `videoSupported()`): `MediaRecorder` on the canvas + game audio (mp4 / webm), clean feed, real time; downloads on stop.
+  0.25-2x, camera picker (a dropdown under 1360 px), Save (name; it turns to an inactive "Saved" once named, and is not there for a replay opened from the menu: rename it in Stage times), Clean feed, Export, Exit (back to results, or the menu for a URL replay).
+- **Export** (`export.ts`, `audio-tape.ts`, `RallyGame.exportReplay`): a section (amber handles on the timeline, `I` / `O` at
+  the playhead) as an MP4 at 720p / 1080p / 1440p / 4K, 60 fps, rendered offline frame by frame at exactly that size
+  (WebCodecs H.264, else HEVC / VP9 / AV1; muxed by Mediabunny, loaded on the first export), so no frame is dropped on a
+  slow machine. The sound is the same synth on an OfflineAudioContext fed what each frame told the live one. 1.5 s run-up
+  before the section, not in the file.
 - **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`;
   `trace(s, every)` / `copyTrace()` / `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel
   load / slip / forces) as TSV. The F2 panel has the same as buttons. `load` of another stage / car reloads into it.

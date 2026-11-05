@@ -46,12 +46,6 @@
 .rp-plate .rp-tag::before {
   background: var(--ui-accent);
 }
-.rp-plate .rp-recording {
-  color: var(--ui-text);
-}
-.rp-plate .rp-recording::before {
-  background: var(--ui-penalty);
-}
 .rp-plate [hidden] {
   display: none;
 }
@@ -270,18 +264,6 @@
 .rp-actions .menu-btn {
   white-space: nowrap;
 }
-.rp-video svg {
-  width: 13px;
-  height: 13px;
-  margin-right: 6px;
-  vertical-align: -1px;
-  color: var(--ui-penalty);
-}
-.rp-video.on::before {
-  background: rgb(var(--ui-glass-rgb) / 0.9);
-  border-left-color: var(--ui-penalty);
-}
-
 .rp-keys {
   margin-top: 7px;
   font-size: 12px;
@@ -315,10 +297,6 @@ html.touch .rp-keys {
 .replay-ui.clean .rp-clean-hint {
   pointer-events: auto;
   animation: rp-hint 3s ease forwards;
-}
-/* Recording: not even the hint (the canvas is the video, but the player watches too). */
-.replay-ui.clean:has(.rp-recording:not([hidden])) .rp-clean-hint {
-  display: none;
 }
 @keyframes rp-hint {
   0%,
@@ -440,4 +418,146 @@ html.touch .rp-keys {
   opacity: 0.6;
   cursor: default;
   pointer-events: none;
+}
+
+/* Export: the section on the timeline (an amber band with a handle at each end) and the panel over the bar. */
+.rp-sel {
+  position: absolute;
+  top: 12px;
+  height: 18px;
+  background: rgb(var(--ui-accent-rgb) / 0.22);
+  box-shadow:
+    inset 0 2px 0 var(--ui-accent),
+    inset 0 -2px 0 var(--ui-accent);
+  pointer-events: none;
+}
+.rp-sel[hidden] {
+  display: none;
+}
+.rp-sel-h {
+  position: absolute;
+  top: -6px;
+  width: 12px;
+  height: 30px;
+  margin-left: -6px;
+  background: var(--ui-accent);
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+.rp-sel-h[data-h='from'] {
+  left: 0;
+}
+.rp-sel-h[data-h='to'] {
+  left: 100%;
+}
+.rp-export.on::before {
+  border-left-color: var(--ui-accent);
+}
+.rp-export svg {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+.rp-export-pop {
+  position: absolute;
+  right: 22px;
+  bottom: calc(100% + 8px);
+  width: min(520px, calc(100% - 44px));
+  padding: 12px 14px;
+  background: rgb(
+    var(--ui-glass-rgb)
+  ); /* opaque: the HUD dash sits behind it */
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+  display: grid;
+  gap: 10px;
+}
+.rp-ex-title {
+  font: italic 800 18px/1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rp-ex-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.rp-ex-label {
+  min-width: 6.5em;
+  font-size: 13px;
+  color: var(--ui-text-2);
+}
+.rp-ex-len {
+  min-width: 4em;
+  font: 700 16px/1 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
+}
+.rp-ex-btns {
+  display: flex;
+  gap: 6px;
+}
+.rp-ex-btns button,
+.rp-ex-actions button {
+  padding: 6px 12px;
+  border: 0;
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  font: 700 14px/1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.rp-ex-actions {
+  display: flex;
+  gap: 8px;
+}
+.rp-ex-actions button.primary {
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.rp-ex-btns button:focus-visible,
+.rp-ex-actions button:focus-visible {
+  box-shadow: 0 0 0 2px var(--ui-text);
+}
+.rp-ex-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.rp-ex-note {
+  font-size: 12px;
+  color: var(--ui-text-off);
+}
+.rp-ex-progress {
+  display: grid;
+  gap: 6px;
+}
+.rp-ex-progress[hidden] {
+  display: none;
+}
+.rp-ex-bar {
+  height: 6px;
+  background: var(--ui-raised-hover);
+}
+.rp-ex-bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--ui-accent);
+}
+.rp-ex-status {
+  font-size: 13px;
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+}
+/* Rendering: the transport waits (the replay is the export's), only the panel's Cancel works. */
+.replay-ui.exporting .rp-timeline,
+.replay-ui.exporting .rp-controls {
+  pointer-events: none;
+  opacity: 0.5;
+}
+.replay-ui.exporting .rp-ex-row,
+.replay-ui.exporting .rp-ex-note {
+  display: none;
 }

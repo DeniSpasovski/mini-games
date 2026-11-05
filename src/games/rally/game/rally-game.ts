@@ -24,7 +24,11 @@ import type { QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { plantSheetsReady } from '../engine/grass';
 import { setVineAntialias } from '../engine/vines';
-import { bindCameraAspect, createRenderer } from '../engine/renderer';
+import {
+  bindCameraAspect,
+  createRenderer,
+  fixRenderSize,
+} from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
 import { setTextureAnisotropy } from '../engine/textures';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
@@ -142,6 +146,8 @@ import { ReplayRecorder } from './replay/recorder';
 import { ReplaySession, tvCamerasFor } from './replay/session';
 import { REPLAYS_ENABLED, saveReplay } from './replay/store';
 import { ReplayConsole } from './replay/debug-export';
+import { EXPORT_FPS, VideoExport, type ExportSize } from './replay/export';
+import { AudioTape, renderAudioTape } from './replay/audio-tape';
 import { paramNumber } from '../../../shared/url-params';
 
 export interface GameOptions {
@@ -228,6 +234,9 @@ const GLARE =
 /** Road spray on hard ground (lit like the dust). */
 const SPRAY_COLOR = 0xd4d9de;
 /** The replay keeps recording this long after the finish line (s): the car braking to a stop on the run-off. */
+/** Replay export: seconds of run-up before the section, frames held still before it while the streaming catches up. */
+const EXPORT_RUN_UP = 1.5;
+const EXPORT_SETTLE_FRAMES = 90;
 const REPLAY_TAIL = 6;
 
 export class RallyGame {
@@ -309,6 +318,8 @@ export class RallyGame {
   private terrainLight?: TerrainLight;
   private hazeAcc = 0;
   audio: CarAudio;
+  /** The run's weather as the sound was built for it (a replay export builds the same synth again). */
+  private readonly soundWeather: { rain: number; wet: number };
   telemetry!: Telemetry;
   forceLines = new ForceLines();
   stats: StatsOverlay;
@@ -389,7 +400,8 @@ export class RallyGame {
       weatherParam(new URLSearchParams(location.search).get('weather')),
       stage.weather,
     );
-    this.audio = new CarAudio(this.car, { rain: look.rain, wet: look.wet });
+    this.soundWeather = { rain: look.rain, wet: look.wet };
+    this.audio = new CarAudio(this.car, this.soundWeather);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
     this.freeDrive = opts.spawn !== 'start';
     this.stats = new StatsOverlay(this.renderer, container, false);
@@ -1476,6 +1488,97 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.onReplayChange?.(false);
   }
 
+  /** A replay export is rendering (`exportReplay`): background work gets its full slice every frame. */
+  private exporting = false;
+
+  /**
+   * Export a section (replay seconds `from`-`to`) of the replay being watched as an MP4 (game/replay/export.ts): the
+   * game loop stops and every frame is rendered at a fixed 1 / EXPORT_FPS step at exactly `size`, with the current
+   * camera choice. A short run-up before `from` (not in the file) lets the cameras and dust settle. Resolves with the
+   * file, or null when cancelled or the browser can't encode it.
+   */
+  async exportReplay(opts: {
+    from: number;
+    to: number;
+    size: ExportSize;
+    onProgress?: (done: number) => void;
+    signal?: AbortSignal;
+  }): Promise<Blob | null> {
+    const r = this.watching;
+    if (!r) throw new Error('no replay open');
+    const step = 1 / EXPORT_FPS;
+    const from = Math.max(0, Math.min(r.duration, opts.from));
+    const to = Math.max(from, Math.min(r.duration, opts.to));
+    const total = Math.max(1, Math.round((to - from) * EXPORT_FPS));
+    const wasRunning = this.running;
+    const saved = {
+      time: r.time,
+      speed: r.speed,
+      scale: this.renderScale,
+      auto: this.autoScale,
+    };
+    const yieldTask = () => new Promise<void>((res) => setTimeout(res, 0));
+    this.stop();
+    this.exporting = true;
+    this.autoScale = false;
+    this.setRenderScale(1);
+    fixRenderSize(this.renderer, { w: opts.size.w, h: opts.size.h });
+    // Silent from here: the run-up's calls go to a tape that is thrown away.
+    this.audio.setTape(new AudioTape());
+    let out: VideoExport | null = null;
+    try {
+      out = await VideoExport.create(this.renderer.domElement, opts.size);
+      if (!out) return null;
+      // Run-up: from a whole number of frames before the section, held still while the ground and trees stream in.
+      const runUp = Math.round(Math.min(from, EXPORT_RUN_UP) * EXPORT_FPS);
+      r.speed = 1;
+      r.playing = false;
+      r.seek(from - runUp * step);
+      for (let i = 0; i < EXPORT_SETTLE_FRAMES; i++) {
+        this.frame(0);
+        if (i % 8 === 7) await yieldTask();
+      }
+      r.playing = true;
+      for (let i = 0; i < runUp; i++) this.frame(step);
+      const tape = new AudioTape();
+      this.audio.setTape(tape);
+      for (let i = 0; i < total; i++) {
+        if (opts.signal?.aborted) {
+          await out.cancel();
+          return null;
+        }
+        r.playing = true;
+        this.frame(step);
+        tape.next();
+        // Straight after the render: the canvas is cleared once the page composites it.
+        await out.frame(i);
+        opts.onProgress?.((i + 1) / total);
+        if (i % 4 === 3) await yieldTask();
+      }
+      this.audio.setTape(undefined);
+      const sound = await renderAudioTape(
+        tape,
+        this.car,
+        this.soundWeather,
+        EXPORT_FPS,
+      );
+      return await out.finish(sound);
+    } catch (e) {
+      await out?.cancel().catch(() => {});
+      throw e;
+    } finally {
+      this.audio.setTape(undefined);
+      this.exporting = false;
+      fixRenderSize(this.renderer, null);
+      this.autoScale = saved.auto;
+      this.setRenderScale(saved.scale);
+      r.speed = saved.speed;
+      r.playing = false;
+      r.seek(saved.time);
+      if (wasRunning) this.start();
+    }
+  }
+
   /** Replay frame: pose the car at the replay's time; knocked-over posts, people and tyre marks follow it. */
   private replayStep(dt: number): void {
     const r = this.watching!;
@@ -1730,6 +1833,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
    * a little progress, and the ground near the car is built whatever it costs (terrain-renderer `URGENT_MS`).
    */
   private frameSlack(dt: number): number {
+    if (this.exporting) return 8;
     if (dt > 0) this.frameInterval += (dt * 1000 - this.frameInterval) * 0.1;
     return Math.min(
       8,
