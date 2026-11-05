@@ -40,8 +40,6 @@ const MERGE: Record<number, number> = { 2: 1, 4: 2, 8: 3 };
 const TOP = 8;
 /** How far (in tile sizes) a merged tile may reach past its band end / the view distance. Without it the tiles fragment along every band edge. */
 const MERGE_SLACK = 2;
-/** Generator grids with more vertices per side than this are sampled across several `update()` calls. */
-const SLICE_ABOVE = 33;
 /** Metres of camera travel before the tile plan is redone (well inside the 10% LOD hysteresis). */
 const REPLAN = 8;
 /** Build time a tile near the car may take in a frame whatever the budget (ms): the car must never outrun it. */
@@ -188,12 +186,8 @@ export class TerrainRenderer {
         break;
       // Tiles that only split / merge at the same LOD copy their vertices from the tiles they replace.
       let job: Vertices | undefined = w.lod > 0 ? this.reuse(w) : undefined;
-      // Big generator tiles (merged 4 x 4 and up) are sampled a few rows at a time.
-      if (
-        !job &&
-        w.lod > 0 &&
-        (w.span * CHUNK_CELLS) / STEPS[w.lod] > SLICE_ABOVE
-      ) {
+      // Generator tiles are sampled a few rows at a time (a 33 x 33 grid takes 1-9 ms on Jackie / Ajvatovci).
+      if (!job && w.lod > 0) {
         job = this.sample(w, deadline);
         if (!job) break;
       }

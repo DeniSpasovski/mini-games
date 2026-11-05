@@ -104,8 +104,10 @@ interface InstanceData {
   t: number;
   meta: AssetMeta;
   variant: number;
-  /** Bucket key per LOD, built once (no per-rebuild string garbage). */
+  /** Bucket key per LOD, shared by every instance of the asset + variant (`keysOf`). */
   keys: string[];
+  /** The streamer that made it (`ScatterInstance.streamed`; `reset` starts a new owner). */
+  owner: object;
   /** Moved instances (setMatrix): slot staged by the running job / drawn since the last commit. */
   staged?: { bucket: Bucket; i: number } | null;
   slot?: { bucket: Bucket; i: number } | null;
@@ -149,7 +151,10 @@ const _s = new Vector3();
 export class InstanceStreamer {
   readonly group = new Group();
   private buckets = new Map<string, Bucket>();
-  private data = new WeakMap<ScatterInstance, InstanceData>();
+  /** Owner tag of this streamer's `ScatterInstance.streamed` data (a new one drops it all: `reset`). */
+  private owner = {};
+  /** Bucket keys per asset and variant (`keysOf`). */
+  private keys = new Map<string, string[][]>();
   /** Instances whose matrix was changed by setMatrix (their draw slot is tracked so it can be patched). */
   private moved = new Set<InstanceData>();
   private lastFocus = new Vector3(Infinity, 0, 0);
@@ -538,8 +543,8 @@ export class InstanceStreamer {
   }
 
   private dataOf(inst: ScatterInstance): InstanceData {
-    let d = this.data.get(inst);
-    if (!d) {
+    let d = inst.streamed as InstanceData | undefined;
+    if (d?.owner !== this.owner) {
       const meta = getAssetMeta(inst.asset);
       const tint = meta.tint ?? 0;
       const t =
@@ -549,21 +554,28 @@ export class InstanceStreamer {
           2 -
           1) *
           tint;
-      // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them), variant sets too ('v').
-      const keys = meta.lods.map(
-        (l, lod) =>
-          `${inst.asset}:${getVariantSet(inst.asset, lod) ? 'v' : l.oneVariant ? 0 : inst.variant}:${lod}`,
-      );
       d = {
         m: placedMatrix(inst, new Float32Array(16)),
         t,
         meta,
         variant: inst.variant,
-        keys,
+        keys: this.keysOf(inst.asset, inst.variant, meta),
+        owner: this.owner,
       };
-      this.data.set(inst, d);
+      inst.streamed = d;
     }
     return d;
+  }
+
+  /** Bucket key per LOD of an asset variant. */
+  private keysOf(asset: string, variant: number, meta: AssetMeta): string[] {
+    let byVariant = this.keys.get(asset);
+    if (!byVariant) this.keys.set(asset, (byVariant = []));
+    // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them), variant sets too ('v').
+    return (byVariant[variant] ??= meta.lods.map(
+      (l, lod) =>
+        `${asset}:${getVariantSet(asset, lod) ? 'v' : l.oneVariant ? 0 : variant}:${lod}`,
+    ));
   }
 
   private stage(
@@ -898,7 +910,8 @@ export class InstanceStreamer {
   /** Drop every bucket and cached bucket key and rebuild from scratch (after `setVariantSets`; dev A/B). */
   reset(focus: Vector3): void {
     this.dispose();
-    this.data = new WeakMap();
+    this.owner = {};
+    this.keys.clear();
     this.moved.clear();
     this.job = null;
     if (this.parkCars) this.group.add(this.parkCars.group);

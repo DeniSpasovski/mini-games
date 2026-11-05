@@ -25,9 +25,9 @@ export const DEFAULT_HEADLIGHTS: CarHeadlightsDef = {
   penumbra: 0.55,
   spill: 0.2,
 };
-/** Daytime low beams (`day`): this share of the night beam, narrower - at full strength the road just ahead of the
- * bumper lights up as two white puffs either side of the car, seen from behind. */
-const DAY_BEAM = 0.3;
+/** Daytime low beams (`day`): this share of the night beam, narrower and fully soft-edged - stronger, the road ahead
+ * shows two hard-edged white pools in daylight. */
+const DAY_BEAM = 0.15;
 const DAY_ANGLE = 0.75;
 /** Visible beam length (m) and the cone's radius at its far end. */
 const CONE_LENGTH = 28;
@@ -163,9 +163,10 @@ export class Headlights {
     this.beamMat.uniforms.uTint.value
       .copy(this.color)
       .lerp(new Color(1, 1, 1), 0.2);
-    // Brighter lamps show a stronger beam in the air, old dim ones a faint one; rain and fog light it up.
+    // Brighter lamps show a stronger beam in the air, old dim ones a faint one; rain and fog light it up a little (more
+    // and the cone's top shows as a white dome over the roof from the chase camera).
     this.beamMat.uniforms.uGain.value =
-      Math.min(1.4, 0.4 + 0.6 * def.power) * level * (1 + 1.2 * haze * haze);
+      Math.min(1.4, 0.4 + 0.6 * def.power) * level * (1 + 0.4 * haze * haze);
     const spot = (
       side: number,
       aim: number,
@@ -201,7 +202,7 @@ export class Headlights {
         60,
         -0.9,
         def.angle * (day ? DAY_ANGLE : 1),
-        def.penumbra,
+        day ? 1 : def.penumbra,
         (perLamp ? BEAM / 2 : BEAM) * def.power * level * (day ? DAY_BEAM : 1),
         170,
         side !== -1 && quality === 'high' && !day,
@@ -262,8 +263,8 @@ export class Headlights {
 }
 
 /** Luminous intensity of the tail lamps' red spill (scene units): the running lights, and the brake pedal fully down. */
-const TAIL_IDLE = 0.8;
-const TAIL_BRAKE = 10;
+const TAIL_IDLE = 0.5;
+const TAIL_BRAKE = 6;
 
 /** Where the red spill starts (`TailLight`): centred, 0.55 m above the road (the car's origin is its centre of mass), just behind the bumper (the rear overhang is ~0.38 of the wheelbase). */
 export function tailLightMount(
@@ -276,12 +277,16 @@ export function tailLightMount(
   };
 }
 
+/** How far back (m) and down the tail spill aims from its lamp: the red pool lies on the road just behind the bumper. */
+const TAIL_AIM_BACK = 1.2;
+const TAIL_AIM_DOWN = 0.9;
+
 /**
- * The tail lamps' red spill at night: one dim red spot light at the bumper aimed back and down, so it tints the road and
- * the verges behind the car (not the car's own rear), brighter with the brake. A child of the car; like the headlights
- * it exists from the first compile (lights are compiled into every lit shader), so it is created only when the lights are on.
- * `spacing` > 0 (a wet road: `carLights` `perLamp`) = one spot behind each lamp (x = +-spacing), as a wet road mirrors
- * each lamp: one centred spot would put its glint in the middle, under no lamp.
+ * The tail lamps' red spill at night: one dim red spot light behind each tail lamp, aimed back and down, so it tints the
+ * road behind the car under each lamp (not the car's own rear), brighter with the brake. Starts at `at` +- `spacing` (from
+ * the physics) and moves to the model's own tail lamps (`moveTo`, `CarModel.onTaillamps`). A child of the car; like the
+ * headlights it exists from the first compile (lights are compiled into every lit shader), so it is created only when the
+ * lights are on, and not on a rain / fog day (nothing to light there).
  */
 export class TailLight {
   private readonly lights: SpotLight[] = [];
@@ -292,16 +297,24 @@ export class TailLight {
     car: Object3D,
     at: { x: number; y: number; z: number },
     private level: number,
-    spacing = 0,
+    spacing: number,
   ) {
-    for (const x of spacing > 0 ? [-spacing, spacing] : [at.x]) {
-      const light = new SpotLight(0xff1408, 0, 6.5, 0.95, 1, 2);
-      light.position.set(x, at.y, at.z);
-      light.target.position.set(x, at.y - 0.55, at.z - 3);
+    for (let i = 0; i < 2; i++) {
+      const light = new SpotLight(0xff1408, 0, 5, 0.85, 1, 2);
       car.add(light, light.target);
       this.lights.push(light);
     }
+    this.moveTo({ x: spacing, y: at.y, z: at.z });
     this.apply();
+  }
+
+  /** To the car's tail lamps: x = half their spacing, y their height, z their rearmost face (car space). */
+  moveTo(at: { x: number; y: number; z: number }): void {
+    this.lights.forEach((l, i) => {
+      const x = (i ? 1 : -1) * at.x;
+      l.position.set(x, at.y, at.z);
+      l.target.position.set(x, at.y - TAIL_AIM_DOWN, at.z - TAIL_AIM_BACK);
+    });
   }
 
   /** 0..1 lights level; 0 = off (the light stays in the scene, so no shader recompiles). */

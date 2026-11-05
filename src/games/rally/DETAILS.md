@@ -209,8 +209,15 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   same for the boot-lid half of a split tail lamp, which is also its white reversing lamp (Bimmer GT2); `lamp()` `idleGlow` does
   it inside one glow map (22B: pale red body = running lamp, strong reds = brake).
   A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
-  additive quad), and at night `game/headlights.ts` `TailLight` adds a dim red spot behind the car (road, verges) while
-  `ParticleSystem.setTaillight` tints the dust behind it; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
+  additive quad) plus a camera-facing corona per lit lens (sized to the lens, faded side-on and hidden on the far side, so a side
+  view still reads lit). At night `game/headlights.ts` `TailLight` adds two dim red spots under the model's own tail lamps
+  (`CarModel.onTaillamps`; every quality level, none on a rain / fog day where they cannot light) and
+  `ParticleSystem.setTaillight` tints the dust behind them; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
+  How a tail lamp is lit: the lens glows red and a small hot spot (the bulb / LED
+  seen through it) is driven past red and turns pale; the halo behind is tight by day in rain / fog and soft at night,
+  scaled per car by `gltf.tailHalo`. Sheet lamps (`srcPart`) light the sheet's pale-pink bulb pixels (`idleGlow`: running = spots +
+  a dim lens); `tailc` lamps get one hot spot (`chamberGlow`); the Zastava lamps have night levels and a halo. A wet road shows each
+  lit lamp as a streak (`game/lamp-reflections.ts`, a `map` with alpha; tail lamps follow the brake).
   Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights half on) with `lamps=off|on|brake|reverse` (off = every lamp dark, on = the running lamps as the hour has them), `beam=0` hides
   the headlight beam, `quality=high` adds the bloom.
 
@@ -549,8 +556,12 @@ ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sou
   the canopy. Never give a system a fixed slice; the ground near the car is built whatever it costs (`URGENT_MS`).
 - No garbage in per-frame or per-texel loops: hot loops take plain numbers and typed arrays (`splatEllipse` in
   world/canopy-shadows.ts).
+- Per-instance caches live on the instance (`ScatterInstance.streamed`), never in a `WeakMap` over every scatter
+  instance: one with 300k+ entries made 30-50 ms GC pauses.
 - Big GPU uploads go up in row bands (`copyTextureToTexture`), never whole while driving.
-- Never write into a buffer the GPU drew from last frame: rotate copies (`COPIES` in game/tyre-marks.ts).
+- Never write into a buffer the GPU drew from last frame: rotate copies (`COPIES` in game/tyre-marks.ts,
+  world/far-shadow.ts) and upload only the used range. A buffer drawn but never written turns static on ANGLE / D3D11 and
+  its next write waits for the GPU: the tyre marks re-upload one quad every frame.
 - Canvas textures use a CPU-backed canvas (`willReadFrequently`); gantry clocks redraw only near the car (`CLOCK_NEAR`).
 
 **Draw calls**
@@ -566,6 +577,8 @@ ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sou
 - Many materials = many draws: use a texture array (`engine/texture-array.ts`). A custom shader scales
   `envMapIntensity`, never replaces it.
 - Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).
+- Empty InstancedMeshes are hidden (each still costs a draw setup). A split by camera distance runs before the render
+  (the road `DistanceCull` calls `userData.beforeRender`), not in `onBeforeRender`, which needs a visible mesh.
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**

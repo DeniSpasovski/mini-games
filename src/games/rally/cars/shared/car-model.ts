@@ -243,8 +243,9 @@ function markHeadLamp<M extends Material & { emissiveIntensity: number }>(
 function markBrakeLamp<M extends Material & { emissiveIntensity: number }>(
   m: M,
   on: number,
+  night?: LampNight,
 ): M {
-  m.userData.brakeLamp = { off: m.emissiveIntensity, on };
+  m.userData.brakeLamp = { off: m.emissiveIntensity, on, night };
   return m;
 }
 
@@ -277,9 +278,10 @@ const redReflectorMat = tintedReflector(0x5c0509, 0.009, 0xff1a10);
 const amberReflectorMat = tintedReflector(0x9a4c06, 0.08);
 const redLensMat = tintedLens(0x8a0a14, 0.24);
 // Brake lamps: glow off / with the brake pedal down (CarModel.setBrake).
-markBrakeLamp(tailMat, 3);
-markBrakeLamp(redReflectorMat, 1.4);
-markBrakeLamp(redLensMat, 2.7);
+// With the lights on they glow at their night levels (AgX turns a bright red salmon) and get a halo and core.
+markBrakeLamp(tailMat, 3, { idle: 0.3, on: 0.65 });
+markBrakeLamp(redReflectorMat, 1.4, { idle: 0.3, on: 0.65 });
+markBrakeLamp(redLensMat, 2.7, { idle: 0.2, on: 0.5 });
 const amberLensMat = tintedLens(0xd88214, 0.24);
 /** Tyres: vertex colours (rubber, compound ring, road dust) - cars/shared/tyre-mesh.ts. */
 const tireVertexMat = new MeshStandardMaterial({
@@ -373,6 +375,8 @@ function getMeshMaterial(): MeshStandardMaterial {
   return meshMat;
 }
 
+/** Amber lens parts (`partMaterial` names) next to a red lamp: the red halo is cut over them (`LampHalos` `covers`). */
+const AMBER_LENSES = new Set(['amber', 'amberweave']);
 /** Extra emissive intensity of a tail lamp with the lights on (night), up to its full brake glow. */
 const TAIL_NIGHT_GLOW = 1;
 /**
@@ -382,19 +386,29 @@ const TAIL_NIGHT_GLOW = 1;
  */
 const TAIL_DAY_GLOW = 1;
 const TAIL_DAY_BRAKE = 1.8;
+/**
+ * Day brake level cap: a red pushed past it turns salmon / orange under AgX; a brighter lamp scales running + brake down
+ * alike. A lamp with a glow map (darker than its plain emissive) counts at `TAIL_DAY_MAP` of its level.
+ */
+const TAIL_DAY_MAX = 1.1;
+const TAIL_DAY_MAP = 0.6;
+/** A lamp whose running light is its hot spots alone (`idleGlow` map, a small lit area) drives them this much harder by day. */
+const DAY_SPOT = 1.8;
 const _dayRed = new Color();
 /**
  * By day the glow's green / blue are scaled by this: a white-emissive lamp sheet pushed bright would turn salmon under
  * the tone mapping (AgX desaturates bright reds); a real red lens stays deep red.
  */
-const TAIL_DAY_RED = 0.35;
+const TAIL_DAY_RED = 0.2;
 /** Halo strength round the red tail lamps (`LampHalos`): running light at night, brake pedal at night / by day (rain / fog). */
-const HALO_IDLE = 0.11;
-const HALO_BRAKE_NIGHT = 0.26;
-const HALO_IDLE_DAY = 0.05;
-const HALO_BRAKE_DAY = 0.16;
+const HALO_IDLE = 0.045;
+const HALO_BRAKE_NIGHT = 0.15;
+const HALO_IDLE_DAY = 0.08;
+const HALO_BRAKE_DAY = 0.24;
 /** Halo strength round the head lamps with the lights fully on (night). */
 const HALO_HEAD = 1.1;
+/** The tail glow's tightness by day (`LampHalos.setSharp`). */
+const HALO_SHARP_DAY = 2;
 /** Share of the headlamp glare by day (lights on in rain / fog). */
 const HEAD_DAY_GLARE = 0.5;
 /** How far (m) a chrome piece's centre may sit outside the profile's lamp box and still be a head lamp bowl (`gltf.headBowls`). */
@@ -478,6 +492,9 @@ export class CarModel {
   /** The modelled head lamps' position (once they are known), see `onHeadlamps`. */
   headlampMount: HeadlampMount | null = null;
   private headlampListeners: ((m: HeadlampMount) => void)[] = [];
+  /** The modelled tail lamps' position (z = their rearmost face), see `onTaillamps`. */
+  taillampMount: HeadlampMount | null = null;
+  private taillampListeners: ((m: HeadlampMount) => void)[] = [];
   /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
   /** 0..1 lights level (`setLamps`). */
   private lampsOn = 0;
@@ -1193,10 +1210,13 @@ export class CarModel {
     this.splitHeadExtras();
     const redLamps: Mesh[] = [];
     const headMeshes: Mesh[] = [];
+    const amberLenses: Mesh[] = [];
     this.root.traverse((o) => {
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
       const m = mesh.material as MeshStandardMaterial;
+      if (m && !Array.isArray(m) && mesh.visible && AMBER_LENSES.has(m.name))
+        amberLenses.push(mesh);
       if (
         !m ||
         Array.isArray(m) ||
@@ -1227,16 +1247,28 @@ export class CarModel {
     const all = [...new Set(own.values())];
     this.brakeLamps = all.filter((m) => m.userData.brakeLamp);
     this.headLamps = all.filter((m) => m.userData.headLamp);
-    this.addHalos(redLamps);
+    this.addHalos(redLamps, amberLenses);
     this.addHeadHalos(headMeshes);
     this.brakeLevel = -1;
     this.applyHeadLamps();
   }
 
-  /** Calls `f` with the head lamps' position whenever it is known or changes (the imported model's own lamps). */
-  onHeadlamps(f: (m: HeadlampMount) => void): void {
+  /** Calls `f` with the tail lamps' position whenever it is known or changes (the imported model's own lamps). Returns the unsubscribe. */
+  onTaillamps(f: (m: HeadlampMount) => void): () => void {
+    this.taillampListeners.push(f);
+    if (this.taillampMount) f(this.taillampMount);
+    return () => {
+      this.taillampListeners = this.taillampListeners.filter((g) => g !== f);
+    };
+  }
+
+  /** Calls `f` with the head lamps' position whenever it is known or changes (the imported model's own lamps). Returns the unsubscribe. */
+  onHeadlamps(f: (m: HeadlampMount) => void): () => void {
     this.headlampListeners.push(f);
     if (this.headlampMount) f(this.headlampMount);
+    return () => {
+      this.headlampListeners = this.headlampListeners.filter((g) => g !== f);
+    };
   }
 
   /** The glow in front of the head lamps and where they are (the beam starts there), once their glow maps have loaded. */
@@ -1606,7 +1638,7 @@ export class CarModel {
         }
         part.material = this.brakeOnlyMaterial(
           part.material as MeshStandardMaterial,
-          i === 1,
+          i === 1 || !!this.def.model.gltf?.centreReverse,
         );
       }
     }
@@ -1649,7 +1681,7 @@ export class CarModel {
   }
 
   /** The glow round the red lamp meshes (own glow maps: once a lamp sheet has loaded). */
-  private addHalos(redLamps: Mesh[]): void {
+  private addHalos(redLamps: Mesh[], amberLenses: Mesh[]): void {
     this.halos?.dispose();
     this.halos = undefined;
     this.reverseHalos?.dispose();
@@ -1669,8 +1701,13 @@ export class CarModel {
       this.halos = new LampHalos(
         redLamps,
         this.body.matrixWorld.clone().invert(),
+        { covers: amberLenses },
       );
       this.body.add(this.halos.group);
+      const tail = this.halos.mount(this.body.matrix, true);
+      // No running lamp boxes (brake-only ones are left out): no mount, not the last build's.
+      this.taillampMount = tail;
+      if (tail) for (const f of this.taillampListeners) f(tail);
       const white = redLamps.filter((m) => {
         const { userData } = m.material as Material;
         return userData.reverseHalo && userData.brakeLamp?.reverseGlow;
@@ -1696,8 +1733,11 @@ export class CarModel {
   private applyHalos(l: number): void {
     // A night glow; by day only in rain / fog (the wet air round a lit lamp), softer. A clear day has none.
     const night = this.lampsDay ? 0 : this.lampsOn;
-    const idle = this.lampsDay ? HALO_IDLE_DAY : HALO_IDLE * night;
-    const brake = this.lampsDay ? HALO_BRAKE_DAY : HALO_BRAKE_NIGHT * night;
+    const gain = this.def.model.gltf?.tailHalo ?? 1;
+    const idle = (this.lampsDay ? HALO_IDLE_DAY : HALO_IDLE * night) * gain;
+    const brake =
+      (this.lampsDay ? HALO_BRAKE_DAY : HALO_BRAKE_NIGHT * night) * gain;
+    this.halos?.setSharp(this.lampsDay ? HALO_SHARP_DAY : 1);
     this.halos?.setLevel(idle + (brake - idle) * l, brake * l);
     const reverse =
       this.reversing && l < 0.02
@@ -1777,13 +1817,25 @@ export class CarModel {
         this.lampsOn;
       // Brake-only parts (no running glow at night: inner brake lamps, third brake light) stay dark by day too.
       const running = (night?.idle ?? 1) > 0;
+      const dayScale = Math.min(
+        1,
+        TAIL_DAY_MAX /
+          (on * TAIL_DAY_BRAKE * (m.userData.brakeGlow ? TAIL_DAY_MAP : 1)),
+      );
       const idle =
         this.lampsDay && running
-          ? Math.max(nightIdle, on * TAIL_DAY_GLOW * this.lampsOn)
+          ? Math.max(
+              nightIdle,
+              on *
+                dayScale *
+                TAIL_DAY_GLOW *
+                this.lampsOn *
+                (idleGlow ? DAY_SPOT : 1),
+            )
           : nightIdle;
       // The night brake level is tuned for the dark (AgX); a clear day keeps the lamp's own brake glow.
       const full = this.lampsDay
-        ? on * TAIL_DAY_BRAKE
+        ? on * dayScale * TAIL_DAY_BRAKE
         : on + ((night?.on ?? on) - on) * this.lampsOn;
       const lit = idle + (full - idle) * l;
       const reverseLamp = reversing && l < 0.02;
@@ -1815,6 +1867,7 @@ export class CarModel {
     this.halos?.dispose();
     this.headHalos?.dispose();
     this.headlampListeners = [];
+    this.taillampListeners = [];
     this.reverseHalos?.dispose();
     for (const g of this.wheelGroups) for (const geo of g.geoms) geo.dispose();
     this.clearBadge();

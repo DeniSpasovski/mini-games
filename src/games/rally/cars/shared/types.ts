@@ -185,6 +185,10 @@ export interface CarGltfDef {
    * dark as a running lamp, lit with the brake and white in reverse gear (CarModel.splitCentreLamps).
    */
   bootLamps?: number;
+  /** Scales the tail lamps' halo (a big flat lamp, such as the 190E's, needs more than the default 1 to read as lit by day). */
+  tailHalo?: number;
+  /** The centre lamp (`splitCentreLamp`) has red and white LEDs: red with the brake, white in reverse gear (Mustang GT3, in its diffuser). */
+  centreReverse?: boolean;
   /**
    * The head lamps are the model's chrome bowls (no separate bulb): chrome pieces in front of the centre of mass and inside
    * this [|x|0, |x|1, y0, y1] box (true = the profile's front lamp box) light up with the headlights (CarModel.splitHeadBowls); with `headBulbs` they glow from the bulbs out.

@@ -50,6 +50,11 @@ const REFRESH = 4000;
 const BUDGET = 1.5;
 /** The box snaps to this share of its half-size; the map is re-rendered only when the snapped box moves. */
 const SNAP = 0.1;
+/**
+ * Crown proxy meshes written in turn: an upload never goes into the buffer the last far pass drew from (ANGLE / D3D11
+ * waits for the GPU: a ~200 ms freeze on the test map), and only the used range goes up.
+ */
+const COPIES = 2;
 
 /**
  * The far shadow map: a second sun depth map over a large box ahead of the camera (`farShadowExtent`, ~4x the sun's
@@ -68,7 +73,9 @@ export class FarShadow {
   private target: WebGLRenderTarget;
   /** Camera handed to the shadow pass: only its layers matter (the pass culls with the light's camera). */
   private view = new PerspectiveCamera();
-  private proxies: InstancedMesh;
+  private proxies: InstancedMesh[] = [];
+  /** The copy drawn now (`COPIES`). */
+  private drawn = 0;
   private mats = new Float32Array(16 * 1024);
   private count = 0;
   private job: Generator<void> | null = null;
@@ -118,21 +125,23 @@ export class FarShadow {
     l.shadow.map = this.target;
 
     const proxy = new IcosahedronGeometry(1, 1);
-    this.proxies = new InstancedMesh(
-      proxy,
-      new MeshBasicMaterial({ colorWrite: false }),
-      1024,
-    );
-    this.proxies.count = 0;
-    this.proxies.castShadow = true;
-    this.proxies.frustumCulled = false;
-    this.proxies.layers.set(FAR_SHADOW_LAYER);
-    this.proxies.customDepthMaterial = new MeshDepthMaterial({
+    const material = new MeshBasicMaterial({ colorWrite: false });
+    const depthMat = new MeshDepthMaterial({
       alphaHash: true,
       opacity: CROWN_DENSITY,
     });
-    this.proxies.name = 'far shadow crowns';
-    scene.add(this.proxies);
+    for (let k = 0; k < COPIES; k++) {
+      const p = new InstancedMesh(proxy, material, 1024);
+      p.count = 0;
+      p.visible = k === 0;
+      p.castShadow = true;
+      p.frustumCulled = false;
+      p.layers.set(FAR_SHADOW_LAYER);
+      p.customDepthMaterial = depthMat;
+      p.name = 'far shadow crowns';
+      scene.add(p);
+      this.proxies.push(p);
+    }
 
     // One degenerate triangle with an empty draw range: drawn (so onBeforeRender runs), never rasterised.
     const none = new BufferGeometry().setAttribute(
@@ -283,13 +292,13 @@ export class FarShadow {
   }
 
   private upload(): void {
-    let p = this.proxies;
+    const k = (this.drawn + 1) % COPIES;
+    let p = this.proxies[k];
     if (p.instanceMatrix.count < this.count) {
-      const grown = new InstancedMesh(
-        p.geometry,
-        p.material,
-        Math.ceil(this.count * 1.25),
-      );
+      // Doubled: a new buffer (a full upload) only a few times a drive.
+      let cap = p.instanceMatrix.count;
+      while (cap < this.count) cap *= 2;
+      const grown = new InstancedMesh(p.geometry, p.material, cap);
       grown.castShadow = true;
       grown.frustumCulled = false;
       grown.layers.mask = p.layers.mask;
@@ -298,11 +307,17 @@ export class FarShadow {
       this.scene.remove(p);
       p.dispose();
       this.scene.add(grown);
-      this.proxies = p = grown;
+      this.proxies[k] = p = grown;
     }
-    p.instanceMatrix.array.set(this.mats.subarray(0, this.count * 16));
-    p.instanceMatrix.needsUpdate = true;
+    const im = p.instanceMatrix;
+    im.array.set(this.mats.subarray(0, this.count * 16));
+    im.clearUpdateRanges();
+    im.addUpdateRange(0, this.count * 16);
+    im.needsUpdate = true;
     p.count = this.count;
+    p.visible = true;
+    this.proxies[this.drawn].visible = false;
+    this.drawn = k;
     this.pending = true;
     // Crowns just inside the edge still shade the ground past it: fade out over the last 15% (minus a shadow).
     const end = this.extent * WINDOW - 15;
@@ -316,11 +331,12 @@ export class FarShadow {
 
   dispose(): void {
     setFarShadow(null);
-    this.scene.remove(this.proxies, this.trigger);
-    this.proxies.geometry.dispose();
-    (this.proxies.material as MeshBasicMaterial).dispose();
-    this.proxies.customDepthMaterial?.dispose();
-    this.proxies.dispose();
+    const p = this.proxies[0];
+    this.scene.remove(...this.proxies, this.trigger);
+    p.geometry.dispose();
+    (p.material as MeshBasicMaterial).dispose();
+    p.customDepthMaterial?.dispose();
+    for (const c of this.proxies) c.dispose();
     this.trigger.geometry.dispose();
     (this.trigger.material as MeshBasicMaterial).dispose();
     this.target.depthTexture?.dispose();

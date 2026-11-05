@@ -236,6 +236,8 @@ export const fordGt3: CarDef = {
       ],
       // One glare on each light, not one between them.
       bulbGlares: true,
+      // The diffuser's centre lamp: red with the brake, white in reverse.
+      centreReverse: true,
       // Red wing end plates (cut out of the black trim; blade and struts stay black).
       recolor: [
         {

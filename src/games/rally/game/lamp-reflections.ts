@@ -1,7 +1,9 @@
 import {
   AdditiveBlending,
-  CanvasTexture,
   Color,
+  DataTexture,
+  LinearFilter,
+  RGBAFormat,
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
@@ -9,27 +11,40 @@ import {
   type Object3D,
 } from 'three';
 
-/** Streak length (m) at its longest and its width (m). */
-const LENGTH = 5;
-const WIDTH = 0.35;
+/** Streak length (m) at its longest (tail, head lamps) and its width (m). */
+const LENGTH = 4.5;
+const HEAD_LENGTH = 7;
+const WIDTH = 0.24;
+/** How far (m) the streaks hover over the road: the gravel is lumpy, a flat sheet right on it is hidden by the bumps. */
+const LIFT = 0.05;
 
-/** Fade along the streak (strong at the lamp, gone towards the camera) and across it. */
-function streakTexture(): CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 32;
-  c.height = 128;
-  const g = c.getContext('2d')!;
-  const img = g.createImageData(32, 128);
-  for (let y = 0; y < 128; y++)
-    for (let x = 0; x < 32; x++) {
+/**
+ * Fade along the streak (strong at the lamp, gone towards the camera) and across it: the glint peaks at `peak` (0..1 of
+ * the length) over `spread`. A head lamp's white glint is spread long and soft (a short one reads as a white patch).
+ */
+function streakTexture(peak: number, spread: number): DataTexture {
+  const w = 32;
+  const h = 128;
+  const data = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
       const u = (x + 0.5) / 16 - 1;
-      const v = (y + 0.5) / 128;
+      const v = (y + 0.5) / h;
+      // A wet road mirrors the lamp a lamp-height below the road: the glint peaks a little way from the car and is smeared
+      // along the view, thinning towards the camera (not strongest right under the lamp).
       const a =
-        Math.max(0, 1 - u * u) ** 2 * Math.exp(-v * 3.2) * Math.min(1, v * 12);
-      img.data.set([255, 255, 255, Math.round(a * 255)], (y * 32 + x) * 4);
+        Math.max(0, 1 - u * u) ** 2 *
+        (Math.exp(-(((v - peak) / spread) ** 2)) * 0.85 +
+          0.15 * Math.exp(-v * 3)) *
+        Math.min(1, v * 14);
+      // Texture row 0 is the quad's far (camera) end: v = 0 is written to the last row, under the lamp.
+      data.set([255, 255, 255, Math.round(a * 255)], ((h - 1 - y) * w + x) * 4);
     }
-  g.putImageData(img, 0, 0);
-  return new CanvasTexture(c);
+  const t = new DataTexture(data, w, h, RGBAFormat);
+  t.minFilter = t.magFilter = LinearFilter;
+  t.generateMipmaps = false;
+  t.needsUpdate = true;
+  return t;
 }
 
 interface Lamp {
@@ -51,7 +66,8 @@ export class LampReflections {
   private readonly lamps: Lamp[] = [];
   private readonly tmp = new Vector3();
   private readonly fwd = new Vector3();
-  private readonly tex = streakTexture();
+  private readonly tex = streakTexture(0.1, 0.24);
+  private readonly headTex = streakTexture(0.2, 0.5);
   private head = 0;
   private tail = 0;
   private brake = 0;
@@ -95,13 +111,13 @@ export class LampReflections {
   ): void {
     const mat = new MeshBasicMaterial({
       color,
-      alphaMap: this.tex,
+      map: facing > 0 ? this.headTex : this.tex,
       transparent: true,
       blending: AdditiveBlending,
       depthWrite: false,
       polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
     });
     mat.defines = { RALLY_ADDITIVE: 1 };
     const mesh = new Mesh(g, mat);
@@ -109,6 +125,12 @@ export class LampReflections {
     mesh.renderOrder = 8;
     this.car.parent?.add(mesh);
     this.lamps.push({ mesh, mat, at, facing, color });
+  }
+
+  /** The streaks under the car's own tail lamps (`CarModel.onTaillamps`): x = half their spacing, y, z (car space). */
+  moveTail(at: { x: number; y: number; z: number }): void {
+    for (const l of this.lamps)
+      if (l.facing < 0) l.at.set(Math.sign(l.at.x) * at.x, at.y, at.z);
   }
 
   /** Lamp levels: head 0..1, tail running 0..1, brake pedal 0..1. */
@@ -129,7 +151,7 @@ export class LampReflections {
     this.fwd.set(0, 0, 1).transformDirection(m);
     for (const l of this.lamps) {
       const p = l.mesh.position
-        .set(l.at.x, this.ground + 0.02, l.at.z)
+        .set(l.at.x, this.ground + LIFT, l.at.z)
         .applyMatrix4(m);
       const to = this.tmp.subVectors(cam, p);
       to.y = 0;
@@ -147,13 +169,17 @@ export class LampReflections {
       const level =
         l.facing > 0
           ? this.head
-          : this.tail * (0.35 + 0.65 * this.brake) + this.brake * 0.6;
+          : this.tail * (0.6 + 0.4 * this.brake) + this.brake * 0.5;
       const a = this.wet * level * face ** 1.5;
       l.mesh.visible = a > 0.01;
       if (!l.mesh.visible) continue;
       l.mesh.rotation.set(0, Math.atan2(to.x, to.z), 0);
-      l.mesh.scale.set(WIDTH, 1, Math.min(LENGTH, d * 0.6));
-      l.mat.opacity = Math.min(1, a) * (l.facing > 0 ? 0.9 : 0.8);
+      l.mesh.scale.set(
+        WIDTH,
+        1,
+        Math.min(l.facing > 0 ? HEAD_LENGTH : LENGTH, d * 0.6),
+      );
+      l.mat.opacity = Math.min(1, a) * (l.facing > 0 ? 0.5 : 0.8);
     }
   }
 
@@ -164,5 +190,6 @@ export class LampReflections {
     }
     this.lamps[0]?.mesh.geometry.dispose();
     this.tex.dispose();
+    this.headTex.dispose();
   }
 }

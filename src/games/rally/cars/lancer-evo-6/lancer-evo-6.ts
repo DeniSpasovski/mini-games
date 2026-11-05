@@ -232,6 +232,8 @@ export const lancerEvo6: CarDef = {
     doorBadge: { z: 0.26, y: 0.65, tilt: 2.3 },
     // No procedural suspension: the chassis keeps its own parts (trim).
     gltf: {
+      // The lamp sheet is lit over most of its box: a lighter halo than the default.
+      tailHalo: 0.6,
       file: 'lancer_evo_6.glb',
       credit:
         '"Mitsubishi Lancer Evolution 6" by vecarz, sketchfab.com/3d-models/mitsubishi-lancer-evolution-6-wwwvecarzcom-c3d5dcd8ff724bc88c46760d92fc5188, CC BY 4.0 (converted + repainted)',

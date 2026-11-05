@@ -144,8 +144,9 @@
         "material": "lenscover"
       },
       {
+        "$comment": "amber blinker = the top of the lens, down to where the red reflector cup behind it ends (the lower ~55% is red)",
         "mat": "Fiat_126P_Brake_Lights",
-        "y": [0.533, 1],
+        "y": [0.566, 1],
         "material": "amberweave"
       },
       {
