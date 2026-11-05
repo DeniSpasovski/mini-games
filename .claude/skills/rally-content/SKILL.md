@@ -31,9 +31,9 @@ Rules (performance — late-2000s look must not lag):
   DETAILS.md "Draw calls"). Every variant's parts must share the same attributes (position, normal, color, uv) or the
   asset falls back to one draw per variant; keep LOD0 tree crowns small - sets over the cap are not merged.
 - Front of props faces +Z, origin at ground level.
-- Alpha grass cards: `foliage_card` (olive green) / `foliage_card_spring` (bright green) / `foliage_card_dry`
-  (golden) - the card TEXTURE carries the colour,
-  vertex colour only varies it (a green texture x golden vertex colour = dark olive).
+- Alpha grass cards: `foliage_card` / `foliage_card_spring` / `foliage_card_dry` wear the baked plant atlases
+  (`engine/plants/*.webp`, `scripts/plants/bake-plants.mjs`); the material colour (`grass.ts` `SHEET_GAIN` / `cardColor`,
+  band-tested) sets the tone, vertex colour only varies it. Rebake to change a sheet's look, never repaint the webp.
 - Buildings (`assets/builders/buildings.ts`): UNIT footprint (x, z in [-0.5, 0.5], y 0..1), scaled per
   instance with `ScatterInstance.sx / sy / sz` (width / height / depth) and a `box` collider; keep details
   relative. `house_pitched` walls end at `HOUSE_WALL_FRACTION` of the height (roof above), `building_flat` styles
