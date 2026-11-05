@@ -67,13 +67,14 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 
 ## Controls
 
-| Input    | Keys                                                                                                                                                            |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                |
-|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                       |
-|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev) |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B                                      |
-| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                         |
+| Input    | Keys                                                                                                                                                                                                                           |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                               |
+|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                      |
+|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B                                                                                                     |
+| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit |
+| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                        |
 
 ## Game flow
 
@@ -114,12 +115,45 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   (`breakable` assets, `slow` in the catalog, `world/breakables.ts`): the car drives over them and they tip over until the stage restarts.
 - **Finish:** the car brakes itself to a stop on the run-off (`finishStopControls()`), so every map needs a run-off. The
   autopilot (`F8`, finish stop) runs per 240 Hz physics step, exactly as in the tests.
-- **Results:** time, delta to the best run, sector chips, then the stage top 10 (all cars / this car) with each run's set-up.
+- **Results:** time, delta to the best run, sector chips, **Watch replay** (Replays below), then the stage top 10 (all cars / this car) with each run's set-up.
   Stored per stage in localStorage (`rally.times.<stage>`). `STAGE_TIMES_VERSIONS` + `CAR_TIMES_VERSIONS` (`game/stage.ts`): each run stores its stage and car version. On a bump
   `migrateTimes` keeps the runs, tags them with the version they were set on (`RunRecord.ver` / `carVer`) and lists them below all
   current runs, dimmed, behind a divider; the bumped stage's / car's per-car bests move into the leaderboard as old runs. Times saved before per-stage / per-car versions show as `v0`. Each run also stores `season` + `hour`; runs without them show Summer and the stage's own time of day (`runConditions`). Stage road change = bump that stage (a map's road change bumps every stage on it); a car's
   handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Agents bump
   them as part of the change (AGENTS.md).
+
+## Replays (`game/replay/`)
+
+**Dev-only for now** (`REPLAYS_ENABLED` = not `RELEASE_BUILD`, `store.ts`): the dev server and `npm run build:test` record
+every run; the release build records nothing and has no replay entry point. A run can be watched from the results, from
+Stage times (▶ on a run with a replay, "Replays on this device" list) or by URL (`?replay=<id>` on the play URL; `replayUrl()`). Research, sizes and options: `sources/rally/REPLAY.md` (local).
+
+- **Recording** (`recorder.ts`): state, not inputs (re-simulating from rounded inputs drifts hundreds of metres in a minute).
+  `RallyGame.frame` calls `recorder.step` after each physics step; every 4th step (60 Hz) it stores pose, per-wheel omega /
+  temperatures and car channels (rpm, gear, pedals, steer, impact, flags, stage clock, progress; `format.ts`). Zero physics
+  changes: `Vehicle.probeGround()` is the old first half of `suspensionPass`, split out so playback can re-run the wheel rays.
+- **File** (`codec.ts`, DOM-free): `RRP` + format byte + JSON header (stage, car, set-up, conditions, versions, splits) + body:
+  columns quantised (`WHEEL_QUANT` / `CAR_QUANT`, pos 1 mm), delta-coded, zigzag varints, gzip. ~200-260 B/s = 18-90 KB a
+  stage; over `REPLAY_BUDGET` (100 KB) the rate halves (max 30 Hz). Bump `REPLAY_FORMAT` on a layout change (old files are refused).
+- **Storage** (`store.ts`): IndexedDB `rally-replays` (`meta` + `data`); every finished ranked run is an **auto save**, nothing
+  is evicted (`navigator.storage.persist()` asked on the first save). **Save replay** (results, replay bar) or **Name** (Stage
+  times) makes a **named save** (`meta.name`, `cleanName`). Stage times lists named saves first, then the newest auto saves,
+  each with rename and delete (asks once), over a storage line with **Delete auto saves** (all stages; named saves never,
+  personal bests kept unless unticked: `autoDeleteIds`). From `REPLAY_SOFT_LIMIT` (1000) replays the line becomes a notice
+  (also on the results) with size and the browser quota; saving never stops. Failures are silent: never a lost time.
+- **Playback** (`playback.ts`, `session.ts`): no physics; `ReplayTrack.apply` poses the real `Vehicle` (Catmull-Rom position,
+  slerp, velocities from the frames, `probeGround`, derived wheel slide / roll speeds), so model, dust, tyre marks, sound and
+  HUD run as in a drive. `ReplayClock` feeds the HUD the recorded clock and sector colours.
+- **Cameras** (`replay-cameras.ts`, `tv-cameras.ts`): Director (auto), TV, Chase, Far, Bonnet, Bumper, Heli, Orbit (drag /
+  wheel). TV cameras: one outside every big corner (> 0.6 rad over 40 m) plus fillers on long straights, placed by terrain
+  line of sight past tree crowns / colliders of the corridor, planned at the finish in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). The director shows big corners from their TV camera and cycles
+  the others between them; no cut under 2.5 s or in the air.
+- **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed
+  0.25-2x, camera picker (a dropdown under 1360 px), Save (name), Clean feed, Record video, Exit (back to results, or the menu for a URL replay).
+- **Video** (`video.ts`): `MediaRecorder` on the canvas + game audio (mp4 / webm), clean feed, real time; downloads on stop.
+- **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`;
+  `trace(s, every)` / `copyTrace()` / `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel
+  load / slip / forces) as TSV. The F2 panel has the same as buttons. `load` of another stage / car reloads into it.
 
 ## UI style
 

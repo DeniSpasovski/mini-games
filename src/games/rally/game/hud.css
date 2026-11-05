@@ -606,6 +606,28 @@ body {
   pointer-events: none;
   z-index: 20;
 }
+/* Debug exports on top of the F2 panel (copy the run's replay / physics trace). */
+.telemetry-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  pointer-events: auto;
+}
+.telemetry-actions:empty {
+  display: none;
+}
+.telemetry-actions button {
+  padding: 3px 8px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  font: 600 12px/1.2 var(--ui-font-body);
+  cursor: pointer;
+}
+.telemetry-actions button:hover {
+  border-color: var(--ui-accent);
+}
 
 /* --- touch controls (touch-controls.ts) ------------------------------------ */
 .touch-controls {

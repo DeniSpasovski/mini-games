@@ -1,0 +1,436 @@
+/* Replay bar (replay-ui.ts): the Stage Board look, tokens only (game/ui-tokens.css; STYLEGUIDE.md "Replay"). */
+.replay-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  color: var(--ui-text);
+  font-family: var(--ui-font-body);
+  user-select: none;
+}
+.replay-ui.hidden {
+  display: none;
+}
+.replay-ui > * {
+  pointer-events: auto;
+}
+
+/* Camera plate, top right: REPLAY on amber, then what the director shows. */
+.rp-plate {
+  position: absolute;
+  top: 14px;
+  right: 24px;
+  display: flex;
+  align-items: stretch;
+  isolation: isolate;
+  font: italic 700 18px/1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.rp-plate > span {
+  position: relative;
+  padding: 7px 14px 8px;
+}
+.rp-plate > span::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-glass);
+  transform: skewX(var(--ui-slant));
+}
+.rp-plate .rp-tag {
+  color: var(--ui-on-accent);
+}
+.rp-plate .rp-tag::before {
+  background: var(--ui-accent);
+}
+.rp-plate .rp-recording {
+  color: var(--ui-text);
+}
+.rp-plate .rp-recording::before {
+  background: var(--ui-penalty);
+}
+.rp-plate [hidden] {
+  display: none;
+}
+
+/* The transport slab along the bottom. */
+.rp-bar {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 16px;
+  padding: 12px 22px 10px;
+  isolation: isolate;
+}
+.rp-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-glass);
+  border-left: 4px solid var(--ui-accent);
+  transform: skewX(var(--ui-slant));
+}
+
+.rp-timeline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.rp-time {
+  min-width: 5.2em;
+  font: italic 800 24px/1 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
+}
+.rp-time.total {
+  text-align: right;
+  color: var(--ui-text-2);
+}
+.rp-track {
+  position: relative;
+  flex: 1;
+  height: 34px;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+.rp-track:focus-visible .rp-rail {
+  box-shadow: 0 0 0 2px var(--ui-text);
+}
+.rp-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 18px;
+  height: 6px;
+  background: var(--ui-raised-hover);
+  transform: skewX(var(--ui-slant));
+}
+.rp-fill {
+  width: 0;
+  height: 100%;
+  background: var(--ui-accent);
+}
+.rp-head {
+  position: absolute;
+  top: 12px;
+  width: 6px;
+  height: 18px;
+  margin-left: -3px;
+  background: var(--ui-text);
+  transform: skewX(var(--ui-slant));
+  box-shadow: 0 0 0 2px rgb(var(--ui-glass-rgb) / 0.9);
+}
+.rp-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rp-mark {
+  position: absolute;
+  top: 14px;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  background: var(--ui-text-2);
+}
+.rp-mark b {
+  position: absolute;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 700 12px/1 var(--ui-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-text-2);
+  white-space: nowrap;
+}
+.rp-mark.go,
+.rp-mark.finish {
+  background: var(--ui-text);
+}
+.rp-mark.go b,
+.rp-mark.finish b {
+  color: var(--ui-text);
+}
+
+.rp-controls {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 8px;
+}
+.rp-transport {
+  display: flex;
+  gap: 6px;
+}
+.rp-btn {
+  position: relative;
+  isolation: isolate;
+  width: 46px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  cursor: pointer;
+  outline: none;
+}
+.rp-btn svg {
+  width: 22px;
+  height: 22px;
+  vertical-align: middle;
+}
+.rp-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-raised);
+  border-left: 4px solid transparent;
+  transform: skewX(var(--ui-slant));
+  transition:
+    background var(--ui-move),
+    border-color var(--ui-move);
+}
+.rp-btn:hover::before,
+.rp-btn:focus-visible::before {
+  background: var(--ui-raised-hover);
+  border-left-color: var(--ui-accent);
+}
+.rp-btn:focus-visible::before,
+[data-input='pad'] .rp-btn:focus::before {
+  box-shadow: 0 0 0 2px var(--ui-text);
+  border-left-color: var(--ui-accent);
+}
+[data-input='pad'] .replay-ui :focus {
+  outline: none;
+}
+[data-input='pad'] .replay-ui .menu-btn:focus::before,
+[data-input='pad'] .replay-ui .menu-seg button:focus::before {
+  border-left-color: var(--ui-accent);
+  box-shadow: 0 0 0 2px var(--ui-text);
+}
+.rp-btn.play {
+  width: 58px;
+  color: var(--ui-on-accent);
+}
+.rp-btn.play::before {
+  background: var(--ui-accent);
+  border-left-color: var(--ui-text);
+}
+.rp-btn.play:hover::before {
+  background: var(--ui-accent);
+  filter: brightness(1.08);
+}
+
+.rp-speed button {
+  flex: none;
+  min-width: 46px;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+.rp-cams {
+  flex: 1;
+  min-width: 0;
+}
+.rp-cams button {
+  padding: 7px 4px;
+  font-size: 15px;
+}
+.rp-cam-pick {
+  display: none;
+}
+.rp-cam-pick select {
+  padding: 7px 30px 7px 12px;
+  appearance: none;
+  border: 0;
+  border-left: 3px solid var(--ui-accent);
+  border-radius: 0;
+  background: var(--ui-raised-hover);
+  color: var(--ui-text);
+  font: 700 16px/1.2 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.rp-cam-pick select option {
+  background: var(--ui-raised-solid);
+  color: var(--ui-text);
+  font: 500 15px var(--ui-font-body);
+  text-transform: none;
+}
+.rp-actions {
+  display: flex;
+  gap: 8px;
+}
+.rp-actions .menu-btn {
+  white-space: nowrap;
+}
+.rp-video svg {
+  width: 13px;
+  height: 13px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  color: var(--ui-penalty);
+}
+.rp-video.on::before {
+  background: rgb(var(--ui-glass-rgb) / 0.9);
+  border-left-color: var(--ui-penalty);
+}
+
+.rp-keys {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--ui-text-off);
+}
+.rp-keys b {
+  color: var(--ui-text-2);
+  font-weight: 600;
+}
+html.touch .rp-keys {
+  display: none;
+}
+
+/* Clean feed: nothing over the picture but a hint that fades. */
+.rp-clean-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  background: var(--ui-glass);
+  font-size: 13px;
+  color: var(--ui-text-2);
+  opacity: 0;
+  pointer-events: none;
+}
+.replay-ui.clean .rp-bar,
+.replay-ui.clean .rp-plate {
+  display: none;
+}
+.replay-ui.clean .rp-clean-hint {
+  pointer-events: auto;
+  animation: rp-hint 3s ease forwards;
+}
+/* Recording: not even the hint (the canvas is the video, but the player watches too). */
+.replay-ui.clean:has(.rp-recording:not([hidden])) .rp-clean-hint {
+  display: none;
+}
+@keyframes rp-hint {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The HUD while a replay plays: no driving hints, the dash above the bar; clean feed = no HUD. */
+.hud.replay .hud-hints {
+  display: none;
+}
+.hud.replay .hud-dash {
+  bottom: 152px;
+}
+.hud.clean {
+  display: none;
+}
+#root.replaying .touch-controls {
+  display: none;
+}
+
+/* The camera row as a dropdown where the actions need the room. */
+@media (max-width: 1360px) {
+  .rp-cams {
+    display: none;
+  }
+  .rp-cam-pick {
+    display: inline-flex;
+  }
+  .rp-controls {
+    gap: 12px;
+  }
+}
+/* Phones (landscape, ~915 x 412): two compact rows, the dash out of the way. */
+@media (max-width: 960px), (max-height: 560px) {
+  .rp-bar {
+    left: 10px;
+    right: 10px;
+    bottom: 8px;
+    padding: 6px 16px 8px;
+  }
+  .rp-time {
+    font-size: 19px;
+    min-width: 4.4em;
+  }
+  .rp-controls {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .rp-actions {
+    margin-left: auto;
+  }
+  .rp-keys {
+    display: none;
+  }
+  .rp-plate {
+    top: 8px;
+    right: 12px;
+    font-size: 15px;
+  }
+  .hud.replay .hud-dash {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .rp-speed button {
+    min-width: 38px;
+  }
+  .rp-actions .menu-btn {
+    font-size: 15px;
+    padding: 3px 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-btn::before {
+    transition: none;
+  }
+  .replay-ui.clean .rp-clean-hint {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Save (name) field over the bar's right end. */
+.rp-name-pop {
+  position: absolute;
+  right: 22px;
+  bottom: calc(100% + 8px);
+  width: min(460px, calc(100% - 44px));
+  padding: 8px;
+  background: rgb(
+    var(--ui-glass-rgb)
+  ); /* opaque: the HUD dash sits behind it */
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+}
+
+/* Results: the watch button carries the saved replay's size. */
+.res-replay small {
+  display: inline-block;
+  max-width: 11em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: -1px;
+  margin-left: 10px;
+  font: 600 12px/1 var(--ui-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ui-text-off);
+}

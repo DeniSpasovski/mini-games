@@ -23,6 +23,23 @@ export interface HudState {
   tyres?: TyreGaugeState;
 }
 
+/** What the HUD reads of the stage clock: the live StageTimer, or a replay's (game/replay/playback.ts ReplayClock). */
+export type HudStage = Pick<
+  StageTimer,
+  | 'time'
+  | 'progress'
+  | 'phase'
+  | 'splitTimes'
+  | 'sectorBounds'
+  | 'sectorTimes'
+  | 'sectorDelta'
+  | 'cutWarning'
+  | 'shortcut'
+  | 'returning'
+  | 'cutTimer'
+  | 'wrongWay'
+>;
+
 export class Hud {
   readonly el: HTMLDivElement;
   private refs: Record<string, HTMLElement> = {};
@@ -91,7 +108,7 @@ export class Hud {
     this.messageTimer = seconds;
   }
 
-  update(dt: number, s: HudState, stage: StageTimer): void {
+  update(dt: number, s: HudState, stage: HudStage): void {
     this.set('speed', String(Math.round(Math.abs(s.speedKmh))));
     this.set('gear', s.gear === -1 ? 'R' : s.gear === 0 ? 'N' : String(s.gear));
     this.set('box', s.automatic ? 'AUTO' : 'MAN');
@@ -150,7 +167,7 @@ export class Hud {
    * Progress bar split into sectors (start / splits / finish). Finished sectors
    * turn green when faster than the reference best, red when slower.
    */
-  private updateSectors(stage: StageTimer): void {
+  private updateSectors(stage: HudStage): void {
     const b = stage.sectorBounds;
     if (this.sectors.length !== b.length - 1) {
       this.refs.progress.replaceChildren();

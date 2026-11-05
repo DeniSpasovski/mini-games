@@ -14,6 +14,8 @@ import type { Vehicle } from '../physics/vehicle';
  */
 export class Telemetry {
   readonly el: HTMLDivElement;
+  private text: HTMLDivElement;
+  private actions: HTMLDivElement;
   private acc = 0;
   private lastVel = new Vector3();
   private g = new Vector3();
@@ -22,7 +24,33 @@ export class Telemetry {
     this.el = document.createElement('div');
     this.el.className = 'telemetry';
     this.el.style.display = 'none';
+    this.actions = document.createElement('div');
+    this.actions.className = 'telemetry-actions';
+    this.text = document.createElement('div');
+    this.el.append(this.actions, this.text);
     parent.append(this.el);
+  }
+
+  /** A button on top of the panel (debug exports: "Copy replay", "Copy trace"); `run` may return a status line. */
+  addAction(
+    label: string,
+    run: () => Promise<string | void> | string | void,
+  ): void {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.addEventListener('click', async () => {
+      const was = b.textContent;
+      try {
+        const msg = await run();
+        b.textContent =
+          typeof msg === 'string' && msg.length < 40 ? msg : 'Done';
+      } catch (e) {
+        b.textContent = 'Failed';
+        console.error(e);
+      }
+      setTimeout(() => (b.textContent = was), 1500);
+    });
+    this.actions.append(b);
   }
 
   get visible(): boolean {
@@ -70,7 +98,7 @@ export class Telemetry {
             )}  ${w.fy.toFixed(0).padStart(6)}  ${w.contact ? w.surface.id : '(air)'}`,
       ),
     ];
-    this.el.textContent = lines.join('\n');
+    this.text.textContent = lines.join('\n');
   }
 }
 

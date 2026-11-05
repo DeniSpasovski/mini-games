@@ -576,6 +576,15 @@ export class CarAudio {
     return this.muted;
   }
 
+  /** The mix as a media stream (replay video, game/replay/video.ts); null before the first sound or muted. */
+  captureStream(): { stream: MediaStream; release: () => void } | null {
+    const master = this.master;
+    if (!this.ctx || !master || this.muted) return null;
+    const dest = this.ctx.createMediaStreamDestination();
+    master.connect(dest);
+    return { stream: dest.stream, release: () => master.disconnect(dest) };
+  }
+
   /**
    * The portal around the car (World.tunnelAt), undefined in the open: echo level, a slap off each wall at its
    * distance (narrow = tighter, stronger flutter), a tail that grows with the tunnel length, bass build-up.
