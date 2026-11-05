@@ -139,6 +139,10 @@ if clip_r:
     inner = pr[:, 0].min()
     clamp = rad >= inner
     face_tris[..., 2] = np.where(clamp, np.minimum(face_tris[..., 2], z_front(rad)), face_tris[..., 2])
+    # Weld the tip vertices onto a 0.75 mm grid: the clip leaves needle-thin triangles (a whisker 40 mm long and 0.3 mm wide) whose
+    # corners are a hair apart; welding collapses them without cracks.
+    tipv = np.hypot(face_tris[..., 0], face_tris[..., 1]) > 0.195
+    face_tris = np.where(tipv[..., None], np.round(face_tris / 0.00075) * 0.00075, face_tris)
     # Drop the hair-thin slivers the clip and the sink leave at the spoke tips (they render as bright whiskers).
     area2 = np.linalg.norm(np.cross(face_tris[:, 1] - face_tris[:, 0], face_tris[:, 2] - face_tris[:, 0]), axis=1)
     longest = np.max([np.linalg.norm(face_tris[:, i] - face_tris[:, (i + 1) % 3], axis=1) for i in range(3)], axis=0)
