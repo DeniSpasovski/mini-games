@@ -1,9 +1,9 @@
 /**
  * Replay cameras (DOM-free): the driving cameras (CameraRig: chase, far chase, bonnet, bumper) plus TV trackside
- * cameras (tv-cameras.ts), a helicopter chase and a free orbit, and an auto director that cuts between them.
+ * cameras (tv-cameras.ts), a drone chase, and an auto director that cuts between them.
  *
  * Director rules (sources/rally/REPLAY.md "Cameras"): a big corner is always filmed from its TV camera; between
- * corners it cycles chase / helicopter / bumper / trackside shots of 5-8 s; no cut shorter than MIN_SHOT, none while
+ * corners it cycles chase / drone / bumper / trackside shots of 5-8 s; no cut shorter than MIN_SHOT, none while
  * the car is in the air (hold on jumps); the TV cameras stand on the outside of a corner (the camera never jumps
  * across the car's line inside one corner).
  */
@@ -14,18 +14,17 @@ import { CameraRig, type CameraMode } from '../camera-rig';
 import { cameraFor, type TvCamera } from './tv-cameras';
 
 export type ReplayCamId =
-  'auto' | 'tv' | 'chase' | 'chase_far' | 'hood' | 'bumper' | 'heli' | 'orbit';
+  'auto' | 'tv' | 'chase' | 'chase_far' | 'hood' | 'bumper' | 'drone';
 
-/** Camera picker order (number keys 1-8). */
+/** Camera picker order (number keys 1-7). */
 export const REPLAY_CAMS: { id: ReplayCamId; label: string }[] = [
-  { id: 'auto', label: 'Director' },
-  { id: 'tv', label: 'TV' },
+  { id: 'auto', label: 'Broadcast' },
+  { id: 'tv', label: 'Trackside' },
   { id: 'chase', label: 'Chase' },
   { id: 'chase_far', label: 'Far' },
   { id: 'hood', label: 'Bonnet' },
   { id: 'bumper', label: 'Bumper' },
-  { id: 'heli', label: 'Heli' },
-  { id: 'orbit', label: 'Orbit' },
+  { id: 'drone', label: 'Drone' },
 ];
 
 /** A shot the director (or a fixed pick) is showing. */
@@ -38,7 +37,7 @@ const HOLD_AIR = 0.12;
 /** Shots between corners, in turn. */
 const FILLER_SHOTS: ShotKind[] = [
   'chase',
-  'heli',
+  'drone',
   'tv',
   'bumper',
   'chase_far',
@@ -60,12 +59,8 @@ export class ReplayDirector {
   private fillerIndex = 0;
   private fillerLength = 6;
   private look = new Vector3();
-  private heliPos = new Vector3();
-  private heliYaw = 0;
-  private orbitYaw = 0;
-  private orbitPitch = 0.35;
-  private orbitDist = 9;
-  private orbitIdle = 0;
+  private dronePos = new Vector3();
+  private droneYaw = 0;
   private fresh = true;
   private q = newRoadQuery();
   /** Car's distance along the stage road (m), kept when the car is off it. */
@@ -96,22 +91,14 @@ export class ReplayDirector {
     this.age = MIN_SHOT;
   }
 
-  /** Orbit camera: drag / keys (radians, metres). */
-  orbitBy(dYaw: number, dPitch: number, dDist: number): void {
-    this.orbitYaw += dYaw;
-    this.orbitPitch = MathUtils.clamp(this.orbitPitch + dPitch, -0.05, 1.3);
-    this.orbitDist = MathUtils.clamp(this.orbitDist * (1 + dDist), 3.5, 40);
-    this.orbitIdle = 0;
-  }
-
   /** Label of what is on screen (UI). */
   get label(): string {
     if (this.shot === 'tv')
       return !this.tv
-        ? 'TV · chase' // no camera sees this stretch
+        ? 'Trackside · chase' // no camera sees this stretch
         : this.tv.kind === 'corner'
-          ? 'TV · corner'
-          : 'TV · trackside';
+          ? 'Trackside · corner'
+          : 'Trackside · straight';
     return REPLAY_CAMS.find((c) => c.id === this.shot)?.label ?? '';
   }
 
@@ -131,12 +118,10 @@ export class ReplayDirector {
   }
 
   /**
-   * `dt` = replay seconds this frame (0 while paused), `realDt` = wall-clock seconds (the orbit camera moves while
-   * paused); `pos` / `fwd` / `up`: the car model's render transform.
+   * `dt` = replay seconds this frame (0 while paused); `pos` / `fwd` / `up`: the car model's render transform.
    */
   update(
     dt: number,
-    realDt: number,
     v: Vehicle,
     pos: Vector3,
     fwd: Vector3,
@@ -152,15 +137,12 @@ export class ReplayDirector {
 
     switch (this.shot) {
       case 'tv':
-        // No camera sees this stretch: the chase camera (the heli can sit in a forest canopy).
+        // No camera sees this stretch: the chase camera (the drone can sit in a forest canopy).
         if (this.tv) this.tvShot(dt, v, pos);
         else this.rig.update(dt, v, pos, fwd, up);
         break;
-      case 'heli':
-        this.heliShot(dt, v, pos, fwd);
-        break;
-      case 'orbit':
-        this.orbitShot(realDt, pos);
+      case 'drone':
+        this.droneShot(dt, v, pos, fwd);
         break;
       default:
         this.rig.update(dt, v, pos, fwd, up);
@@ -253,20 +235,20 @@ export class ReplayDirector {
     this.rig.steady.copy(cam.position);
   }
 
-  private heliShot(dt: number, v: Vehicle, pos: Vector3, fwd: Vector3): void {
+  private droneShot(dt: number, v: Vehicle, pos: Vector3, fwd: Vector3): void {
     const cam = this.camera;
     const yaw = Math.atan2(fwd.x, fwd.z);
-    if (this.fresh) this.heliYaw = yaw;
-    let dy = yaw - this.heliYaw;
+    if (this.fresh) this.droneYaw = yaw;
+    let dy = yaw - this.droneYaw;
     dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-    this.heliYaw += dy * (1 - Math.exp(-Math.abs(dt) * 0.9));
-    // Behind and to the side, high: a helicopter tracking the car.
-    const side = this.heliYaw + 0.55;
+    this.droneYaw += dy * (1 - Math.exp(-Math.abs(dt) * 0.9));
+    // Behind and to the side, high: a drone tracking the car.
+    const side = this.droneYaw + 0.55;
     _d.set(pos.x - Math.sin(side) * 26, 0, pos.z - Math.cos(side) * 26);
     _d.y = Math.max(pos.y + 14, this.groundHeight(_d.x, _d.z) + 9);
-    if (this.fresh) this.heliPos.copy(_d);
-    else this.heliPos.lerp(_d, 1 - Math.exp(-Math.abs(dt) * 1.6));
-    cam.position.copy(this.heliPos);
+    if (this.fresh) this.dronePos.copy(_d);
+    else this.dronePos.lerp(_d, 1 - Math.exp(-Math.abs(dt) * 1.6));
+    cam.position.copy(this.dronePos);
     _t.copy(pos).addScaledVector(v.velocity, 0.25);
     if (this.fresh) this.look.copy(_t);
     else this.look.lerp(_t, 1 - Math.exp(-Math.abs(dt) * 6));
@@ -275,31 +257,6 @@ export class ReplayDirector {
     cam.fov = this.fresh
       ? 34
       : MathUtils.lerp(cam.fov, 34, 1 - Math.exp(-Math.abs(dt) * 2));
-    cam.updateProjectionMatrix();
-    this.rig.steady.copy(cam.position);
-  }
-
-  private orbitShot(dt: number, pos: Vector3): void {
-    const cam = this.camera;
-    this.orbitIdle += Math.abs(dt);
-    // Left alone, it turns slowly round the car.
-    if (this.orbitIdle > 2) this.orbitYaw += Math.abs(dt) * 0.18;
-    const r = this.orbitDist;
-    const cp = Math.cos(this.orbitPitch);
-    cam.position.set(
-      pos.x + Math.sin(this.orbitYaw) * r * cp,
-      pos.y + 0.8 + Math.sin(this.orbitPitch) * r,
-      pos.z + Math.cos(this.orbitYaw) * r * cp,
-    );
-    const g = this.groundHeight(cam.position.x, cam.position.z) + 0.4;
-    if (cam.position.y < g) cam.position.y = g;
-    _t.copy(pos);
-    _t.y += 0.6;
-    cam.up.set(0, 1, 0);
-    cam.lookAt(_t);
-    cam.fov = this.fresh
-      ? 50
-      : MathUtils.lerp(cam.fov, 50, 1 - Math.exp(-Math.abs(dt) * 3));
     cam.updateProjectionMatrix();
     this.rig.steady.copy(cam.position);
   }

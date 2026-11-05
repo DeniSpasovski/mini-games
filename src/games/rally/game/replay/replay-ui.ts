@@ -34,7 +34,6 @@ export class ReplayUi {
   private lastUi = 0;
   private video?: ReplayVideo;
   private dragging = false;
-  private orbitDrag: { x: number; y: number } | null = null;
   private padPrev: boolean[] = [];
   private onKey = (e: KeyboardEvent) => this.key(e);
 
@@ -77,7 +76,7 @@ export class ReplayUi {
             <button class="menu-btn small primary" data-a="exit">${opts.exitLabel}</button>
           </div>
         </div>
-        <div class="rp-keys"><b>Space</b> play · <b>← →</b> ${SKIP} s · <b>, .</b> frame · <b>[ ]</b> speed · <b>1–8</b> camera · <b>C</b> next camera · <b>H</b> clean feed${videoSupported() ? ' · <b>V</b> video' : ''} · <b>Esc</b> exit</div>
+        <div class="rp-keys"><b>Space</b> play · <b>← →</b> ${SKIP} s · <b>, .</b> frame · <b>[ ]</b> speed · <b>1–7</b> camera · <b>C</b> next camera · <b>H</b> clean feed${videoSupported() ? ' · <b>V</b> video' : ''} · <b>Esc</b> exit</div>
       </div>
       <div class="rp-clean-hint" data-ref="hint">Clean feed · <b>H</b> or tap to show the controls</div>`;
     root.append(this.el);
@@ -91,7 +90,6 @@ export class ReplayUi {
       ),
     );
     this.bindTrack();
-    this.bindOrbit();
     // Clean feed: a tap anywhere brings the controls back.
     this.el.addEventListener('pointerdown', (e) => {
       if (this.session?.clean && e.target === this.refs.hint)
@@ -390,7 +388,7 @@ export class ReplayUi {
         else this.opts.onExit();
         break;
       default: {
-        const n = /^Digit([1-8])$/.exec(e.code);
+        const n = /^Digit([1-7])$/.exec(e.code);
         if (n) this.setCam(REPLAY_CAMS[Number(n[1]) - 1].id);
         else used = false;
       }
@@ -438,38 +436,5 @@ export class ReplayUi {
       // Arrows on the focused slider are the window's seek keys; Home / End too.
       if (e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
     });
-  }
-
-  /** Orbit camera: drag on the 3D view turns it, the wheel / pinch-less scroll zooms. */
-  private bindOrbit(): void {
-    const canvas = this.game.renderer.domElement;
-    canvas.addEventListener('pointerdown', (e) => {
-      if (this.session?.director.shot !== 'orbit') return;
-      this.orbitDrag = { x: e.clientX, y: e.clientY };
-      canvas.setPointerCapture(e.pointerId);
-    });
-    canvas.addEventListener('pointermove', (e) => {
-      const d = this.orbitDrag;
-      if (!d || !this.session) return;
-      this.session.director.orbitBy(
-        -(e.clientX - d.x) * 0.006,
-        (e.clientY - d.y) * 0.004,
-        0,
-      );
-      d.x = e.clientX;
-      d.y = e.clientY;
-    });
-    const end = () => (this.orbitDrag = null);
-    canvas.addEventListener('pointerup', end);
-    canvas.addEventListener('pointercancel', end);
-    canvas.addEventListener(
-      'wheel',
-      (e) => {
-        if (this.session?.director.shot !== 'orbit') return;
-        e.preventDefault();
-        this.session.director.orbitBy(0, 0, Math.sign(e.deltaY) * 0.1);
-      },
-      { passive: false },
-    );
   }
 }

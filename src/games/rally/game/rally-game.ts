@@ -1820,7 +1820,6 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     if (replay)
       replay.director.update(
         replay.dt,
-        dt,
         v,
         this.renderPos,
         this.renderFwd,

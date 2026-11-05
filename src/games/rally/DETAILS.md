@@ -144,9 +144,9 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
 - **Playback** (`playback.ts`, `session.ts`): no physics; `ReplayTrack.apply` poses the real `Vehicle` (Catmull-Rom position,
   slerp, velocities from the frames, `probeGround`, derived wheel slide / roll speeds), so model, dust, tyre marks, sound and
   HUD run as in a drive. `ReplayClock` feeds the HUD the recorded clock and sector colours.
-- **Cameras** (`replay-cameras.ts`, `tv-cameras.ts`): Director (auto), TV, Chase, Far, Bonnet, Bumper, Heli, Orbit (drag /
-  wheel). TV cameras: one outside every big corner (> 0.6 rad over 40 m) plus fillers on long straights, placed by terrain
-  line of sight past tree crowns / colliders of the corridor, planned at the finish in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). The director shows big corners from their TV camera and cycles
+- **Cameras** (`replay-cameras.ts`, `tv-cameras.ts`): Broadcast (auto director), Trackside, Chase, Far, Bonnet, Bumper, Drone.
+  Trackside cameras (`tv` in code): one outside every big corner (> 0.6 rad over 40 m) plus fillers on long straights, placed by terrain
+  line of sight past tree crowns / colliders of the corridor, planned at the finish in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). Broadcast shows big corners from their trackside camera and cycles
   the others between them; no cut under 2.5 s or in the air.
 - **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed
   0.25-2x, camera picker (a dropdown under 1360 px), Save (name), Clean feed, Record video, Exit (back to results, or the menu for a URL replay).
