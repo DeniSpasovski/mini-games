@@ -525,6 +525,9 @@ html.touch .rp-keys {
   opacity: 0.45;
   cursor: default;
 }
+.rp-ex-size button {
+  text-transform: none;
+}
 .rp-ex-note {
   font-size: 12px;
   color: var(--ui-text-off);
