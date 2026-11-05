@@ -32,7 +32,7 @@ export type HudStage = Pick<
   | 'splitTimes'
   | 'sectorBounds'
   | 'sectorTimes'
-  | 'sectorDelta'
+  | 'sectorDeltas'
   | 'cutWarning'
   | 'shortcut'
   | 'returning'
@@ -127,12 +127,13 @@ export class Hud {
     if (s.tyres) this.gauge.update(s.tyres);
     if (this.gauge.el.hidden !== !s.tyres) this.gauge.el.hidden = !s.tyres;
     this.set('time', formatTime(stage.time));
-    this.updateSectors(stage);
+    const deltas = stage.sectorDeltas();
+    this.updateSectors(stage, deltas);
     // One chip per passed split: the time, and how that sector compared to the reference run's
     // (green faster, red slower; same number and colour as the progress bar sector).
     const splits = stage.splitTimes
       .map((t, i) => {
-        const d = stage.sectorDelta(i);
+        const d = deltas[i];
         const gap = d !== undefined ? `<b>${formatDelta(d)}</b>` : '';
         const cls =
           d === undefined ? '' : d <= 0 ? ' class="faster"' : ' class="slower"';
@@ -167,7 +168,10 @@ export class Hud {
    * Progress bar split into sectors (start / splits / finish). Finished sectors
    * turn green when faster than the reference best, red when slower.
    */
-  private updateSectors(stage: HudStage): void {
+  private updateSectors(
+    stage: HudStage,
+    deltas: readonly (number | undefined)[],
+  ): void {
     const b = stage.sectorBounds;
     if (this.sectors.length !== b.length - 1) {
       this.refs.progress.replaceChildren();
@@ -182,7 +186,7 @@ export class Hud {
         this.sectors.push({ el, fill });
       }
     }
-    const done = stage.sectorTimes().length;
+    const done = deltas.length;
     this.sectors.forEach((s, i) => {
       const f = Math.min(
         1,
@@ -190,7 +194,7 @@ export class Hud {
       );
       const w = `${(f * 100).toFixed(1)}%`;
       if (s.fill.style.width !== w) s.fill.style.width = w;
-      const d = stage.sectorDelta(i);
+      const d = deltas[i];
       const cls =
         i >= done
           ? 'sector'

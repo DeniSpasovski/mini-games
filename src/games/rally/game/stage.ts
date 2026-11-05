@@ -52,6 +52,27 @@ const ON_ROAD = 2;
 /** Closing on the road faster than this (m/s) counts as heading back. */
 const RETURN_SPEED = 1;
 
+/** Sector times (s) from cumulative split times and the finish time (null while running). */
+export function sectorsOf(
+  splits: readonly number[],
+  finish: number | null,
+): number[] {
+  const cum = finish !== null ? [...splits, finish] : splits;
+  return cum.map((t, i) => t - (i ? cum[i - 1] : 0));
+}
+
+/**
+ * Each completed sector's gap to the reference's same sector (s; + slower), undefined where the reference has
+ * no such sector (a best stored before the splits changed) or there is no reference. Shared by the live clock and
+ * the replay clock.
+ */
+export function sectorGaps(
+  mine: readonly number[],
+  ref: readonly number[] | null | undefined,
+): (number | undefined)[] {
+  return mine.map((t, i) => (ref && i < ref.length ? t - ref[i] : undefined));
+}
+
 export class StageTimer {
   phase: StagePhase = 'countdown';
   countdown = COUNTDOWN;
@@ -148,19 +169,13 @@ export class StageTimer {
 
   /** Completed sector times so far (s). */
   sectorTimes(): number[] {
-    const cum = [
-      ...this.splitTimes,
-      ...(this.finishTime !== null ? [this.finishTime] : []),
-    ];
-    return cum.map((t, i) => t - (i ? cum[i - 1] : 0));
+    return sectorsOf(this.splitTimes, this.finishTime);
   }
 
   /** Sector times of the reference best run, or null. */
   referenceSectorTimes(): number[] | null {
     const r = this.reference;
-    if (!r) return null;
-    const cum = [...r.splits, r.total];
-    return cum.map((t, i) => t - (i ? cum[i - 1] : 0));
+    return r ? sectorsOf(r.splits, r.total) : null;
   }
 
   /**
@@ -169,9 +184,12 @@ export class StageTimer {
    * the split message all colour from this, so they always agree.
    */
   sectorDelta(i: number): number | undefined {
-    const ref = this.referenceSectorTimes();
-    const mine = this.sectorTimes();
-    return ref && i < mine.length ? mine[i] - ref[i] : undefined;
+    return sectorGaps(this.sectorTimes(), this.referenceSectorTimes())[i];
+  }
+
+  /** `sectorDelta` of every sector at once (the HUD reads it once per frame). */
+  sectorDeltas(): (number | undefined)[] {
+    return sectorGaps(this.sectorTimes(), this.referenceSectorTimes());
   }
 
   /** Adds a time penalty to the running stage time (splits, HUD and result all include it). */
