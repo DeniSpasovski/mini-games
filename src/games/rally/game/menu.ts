@@ -198,6 +198,16 @@ const PLANTS: SourceLink[] = [
     url: 'https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3',
     note: 'corn fields, dry in autumn - CC BY 4.0',
   },
+  {
+    label: 'Reed Plants Pack (Nicholas-3D, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/reed-plants-pack-bc77ea5218e44f2dbc23b2a4aef0c898',
+    note: 'reeds on the canal banks - CC BY 4.0',
+  },
+  {
+    label: 'Ground Cover Foliage Showcase (Nicholas-3D, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/ground-cover-foliage-showcase-ae35b4f7856644f58860b1f0c889848a',
+    note: 'cattails among the reeds - CC BY 4.0',
+  },
 ];
 
 const PROPS: SourceLink[] = [
@@ -214,7 +224,7 @@ const PROPS: SourceLink[] = [
   {
     label: 'Poly Haven models',
     url: 'https://polyhaven.com/models',
-    note: 'service park table and chairs, generator, jerrycans, underpass wall lamps, power poles, village benches, bins, utility cabinets, picnic tables - CC0',
+    note: 'service park table and chairs, generator, jerrycans, underpass wall lamps, power poles, village benches, bins, utility cabinets, picnic tables; the grass, nettles, dandelions and reeds by the roads - CC0',
   },
 ];
 

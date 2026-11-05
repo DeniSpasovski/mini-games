@@ -22,6 +22,7 @@ import { PostFx, postFxFromUrl } from '../engine/post-fx';
 import { SunGlare } from '../engine/sun-glare';
 import type { QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
+import { plantSheetsReady } from '../engine/grass';
 import { setVineAntialias } from '../engine/vines';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
@@ -42,7 +43,7 @@ import { DistanceCull } from '../world/distance-cull';
 import { batchStatic } from '../world/static-batch';
 import { prefetchTextures, rememberTextures } from '../engine/texture-prefetch';
 import { warmLevels } from '../world/people-warm';
-import { InstanceStreamer } from '../world/instance-streamer';
+import { assetIds, InstanceStreamer } from '../world/instance-streamer';
 import { TreeRenderer } from '../trees/draw';
 import { TreeLibrary } from '../trees/load';
 import { TreeStatsOverlay } from '../trees/overlay';
@@ -507,6 +508,7 @@ export class RallyGame {
       maxDistance: q.viewDistance,
       // People close up are built ahead of the car, not all at load.
       prefetch: true,
+      fade: true,
     });
     this.scene.add(this.streamer.group);
     this.streamer.updateNow(spawn.position);
@@ -584,6 +586,7 @@ export class RallyGame {
       this.world.heightAt(x, z),
     );
     await bakeCropCards(this.renderer); // field crop cards (baked once per page)
+    await plantSheetsReady(assetIds(this.world)); // the grass / weed / reed atlases
     await this.streamer.ready; // the service park's team cars
     this.people = new PeopleAnimator(this.world.scatter.fixedInstances());
     await frame();
