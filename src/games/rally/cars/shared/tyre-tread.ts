@@ -284,6 +284,21 @@ function rasterise(d: TreadDef): Tread {
   const height = new Float32Array(cols * rows).fill(1);
   const px = BW / TW;
   const py = d.pitch / rows;
+  // Last shape drawn wins: test them top down, each against its bounding box first (a full point-in-polygon test of
+  // every shape for every sample took ~1 s a compound, a stall when a car first shows a tyre).
+  const shapes = d.shapes
+    .map((s) => {
+      const xs = s.pts.map((p) => p[0]);
+      const ys = s.pts.map((p) => p[1]);
+      return {
+        ...s,
+        x0: Math.min(...xs),
+        x1: Math.max(...xs),
+        y0: Math.min(...ys),
+        y1: Math.max(...ys),
+      };
+    })
+    .reverse();
   for (let j = 0; j < rows; j++)
     for (let i = 0; i < TW; i++) {
       let sum = 0;
@@ -292,13 +307,19 @@ function rasterise(d: TreadDef): Tread {
           const x = (i + (sx + 0.5) / SS) * px;
           const y = (j + (sy + 0.5) / SS) * py;
           let h = d.base;
-          for (const s of d.shapes)
-            if (
-              inside(s.pts, x, y) ||
-              inside(s.pts, x, y - d.pitch) ||
-              inside(s.pts, x, y + d.pitch)
-            )
+          for (const s of shapes) {
+            if (x < s.x0 || x > s.x1) continue;
+            let hit = false;
+            for (const yy of [y, y - d.pitch, y + d.pitch])
+              if (yy >= s.y0 && yy <= s.y1 && inside(s.pts, x, yy)) {
+                hit = true;
+                break;
+              }
+            if (hit) {
               h = s.h;
+              break;
+            }
+          }
           sum += h;
         }
       height[j * cols + PAD + i] = sum / (SS * SS);
