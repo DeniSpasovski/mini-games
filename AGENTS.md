@@ -98,7 +98,8 @@ into `DETAILS.md`, never up.
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
 - `scripts/props/bake-straw.py` - the rally hay bales' straw tile (`engine/props/straw.webp`) from the CC BY "Hay bales" scan (`sources/rally/hay-bales/`)
-- `scripts/props/bake-simready.py` - the rally SimReady props, one group per run (`service` / `park` / `yard` / `village`, `assets/builders/simready-<group>.data.ts`: tool chest, tyre rack, jack, park kit + power pole, yard props, village street furniture) from CC BY NVIDIA SimReady Assets (`sources/rally/simready/`) and CC0 Poly Haven glTF models (`sources/rally/polyhaven/`; run with Blender: `blender -b --python ... -- sources/rally/simready`)
+- `scripts/props/bake-piles.py` - the sand / crushed-stone heap tiles (`engine/props/pile-*.webp`, `maps/shared/piles.ts`) from CC0 Poly Haven scans (`sources/rally/polyhaven/`)
+- `scripts/props/bake-simready.py` - the rally SimReady props, one group per run (`service` / `park` / `yard` / `village` / `forest`, `assets/builders/simready-<group>.data.ts`: tool chest, tyre rack, jack, park kit + power pole, yard props, village street furniture, forest-floor debris with its own texture atlas `engine/props/simready-forest.*.webp`) from CC BY NVIDIA SimReady Assets (`sources/rally/simready/`) and CC0 Poly Haven glTF models (`sources/rally/polyhaven/`; run with Blender: `blender -b --python ... -- sources/rally/simready`)
 - `scripts/rocks/bake-rocks.mjs` - the rally boulders and small rocks (`assets/builders/rock-models.data.ts`, `engine/props/rocks.*.webp`) from the CC0 Poly Haven "Rock Moss Set 01" (`sources/rally/rocks/`);
   `bake-cut-face.py`: the road-cut rock face tile (`engine/props/cut-face.*.webp`, `RoadDef.rockCuts`) from the CC0 Poly Haven "Cliff Side" scan
 - `scripts/trees/bake-tree-packs.py` - Vodno's pack trees and shrubs (`assets/builders/tree-packs.data.ts`, `tree-packs/*.webp`: `pack_pine`, `pack_lilac`, `pack_bush`) from three CC BY packs by LOLIPOP (`sources/rally/tree-packs/`)
@@ -112,7 +113,8 @@ into `DETAILS.md`, never up.
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
   the DEM), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
   from a winter + summer Sentinel-2 scene, run after `bake.py`), `canopy.py` (`canopy.json`: canopy share / stand height grids and the
-  real trees from the Meta / WRI canopy height map, run after `leaf_type.py`)
+  real trees from the Meta / WRI canopy height map, run after `leaf_type.py`), `features.py` (config `osm.features`: park furniture,
+  barriers, single trees, signs and fence / wall / guard-rail lines -> `data.json` "features"; runs inside `bake.py` or alone)
 
 ## Skills - read before these tasks (`.claude/skills/<name>/SKILL.md`)
 

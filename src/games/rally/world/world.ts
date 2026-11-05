@@ -1,7 +1,13 @@
 import { Vector3 } from 'three';
 import { hashString } from '../../../shared/rng';
 import { mapSeason } from '../maps/shared/climate';
-import type { BuildingDef, MapDef, StageDef } from '../maps/shared/types';
+import type {
+  BarrierRule,
+  BuildingDef,
+  MapDef,
+  StageDef,
+} from '../maps/shared/types';
+import { dropRailRules } from './drop-rails';
 import { roadSurfaceAt } from '../maps/shared/types';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
@@ -148,6 +154,8 @@ export class World implements GroundProvider {
   readonly landmarks: Landmark[];
   /** Continuous barriers (MapDef.barriers): drawn by barrier-mesh.ts, solid via box colliders. */
   readonly barrierRuns: BarrierRun[];
+  /** `map.barriers` + the derived drop rails (`map.dropRails`). */
+  readonly barrierRules: BarrierRule[];
   /** Walls in the portal tunnels between the parkway lanes and the parkway (portals.ts laneWalls). */
   readonly laneWalls: LaneWallRow[][];
   /** City maps (MapDef.cityStreets): where the streets have kerbs / sidewalks / crosswalks / lamps. */
@@ -365,9 +373,22 @@ export class World implements GroundProvider {
       );
       return !(cq.found && cq.distance <= cq.halfWidth + 1);
     });
+    // The map's own rails, then the derived ones where the valley side drops away (the map's win).
+    this.barrierRules = [
+      ...(map.barriers ?? []),
+      ...(map.dropRails
+        ? dropRailRules(
+            this.road,
+            (x, z) => this.gen.height(x, z),
+            map.dropRails,
+            map.barriers ?? [],
+            map.road.shoulder,
+          )
+        : []),
+    ];
     this.barrierRuns = barrierRuns(
       this.road,
-      map.barriers ?? [],
+      this.barrierRules,
       mouths,
       net
         ? (x, z, along) => {
@@ -546,7 +567,7 @@ export class World implements GroundProvider {
     }
 
     this.signs = stageSigns(
-      map,
+      { ...map, barriers: this.barrierRules },
       this.stageRoad,
       this.analytic,
       this.stage,

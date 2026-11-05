@@ -52,6 +52,8 @@ export const galichicaMap: MapDef = {
     edgeRise: 0,
     // Limestone: steep cut slopes show bare rock.
     rockSlope: [0.6, 1.0],
+    // The two mountain streams run over washed limestone pebbles and stones, not earth.
+    streamBeds: ['stream'],
     flatAreas: [],
     // The parc fermé lay-bys behind the Ohrid and Prespa starts (./service-park.ts).
     pads: galichicaLotPads(),

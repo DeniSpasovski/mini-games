@@ -92,7 +92,12 @@ Example: `maps/ajvatovci/` (`map.ts`, baked `data.json`, task list `TODO.md`, so
    mountain; covers `beech`, `pasture`); `lakes.levels` = fixed water level by lake name (big multipolygon lakes are stitched
    and clipped to the map, `LakeDef.level`); `paths.keepNear` = `[[lat, lon, radius]]` keeps every road round the stage ends
    beyond `paths.corridor`; `buildings.box: true` = one Overpass building query for the box (long winding routes);
-   Mountain roads: `barriers: hairpinRails(data.route, { maxRadius: 30, lead: 20 })` rails the outside of every hairpin.
+   Mountain roads: `barriers: hairpinRails(data.route, { maxRadius: 30, lead: 20 })` rails the outside of every hairpin;
+   `road.rockCuts` / `road.fills` carve cut faces and valley-side fill banks, `dropRails: { minDrop: 2 }` rails the drops (rally
+   DETAILS "Guard rails" / "Fill banks"); `osm.features: { corridor: 300 }` bakes park furniture / gates / fences into
+   `data.json` "features" (`features.py`; place them with a map landmark, worked example Vodno `osm-features.ts`).
+   `terrain.talus` / `terrain.streamBeds` and scatter `minSlope` give steep ground its bare rock, scree and crags and the
+   streams their pebble beds (rally DETAILS "Natural ground"); pack hero trees near the road: "Hero trees".
    `buildings.worldcover: true` generates houses on WorldCover built-up ground where no footprint data set covers
    the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon;
    `msRoads: { country, clearance, minLength }` adds roads OSM lacks from Microsoft ML Road Detections (ODbL,

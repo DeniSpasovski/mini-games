@@ -27,6 +27,8 @@ that a MapDef imports (see src/games/rally/maps/ajvatovci/map.ts):
                 Config paths {dropWays: [OSM way ids], dropKinds: [kinds], mergeJoints: true}: leave ways / kinds out;
                 join ways that meet end to end at a node no other road touches (a street cut into 20 m ways has a
                 height step at every joint).
+                Config osm.features {corridor: m} (Overpass only): park furniture, barriers, trees, signs and barrier
+                lines (fences, walls, kerbs, guard rails) within the corridor -> data.json "features" (features.py).
                 Config osm.footpaths {kinds: [path, footway, ...], corridor: m} (Overpass only): + foot ways within
                 `corridor` m of the stage road, from a query of their own (sidewalks / crossings left out); added
                 last, so the roads, their indices and the buildings stay as baked without them.
@@ -60,6 +62,7 @@ from scipy.ndimage import gaussian_filter, map_coordinates
 from scipy.spatial import cKDTree
 
 import buildings as bld
+import features as feat
 import msroads
 import overpass as ovp
 
@@ -1448,6 +1451,9 @@ def main():
         'powerLines': lines,
         'railways': railways,
     }
+    feats = feat.bake_features(cfg, proj, ll_box, data['route']) if use_overpass else None
+    if feats is not None:
+        data['features'] = feats
     out = os.path.join(ROOT, cfg['out'])
     with open(out, 'w') as f:
         json.dump(data, f, separators=(',', ':'))

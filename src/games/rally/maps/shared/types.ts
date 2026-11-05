@@ -82,6 +82,10 @@ export interface MapDef {
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
   barriers?: BarrierRule[];
+  /** OSM park furniture, barriers and fences along the stage (`data.json` features); placed by the map's own landmark. */
+  features?: MapFeatures;
+  /** Guard rails derived from the ground where the valley side drops away (world/drop-rails.ts); `barriers` win. */
+  dropRails?: DropRails;
   /** City dressing (parked cars, spectators, police / fire vehicles) placed from the road network: world/street-dressing.ts. */
   streetDressing?: StreetDressing;
   /** Power line supports [x, z] and line polylines (flat x, z lists), baked from OSM: towers / poles + cables (world/power-lines.ts). */
@@ -443,6 +447,17 @@ export interface RealTreesDef {
   scale: [number, number];
   tilt?: number;
   sink?: number;
+  /**
+   * Model trees (catalog assets, e.g. `pack_pine`) in place of the generated ones within `dist` m of the road edge, by
+   * the land cover class: the variant whose height (`heights[asset]`, m per variant at scale 1) is nearest the tree's
+   * height x `gain` (the canopy model reads tall conifers low), scaled to it (0.5-1.4x).
+   */
+  near?: {
+    dist: number;
+    assets: Record<string, string[]>;
+    heights: Record<string, number[]>;
+    gain?: number;
+  };
 }
 
 /** Standing water: closed polygon (world x/z, not repeating the first point). */
@@ -599,6 +614,13 @@ export interface TerrainDef {
   edgeRise: number;
   /** Slope (1 - normal.y) range where bare rock replaces the ground cover: [start, full]. Default [0.22, 0.38]. */
   rockSlope?: [number, number];
+  /**
+   * Bare stony ground on steep natural slopes (`slope`: 1 - normal.y range [start, full], judged on the elevation data)
+   * and scree fanned out up to `reach` m (default 10) below them (world/terrain-gen.ts `paintTalus`).
+   */
+  talus?: { slope: [number, number]; reach?: number };
+  /** Channel kinds (e.g. `stream`) whose bed is washed pebbles and stones instead of earth. */
+  streamBeds?: string[];
   flatAreas: FlatArea[];
   /** Graded lots / yards (real-world maps with landmarks), applied after the flat areas. */
   pads?: PadDef[];
@@ -699,6 +721,19 @@ export interface RoadDef {
     slope: number;
     foot: number;
     maxFace: number;
+    exclude?: [number, number][];
+  };
+  /**
+   * Fill banks on the valley side (the mirror of `rockCuts`): where the land beside the road lies more than `minDrop` m
+   * below it, the verge is held at road level to its rim (`rim` m past the shoulder, default 0.3) and the bank falls
+   * straight at `slope` m per m (tipped rock: ~0.8) down to the land, instead of the gentle blend; its face is painted
+   * as stony earth. No ditch on a fill. Off on bridges and over `exclude` ranges along the road. With `MapDef.dropRails`
+   * this is where the derived guard rails stand.
+   */
+  fills?: {
+    minDrop: number;
+    slope: number;
+    rim?: number;
     exclude?: [number, number][];
   };
   /**
@@ -937,6 +972,8 @@ export interface ScatterRule {
   maxRoadDist?: number;
   /** Max terrain slope (1 - normal.y), e.g. 0.3. */
   maxSlope?: number;
+  /** Min terrain slope (1 - normal.y): only on steep ground (crags, rocks on a scarp). */
+  minSlope?: number;
   /** Clustered placement: keep where noise(x/scale) > threshold (-1..1). */
   mask?: { scale: number; threshold: number; invert?: boolean };
   scale: [number, number];
@@ -975,6 +1012,36 @@ export interface ScatterRule {
    * scrub under the canopy model's 3 m floor.
    */
   canopy?: { full: number; min: number; height?: number; open?: boolean };
+}
+
+/** An OSM feature point (scripts/realmap/features.py): kind, x, z, heading of the way it sits on (rad), OSM node id. */
+export type MapFeaturePoint = [string, number, number, number, number];
+
+/** Road-side features OSM maps (data.json "features", baked by scripts/realmap/features.py; ODbL). */
+export interface MapFeatures {
+  points: MapFeaturePoint[];
+  /** Barrier lines: fence / wall / kerb / guard_rail / retaining_wall / hedge, `pts` flat [x, z, ...], `type` = fence_type / material. */
+  lines: { kind: string; pts: number[]; id: number; type?: string }[];
+}
+
+/**
+ * Derived guard rails: wherever the carved ground falls more than `minDrop` m below the stage road within `within` m
+ * (default 3) of the valley edge (the verge's outer edge), a guard rail runs along that edge. Gaps under `gap` m (14) are bridged, runs under
+ * `minLength` m (16) dropped, ends led in `lead` m (4). Explicit `barriers` rules (hand-placed, hairpin, OSM-mapped
+ * `barrier=guard_rail`) win: no derived run overlaps one on the same side; one that meets it carries it on (its steel).
+ */
+export interface DropRails {
+  minDrop: number;
+  within?: number;
+  gap?: number;
+  minLength?: number;
+  lead?: number;
+  offset?: number;
+  from?: number;
+  to?: number;
+  skipJunctions?: number;
+  /** Weathered rusty steel (default) or galvanised. */
+  rusty?: boolean;
 }
 
 /** A continuous roadside barrier (world/barriers.ts + barrier-mesh.ts). */

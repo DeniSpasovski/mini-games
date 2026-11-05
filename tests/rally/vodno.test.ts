@@ -251,6 +251,7 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-start-lot',
     'vodno-roadside-gazebo',
     'vodno-trail-lot',
+    'vodno-osm-features',
   ];
 
   test('registered on the map and in the world', () => {

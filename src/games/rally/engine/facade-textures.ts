@@ -11,6 +11,8 @@ import sidingUrl from './facades/siding.webp';
 import drystoneUrl from './facades/drystone.webp';
 import cutFaceUrl from './props/cut-face.color.webp';
 import pineBarkUrl from '../trees/bark/pine.webp';
+import pileSandUrl from './props/pile-sand.webp';
+import pileAggregateUrl from './props/pile-aggregate.webp';
 
 /** One 3.2 m bay of a Poly Haven (CC0) scan, 512 px, neutralised where the vertex colour supplies the paint. */
 const PHOTO_URLS = {
@@ -27,6 +29,9 @@ const PHOTO_URLS = {
   // (not facades: the Vodno trail start's stones and roots, landmark kit keys `limestone` / `bark`)
   cutFace: cutFaceUrl,
   pineBark: pineBarkUrl,
+  // (the heaps of maps/shared/piles.ts, kit keys `sand` / `aggregate`)
+  pileSand: pileSandUrl,
+  pileAggregate: pileAggregateUrl,
 };
 type PhotoId = keyof typeof PHOTO_URLS;
 const photos = new Map<PhotoId, HTMLImageElement>();
@@ -78,7 +83,9 @@ export type FacadeId =
   | 'facade_siding'
   | 'facade_drystone'
   | 'facade_limestone'
-  | 'facade_bark';
+  | 'facade_bark'
+  | 'facade_sand'
+  | 'facade_aggregate';
 
 export interface FacadeDef {
   name: string;
@@ -368,6 +375,24 @@ export const FACADE_DEFS: Record<FacadeId, FacadeDef> = {
     color: true,
     draw(ctx, W, H) {
       photo(ctx, 'pineBark', W, H);
+    },
+  },
+  facade_sand: {
+    // No building wears it: dumped sand (Poly Haven `dense_sand`), tinted by the vertex colour (maps/shared/piles.ts).
+    name: 'Landmark: sand heap (scan only)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, W, H) {
+      photo(ctx, 'pileSand', W, H);
+    },
+  },
+  facade_aggregate: {
+    // No building wears it: crushed stone (Poly Haven `gravel_floor_02`) for stone heaps and their spill.
+    name: 'Landmark: crushed stone heap (scan only)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, W, H) {
+      photo(ctx, 'pileAggregate', W, H);
     },
   },
 };

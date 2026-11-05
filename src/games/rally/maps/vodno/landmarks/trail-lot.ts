@@ -1,10 +1,10 @@
-import { BufferAttribute, BufferGeometry, Color, Vector2 } from 'three';
+import { BufferAttribute, BufferGeometry, Color } from 'three';
 import { Noise2D, smoothstep } from '../../../../../shared/noise';
 import { hash3 } from '../../../../../shared/rng';
 import type { StaticCollider } from '../../../physics/types';
 import type { TerrainSampler } from '../../../world/heightfield';
-import { tileOf } from '../../ajvatovci/start-row/build/materials';
 import { Raster } from '../../../world/real-data';
+import { Piles } from '../../shared/piles';
 import type { PathDef, RasterDef } from '../../shared/types';
 import canopy from '../canopy.json';
 import { packHeight } from '../../../assets/builders/tree-packs';
@@ -32,102 +32,19 @@ import { smoothHeights, unitV, wallRibbon, type WallRun } from './stone-wall';
 
 /** The block node on the side road, turned along the road (local +x = up the road). */
 export const SIDE_ROAD_BLOCK: Site = { x: 2162.3, z: -38.1, yaw: -1.528 };
-/** A pile: dumped sand (steep, round-crested, weeds on it), crushed stone (lower) or stone pushed flat by a loader. */
-type PileKind = 'sand' | 'stone' | 'spread';
-/** The piles (ref-03): local x along the road, z across it, radius, height, kind. */
-const PILES: [number, number, number, number, PileKind][] = [
+/** The piles (ref-03, `maps/shared/piles.ts`): local x along the road, z across it, radius, height, kind. */
+const PILES = new Piles(SIDE_ROAD_BLOCK, [
   [0, -3.7, 2.9, 1.5, 'sand'],
   [0.8, -0.2, 3, 0.55, 'spread'],
   [-0.3, 3, 2.5, 1.3, 'sand'],
   [2.4, 5.6, 2.3, 0.45, 'spread'],
   [3.7, -1.5, 1.9, 0.9, 'stone'],
   [-2.2, 0.9, 1.5, 0.6, 'stone'],
-];
-/** Tint of each kind over the gravel stones; the spill round the feet is one tint for all (overlaps show no seam). */
-const PILE_TINT: Record<PileKind, string> = {
-  sand: '#f6e2b4',
-  stone: '#cfccc6',
-  spread: '#c4c1ba',
-};
-const SPILL_TINT = '#bdb9b0';
+]);
 const pileNoise = new Noise2D(5711);
 
-/** Pile `i`'s foot (m from its centre) at angle `a`: lumpy, longer one way (dumped off a truck). */
-function pileRadius(i: number, a: number): number {
-  const ph = i * 1.7 + 0.4;
-  return (
-    PILES[i][2] *
-    (1 +
-      0.2 * Math.cos(2 * (a - ph)) +
-      0.06 * Math.sin(3 * a + 2 * ph) +
-      0.04 * Math.sin(5 * a - ph))
-  );
-}
-
-/**
- * Height of pile `i` over the ground at (dx, dz) m from its centre (site axes): a cone at the angle of repose with a round
- * crest (sand, stone) or a flat top (spread), a concave toe that runs out into the ground, a loader's bite out of one side
- * and lumps; 0 beyond the foot.
- */
-export function pileHeight(i: number, dx: number, dz: number): number {
-  const [x0, z0, , h, kind] = PILES[i];
-  const a = Math.atan2(dz, dx);
-  const t = Math.hypot(dx, dz) / pileRadius(i, a);
-  if (t >= 1) return 0;
-  let g: number;
-  if (kind === 'spread') g = (1 - smoothstep(0.3, 1, t)) ** 1.1;
-  else {
-    const k = kind === 'sand' ? 0.32 : 0.22;
-    const cone =
-      1 - (Math.sqrt(t * t + k * k) - k) / (Math.sqrt(1 + k * k) - k);
-    g = cone ** (kind === 'sand' ? 1.35 : 1.25);
-  }
-  // The bite: a loader took a bucket out of one flank.
-  const ab = i * 1.7 + 2.6;
-  const da = Math.atan2(Math.sin(a - ab), Math.cos(a - ab));
-  const bite =
-    kind === 'spread'
-      ? 0
-      : Math.exp(-((da / 0.5) ** 2)) * smoothstep(0.1, 0.6, t);
-  const lumps =
-    pileNoise.fbm((x0 + dx) / 0.8 + i * 7, (z0 + dz) / 0.8, 3) *
-    (kind === 'spread' ? 0.06 * (1 - t ** 4) : 0.07 * 4 * t * (1 - t));
-  return Math.max(
-    0,
-    h * g * (1 - 0.3 * bite) + lumps * Math.min(1, 6 * (1 - t)),
-  );
-}
-
-/**
- * Weeds on the piles and round their feet (ref-03: grass sprouting from the sand): dry grass and tufts on the sand
- * (sunk a little into the slope), tall weeds at the feet (site-local x, z, asset, lift over the ground).
- */
-export const PILE_PLANTS: [number, number, string, number][] = PILES.flatMap(
-  ([x0, z0, , , kind], i) => {
-    const out: [number, number, string, number][] = [];
-    const n = kind === 'sand' ? 6 : kind === 'spread' ? 2 : 1;
-    for (let j = 0; j < n; j++) {
-      const a = ((hash3(i, j, 3, 61) % 628) / 100) as number;
-      const t = 0.35 + ((hash3(i, j, 5, 61) % 100) / 100) * 0.55;
-      const r = pileRadius(i, a) * t;
-      const dx = Math.cos(a) * r;
-      const dz = Math.sin(a) * r;
-      out.push([
-        x0 + dx,
-        z0 + dz,
-        j % 2 ? 'grass_tuft' : 'dry_grass',
-        pileHeight(i, dx, dz) - 0.08,
-      ]);
-    }
-    if (kind !== 'spread')
-      for (let j = 0; j < 2; j++) {
-        const a = ((hash3(i, j, 7, 61) % 628) / 100) as number;
-        const r = pileRadius(i, a) * 1.08;
-        out.push([x0 + Math.cos(a) * r, z0 + Math.sin(a) * r, 'tall_weeds', 0]);
-      }
-    return out;
-  },
-);
+/** Weeds on the piles and round their feet (ref-03: grass sprouting from the sand). */
+export const PILE_PLANTS = PILES.plants();
 
 /** The trail start (5 m up the footpath from the road's west edge): local +x = along the path into the wood. */
 export const TRAIL_START: Site = { x: 2076, z: -210.25, yaw: 3.095 };
@@ -418,18 +335,12 @@ export const TRAIL_LOT_AREAS: Area[] = [
 
 export function trailLotColliders(g: TerrainSampler): StaticCollider[] {
   const out: StaticCollider[] = [];
-  const y0 = g.height(SIDE_ROAD_BLOCK.x, SIDE_ROAD_BLOCK.z) - 0.4;
-  for (const [x, z, r, h, kind] of PILES)
-    out.push(
-      cylinderCollider(
-        SIDE_ROAD_BLOCK,
-        x,
-        z,
-        y0,
-        r * (kind === 'spread' ? 0.6 : 0.75),
-        h + 0.4,
-      ),
-    );
+  out.push(
+    ...PILES.colliders(
+      cylinderCollider,
+      g.height(SIDE_ROAD_BLOCK.x, SIDE_ROAD_BLOCK.z) - 0.4,
+    ),
+  );
   const y1 = g.height(TRAIL_START.x, TRAIL_START.z) - 0.4;
   for (const z of POSTS)
     out.push(cylinderCollider(TRAIL_START, 0, z, y1, 0.16, 1.15));
@@ -458,104 +369,6 @@ export function trailLotColliders(g: TerrainSampler): StaticCollider[] {
     ),
   );
   return out;
-}
-
-/**
- * Pile `i`: one smooth-shaded mesh (polar grid, `pileHeight` over the ground) in the heap stones, a little darker and duller
- * towards the foot, the last ring sunk into the ground so it runs out under the road instead of ending on an edge.
- */
-function pile(
-  l: Local,
-  ground: (x: number, z: number) => number,
-  i: number,
-): void {
-  const RINGS = 14;
-  const SEG = 44;
-  const [x0, z0, , , kind] = PILES[i];
-  const [tu, tv] = tileOf('heap');
-  const pos: number[] = [];
-  const uv: number[] = [];
-  const col: number[] = [];
-  const vertex = (t: number, a: number): void => {
-    const r = pileRadius(i, a) * t;
-    const dx = Math.cos(a) * r;
-    const dz = Math.sin(a) * r;
-    const [wx, wz] = toWorld(l.site, x0 + dx, z0 + dz);
-    const sink = t > 1 ? 0.05 : 0;
-    pos.push(
-      x0 + dx,
-      ground(wx, wz) - l.baseY + pileHeight(i, dx, dz) - sink,
-      z0 + dz,
-    );
-    uv.push((x0 + dx + i * 3.7) / tu, (z0 + dz) / tv);
-    const k =
-      (1 - 0.12 * smoothstep(0.65, 1, t)) *
-      (1 + 0.07 * pileNoise.noise2(wx / 1.6 + i, wz / 1.6));
-    col.push(k, k, k);
-  };
-  vertex(0, 0);
-  for (let k = 1; k <= RINGS; k++)
-    for (let j = 0; j < SEG; j++)
-      vertex(
-        k === RINGS ? 1.06 : (k / (RINGS - 1)) ** 0.9,
-        (j / SEG) * Math.PI * 2,
-      );
-  const idx: number[] = [];
-  const at = (k: number, j: number) => 1 + (k - 1) * SEG + (j % SEG);
-  // Counter-clockwise seen from above.
-  for (let j = 0; j < SEG; j++) idx.push(0, at(1, j + 1), at(1, j));
-  for (let k = 1; k < RINGS; k++)
-    for (let j = 0; j < SEG; j++)
-      idx.push(
-        at(k, j),
-        at(k, j + 1),
-        at(k + 1, j),
-        at(k, j + 1),
-        at(k + 1, j + 1),
-        at(k + 1, j),
-      );
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
-  g.setAttribute('color', new BufferAttribute(new Float32Array(col), 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  l.add('heap', g, PILE_TINT[kind]);
-}
-
-/**
- * Stones spilled round the piles' feet onto the road: one ragged gravel decal round each, draped on the ground; pulled in
- * where the ground climbs (a cut bank behind a pile) so it stays on the flat.
- */
-function pileSpill(l: Local, ground: (x: number, z: number) => number): void {
-  const SEG = 36;
-  PILES.forEach(([x0, z0], i) => {
-    const outline: Vector2[] = [];
-    const [cx, cz] = toWorld(l.site, x0, z0);
-    const y0 = ground(cx, cz);
-    for (let j = 0; j < SEG; j++) {
-      const a = (j / SEG) * Math.PI * 2;
-      let r =
-        pileRadius(i, a) *
-        (1.14 +
-          0.12 *
-            pileNoise.noise2(Math.cos(a) * 1.5 + i * 5, Math.sin(a) * 1.5));
-      let [wx, wz] = toWorld(
-        l.site,
-        x0 + Math.cos(a) * r,
-        z0 + Math.sin(a) * r,
-      );
-      while (r > 0.5 && Math.abs(ground(wx, wz) - y0) > 0.35) {
-        r -= 0.25;
-        [wx, wz] = toWorld(l.site, x0 + Math.cos(a) * r, z0 + Math.sin(a) * r);
-      }
-      outline.push(new Vector2(wx - l.site.x, wz - l.site.z));
-    }
-    l.frame.polygon('gravel', outline, 0, SPILL_TINT, {
-      lift: (x, z) => ground(x + l.site.x, z + l.site.z) + 0.09,
-      step: 0.6,
-    });
-  });
 }
 
 /** Weathered stone of the posts (ref-13: warm beige sandstone, each a little different; the kit's calm `wall` stone). */
@@ -1046,8 +859,7 @@ export function buildTrailLot(
   ground: (x: number, z: number) => number,
 ): void {
   const piles = at(SIDE_ROAD_BLOCK, 'side-road-piles');
-  PILES.forEach((_, i) => pile(piles, ground, i));
-  pileSpill(piles, ground);
+  PILES.build(piles, ground);
   const trail = at(TRAIL_START, 'trail-start');
   POSTS.forEach((z, i) => {
     const [wx, wz] = toWorld(TRAIL_START, 0, z);

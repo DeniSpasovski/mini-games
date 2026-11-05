@@ -177,6 +177,20 @@ const SHORT_JOINT = 15;
 const LANE_JOINT_GRADE = 0.07;
 /** A deck end this far above a road crossing beside it stands over it: no joint (m). */
 const PASS_UNDER = 2;
+/** Lattice step (m) of the cached natural-land gradient the talus paint reads; the fan probes along `TALUS_FAN` x reach. */
+const TALUS_CELL = 4;
+const TALUS_FAN = [0.35, 0.7, 1];
+/** Largest `minPathHw` (0.75 x the terrain tile's vertex step) that paints from the lattice (steps 1-2 m, and physics). */
+const TALUS_FINE = 2;
+/**
+ * Nodes per side of a cached gradient tile, and the tiles kept (least recently entered dropped first): enough for the
+ * fine terrain tiles round the camera; coarser ones (`TALUS_FINE`) skip the lattice, or they would thrash it.
+ */
+const TALUS_TILE = 64;
+const TALUS_TILES = 96;
+/** Splat mixes of a talus face and of the scree fan below it ([grass, dirt, rock, gravel]). */
+const TALUS_FACE = [0.22, 0.56, 0.2, 0.02];
+const TALUS_SCREE = [0.2, 0.46, 0.2, 0.14];
 
 /** The end of an overpass street deck: the streets within `len` m of it climb on a walled fill (concrete retaining walls). */
 export interface ApproachSite {
@@ -215,6 +229,10 @@ export class TerrainGenerator {
   /** Per underpass street: how far the dip lowered the profile below the land (m), per profile sample. */
   private readonly underpassDip = new Map<number, Float32Array>();
   private readonly capQ = newPathQuery();
+  /** Natural-land gradient on a `TALUS_CELL` lattice (talus paint), in tiles of `TALUS_TILE`² nodes (gx, gz, scree fan weight; NaN = not yet). */
+  private readonly gradTiles = new Map<number, Float32Array>();
+  private gradKey = NaN;
+  private gradTile: Float32Array | null = null;
   private readonly capQ2 = newPathQuery();
   private readonly slabQ = newPathQuery();
   private readonly isDeckPath = (pi: number): boolean =>
@@ -2205,6 +2223,23 @@ export class TerrainGenerator {
     return w;
   }
 
+  /**
+   * 0..1: how much of a fill bank (RoadDef.fills) the stage road's valley side is, the land `drop` m below the road
+   * 5 m past its verge, `along` m along it (0 = the gentle embankment). Mouths of other roads keep the gentle bank.
+   */
+  fillWeightAt(x: number, z: number, drop: number, along: number): number {
+    const f = this.map.road.fills;
+    if (!f || !(drop > f.minDrop)) return 0;
+    if (f.exclude?.some(([a, b]) => along > a && along < b)) return 0;
+    if (this.road.bridgeAt(along)) return 0;
+    let w = smoothstep(f.minDrop, f.minDrop + 1, drop);
+    if (this.paths) {
+      const pq = this.paths.query(x, z, this.pq, undefined, this.roadOnGround);
+      if (pq.found) w *= smoothstep(3, 14, pq.distance - pq.halfWidth);
+    }
+    return w;
+  }
+
   /** 0..1: how much (x, z) lies on a ground road that is not a street passing under a bridge (full on its width + 0.5 m, none 6 m beyond). */
   private roadHold(x: number, z: number): number {
     if (!this.paths) return 0;
@@ -2342,13 +2377,32 @@ export class TerrainGenerator {
         (rise - face) * smoothstep(top, top + 3 + (rise - face) * 1.6, d);
       h += (cut - h) * rw;
     }
+    // A fill on the valley side: the verge held at road level to its rim, then a straight bank of tipped rock down to
+    // the land (RoadDef.fills, the mirror of the rock cuts) instead of the gentle blend.
+    // (judged by the land's drop at the bank's reach, 5 m past the verge: the natural slope carried out from here)
+    const reach = hw + r.shoulder + 5;
+    const fw = this.fillWeightAt(
+      x,
+      z,
+      ((q.height - base) * reach) / Math.max(d, hw + r.shoulder),
+      q.along,
+    );
+    if (fw > 0) {
+      const f = r.fills!;
+      const rim = hw + r.shoulder + (f.rim ?? 0.3);
+      const fill = Math.max(base, q.height - Math.max(0, d - rim) * f.slope);
+      h += (fill - h) * fw;
+    }
     // Ditch just outside the verge, fading where the embankment is tall (no ditch on fills).
     const ditchCentre = hw + r.shoulder + 0.7;
     const x01 = (d - ditchCentre) / 1.1;
     if (x01 > -1 && x01 < 1) {
       const bell = (1 - x01 * x01) ** 2;
       let ditch =
-        r.ditch * bell * Math.max(0, 1 - Math.max(0, base - q.height) / 3);
+        r.ditch *
+        bell *
+        (1 - fw) *
+        Math.max(0, 1 - Math.max(0, base - q.height) / 3);
       // Side roads cross the ditch on a culvert: fill it in at their mouth.
       if (ditch > 0.002 && this.paths) {
         const pq = this.paths.query(x, z, this.pq, undefined, this.onGround);
@@ -2445,8 +2499,10 @@ export class TerrainGenerator {
         out,
         minPathHw,
       );
+      this.paintTalus(x, z, slope, gravel, out, minPathHw <= TALUS_FINE);
       this.paintLawns(x, z, out);
       if (near) this.paintScree(x, z, roadDist - roadHw, out);
+      if (near) this.paintFill(x, z, roadDist - roadHw, out);
       return;
     }
     let dirt = smoothstep(0.15, 0.55, n) * 0.85;
@@ -2463,8 +2519,163 @@ export class TerrainGenerator {
     out[SPLAT_ROCK] = rk;
     out[SPLAT_DIRT] = dr;
     out[SPLAT_GRASS] = Math.max(0, 1 - gravel - rk - dr);
+    this.paintTalus(x, z, slope, gravel, out, minPathHw <= TALUS_FINE);
     this.paintLawns(x, z, out);
     if (near) this.paintScree(x, z, roadDist - roadHw, out);
+    if (near) this.paintFill(x, z, roadDist - roadHw, out);
+  }
+
+  private fan = 0;
+  /** Tile and offset of the last `gradNode`. */
+  private nTile: Float32Array = new Float32Array(3);
+  private nAt = 0;
+  /** The natural land's gradient at a lattice node (cached: the land never changes): its tile in nTile, offset nAt. */
+  private gradNode(ix: number, iz: number): void {
+    const tx = Math.floor(ix / TALUS_TILE);
+    const tz = Math.floor(iz / TALUS_TILE);
+    const key = (tx + 32768) * 65536 + (tz + 32768);
+    if (key !== this.gradKey) {
+      let tile = this.gradTiles.get(key);
+      if (tile) {
+        this.gradTiles.delete(key);
+      } else {
+        if (this.gradTiles.size >= TALUS_TILES)
+          this.gradTiles.delete(this.gradTiles.keys().next().value!);
+        tile = new Float32Array(TALUS_TILE * TALUS_TILE * 3).fill(NaN);
+      }
+      this.gradTiles.set(key, tile);
+      this.gradKey = key;
+      this.gradTile = tile;
+    }
+    const tile = this.gradTile!;
+    const i =
+      ((iz - tz * TALUS_TILE) * TALUS_TILE + (ix - tx * TALUS_TILE)) * 3;
+    if (Number.isNaN(tile[i])) {
+      const x = ix * TALUS_CELL;
+      const z = iz * TALUS_CELL;
+      const e = 1.5;
+      const h = this.landHeight(x, z);
+      tile[i] = (this.landHeight(x + e, z) - h) / e;
+      tile[i + 1] = (this.landHeight(x, z + e) - h) / e;
+    }
+    this.nTile = tile;
+    this.nAt = i;
+  }
+
+  /**
+   * Slope (1 - normal.y) of the natural land at (x, z), bilinear on the gradient lattice; with `fan`, also the scree
+   * fan weight (steep ground up to `reach` m uphill) in `fan`.
+   */
+  private landSlope(x: number, z: number, fan = false): number {
+    const fx = x / TALUS_CELL;
+    const fz = z / TALUS_CELL;
+    const ix = Math.floor(fx);
+    const iz = Math.floor(fz);
+    const tx = fx - ix;
+    const tz = fz - iz;
+    let gx = 0;
+    let gz = 0;
+    let fw = 0;
+    for (let k = 0; k < 4; k++) {
+      const dx = k & 1;
+      const dz = k >> 1;
+      this.gradNode(ix + dx, iz + dz);
+      const tile = this.nTile;
+      const i = this.nAt;
+      const w = (dx ? tx : 1 - tx) * (dz ? tz : 1 - tz);
+      gx += tile[i] * w;
+      gz += tile[i + 1] * w;
+      if (fan) {
+        if (Number.isNaN(tile[i + 2]))
+          tile[i + 2] = this.fanAt(ix + dx, iz + dz, tile[i], tile[i + 1]);
+        fw += tile[i + 2] * w;
+      }
+    }
+    this.fan = fw;
+    return 1 - 1 / Math.sqrt(1 + gx * gx + gz * gz);
+  }
+
+  /** Scree fan weight at a lattice node: the steepest land up to `reach` m uphill, weaker the further up it is. */
+  private fanAt(ix: number, iz: number, gx: number, gz: number): number {
+    const t = this.map.terrain.talus!;
+    const g = Math.hypot(gx, gz);
+    if (g < 1e-4) return 0;
+    const [lo, hi] = t.slope;
+    const reach = t.reach ?? 10;
+    const x = ix * TALUS_CELL;
+    const z = iz * TALUS_CELL;
+    let fan = 0;
+    for (const f of TALUS_FAN) {
+      const su = this.landSlope(
+        x + (gx / g) * reach * f,
+        z + (gz / g) * reach * f,
+      );
+      fan = Math.max(fan, smoothstep(lo, hi, su) * (1.15 - 0.4 * f));
+    }
+    return Math.min(1, fan);
+  }
+
+  /**
+   * Bare ground on steep natural slopes and the scree fanned out below them (`terrain.talus`): the face itself goes
+   * to rock and stony soil, the ground up to `reach` m below a steep stretch to rock chips and grit, both broken up by
+   * noise. Off on the road's gravel. Not `fine` (a coarse far tile): the face from the tile's own slope, no fan.
+   */
+  private paintTalus(
+    x: number,
+    z: number,
+    slope: number,
+    gravel: number,
+    out: Float32Array | number[],
+    fine: boolean,
+  ): void {
+    const t = this.map.terrain.talus;
+    if (!t || gravel > 0.5) return;
+    const [lo, hi] = t.slope;
+    const s0 = fine ? this.landSlope(x, z, true) : 0;
+    const face = smoothstep(lo, hi, Math.max(slope, s0));
+    const fan = fine ? this.fan : 0;
+    // Both weights carry at most 0.65 x 1: nothing to paint on gentle ground (most of it).
+    if (face < 0.015 && fan < 0.015) return;
+    // Under a closed canopy the floor keeps most of its litter and soil: only stones show through.
+    const shut = 1 - 0.65 * (this.landcover?.canopy?.cover.at(x, z) ?? 0);
+    const n = 0.65 + 0.35 * this.detailNoise.noise2(x / 6, z / 6);
+    const wFace = face * n * 0.65 * shut;
+    const wFan = fan * (1 - face) * n * 0.55 * shut;
+    if (wFace <= 0.01 && wFan <= 0.01) return;
+    for (let i = 0; i < 4; i++) {
+      out[i] += (TALUS_FACE[i] - out[i]) * wFace;
+      out[i] += (TALUS_SCREE[i] - out[i]) * wFan;
+    }
+  }
+
+  /** Stony earth on the face of a fill bank (RoadDef.fills), `edge` m beyond the road edge: tipped spoil, thin grass. */
+  private paintFill(
+    x: number,
+    z: number,
+    edge: number,
+    out: Float32Array | number[],
+  ): void {
+    const f = this.map.road.fills;
+    if (!f) return;
+    const sh = this.map.road.shoulder;
+    if (edge < sh || edge > sh + 10) return;
+    const q = this.road.query(x, z, this.sq);
+    if (!q.found) return;
+    const hw = q.halfWidth;
+    const d = edge + hw;
+    const drop =
+      ((q.height - this.naturalHeight(x, z)) * (hw + sh + 5)) /
+      Math.max(d, hw + sh);
+    const rim = sh + (f.rim ?? 0.3);
+    const toe = rim + Math.max(1, drop / f.slope);
+    const w =
+      this.fillWeightAt(x, z, drop, q.along) *
+      smoothstep(rim, rim + 0.6, edge) *
+      (1 - smoothstep(toe, toe + 2, edge)) *
+      (0.75 + 0.25 * this.detailNoise.noise2(x / 3, z / 3));
+    if (w <= 0) return;
+    const earth = [0.2, 0.5, 0.25, 0.05];
+    for (let i = 0; i < 4; i++) out[i] += (earth[i] - out[i]) * w;
   }
 
   /** Scree (rock chips and grit) along the foot of a rock cut (RoadDef.rockCuts), `edge` m beyond the road edge. */
@@ -2576,11 +2787,23 @@ export class TerrainGenerator {
     }
     if (this.channels) {
       const pq = this.channels.query(x, z, this.pq);
-      if (pq.found)
+      if (pq.found) {
         d = Math.max(
           d,
           1 - smoothstep(pq.halfWidth, pq.halfWidth + 3, pq.distance),
         );
+        // A hill stream's bed (`terrain.streamBeds`): washed pebbles and stones down its middle, gravel bars on the
+        // inside, the banks stay earth.
+        const beds = this.map.terrain.streamBeds;
+        if (beds && beds.includes(this.channels.paths[pq.path].kind)) {
+          const bed =
+            (1 -
+              smoothstep(pq.halfWidth * 0.6, pq.halfWidth + 1.2, pq.distance)) *
+            (0.7 + 0.3 * this.detailNoise.noise2(x / 4, z / 4));
+          rk = Math.max(rk, 0.45 * bed);
+          gv = Math.max(gv, 0.5 * bed);
+        }
+      }
     }
     // Muddy lake shore / bed.
     if (this.lakes?.query(x, z, this.lq))

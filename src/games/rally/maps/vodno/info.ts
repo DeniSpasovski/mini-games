@@ -87,7 +87,13 @@ export const vodnoInfo: MapInfo = {
       vignette: 0.1,
     },
     // The pine woods' floor (the trail start's street view): needles and litter on dark earth, in the crowns' shade.
-    groundTint: { grass: '#9d9560', amount: 0.5, litter: 0.8, shade: 0.6 },
+    groundTint: {
+      grass: '#7a8a4c',
+      amount: 0.5,
+      variety: 0.45,
+      litter: 0.4,
+      shade: 0.6,
+    },
     // Summer is the map's own look; the grass of an April hillside and of an October one.
     groundTints: {
       spring: {

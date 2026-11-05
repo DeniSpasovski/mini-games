@@ -136,6 +136,18 @@ const PROP_LODS: LodSpec[] = [
   { maxDistance: 260, castShadow: false },
 ];
 
+/** Forest-floor debris (scans scattered by the hundred): shadows to 65 m, gone by 110 m (the small ones by 80 m). */
+const FOREST_LODS: LodSpec[] = [
+  { maxDistance: 30, castShadow: true },
+  { maxDistance: 65, castShadow: true },
+  { maxDistance: 110, castShadow: false, oneVariant: true },
+];
+const FOREST_SMALL_LODS: LodSpec[] = [
+  { maxDistance: 20, castShadow: true },
+  { maxDistance: 45, castShadow: false },
+  { maxDistance: 80, castShadow: false, oneVariant: true },
+];
+
 /** Figures: the base body and its clothes (~7k + ~10k triangles) close up, the same on the 2.5k mid mesh, then far stand-ins (people.ts `farJointedFigure` / `farCrowdFigure`, then `farSilhouette`). The two detailed ones are `lazy`. */
 const PEOPLE_LODS: LodSpec[] = [
   { maxDistance: 16, castShadow: true, lazy: true },
@@ -172,12 +184,13 @@ export const ASSET_CATALOG: AssetMeta[] = [
     category: 'vegetation',
     fade: true,
     description:
-      'Scots pines (4, 16 and 31 m) of a CC BY pack: a bare trunk under a few needle clumps, three levels of detail. Hero trees at the roadside; solid trunk.',
+      'Scots pines (13, 15 and 31 m) of a CC BY pack: a bare trunk under a few needle clumps, three meshes and the pack billboard far away. Hero trees near the road; solid trunk.',
     variants: 3,
     lods: [
       { maxDistance: 45, castShadow: true },
       { maxDistance: 120, castShadow: true },
       { maxDistance: 480, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
     ],
     colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
     tint: 0.08,
@@ -1070,6 +1083,64 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Hand pallet jack, forks towards +Z (SimReady scan). No collision.',
     variants: 1,
     lods: PROP_LODS,
+  },
+  {
+    id: 'forest_stump',
+    name: 'Tree stump',
+    category: 'props',
+    description:
+      'Old tree stump in its litter skirt, sunk into the ground (Poly Haven scans, variant 0 / 1). Solid.',
+    variants: 2,
+    lods: FOREST_LODS,
+    fade: true,
+    colliders: [{ kind: 'cylinder', r: 0.32, h: 0.35 }],
+    tint: 0.08,
+  },
+  {
+    id: 'forest_log',
+    name: 'Dead log',
+    category: 'props',
+    description:
+      'Thin dead log lying on the ground, 3 m along X (Poly Haven scan). Solid.',
+    variants: 1,
+    lods: FOREST_LODS,
+    fade: true,
+    colliders: [{ kind: 'box', hx: 1.45, hz: 0.13, h: 0.24, r: 1.5 }],
+    tint: 0.08,
+  },
+  {
+    id: 'forest_trunk',
+    name: 'Fallen trunk',
+    category: 'props',
+    description:
+      'Heavy fallen trunk with split bark and a broken branch stub, 4 m along X (Poly Haven scan). Solid.',
+    variants: 1,
+    lods: FOREST_LODS,
+    fade: true,
+    colliders: [{ kind: 'box', hx: 1.9, hz: 0.3, h: 0.55, r: 2 }],
+    tint: 0.08,
+  },
+  {
+    id: 'forest_branches',
+    name: 'Dead branches',
+    category: 'props',
+    description:
+      'Dry fallen branches, about 1.1 x 1.3 m (Poly Haven scan; variant 1 = a small pile). No collision.',
+    variants: 2,
+    lods: FOREST_SMALL_LODS,
+    fade: true,
+    tint: 0.1,
+  },
+  {
+    id: 'forest_roots',
+    name: 'Exposed roots',
+    category: 'props',
+    description:
+      'Patch of exposed pine roots in dark forest soil, about 1.7 x 0.9 m (Poly Haven scan, variant 0 / 1). No collision.',
+    variants: 2,
+    lods: FOREST_SMALL_LODS,
+    fade: true,
+    tint: 0.08,
   },
   {
     id: 'food_truck',

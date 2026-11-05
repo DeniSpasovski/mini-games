@@ -16,6 +16,8 @@ import { houseMaterial } from './house-walls';
 import { groundLitCard, worldUniforms } from './world-shading';
 import { imageTexture } from './image-texture';
 import rockColorUrl from './props/rocks.color.webp';
+import debrisColorUrl from './props/simready-forest.color.webp';
+import debrisNormalUrl from './props/simready-forest.normal.webp';
 import rockNormalUrl from './props/rocks.normal.webp';
 import strawUrl from './props/straw.webp';
 
@@ -42,6 +44,7 @@ export type MaterialId =
   | 'reflector'
   | 'lamp_lens'
   | 'vehicle'
+  | 'debris'
   | 'village_sign';
 
 const cache = new Map<MaterialId, Material>();
@@ -306,6 +309,26 @@ export function getMaterial(id: MaterialId): Material {
         metalness: 0.3,
       });
       break;
+    case 'debris': {
+      // Forest-floor scans (stumps, logs, branches, roots: builders/simready.ts) in their own colour and normal maps,
+      // one atlas tile each (scripts/props/bake-simready.py `forest`); lit like the ground they lie on (RALLY_GROUND).
+      const map = imageTexture(debrisColorUrl, 2048, 1024, 'debris');
+      const normalMap = imageTexture(
+        debrisNormalUrl,
+        1024,
+        512,
+        'debris:normal',
+        '#8080ff',
+        false,
+      );
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map,
+        normalMap,
+        roughness: 0.95,
+      });
+      break;
+    }
     case 'village_sign':
       m = new MeshStandardMaterial({
         map: getTexture('village_sign'),
@@ -340,6 +363,7 @@ export function getMaterial(id: MaterialId): Material {
     m.defines = { ...CARD_DEFINES };
     groundLitCard(m, 'blade');
   }
+  if (id === 'debris') m.defines = { RALLY_GROUND: 1 };
   if (id === 'flag') m.defines = { RALLY_FLAG: 1 };
   if (id === 'fan_flag') m.defines = { RALLY_FLAG: 0.4 };
   cache.set(id, m);

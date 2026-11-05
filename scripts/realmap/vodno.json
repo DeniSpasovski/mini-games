@@ -11,7 +11,8 @@
   ],
   "osm": {
     "source": "overpass",
-    "footpaths": { "kinds": ["path", "footway"], "corridor": 300 }
+    "footpaths": { "kinds": ["path", "footway"], "corridor": 300 },
+    "features": { "corridor": 300 }
   },
   "route": {
     "width": 6.0

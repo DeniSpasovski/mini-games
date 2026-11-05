@@ -119,8 +119,34 @@ export const MATS = {
     decal: 1,
     shadow: false,
   },
-  /** Heaped sand / crushed stone (the gravel stones on a solid that casts shadows; the Vodno side-road piles). */
-  heap: { map: 'gravel', tile: [2.5, 2.5], roughness: 1 },
+  /** Dumped sand / crushed stone (the scans of maps/shared/piles.ts): heaps that cast shadows. */
+  sand: {
+    map: 'facade_sand',
+    tile: [1.8, 1.8],
+    roughness: 1,
+    envMapIntensity: 0.7,
+  },
+  aggregate: {
+    map: 'facade_aggregate',
+    tile: [2.6, 2.6],
+    roughness: 1,
+    envMapIntensity: 0.7,
+  },
+  /** Sand / crushed stone spilled over the ground round a heap (decals; sand a layer up: it lies over the stone's). */
+  sandSpill: {
+    map: 'facade_sand',
+    tile: [1.8, 1.8],
+    roughness: 1,
+    decal: 2,
+    shadow: false,
+  },
+  stoneSpill: {
+    map: 'facade_aggregate',
+    tile: [2.6, 2.6],
+    roughness: 1,
+    decal: 1,
+    shadow: false,
+  },
   /** Concrete block paving (yards, sidewalks). */
   pavers: {
     map: 'lot_pavers',
@@ -254,7 +280,10 @@ const GROUPS: Partial<Record<MatKey, MatGroup>> = {
   wall: 'solid',
   tiles: 'solid',
   brick: 'solid',
-  heap: 'solid',
+  sand: 'solid',
+  aggregate: 'solid',
+  sandSpill: 'patch',
+  stoneSpill: 'ground',
   asphalt: 'ground',
   gravel: 'ground',
   pavers: 'ground',

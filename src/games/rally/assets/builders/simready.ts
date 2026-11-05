@@ -10,6 +10,8 @@ import {
   SIMREADY_SERVICE,
   type SimreadyModelData,
 } from './simready-service.data';
+import { getMaterial } from '../../engine/materials';
+import { merge } from '../../engine/geo';
 import { finish, solid } from './vehicles';
 
 /**
@@ -29,6 +31,7 @@ const GROUPS = {
   yard: async () => (await import('./simready-yard.data')).SIMREADY_YARD,
   village: async () =>
     (await import('./simready-village.data')).SIMREADY_VILLAGE,
+  forest: async () => (await import('./simready-forest.data')).SIMREADY_FOREST,
 };
 export type SimreadyGroup = keyof typeof GROUPS;
 const loadedGroups = new Map<SimreadyGroup, Promise<void>>();
@@ -74,11 +77,15 @@ function model(name: string, lod: number): BufferGeometry {
   );
   const dv = new DataView(bin.buffer);
   const n = dv.getUint16(0, true);
+  const head = dv.getUint16(2, true);
   // Position unit: 1 / 8192 m, halved per shift step (models reaching past 4 m from the origin).
-  const unit = 8192 >> dv.getUint16(2, true);
+  const unit = 8192 >> (head & 0xff);
+  // Bit 8: a textured group (the forest debris) packs its atlas uv per vertex too.
+  const textured = (head & 0x100) !== 0;
   const pos = new Float32Array(n * 3);
   const nor = new Float32Array(n * 3);
   const col = new Float32Array(n * 3);
+  const uvs = new Float32Array(n * 2);
   const lin = (v: number) =>
     v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   let o = 4;
@@ -90,6 +97,11 @@ function model(name: string, lod: number): BufferGeometry {
     o += 3;
     for (let c = 0; c < 3; c++) col[i * 3 + c] = lin(dv.getUint8(o + c) / 255);
     o += 3;
+    if (textured) {
+      for (let c = 0; c < 2; c++)
+        uvs[i * 2 + c] = dv.getUint16(o + c * 2, true) / 65535;
+      o += 4;
+    }
   }
   const idx = new Uint16Array((bin.length - o) / 2);
   for (let k = 0; k < idx.length; k++) idx[k] = dv.getUint16(o + k * 2, true);
@@ -97,11 +109,14 @@ function model(name: string, lod: number): BufferGeometry {
   g.setAttribute('position', new BufferAttribute(pos, 3));
   g.setAttribute('normal', new BufferAttribute(nor, 3));
   g.setAttribute('color', new BufferAttribute(col, 3));
+  if (textured) g.setAttribute('uv', new BufferAttribute(uvs, 2));
   g.setIndex(new BufferAttribute(idx, 1));
   const flat = g.toNonIndexed();
-  const uv = new Float32Array(flat.getAttribute('position').count * 2);
-  for (let i = 0; i < uv.length; i += 2) uv.set(PLAIN, i);
-  flat.setAttribute('uv', new BufferAttribute(uv, 2));
+  if (!textured) {
+    const uv = new Float32Array(flat.getAttribute('position').count * 2);
+    for (let i = 0; i < uv.length; i += 2) uv.set(PLAIN, i);
+    flat.setAttribute('uv', new BufferAttribute(uv, 2));
+  }
   decoded.set(key, flat);
   return flat.clone();
 }
@@ -314,3 +329,46 @@ const DRUMS = ['drum_steel', 'drum_blue', 'barrel_blue'];
 /** Drums and barrels: steel drum, small blue drum, tall blue barrel (variant). */
 export const drum: AssetBuilder = ({ variant, lod }) =>
   finish([model(DRUMS[variant % 3], lod)]);
+
+/**
+ * Forest-floor debris (Poly Haven scans, CC0) in their own textures (the `debris` material's atlas), sunk this far (m):
+ * the scans' litter skirt / underside reaches below their own ground, and a few cm more keep the edge under the
+ * terrain on a slope.
+ */
+const FOREST_SINK: Record<string, number> = {
+  stump_a: 0.2,
+  stump_b: 0.24,
+  log: 0.05,
+  trunk: 0.36,
+  branches: 0.03,
+  roots_a: 0.03,
+  roots_b: 0.03,
+};
+const sunk = (name: string, lod: number) =>
+  model(name, lod).translate(0, -FOREST_SINK[name], 0);
+/** Debris parts in the `debris` material (the group's colour + normal atlas, matt). */
+const debris = (parts: BufferGeometry[]) => ({
+  parts: [{ geometry: merge(parts), material: getMaterial('debris') }],
+});
+
+/** Sawn / rotten tree stump in its litter skirt (variant 0 or 1). */
+export const forestStump: AssetBuilder = ({ variant, lod }) =>
+  debris([sunk(variant % 2 ? 'stump_b' : 'stump_a', lod)]);
+/** Thin dead log, 3 m along X. */
+export const forestLog: AssetBuilder = ({ lod }) => debris([sunk('log', lod)]);
+/** Heavy fallen trunk with split bark and a broken branch stub, 4 m along X. */
+export const forestTrunk: AssetBuilder = ({ lod }) =>
+  debris([sunk('trunk', lod)]);
+/** Three dry branches on the ground (variant 0), or a small pile: the three again on top, turned (variant 1). */
+export const forestBranches: AssetBuilder = ({ variant, lod }) =>
+  debris(
+    variant % 2
+      ? [
+          sunk('branches', lod),
+          sunk('branches', lod).rotateY(1.9).translate(0.1, 0.06, -0.05),
+        ]
+      : [sunk('branches', lod)],
+  );
+/** Patch of exposed pine roots in dark forest soil, about 1.7 x 0.9 m (variant 0 or 1). */
+export const forestRoots: AssetBuilder = ({ variant, lod }) =>
+  debris([sunk(variant % 2 ? 'roots_b' : 'roots_a', lod)]);

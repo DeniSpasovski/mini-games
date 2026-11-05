@@ -23,7 +23,7 @@ Most species come from a family builder in trees/species.ts that writes the gram
 
 - `shrub`: stems rising from a stool (count, stool radius), upright and longest in the centre, leaning out at the rim, so the bush is a dome whose rim reaches the ground; a leaf cluster on every internode; `arch` bows the stems over (bramble canes), `crook` bends them.
 - `conifer`: a bare bole with dead stubs, then whorls of limbs whose length follows a crown shape (cone, umbrella, column) and whose angle rises up the crown; needles only on the outer limb generations (`leafFrom`), so the whorls read as layers. Side sprays are needle tufts on the limb with no wood of their own, so the branch budget draws every limb's axis out to its needles. Optional, for an open crown: sprays only on the outer generations (`sprayFrom`), a wide limb-length spread (`limbJitter`), a share of dead limbs (`deadLimbs`), limbs curving up (`curl`) and stubs on only some metres of the bole (`stubs`).
-- `broadleaf`: a bole with two low limbs forking into three leaders that bifurcate; `crook` bends the limbs, `leafFrom` leaves the inner limbs bare (a crown in clumps with limbs showing), `stems` grows a coppice from one stool.
+- `broadleaf`: a bole with two low limbs forking into three leaders that bifurcate; `crook` bends the limbs, `leafFrom` leaves the inner limbs bare (a crown in clumps with limbs showing: the oak, hornbeam and locust, so sky shows between the clumps), `stems` grows a coppice from one stool.
 - Poplar, cypress, hedge cypress, birch, sapling and willow keep rules of their own. The cypresses hang their fronds on the limbs only (none on the leader) and keep the limbs thin enough to draw, so every frond grows from wood.
 
 ## Types

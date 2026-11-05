@@ -381,6 +381,29 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `visitor` (12 personas: ages, sizes, skirts, kids); test `people`. A new look = a field in `Outfit`, a new pose = `POSES`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
   puts them on the outside of every tight bend of a mountain road (Galichica). `rusty: true` = weathered brown steel (Vodno).
+  `MapDef.dropRails` derives more (`world/drop-rails.ts`): wherever the carved ground falls more than `minDrop` m within `within`
+  (3) m of the verge; the map's own `barriers` (hand, hairpin, OSM-mapped `barrier=guard_rail`) win on their side and stretch,
+  and a derived run ending within `gap` of one carries it on (its steel and offset, no gap).
+- **Fill banks** (`RoadDef.fills`, `TerrainGen.carveRoad` / `paintFill`): the valley-side mirror of `rockCuts` - where the land 5 m
+  past the verge lies `minDrop` m below the road, the verge holds to its rim and a straight `slope` bank of stony earth falls to the
+  land (no ditch). With `dropRails` the rails stand on its rim (Vodno).
+- **Natural ground** (opt-in, `TerrainDef`): `talus` paints bare stony ground on natural slopes in its `slope` range (judged on
+  the elevation data, `paintTalus`, cached on a 4 m lattice; coarse far terrain tiles paint the face only) and scree up to
+  `reach` m below them, less under a closed canopy; `streamBeds` lists the
+  channel kinds whose bed is pebbles and stones. Scatter `minSlope` puts crags and loose rocks on the steep ground only.
+- **Hero trees** (`pack_pine` / `pack_lilac` / `pack_bush`, `assets/builders/tree-packs.ts`): CC BY pack models near the road,
+  the generated forest beyond; past the third mesh the pines draw the pack's own billboard (to 1.5 km). `realTrees.near` swaps the real trees within `dist` m for a pack model of the nearest height;
+  a scatter rule can name a pack asset like any other (Vodno: the near wood band, the verge pines, the understorey).
+  Size ladder: `.claude/reference/trees/Placement.md`.
+- **Piles** (`maps/shared/piles.ts`): sand / crushed-stone / spread heaps for road closures, depots and sites - shape, scanned
+  material (kit keys `sand` / `aggregate`, spill `sandSpill` / `stoneSpill`), weeds, colliders; a landmark builds them into its bucket.
+- **Forest-floor debris** (`forest_stump`, `forest_log`, `forest_trunk`, `forest_branches`, `forest_roots`; `simready.ts`): CC0 Poly
+  Haven scans, bake group `forest` - the one group that keeps its models' own colour + normal maps (atlas
+  `engine/props/simready-forest.*.webp`, `debris` material). A map lists `'forest'` in its `models` and scatters them; sunk into
+  the ground, colliders on the stump, log and trunk only.
+- **OSM features** (bake `osm.features`, `data.json` "features", `MapDef.features`): park furniture, gates / blocks / bollards,
+  single trees, signs and fence / wall / kerb / guard-rail lines within the corridor; a map landmark places them (Vodno:
+  `vodno-osm-features`, built from the map in `world/landmarks.ts` `FROM_MAP`, after and around the hand-built ones).
 - **Scatter area** (`MapDef.scatterBounds`): narrows where trees / bushes / rocks are generated (any side of `bounds`) - for land no
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).

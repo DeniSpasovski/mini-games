@@ -123,6 +123,10 @@ The road-cut rock faces (`engine/props/cut-face.*.webp`): CC0 scan from Poly Hav
 `scripts/rocks/bake-cut-face.py`: [Cliff Side](https://polyhaven.com/a/cliff_side) (James Ray Cock, Dario Barresi, Jenelle van
 Heerden). It also skins the Vodno trail start's flat stones. No credit is required.
 
+The heaps of sand and crushed stone (`engine/props/pile-*.webp`, `maps/shared/piles.ts`): CC0 scans from Poly Haven, resized and
+toned by `scripts/props/bake-piles.py`: [Dense Sand](https://polyhaven.com/a/dense_sand) (Dimitrios Savva),
+[Gravel Floor 02](https://polyhaven.com/a/gravel_floor_02) (Jenelle van Heerden, Dimitrios Savva). No credit is required.
+
 ### Tree bark (baked into `src/games/rally/trees/bark/`)
 
 CC0 scans from Poly Haven, made grey (with their normal maps) by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva), Bark Willow (Dario Barresi, Dimitrios Savva), Japanese Cedar Bark (Charlotte Baglioni) for cypress and juniper; the pine bark also skins the Vodno trail start's roots. No credit is required.
@@ -199,9 +203,9 @@ repository).
 
 ### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*.webp`)
 
-Vodno's trail stand, car park and hairpin use a few models of three CC BY 4.0 packs by LOLIPOP (Sketchfab account
-lolipop_1707): Scots pines, lilac and bush shrubs (their own triangles, normals, uvs and textures, three levels of detail,
-the textures shrunk and recompressed; packed by `scripts/trees/bake-tree-packs.py`; the source files are not in the
+Vodno's roadside (pines near the road, lilac and bush understorey) uses a few models of three CC BY 4.0 packs by LOLIPOP
+(Sketchfab account lolipop_1707): Scots pines, lilac and bush shrubs (their own triangles, normals, uvs and textures, three
+levels of detail, the pines also their far billboards; the textures shrunk and recompressed; packed by `scripts/trees/bake-tree-packs.py`; the source files are not in the
 repository).
 
 | Pack                                          | Author                                    | Licence   |
@@ -256,20 +260,27 @@ code; the source files are not in the repository).
 The service park table and chairs, generator and jerrycans, the underpass wall lamps, the wooden power poles and the village
 street furniture (benches, dustbins, utility cabinets, picnic tables, `simready-village.data.ts`): CC0 models from Poly Haven, coloured per face
 from their own texture under the face, decimated and packed by `scripts/props/bake-simready.py` (the source files are not in
-the repository). No credit is required.
+the repository). The forest-floor debris (stumps, logs, branches, roots, `simready-forest.data.ts`) keeps its own colour and
+normal maps, resized into `engine/props/simready-forest.*.webp`. No credit is required.
 
-| Model                                                                                                   | Author             | Licence |
-| ------------------------------------------------------------------------------------------------------- | ------------------ | ------- |
-| [Outdoor Table Chair Set 01](https://polyhaven.com/a/outdoor_table_chair_set_01)                        | James Ray Cock     | CC0     |
-| [Portable Generator](https://polyhaven.com/a/portable_generator)                                        | James Ray Cock     | CC0     |
-| [Industrial Wall Lamp](https://polyhaven.com/a/industrial_wall_lamp)                                    | Kuutti Siitonen    | CC0     |
-| [Metal Jerrycan Green](https://polyhaven.com/a/metal_jerrycan_green)                                    | Ulan Cabanilla     | CC0     |
-| [Modular Electricity Poles](https://polyhaven.com/a/modular_electricity_poles) (pole and one cross arm) | James Ray Cock     | CC0     |
-| [Utility Box 01](https://polyhaven.com/a/utility_box_01)                                                | James Ray Cock     | CC0     |
-| [Utility Box 02](https://polyhaven.com/a/utility_box_02)                                                | James Ray Cock     | CC0     |
-| [Metal Trash Can](https://polyhaven.com/a/metal_trash_can) (the plain can)                              | GurJas Studios     | CC0     |
-| [Modular Street Seating](https://polyhaven.com/a/modular_street_seating) (one bench)                    | Stuart Attenborrow | CC0     |
-| [Wooden Picnic Table](https://polyhaven.com/a/wooden_picnic_table)                                      | Ulan Cabanilla     | CC0     |
+| Model                                                                                                   | Author                             | Licence |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------- |
+| [Outdoor Table Chair Set 01](https://polyhaven.com/a/outdoor_table_chair_set_01)                        | James Ray Cock                     | CC0     |
+| [Portable Generator](https://polyhaven.com/a/portable_generator)                                        | James Ray Cock                     | CC0     |
+| [Industrial Wall Lamp](https://polyhaven.com/a/industrial_wall_lamp)                                    | Kuutti Siitonen                    | CC0     |
+| [Metal Jerrycan Green](https://polyhaven.com/a/metal_jerrycan_green)                                    | Ulan Cabanilla                     | CC0     |
+| [Modular Electricity Poles](https://polyhaven.com/a/modular_electricity_poles) (pole and one cross arm) | James Ray Cock                     | CC0     |
+| [Utility Box 01](https://polyhaven.com/a/utility_box_01)                                                | James Ray Cock                     | CC0     |
+| [Utility Box 02](https://polyhaven.com/a/utility_box_02)                                                | James Ray Cock                     | CC0     |
+| [Metal Trash Can](https://polyhaven.com/a/metal_trash_can) (the plain can)                              | GurJas Studios                     | CC0     |
+| [Modular Street Seating](https://polyhaven.com/a/modular_street_seating) (one bench)                    | Stuart Attenborrow                 | CC0     |
+| [Wooden Picnic Table](https://polyhaven.com/a/wooden_picnic_table)                                      | Ulan Cabanilla                     | CC0     |
+| [Tree Stump 01](https://polyhaven.com/a/tree_stump_01)                                                  | Rob Tuytel                         | CC0     |
+| [Tree Stump 02](https://polyhaven.com/a/tree_stump_02)                                                  | Rob Tuytel                         | CC0     |
+| [Dead Tree Trunk](https://polyhaven.com/a/dead_tree_trunk)                                              | Rob Tuytel                         | CC0     |
+| [Dead Tree Trunk 02](https://polyhaven.com/a/dead_tree_trunk_02)                                        | Jenelle van Heerden, Rico Cilliers | CC0     |
+| [Dry Branches Medium 01](https://polyhaven.com/a/dry_branches_medium_01)                                | Rico Cilliers                      | CC0     |
+| [Pine Roots](https://polyhaven.com/a/pine_roots)                                                        | Rob Tuytel                         | CC0     |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 

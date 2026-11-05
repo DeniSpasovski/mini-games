@@ -731,14 +731,14 @@ export const OAK = broadleaf({
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 1.7,
+    spriteSize: 1.5,
     leaf: 'lobed',
     palette: ['#3b4f34', '#3f5235', '#445636', '#485937', '#4c5d37'],
   },
   scale: [0.9, 1.3],
   variants: 6,
-  crook: 14,
-  leafFrom: 2,
+  crook: 17,
+  leafFrom: 3,
 });
 
 /** Mountain beech (Galichica): tall straight smooth pale-grey trunk under a dense rounded crown turning bronze. */
@@ -783,14 +783,15 @@ export const HORNBEAM = broadleaf({
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 1.65,
+    spriteSize: 1.45,
     leaf: 'serrate',
     palette: ['#405537', '#455838', '#495c38', '#4e6039', '#526439'],
   },
   scale: [0.85, 1.3],
   variants: 6,
   stems: 3,
-  crook: 6,
+  crook: 9,
+  leafFrom: 2,
 });
 
 /** Walnut / mulberry yard tree: a thick short trunk under a big, dense, dark round crown. */
@@ -1287,14 +1288,14 @@ export const LOCUST = broadleaf({
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 1.15,
+    spriteSize: 1.05,
     leaf: 'small',
     palette: ['#4a5d33', '#516234', '#576734', '#5d6b34'],
   },
   scale: [0.85, 1.2],
   variants: 4,
-  crook: 8,
-  leafFrom: 1,
+  crook: 11,
+  leafFrom: 2,
 });
 
 /** Bramble and wild rose along the forest edge and the verges: a low arching tangle of green canes, 0.8-1.4 m. */

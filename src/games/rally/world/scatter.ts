@@ -258,7 +258,8 @@ export class ScatterField {
   /**
    * The trees where they really stand (`MapDef.realTrees`): the tree type from the land cover at each, sized to its
    * height; skipped where the scatter grows nothing (bounds, buildings, landmarks, water, the road and path margins, the
-   * stage's tree setback). Returns how many were placed.
+   * stage's tree setback). Within `near.dist` of the road a model tree (`near.assets`) stands in for the generated one;
+   * the far forest still counts the generated type. Returns how many were placed.
    */
   addRealTrees(def: RealTreesDef): number {
     const lc = this.ctx.landcover;
@@ -288,11 +289,42 @@ export class ScatterField {
       )
         continue;
       if (this.nearPath(x, z, minPath)) continue;
+      const tiltA = u(4) * Math.PI * 2;
+      // Close to the road a model tree may stand in for the generated one (`near`): the model whose own height is
+      // nearest the tree's (a young pine is a young pine's model, not a shrunk old one), turned by the hash.
+      const near = def.near;
+      const heroes =
+        near && rd < near.dist && cover !== undefined
+          ? near.assets[cover]
+          : undefined;
+      const hero = heroes?.[Math.floor(u(5) * heroes.length)];
+      const heights = hero === undefined ? undefined : near!.heights[hero];
+      if (hero !== undefined && heights?.length) {
+        const want = t[i + 2] * (near!.gain ?? 1);
+        let variant = 0;
+        for (let v = 1; v < heights.length; v++)
+          if (
+            Math.abs(Math.log(want / heights[v])) <
+            Math.abs(Math.log(want / heights[variant]))
+          )
+            variant = v;
+        const scale = Math.min(1.4, Math.max(0.5, want / heights[variant]));
+        this.addFixed({
+          asset: hero,
+          variant,
+          x,
+          y: this.hf.height(x, z) - (def.sink ?? 0) * scale,
+          z,
+          rotY: u(6) * Math.PI * 2,
+          scale,
+          tiltX: Math.cos(tiltA) * tiltM,
+          tiltZ: Math.sin(tiltA) * tiltM,
+        });
+      }
       const scale = Math.min(
         def.scale[1],
         Math.max(def.scale[0], t[i + 2] / typeHeight(asset)),
       );
-      const tiltA = u(4) * Math.PI * 2;
       const inst: ScatterInstance = {
         asset,
         variant: 0,
@@ -304,7 +336,7 @@ export class ScatterField {
         tiltX: Math.cos(tiltA) * tiltM,
         tiltZ: Math.sin(tiltA) * tiltM,
       };
-      this.addFixed(inst);
+      if (!heights?.length) this.addFixed(inst);
       const k = key(Math.floor(x / REAL_CELL), Math.floor(z / REAL_CELL));
       let cell = this.realCells.get(k);
       if (!cell) this.realCells.set(k, (cell = new Map()));
@@ -602,6 +634,7 @@ export class ScatterField {
         }
         const n = ground.normal(x, z, this.n);
         if (rule.maxSlope !== undefined && 1 - n.y > rule.maxSlope) continue;
+        if (rule.minSlope !== undefined && 1 - n.y < rule.minSlope) continue;
         let tiltX = Math.cos(tiltA) * tiltM;
         let tiltZ = Math.sin(tiltA) * tiltM;
         if (rule.alignToGround) {
@@ -622,7 +655,7 @@ export class ScatterField {
         if (tree) {
           const ruleScale = inst.scale;
           const index = hash3(cx, cz, ri * 65536 + i, 0x7ee5);
-          this.poseTree(inst, index);
+          this.poseTree(inst, index, true);
           // No low limbs over the road: a solid tree whose leaves hang low over the stage road takes another pose
           // (variant, rotation, size) from the same hash: the one of REPOSE_TRIES that keeps them furthest off.
           if (solid && this.ctx.treeCrownClear !== undefined && q.found) {
@@ -635,7 +668,7 @@ export class ScatterField {
                 sc = inst.scale,
                 pose = inst.tree;
               inst.scale = ruleScale;
-              this.poseTree(inst, mix32(index, k));
+              this.poseTree(inst, mix32(index, k), true);
               const o = this.lowOverRoad(inst, q, rd);
               if (o < over) over = o;
               else {
@@ -691,13 +724,17 @@ export class ScatterField {
     return best + f.margin * k - rd;
   }
 
-  /** Variant, rotation, scale (x the map's) and tint of a placed tree from the stage id and its placement index. */
-  private poseTree(inst: ScatterInstance, index: number): void {
+  /**
+   * Variant, rotation, scale (x the map's) and tint of a placed tree from the stage id and its placement index; `ladder`:
+   * a scattered tree, sized on the stand's age ladder (trees/placement.ts).
+   */
+  private poseTree(inst: ScatterInstance, index: number, ladder = false): void {
     const t = placeTree(
       this.ctx.stageId ?? 'stage',
       index,
       inst.asset,
       inst.scale,
+      ladder,
     );
     inst.variant = t.variant;
     inst.rotY = t.rotY;

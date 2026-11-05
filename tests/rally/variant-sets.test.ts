@@ -21,7 +21,7 @@ rs.mock('../../src/games/rally/engine/grass', () => ({
  * exactly the ones `getAsset` builds for it, so a variant-set mesh draws the same thing as the per-variant meshes.
  */
 describe('variant sets', () => {
-  beforeAll(() => loadSimready('park', 'yard', 'village'));
+  beforeAll(() => loadSimready('park', 'yard', 'village', 'forest'));
 
   const sets = ASSET_CATALOG.filter((a) => a.category !== 'textures').flatMap(
     (a) => a.lods.map((_, lod) => [a.id, lod] as const),
