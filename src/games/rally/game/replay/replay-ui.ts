@@ -411,7 +411,7 @@ export class ReplayUi {
     sel.style.width = `${((100 * (x.to - x.from)) / d).toFixed(3)}%`;
     const len = x.to - x.from;
     x.pop.querySelector('[data-x="len"]')!.textContent =
-      `${formatTime(len).replace(/^0:/, '')} s`;
+      len < 60 ? `${len.toFixed(2)} s` : formatTime(len);
     x.pop
       .querySelectorAll<HTMLElement>('[data-size]')
       .forEach((b) => b.classList.toggle('on', b.dataset.size === x.size.id));
