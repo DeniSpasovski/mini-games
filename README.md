@@ -20,6 +20,7 @@ for a level, feel free to suggest it!
 |                                                                                               |                                                                                               |
 | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | ![Rally, Ajvatovci start street](src/games/rally/maps/ajvatovci/screenshots/start-street.jpg) | ![Rally, Jackie Robinson Parkway](src/games/rally/maps/jackie/screenshots/parkway-bridge.jpg) |
+| ![Rally, Ajvatovci at night](src/games/rally/maps/ajvatovci/screenshots/night.jpg)            | ![Rally, Jackie Robinson Parkway at night](src/games/rally/maps/jackie/screenshots/night.jpg) |
 | ![Hole Island, City Island](src/games/hole/screenshots/city-late.jpg)                         | ![Hole Island, Toy Emporium](src/games/hole/screenshots/toy-late.jpg)                         |
 | ![3, 2, 1 Kabooom, the Quarry arena](src/games/kaboom/screenshots/quarry.jpg)                 | ![3, 2, 1 Kabooom, Sea Deck](src/games/kaboom/screenshots/sea.jpg)                            |
 

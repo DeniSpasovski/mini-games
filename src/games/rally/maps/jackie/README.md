@@ -10,6 +10,7 @@ carriageway, ramps and interchange as ordinary side roads. Map id `jackie`, stag
 |                                                   |
 | ------------------------------------------------- |
 | ![Start of the stage](screenshots/city-start.jpg) |
+| ![The parkway at night](screenshots/night.jpg)    |
 
 Ten team cars are parked on both sides of the stage road at the start line (`service-park.ts`).
 

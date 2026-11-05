@@ -53,6 +53,10 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 
 [![Ajvatovci](maps/ajvatovci/screenshots/start-street.jpg)](maps/ajvatovci/) [![Jackie](maps/jackie/screenshots/parkway-bridge.jpg)](maps/jackie/)
 
+The stages run at any time of day, night included:
+
+[![Ajvatovci at night](maps/ajvatovci/screenshots/night.jpg)](maps/ajvatovci/) [![Jackie at night](maps/jackie/screenshots/night.jpg)](maps/jackie/)
+
 ## Cars
 
 | Car                                        | Drive | Notes                                                                          |

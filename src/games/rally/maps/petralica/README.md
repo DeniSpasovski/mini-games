@@ -10,6 +10,7 @@ stage 2.
 |                                                        |
 | ------------------------------------------------------ |
 | ![Valley road, Petralica](screenshots/valley-road.jpg) |
+| ![Petralica at night](screenshots/night.jpg)           |
 
 Most of the route is real OpenStreetMap road. Two parts that OSM does not have (about 1 km above Petralica and the
 last 1.1 km) were traced from a route screenshot and are only accurate to 10-25 m, and the houses are generated on
