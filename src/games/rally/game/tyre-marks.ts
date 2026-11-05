@@ -38,6 +38,10 @@ const COPIES = 3;
  *   3 scuff: sliding sideways on a hard surface - fainter, fine striations along the slide, soft edges.
  */
 const KINDS = 4;
+/** Distance (m) over which a mark builds up to its full darkness / fades out again, and the length (m) of its patchy swells. */
+const RAMP_IN = 3;
+const RAMP_OUT = 4;
+const PATCH_SCALE = 1.7;
 const TILE_W = 64;
 const TILE_H = 128;
 /** Tread pitches per tile along the mark (the imprint repeats at the real pitch length). */
@@ -59,6 +63,8 @@ export class TyreMarks {
   private last: (Vector3 | null)[];
   private lastAlpha: number[];
   private lastWidth: number[];
+  /** Built-up darkness per wheel (0..1): rises while the tyre keeps sliding, falls once it stops. */
+  private heat: number[];
   /** Distance along each wheel's strip (texture v). */
   private along: number[];
   private colour = new Color();
@@ -122,6 +128,7 @@ export class TyreMarks {
     this.last = new Array(wheels).fill(null);
     this.lastAlpha = new Array(wheels).fill(0);
     this.lastWidth = new Array(wheels).fill(0);
+    this.heat = new Array(wheels).fill(0);
     this.along = new Array(wheels).fill(0);
     this.fit();
   }
@@ -179,30 +186,40 @@ export class TyreMarks {
       const w = v.wheels[i];
       const s = w.surface;
       const loose = s.loose > 0.3;
-      // Loose: ruts whenever rolling, darker with slide. Hard: rubber only while sliding.
-      const slide = Math.min(1, Math.max(0, (w.slideSpeed - 1.2) / 6));
-      const alpha = !w.contact
+      // Loose: ruts whenever rolling, darker with slide. Hard: rubber only while sliding, darker the harder it slides
+      // (slip speed, no cap at the first scrub) and the more load the tyre carries.
+      const slide = smooth((w.slideSpeed - 1.2) / 11);
+      const loadN = Math.min(
+        1,
+        Math.max(0, w.load / (w.nominalLoad * 1.6 || 1)),
+      );
+      const target = !w.contact
         ? 0
         : loose
           ? Math.min(0.62, s.loose * (0.22 + 0.4 * slide))
-          : slide * 0.6;
-      if (alpha < 0.02 || speed < 0.5) {
+          : slide * (0.3 + 0.7 * loadN) * 0.75;
+      if (speed < 0.5 || (target < 0.02 && this.heat[i] < 0.02)) {
         this.last[i] = null;
+        this.heat[i] = 0;
         continue;
       }
-      // Sideways the patch sweeps across: the mark widens with the slip angle.
+      // Sideways the patch sweeps across: the mark widens with the slip angle, and with load (a light tyre scrubs a
+      // narrower strip).
       const beta = Math.min(Math.PI / 2, Math.abs(w.slipAngle));
       const width =
-        this.tread[i] * Math.cos(beta) * (loose ? RUT_SPREAD : 1) +
-        PATCH_LENGTH * Math.sin(beta);
+        (this.tread[i] * Math.cos(beta) * (loose ? RUT_SPREAD : 1) +
+          PATCH_LENGTH * Math.sin(beta)) *
+        (0.8 + 0.2 * loadN);
       const p = this.a
         .copy(w.contactPoint)
         .addScaledVector(w.contactNormal, LIFT);
       const prev = this.last[i];
       if (!prev) {
+        // A new strip starts invisible and darkens along its first metres.
         this.last[i] = p.clone();
-        this.lastAlpha[i] = alpha;
+        this.lastAlpha[i] = 0;
         this.lastWidth[i] = width;
+        this.heat[i] = 0;
         continue;
       }
       const d = p.distanceTo(prev);
@@ -213,6 +230,11 @@ export class TyreMarks {
       }
       // Longer segments at speed (more track per buffer), short ones when slow / sliding.
       if (d < Math.max(0.3, speed * 0.045)) continue;
+      // Build up / fade out over distance, with patchy swells along the mark (grip and surface vary).
+      const rate = target > this.heat[i] ? d / RAMP_IN : d / RAMP_OUT;
+      this.heat[i] += (target - this.heat[i]) * Math.min(1, rate);
+      const patch = 0.7 + 0.3 * noise1(this.along[i] / PATCH_SCALE + i * 31.7);
+      const alpha = this.heat[i] * (loose ? 1 : patch);
       // Kind (atlas tile): imprint while rolling, smeared while sliding / spinning; on hard ground rubber along the
       // tyre (spin, lock) or a scuff when it slides sideways.
       const kind = loose ? (slide > 0.3 ? 1 : 0) : beta > 0.3 ? 3 : 2;
@@ -300,6 +322,19 @@ export class TyreMarks {
     this.material.map?.dispose();
     this.material.dispose();
   }
+}
+
+/** Smoothstep of x clamped to 0..1. */
+function smooth(x: number): number {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
+
+/** Smooth 1D value noise in 0..1. */
+function noise1(x: number): number {
+  const i = Math.floor(x);
+  const f = smooth(x - i);
+  return hash(i, 0.5) * (1 - f) + hash(i + 1, 0.5) * f;
 }
 
 /** Cheap hash noise in 0..1. */
