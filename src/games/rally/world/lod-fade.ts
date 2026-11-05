@@ -12,9 +12,11 @@
  *   `instFade` = (start time, role): ONE number per instance per frame (the fade value from the world clock `wsTime`),
  *   nothing derived from a vertex or pixel. Both copies use the same 8 x 8 screen-space ordered dither: the outgoing
  *   level keeps the pixels whose dither value is >= the fade value, the incoming one those below it, so every pixel is
- *   covered by exactly one level and the instance is never see-through. Shadows are never dithered.
- * - The fade lives in the shared shader chunks (`installLodFade`, materials with `defines.RALLY_LOD_FADE`): no material
- *   or geometry is cloned per instance; a bucket only wraps its geometry once to carry the attribute.
+ *   covered by exactly one level and the instance is never see-through. Shadows are not dithered: one copy casts, the
+ *   outgoing level until halfway, then the incoming one (`RALLY_LOD_FADE_SHADOW`).
+ * - The fade lives in the shared shader chunks (engine/world-shading.ts, materials with `defines.RALLY_LOD_FADE`): a
+ *   bucket draws with its material's cached fade copy (`lodFadeMaterial`) only while a fade runs, and drops the
+ *   finished outgoing copies when the last fade ends (`InstanceStreamer.endFades`). Nothing is cloned per instance.
  */
 
 /** Fade time (s). */
@@ -94,7 +96,7 @@ export function nextFade(
   s.start = START_AT_COMMIT;
 }
 
-/** The copies to draw: [level, role] pairs (none, one, or the two of a fade). */
+/** The copies to draw: [level, role] pairs (none, one, or the two of a fade; the streamer inlines it, no arrays). */
 export function fadeCopies(s: FadeState): [number, number][] {
   if (!s.fading) return s.lod >= 0 ? [[s.lod, FADE_SOLID]] : [];
   const out: [number, number][] = [];
@@ -131,8 +133,13 @@ export const LOD_FADE_VERTEX = /* glsl */ `
 #ifdef RALLY_LOD_FADE
 	{
 		float lfF = clamp( ( wsTime - instFade.x ) / ${LOD_FADE_TIME.toFixed(3)}, 0.0, 1.0 );
+	#ifdef RALLY_LOD_FADE_SHADOW
+		vLodKeep = vec2( 0.0, 2.0 );
+		if ( instFade.y > 1.5 && ( instFade.y < 2.5 ? lfF >= 0.5 : lfF < 0.5 ) ) transformed = vec3( 0.0, -1e4, 0.0 );
+	#else
 		vLodKeep = instFade.y < 1.5 ? vec2( 0.0, 2.0 ) : instFade.y < 2.5 ? vec2( lfF, 2.0 ) : vec2( 0.0, lfF );
 		if ( vLodKeep.y - vLodKeep.x < 1.0 / 128.0 ) transformed = vec3( 0.0, -1e4, 0.0 );
+	#endif
 	}
 #endif`;
 

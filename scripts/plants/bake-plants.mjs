@@ -1,12 +1,14 @@
 /**
  * Bakes the rally grass / weed / reed card atlases (src/games/rally/engine/plants/*.webp + plant-atlas.data.ts) from
- * CC0 Poly Haven plant scans.
+ * CC0 Poly Haven plant scans and CC BY Sketchfab models (the reeds sheet).
  *
- *   node scripts/plants/bake-plants.mjs sources/rally/plants
+ *   node scripts/plants/bake-plants.mjs sources/rally/plants [--sheets reeds,weeds]
+ *
+ * `--sheets` bakes only those sheets (and needs only their models); the others keep their atlases and data.
  *
  * The source folder holds one folder per Poly Haven model (the 1k glTF download: <id>.gltf + .bin + textures/, plus the
  * model's 1k alpha png and, where there is one, its dry colour map): grass_medium_01, grass_medium_02, nettle_plant,
- * dandelion_01, celandine_01, weed_plant_02. scripts/plants/layout.ts says which clump stands where in each cell
+ * dandelion_01, celandine_01, weed_plant_02; and the two glb files of `GLB_MODELS`. scripts/plants/layout.ts says which clump stands where in each cell
  * (seeded); headless Chromium (Playwright, three.js) renders every cell from the side, albedo only, alpha-tested at 2x
  * and averaged down to soft coverage; scripts/plants/pack.py packs the sheets, bleeds colour under the transparent
  * texels, makes the spring sheet and measures the means the blade strips and the vines take.
@@ -21,11 +23,44 @@ import { SHEETS, layoutCell, layoutHash } from './layout.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
-const src = path.resolve(process.argv[2] ?? 'sources/rally/plants');
+const args = process.argv.slice(2);
+const flag = args.indexOf('--sheets');
+const only = flag >= 0 ? args.splice(flag, 2)[1].split(',') : null;
+const src = path.resolve(args[0] ?? 'sources/rally/plants');
+const BAKE = SHEETS.filter((s) => !only || only.includes(s.id));
+const needed = new Set(
+  BAKE.flatMap((s) => s.cells.flatMap((c) => c.groups.map((g) => g.model))),
+);
 /** Camera pitch (rad): the cells are seen a little from above, as from a car seat. */
 const PITCH = 0.12;
 
+/**
+ * The glb models (CC BY 4.0, Nicholas-3D on Sketchfab) and their pieces: a node and its meshes (`node`) or the first
+ * mesh with a material (`material`); every piece is stood on y = 0 and scaled to 1 m tall.
+ */
+const GLB_MODELS = {
+  reed_pack: {
+    file: 'reed-plants-pack-nicholas3d.glb',
+    pieces: Object.fromEntries(
+      [1, 2, 3, 4, 5].map((n) => [
+        `Reed_${n}_${n}`,
+        { node: `Reed_${n}_${n}` },
+      ]),
+    ),
+  },
+  cattails: {
+    file: 'ground-cover-foliage-showcase-nicholas3d.glb',
+    pieces: { cattail: { material: 'Material_3_Mat' } },
+  },
+};
+
 const MODELS = {};
+for (const [id, m] of Object.entries(GLB_MODELS)) {
+  if (!needed.has(id)) continue;
+  const glb = path.join(src, m.file);
+  if (!fs.existsSync(glb)) throw new Error(`missing ${glb}`);
+  MODELS[id] = { glb, pieces: m.pieces };
+}
 for (const id of [
   'grass_medium_01',
   'grass_medium_02',
@@ -34,6 +69,7 @@ for (const id of [
   'celandine_01',
   'weed_plant_02',
 ]) {
+  if (!needed.has(id)) continue;
   const dir = path.join(src, id);
   const t = (name) => path.join(dir, 'textures', `${id}_${name}`);
   const need = (p) => {
@@ -56,6 +92,7 @@ const TYPES = {
   '.json': 'application/json',
   '.gltf': 'model/gltf+json',
   '.bin': 'application/octet-stream',
+  '.glb': 'model/gltf-binary',
   '.jpg': 'image/jpeg',
   '.png': 'image/png',
 };
@@ -92,18 +129,20 @@ await page.waitForFunction(() => window.ready === true);
 const models = Object.fromEntries(
   Object.entries(MODELS).map(([id, m]) => [
     id,
-    {
-      gltf: web(m.gltf),
-      diff: web(m.diff),
-      alpha: web(m.alpha),
-      arm: web(m.arm),
-      dry: web(m.dry),
-    },
+    m.glb
+      ? { glb: web(m.glb), pieces: m.pieces }
+      : {
+          gltf: web(m.gltf),
+          diff: web(m.diff),
+          alpha: web(m.alpha),
+          arm: web(m.arm),
+          dry: web(m.dry),
+        },
   ]),
 );
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'plants-'));
 const manifest = { hash: layoutHash(), sheets: [] };
-for (const s of SHEETS) {
+for (const s of BAKE) {
   const cw = s.w / s.cols;
   const ch = s.h / s.rows;
   const cells = s.cells.map((c) => ({
@@ -134,9 +173,13 @@ await browser.close();
 server.close();
 const mf = path.join(tmp, 'manifest.json');
 fs.writeFileSync(mf, JSON.stringify(manifest));
-execFileSync('python3', [path.join(here, 'pack.py'), mf, root], {
-  stdio: 'inherit',
-});
+execFileSync(
+  process.env.PYTHON ?? 'python3',
+  [path.join(here, 'pack.py'), mf, root],
+  {
+    stdio: 'inherit',
+  },
+);
 fs.rmSync(tmp, { recursive: true });
 // The repo's formatting, so a bake with nothing changed leaves no diff.
 execFileSync(

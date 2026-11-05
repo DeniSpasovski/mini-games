@@ -1,4 +1,5 @@
 import { Rng } from '../../../../shared/rng';
+import { merge } from '../../engine/geo';
 import {
   cropBlock,
   cropCardMaterial,
@@ -39,33 +40,43 @@ const GRASS_MATERIAL: Record<GrassKind, MaterialId> = {
 
 /**
  * Grass: blade strips (LOD 0, engine/grass.ts, the sheet's measured colours) and crossed cards of the scanned tufts
- * (LOD 1). Variant 2 of the green and spring grass is the weed margin (dandelion, celandine, a low weed in the grass).
+ * (LOD 1). Variant 1 of the green and spring grass carries the weed margin (dandelion, celandine): one narrow card in
+ * place of its third tuft card (a small share of the cards' area, not a third of the tufts), flowers on the blade strips
+ * so both levels show it. Two variants only: grass draws as a variant set, every instance runs the vertex shader over all.
  */
 function grass(kind: GrassKind, height: [number, number]): AssetBuilder {
   return ({ seed, variant, lod }) => {
     const rng = new Rng(seed);
     const h = rng.range(height[0], height[1]);
+    const margin = kind !== 'dry' && variant === 1;
     if (lod === 0)
       return {
         parts: [
           {
-            geometry: bladeTuftGeometry(seed, kind, GRASS_W, h),
+            geometry: bladeTuftGeometry(
+              seed,
+              kind,
+              GRASS_W,
+              h,
+              undefined,
+              margin ? 2 : 0,
+            ),
             material: getMaterial('grass_blade'),
           },
         ],
       };
-    const margin = kind !== 'dry' && variant === 2;
-    const cells =
-      kind === 'dry' ? CELLS.dryTufts : margin ? [CELLS.margin] : CELLS.tufts;
+    const sheet = GRASS_SHEET[kind];
+    const cells = kind === 'dry' ? CELLS.dryTufts : CELLS.tufts;
     // A card's window is 1 x 0.5 m (scripts/plants/layout.ts): the tuft fills its width, so scale both ways.
     const w = GRASS_W * rng.range(0.95, 1.05) * (h / 0.5) ** 0.5;
+    const geometry = margin
+      ? merge([
+          plantCards(rng, sheet, cells, w, h, 2),
+          plantCards(rng, sheet, [CELLS.margin], w * 0.6, h, 1),
+        ])
+      : plantCards(rng, sheet, cells, w, h);
     return {
-      parts: [
-        {
-          geometry: plantCards(rng, GRASS_SHEET[kind], cells, w, h),
-          material: getMaterial(GRASS_MATERIAL[kind]),
-        },
-      ],
+      parts: [{ geometry, material: getMaterial(GRASS_MATERIAL[kind]) }],
     };
   };
 }
@@ -78,7 +89,7 @@ export const dryGrass = grass('dry', [0.45, 0.7]);
 /** Fresh spring grass (bright green), for maps with a green `groundTint`. */
 export const springGrass = grass('spring', [0.3, 0.5]);
 
-/** Weeds and reeds: tall cards (the cells are 0.6 x 1.2 m). */
+/** Weeds: tall cards (the cells are 0.6 x 1.2 m). */
 function tallCards(
   cells: readonly number[],
   height: [number, number],
@@ -97,8 +108,30 @@ function tallCards(
   };
 }
 
-/** Golden reeds (canal and drain banks): the scanned tall grass, stretched up. */
-export const reeds = tallCards(CELLS.reeds, [1.3, 2.1]);
+/**
+ * Reeds (canal and drain banks): cards of the reeds sheet, baked from CC BY reed and cattail models; the last variant
+ * is a cattail stand.
+ */
+export const reeds: AssetBuilder = ({ seed, variant }) => {
+  const rng = new Rng(seed);
+  const h = rng.range(1.7, 2.3);
+  return {
+    parts: [
+      {
+        geometry: plantCards(
+          rng,
+          'reeds',
+          variant === 2 ? CELLS.cattails : CELLS.reeds,
+          h * 0.5,
+          h,
+          3,
+          0.6,
+        ),
+        material: getMaterial('foliage_card_reeds'),
+      },
+    ],
+  };
+};
 
 /** Nettle stands of the field margins and ditches, green and dried. */
 export const tallWeeds = tallCards(

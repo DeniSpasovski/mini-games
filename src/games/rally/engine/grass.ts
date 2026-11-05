@@ -21,6 +21,7 @@ import greenUrl from './plants/grass-green.webp';
 import dryUrl from './plants/grass-dry.webp';
 import springUrl from './plants/grass-spring.webp';
 import weedsUrl from './plants/weeds.webp';
+import reedsUrl from './plants/reeds.webp';
 
 type RGB = [number, number, number];
 export type GrassKind = 'green' | 'dry' | 'spring';
@@ -31,6 +32,7 @@ const URLS: Record<PlantSheet, string> = {
   'grass-dry': dryUrl,
   'grass-spring': springUrl,
   weeds: weedsUrl,
+  reeds: reedsUrl,
 };
 
 /** The grass sheet of a kind. */
@@ -40,14 +42,18 @@ export const GRASS_SHEET: Record<GrassKind, PlantSheet> = {
   spring: 'grass-spring',
 };
 
-/** Cells of the sheets (scripts/plants/layout.ts): grass tufts, the weed margin, nettles, reeds. */
+/**
+ * Cells of the sheets (scripts/plants/layout.ts): grass tufts, the weed margin, nettles (weed cells 4, 5 are unused),
+ * reed beds and cattails (the reeds sheet).
+ */
 export const CELLS = {
   tufts: [0, 1, 2],
   dryTufts: [0, 1, 2, 3],
   margin: 3,
   nettles: [0, 1, 6],
   dryNettles: [2, 3, 7],
-  reeds: [4, 5],
+  reeds: [0, 1, 2, 3, 4, 5],
+  cattails: [6, 7],
 } as const;
 
 interface Palette {
@@ -59,49 +65,93 @@ interface Palette {
 }
 
 /**
- * Blade colours (linear) from the sheet's measured means: the roots, the leafy blades around the leaf mean and the
- * pale ones (dead blades, stalks) in their measured share, so the strips average to what the cards show.
+ * Colour gain (linear) of each sheet's cards (the material colour) and of the blade strips made from its means: the
+ * scans brought into the measured bands (trees/Foliage.md; ground tiles, engine/ground): summer grass olive at luminance
+ * ~0.12, a little above the grass ground; spring the flush band (~0.14); dry grass pale straw (red / green ~1.3, blue /
+ * green ~0.45, ~0.3), not the scans' orange; nettles a touch less blue-starved; reeds (green with pale plumes and dead
+ * leaves) a little under the grass.
+ */
+export const SHEET_GAIN: Record<PlantSheet, RGB> = {
+  'grass-green': [1.15, 1.3, 1.2],
+  'grass-dry': [1.35, 1.5, 1.35],
+  'grass-spring': [1.1, 1.05, 1.15],
+  weeds: [1.1, 1.15, 1.15],
+  reeds: [0.85, 0.95, 0.85],
+};
+
+/**
+ * The cards' extra lift over `SHEET_GAIN` (their vertex colour darkens the roots, the scans carry their own shading):
+ * green and spring cards a little lighter and less saturated, so they meet the blade strips at the level switch.
+ */
+const CARD_LIFT: Partial<Record<PlantSheet, RGB>> = {
+  'grass-green': [1.25, 1.18, 1.3],
+  'grass-spring': [1.3, 1.15, 1.3],
+};
+
+/** A sheet's card material colour (linear): its gain x the card lift. */
+export function cardColor(id: PlantSheet): RGB {
+  const g = SHEET_GAIN[id];
+  const l = CARD_LIFT[id] ?? [1, 1, 1];
+  return [g[0] * l[0], g[1] * l[1], g[2] * l[2]];
+}
+
+/**
+ * Blade colours (linear) from the sheet's measured means x its gain: roots between the measured root band and the
+ * shaded blade (the cards' roots are mostly blade, a few pale stems), the blades around the leaf mean and the pale
+ * ones (dead blades) at half their texel share (a whole pale blade reads much yellower than the cards' thin stalks).
+ * A mostly pale sheet (dry grass) turns it round: straw blades around the pale mean, a quarter of greyer old straw.
  */
 function palette(kind: GrassKind): Palette {
-  const s = PLANT_SHEETS[GRASS_SHEET[kind]];
-  const leaf = s.leaf as unknown as RGB;
+  const id = GRASS_SHEET[kind];
+  const s = PLANT_SHEETS[id];
+  const g = SHEET_GAIN[id];
+  const straw = s.paleShare > 0.5;
+  const leaf = (straw ? s.pale : s.leaf) as unknown as RGB;
+  const root = s.root as unknown as RGB;
+  const pale = (straw ? s.pale.map((c) => c * 0.75) : s.pale) as unknown as RGB;
   const k = (f: number, warm = 1): RGB => [
-    leaf[0] * f * warm,
-    leaf[1] * f,
-    leaf[2] * f,
+    leaf[0] * f * warm * g[0],
+    leaf[1] * f * g[1],
+    leaf[2] * f * g[2],
   ];
   return {
-    root: s.root as unknown as RGB,
+    root: [0, 1, 2].map(
+      (i) => (root[i] * 0.5 + leaf[i] * 0.35) * g[i],
+    ) as unknown as RGB,
     tips: [k(1), k(0.85, 0.95), k(1.15, 1.05), k(0.95, 1.1)],
-    dead: s.pale as unknown as RGB,
-    deadShare: Math.min(0.5, s.paleShare),
+    dead: [pale[0] * g[0], pale[1] * g[1], pale[2] * g[2]],
+    deadShare: straw ? 0.25 : Math.min(0.5, s.paleShare) * 0.5,
   };
 }
+
+/** Weed-margin flowers on the blade strips (linear): dandelion yellow, its stalk and leaves the sheet's leaf. */
+const FLOWER: RGB = [0.62, 0.42, 0.02];
 
 const sheets = new Map<PlantSheet, DataTexture>();
 const loads = new Map<PlantSheet, Promise<void>>();
 
 /**
- * A plant atlas with coverage-preserving mipmaps (cards do not thin out with distance). Transparent until the webp
- * has decoded (the same texture, its levels filled in place): `plantSheetsReady` resolves then.
+ * A plant atlas with coverage-preserving mipmaps (cards do not thin out with distance). Nothing is uploaded until the
+ * webp has decoded (three binds an empty texture: the cards are invisible), then the image and its mips go up once;
+ * `plantSheetsReady` resolves then. A sheet that fails to load is reported and replaced by plain painted blades.
  */
 export function plantSheet(id: PlantSheet): Texture {
   const t = sheets.get(id);
   if (t) return t;
   const { w, h } = PLANT_SHEETS[id];
-  const blank = new Uint8Array(w * h * 4);
-  // The full chain from the start: the GPU texture's levels are fixed at its first upload.
-  const levels = coverageMips(blank, w, h, false).main;
-  const dt = new DataTexture(blank, w, h);
-  dt.mipmaps = levels;
+  const dt = new DataTexture(null, w, h);
   dt.generateMipmaps = false;
   dt.magFilter = LinearFilter;
   dt.minFilter = LinearMipmapLinearFilter;
   dt.colorSpace = SRGBColorSpace;
   dt.anisotropy = 8;
   dt.name = `plants:${id}`;
-  dt.needsUpdate = true;
   sheets.set(id, dt);
+  const fill = (data: Uint8Array) => {
+    dt.image = { data, width: w, height: h };
+    dt.mipmaps = coverageMips(data, w, h, false).main;
+    dt.needsUpdate = true;
+  };
   if (typeof Image !== 'undefined' && typeof document !== 'undefined') {
     const img = new Image();
     img.src = URLS[id];
@@ -115,17 +165,54 @@ export function plantSheet(id: PlantSheet): Texture {
           const ctx = cv.getContext('2d', { willReadFrequently: true });
           if (!ctx) return; // no 2D canvas (tests)
           ctx.drawImage(img, 0, 0);
-          const data = flipRows(ctx.getImageData(0, 0, w, h).data, w, h);
-          const mips = coverageMips(data, w, h, false).main;
-          blank.set(data);
-          mips.forEach((m, i) => levels[i].data.set(m.data));
-          dt.needsUpdate = true;
+          fill(flipRows(ctx.getImageData(0, 0, w, h).data, w, h));
         },
-        () => undefined,
+        (e: unknown) => {
+          console.error(`plants: ${URLS[id]} failed to load`, e);
+          fill(fallbackSheet(id));
+        },
       ),
     );
   }
   return dt;
+}
+
+/** Stand-in for a sheet that did not load: every cell a tuft of plain blades in the sheet's measured leaf colour. */
+function fallbackSheet(id: PlantSheet): Uint8Array {
+  const s = PLANT_SHEETS[id];
+  const out = new Uint8Array(s.w * s.h * 4);
+  const cw = s.w / s.cols;
+  const ch = s.h / s.rows;
+  const srgb = (c: number) =>
+    Math.round(
+      255 *
+        Math.min(
+          1,
+          c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055,
+        ),
+    );
+  const leaf = (s.leaf as readonly number[]).map(srgb);
+  const rng = new Rng(7);
+  for (let cell = 0; cell < s.cols * s.rows; cell++) {
+    const x0 = (cell % s.cols) * cw;
+    const y0 = (s.rows - 1 - Math.floor(cell / s.cols)) * ch; // row 0 = the bottom (DataTexture order)
+    for (let b = 0; b < 60; b++) {
+      const bx = x0 + cw * rng.range(0.15, 0.85);
+      const top = ch * rng.range(0.3, 0.9);
+      const half = cw * 0.006;
+      for (let y = 0; y < top; y++) {
+        const r = half * (1 - y / top) + 0.5;
+        for (let x = Math.floor(bx - r); x <= Math.ceil(bx + r); x++) {
+          const o = ((y0 + y) * s.w + x) * 4;
+          out[o] = leaf[0];
+          out[o + 1] = leaf[1];
+          out[o + 2] = leaf[2];
+          out[o + 3] = 255;
+        }
+      }
+    }
+  }
+  return out;
 }
 
 /** The atlases each catalog asset draws from. */
@@ -134,7 +221,7 @@ const ASSET_SHEETS: Record<string, PlantSheet> = {
   dry_grass: 'grass-dry',
   spring_grass: 'grass-spring',
   tall_weeds: 'weeds',
-  reeds: 'weeds',
+  reeds: 'reeds',
 };
 
 /**
@@ -221,55 +308,6 @@ export function plantCards(
   return merge(parts);
 }
 
-/** Pushes colour into transparent texels (so filtering never pulls in black), flips rows for a DataTexture. */
-export function dilateAndFlip(
-  d: Uint8ClampedArray,
-  w: number,
-  h: number,
-): Uint8Array {
-  const src = new Uint8Array(d);
-  for (let pass = 0; pass < 8; pass++) {
-    const prev = src.slice();
-    for (let y = 0; y < h; y++)
-      for (let x = 0; x < w; x++) {
-        const i = (y * w + x) * 4;
-        if (prev[i + 3] > 0 || (src[i] | src[i + 1] | src[i + 2]) !== 0)
-          continue;
-        let r = 0,
-          g = 0,
-          b = 0,
-          n = 0;
-        for (const [dx, dy] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ]) {
-          const xx = x + dx,
-            yy = y + dy;
-          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-          const j = (yy * w + xx) * 4;
-          if (prev[j + 3] === 0 && (prev[j] | prev[j + 1] | prev[j + 2]) === 0)
-            continue;
-          r += prev[j];
-          g += prev[j + 1];
-          b += prev[j + 2];
-          n++;
-        }
-        if (n) {
-          src[i] = r / n;
-          src[i + 1] = g / n;
-          src[i + 2] = b / n;
-        }
-      }
-  }
-  const out = new Uint8Array(src.length);
-  const row = w * 4;
-  for (let y = 0; y < h; y++)
-    out.set(src.subarray(y * row, (y + 1) * row), (h - 1 - y) * row);
-  return out;
-}
-
 /**
  * Near LOD: real blade strips (no alpha test, no card edges from any side), fanned out of 5 crowns over the cards' footprint, curved and
  * tapered, vertex colour root -> tip. blades * 6 triangles (one-sided strips, the material is DoubleSide).
@@ -280,6 +318,7 @@ export function bladeTuftGeometry(
   width: number,
   height: number,
   blades = 72,
+  flowers = 0,
 ): BufferGeometry {
   const p = palette(kind);
   const rng = new Rng(seed);
@@ -344,6 +383,85 @@ export function bladeTuftGeometry(
         const a = base + i * 2;
         idx.push(a, a + 1, a + 2);
       }
+    }
+  }
+  // The weed margin (the cards' margin cell): dandelions, a head on a stalk each, over a rosette of broad leaves.
+  for (let f = 0; f < flowers; f++) {
+    const [ox, oz] = crowns[f % crowns.length];
+    const x = ox + rng.range(-0.08, 0.08);
+    const z = oz + rng.range(-0.08, 0.08);
+    const top = height * rng.range(0.45, 0.8);
+    const lean = rng.range(-0.04, 0.04);
+    const leafC = p.tips[0];
+    // Stalk: a thin vertical strip.
+    let base = pos.length / 3;
+    for (const [px, py] of [
+      [x - 0.003, 0],
+      [x + 0.003, 0],
+      [x - 0.002 + lean, top],
+      [x + 0.002 + lean, top],
+    ]) {
+      pos.push(px, py, z);
+      col.push(...leafC);
+      nrm.push(0, 1, 0);
+    }
+    idx.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+    // Head: a flat ragged disc (10 points, petal tips and gaps) facing up a little tilted.
+    base = pos.length / 3;
+    const r = rng.range(0.015, 0.022);
+    const tilt = rng.range(0.2, 0.5);
+    const hx = x + lean;
+    pos.push(hx, top + 0.006, z);
+    col.push(FLOWER[0] * 0.85, FLOWER[1] * 0.85, FLOWER[2]);
+    nrm.push(0, 1, 0);
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2;
+      const rk = r * (k % 2 ? 0.7 : 1);
+      pos.push(
+        hx + Math.cos(a) * rk,
+        top + Math.sin(a) * rk * tilt,
+        z + Math.sin(a) * rk * Math.sqrt(1 - tilt * tilt),
+      );
+      col.push(...FLOWER);
+      nrm.push(0, 1, 0);
+    }
+    for (let k = 0; k < 10; k++)
+      idx.push(base, base + 1 + k, base + 1 + ((k + 1) % 10));
+    // Rosette: three broad leaves flat on the ground around the stalk.
+    for (let l = 0; l < 3; l++) {
+      const a = rng.range(0, Math.PI * 2);
+      const len = rng.range(0.1, 0.16);
+      const dx = Math.cos(a);
+      const dz = Math.sin(a);
+      const lb = pos.length / 3;
+      for (const [t, wd] of [
+        [0, 0.004],
+        [0.5, 0.022],
+        [1, 0.002],
+      ]) {
+        const cx = x + dx * len * t;
+        const cz = z + dz * len * t;
+        const y = 0.01 + 0.03 * t;
+        pos.push(cx + dz * wd, y, cz - dx * wd, cx - dz * wd, y, cz + dx * wd);
+        for (let k = 0; k < 2; k++) {
+          col.push(leafC[0] * 0.8, leafC[1] * 0.8, leafC[2] * 0.8);
+          nrm.push(0, 1, 0);
+        }
+      }
+      idx.push(
+        lb,
+        lb + 1,
+        lb + 2,
+        lb + 1,
+        lb + 3,
+        lb + 2,
+        lb + 2,
+        lb + 3,
+        lb + 4,
+        lb + 3,
+        lb + 5,
+        lb + 4,
+      );
     }
   }
   const g = new BufferGeometry();

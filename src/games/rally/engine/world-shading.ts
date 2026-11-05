@@ -945,7 +945,9 @@ function install(): void {
   chunks.fog_pars_fragment = FOG_PARS_FRAGMENT;
   chunks.fog_fragment = FOG_FRAGMENT;
   chunks.begin_vertex = BEGIN_VERTEX;
-  // Dithered fade between detail levels (world/lod-fade.ts): materials with `defines.RALLY_LOD_FADE`.
+  // Dithered fade between detail levels (world/lod-fade.ts): materials with `defines.RALLY_LOD_FADE`. Appended to the
+  // shared chunks for every program (not per material) so the fade copies of any material, and their shadow pass, get
+  // it without a hook of their own; programs without the define compile it out.
   chunks.uv_pars_vertex = chunks.uv_pars_vertex + LOD_FADE_PARS_VERTEX;
   chunks.uv_pars_fragment = chunks.uv_pars_fragment + LOD_FADE_PARS_FRAGMENT;
   chunks.alphatest_fragment = chunks.alphatest_fragment + LOD_FADE_FRAGMENT;

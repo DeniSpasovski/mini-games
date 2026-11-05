@@ -8,6 +8,7 @@ import {
   Matrix4,
   Quaternion,
   Vector3,
+  type Material,
 } from 'three';
 import {
   ASSET_CATALOG,
@@ -23,16 +24,24 @@ import {
   hasAsset,
   requestAsset,
 } from '../assets/library';
-import { lodFadeMaterial, variantDepthMaterial } from '../engine/materials';
+import {
+  lodFadeDepthMaterial,
+  lodFadeMaterial,
+  variantDepthMaterial,
+} from '../engine/materials';
 import { worldUniforms } from '../engine/world-shading';
 import { hash3 } from '../../../shared/rng';
+import { mapSeason } from '../maps/shared/climate';
 import { isTreeType } from '../trees/species';
 import { BuildQueue, evictions, type Held, type Want } from './build-queue';
 import { CORNER_FAN_ASSETS } from './corner-fans';
 import { ParkCars } from './park-car-mesh';
 import { SERVICE_PARK_ASSETS } from './service-park';
 import {
-  fadeCopies,
+  FADE_IN,
+  FADE_OUT,
+  FADE_SOLID,
+  LOD_FADE_TIME,
   newFadeState,
   nextFade,
   START_AT_COMMIT,
@@ -80,10 +89,10 @@ const NEAR = 60;
 /** Re-pack the view window after the camera turned this far (rad). */
 const REPACK = (8 * Math.PI) / 180;
 /**
- * Fading assets: instances this far past their last level (m, x lodScale) are tracked, so they can fade in (more than
- * the camera moves between two rebuilds).
+ * Fading assets: instances this far (m) past their last level beyond the rebuild distance are tracked, so
+ * they can fade in (the ring must be wider than the camera moves between two rebuilds).
  */
-const FADE_IN_RING = 25;
+const FADE_IN_MARGIN = 2;
 
 interface Bucket {
   key: string;
@@ -96,13 +105,23 @@ interface Bucket {
   variants: boolean;
   /** Level fades: every instance also carries `instFade` (start time, role) on per-part `geometries`. */
   fades: boolean;
+  /** A copy staged / committed is fading: the meshes draw with the fade materials (`setFading`). */
+  sFading: boolean;
+  fading: boolean;
+  /** Per part: the plain and the fade material, and their shadow-pass materials (undefined = three's default). */
+  plainMats: Material[];
+  fadeMats: Material[];
+  plainDepth: (Material | undefined)[];
+  fadeDepth: (Material | undefined)[];
   geometries: BufferGeometry[];
   /** Committed instances (sorted by angle when culled); `drawnCount` of them are on the GPU now. */
   cMat: Float32Array;
   cCol: Float32Array;
   cVar: Float32Array;
   cFade: Float32Array;
-  /** Staged index -> committed position. */
+  /** Committed instances drawn from (`count` less the fade copies `endFades` dropped). */
+  cCount: number;
+  /** Staged index -> committed position (GONE: dropped by `endFades`). */
   order: Uint32Array;
   /** First committed position of each bin (0 = near, 1..BINS = angle; BINS + 2 entries), null = drawn whole. */
   binStart: Uint32Array | null;
@@ -118,6 +137,11 @@ interface Bucket {
   sCount: number;
 }
 
+interface Slot {
+  bucket: Bucket;
+  i: number;
+}
+
 interface InstanceData {
   m: Float32Array;
   /** Brightness multiplier (per-instance tint). */
@@ -128,9 +152,12 @@ interface InstanceData {
   keys: string[];
   /** The streamer that made it (`ScatterInstance.streamed`; `reset` starts a new owner). */
   owner: object;
-  /** Moved instances (setMatrix): slot staged by the running job / drawn since the last commit. */
-  staged?: { bucket: Bucket; i: number } | null;
-  slot?: { bucket: Bucket; i: number } | null;
+  /**
+   * Moved instances (setMatrix): slots staged by the running job / drawn since the last commit (two during a level
+   * fade: both copies follow the move, or a person turning to the car shows two poses).
+   */
+  staged?: Slot[] | null;
+  slot?: Slot[] | null;
   /** Level fade state (fading assets with `opts.fade`). */
   fade?: FadeState;
 }
@@ -183,6 +210,10 @@ export class InstanceStreamer {
   private moved = new Set<InstanceData>();
   /** Fades the running rebuild starts: their start time is the commit's. */
   private starting: FadeState[] = [];
+  /** World time the fades of the last commit have all ended (Infinity: none running). */
+  private fadeEnd = Infinity;
+  /** Prewarm only: fade-material twins of the fading buckets' meshes, so both programs compile at load. */
+  private warmTwins: InstancedMesh[] = [];
   private lastFocus = new Vector3(Infinity, 0, 0);
   private maxRange: number;
   private detailRange: number;
@@ -276,6 +307,7 @@ export class InstanceStreamer {
   /** `budgetMs`: this frame's share of time for a rebuild job (default the `budgetMs` option). */
   update(focus: Vector3, budgetMs?: number): void {
     this.parkCars?.update(focus, this.filter('team_car'));
+    if (worldUniforms.wsTime.value >= this.fadeEnd) this.endFades();
     if (!this.job) {
       const rebuild = this.opts.rebuildDistance ?? 10;
       if (this.lastFocus.distanceToSquared(focus) >= rebuild * rebuild) {
@@ -409,7 +441,10 @@ export class InstanceStreamer {
 
   private *rebuildJob(focus: Vector3, limit = true): Generator<void> {
     this.fresh = limit ? 0 : -Infinity;
-    for (const b of this.buckets.values()) b.sCount = 0;
+    for (const b of this.buckets.values()) {
+      b.sCount = 0;
+      b.sFading = false;
+    }
     for (const d of this.moved) d.staged = null;
     const scatter = this.world.scatter;
     const cs = scatter.chunkSize;
@@ -426,6 +461,7 @@ export class InstanceStreamer {
     const b = this.world.map.bounds;
     let drawn = 0;
     const fade = !!this.opts.fade;
+    const fadeRing = (this.opts.rebuildDistance ?? 10) + FADE_IN_MARGIN;
     const now = worldUniforms.wsTime.value;
     this.starting.length = 0;
 
@@ -449,14 +485,18 @@ export class InstanceStreamer {
         const dx = inst.x - focus.x;
         const dz = inst.z - focus.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
-        // Past every level (and, for fading assets, past the ring they fade in from): no bookkeeping at all.
-        const meta = getAssetMeta(inst.asset);
-        const reach =
-          (meta.lods[meta.lods.length - 1].maxDistance +
-            (fade && meta.fade ? FADE_IN_RING : 0)) *
-          lodScale;
-        if (dist >= reach && !this.data.get(inst)?.fade) continue;
-        const d = this.dataOf(inst);
+        const s = inst.streamed as InstanceData | undefined;
+        const known = s?.owner === this.owner ? s : undefined;
+        // Past every level (fading assets: past the ring they fade in from) and idle (nothing drawn, no fade
+        // running): no bookkeeping at all.
+        if (!known?.fade || (!known.fade.fading && known.fade.lod < 0)) {
+          const meta = known?.meta ?? getAssetMeta(inst.asset);
+          const reach =
+            meta.lods[meta.lods.length - 1].maxDistance * lodScale +
+            (fade && meta.fade ? fadeRing : 0);
+          if (dist >= reach) continue;
+        }
+        const d = known ?? this.dataOf(inst);
         const lods = d.meta.lods;
         // The extra grass near the roads (catalog `nearBoost`): the quality preset's share of it (`grassNear`).
         const boost = d.meta.nearBoost;
@@ -487,8 +527,13 @@ export class InstanceStreamer {
           const s = (d.fade ??= newFadeState());
           nextFade(s, lod, this.commits, now);
           if (s.fading && s.start === START_AT_COMMIT) this.starting.push(s);
-          for (const [l, role] of fadeCopies(s))
-            this.stage(inst, d, l, dist, role, s.start);
+          if (!s.fading) {
+            if (s.lod >= 0) this.stage(inst, d, s.lod, dist);
+          } else {
+            if (s.lod >= 0) this.stage(inst, d, s.lod, dist, FADE_IN, s.start);
+            if (s.from >= 0)
+              this.stage(inst, d, s.from, dist, FADE_OUT, s.start);
+          }
           if (s.lod >= 0) drawn++;
           continue;
         }
@@ -554,13 +599,14 @@ export class InstanceStreamer {
       this.moved.delete(d);
     }
     if (m) this.moved.add(d);
-    if (d.slot) this.patch(d.slot.bucket, d.slot.i, d.m);
+    if (d.slot) for (const s of d.slot) this.patch(s.bucket, s.i, d.m);
     if (!m) d.slot = d.staged = null;
   }
 
   private patch(b: Bucket, i: number, m: Float32Array): void {
     if (i >= b.count) return;
     const pos = b.order[i];
+    if (pos === GONE) return;
     b.cMat.set(m, pos * 16);
     if (b.binStart) {
       this.pack(b);
@@ -646,7 +692,7 @@ export class InstanceStreamer {
     }
     bucket.used = this.commits;
     const i = bucket.sCount++;
-    if (this.moved.has(d)) d.staged = { bucket, i };
+    if (this.moved.has(d)) (d.staged ??= []).push({ bucket, i });
     if (i * 16 >= bucket.sMat.length) {
       const m = new Float32Array(bucket.sMat.length * 2);
       m.set(bucket.sMat);
@@ -672,6 +718,7 @@ export class InstanceStreamer {
     if (bucket.fades) {
       bucket.sFade[i * 2] = start;
       bucket.sFade[i * 2 + 1] = role;
+      if (role !== FADE_SOLID) bucket.sFading = true;
     }
     if (bucket.tinted) {
       const t = d.t;
@@ -729,6 +776,7 @@ export class InstanceStreamer {
     const now = worldUniforms.wsTime.value;
     for (const f of this.starting) f.start = now;
     this.starting.length = 0;
+    let fading = false;
     for (const b of this.buckets.values()) {
       if (b.fades)
         for (let i = 0; i < b.sCount; i++)
@@ -746,15 +794,21 @@ export class InstanceStreamer {
       b.count = b.sCount;
       this.sortCommitted(b);
       this.pack(b);
+      if (b.fades) {
+        this.setFading(b, b.sFading);
+        if (b.sFading) fading = true;
+      }
     }
+    this.fadeEnd = fading ? now + LOD_FADE_TIME : Infinity;
     // A move during the job staged the old matrix: draw the current one.
     for (const d of this.moved)
-      if (d.slot) this.patch(d.slot.bucket, d.slot.i, d.m);
+      if (d.slot) for (const s of d.slot) this.patch(s.bucket, s.i, d.m);
   }
 
   /** Copy the staged instances into the committed arrays; buckets without shadows bin-sorted by angle. */
   private sortCommitted(b: Bucket): void {
     const n = b.count;
+    b.cCount = n;
     if (b.cMat.length < n * 16) {
       b.cMat = new Float32Array(b.sMat.length);
       b.cCol = new Float32Array(b.sCol.length);
@@ -808,13 +862,13 @@ export class InstanceStreamer {
   private pack(b: Bucket): void {
     const ranges: [number, number][] = [];
     const start = b.binStart;
-    if (!start || !this.view) ranges.push([0, b.count]);
+    if (!start || !this.view) ranges.push([0, b.cCount]);
     else {
       const k = BINS / (2 * Math.PI);
       // Angles were measured from the commit focus; the camera stays near it (rebuildDistance).
       const lo = Math.floor((this.view.yaw - this.view.half + Math.PI) * k);
       const hi = Math.floor((this.view.yaw + this.view.half + Math.PI) * k);
-      if (hi - lo >= BINS - 1) ranges.push([0, b.count]);
+      if (hi - lo >= BINS - 1) ranges.push([0, b.cCount]);
       else {
         ranges.push([start[0], start[1]]);
         for (let bin = lo; bin <= hi;) {
@@ -903,14 +957,20 @@ export class InstanceStreamer {
         iv.setUsage(DynamicDrawUsage);
         geometry.setAttribute('instVariant', iv);
       }
+      const depth = set ? variantDepthMaterial(part.material) : undefined;
       if (bucket.fades) {
         const fa = new InstancedBufferAttribute(new Float32Array(cap * 2), 2);
         fa.setUsage(DynamicDrawUsage);
         geometry.setAttribute('instFade', fa);
-        lodFadeMaterial(part.material);
+        bucket.plainMats[pi] = part.material;
+        bucket.fadeMats[pi] = lodFadeMaterial(part.material);
+        bucket.plainDepth[pi] = depth;
+        bucket.fadeDepth[pi] = bucket.castShadow
+          ? lodFadeDepthMaterial(part.material, !!set)
+          : depth;
       }
       const mesh = new InstancedMesh(geometry, part.material, cap);
-      if (set) mesh.customDepthMaterial = variantDepthMaterial(part.material);
+      if (depth) mesh.customDepthMaterial = depth;
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       if (bucket.tinted) {
         mesh.instanceColor = new InstancedBufferAttribute(
@@ -933,6 +993,68 @@ export class InstanceStreamer {
       return mesh;
     });
     bucket.capacity = cap;
+    if (bucket.fading) {
+      bucket.fading = false;
+      this.setFading(bucket, true);
+    }
+  }
+
+  /** Draw a fading bucket with the fade materials (a copy of it is fading) or the plain ones. */
+  private setFading(b: Bucket, on: boolean): void {
+    if (b.fading === on) return;
+    b.fading = on;
+    b.meshes.forEach((mesh, pi) => {
+      mesh.material = on ? b.fadeMats[pi] : b.plainMats[pi];
+      mesh.customDepthMaterial = on ? b.fadeDepth[pi] : b.plainDepth[pi];
+    });
+  }
+
+  /**
+   * Every fade of the last commit has ended: drop the outgoing copies from the committed instances (they only drew as
+   * a collapsed point) and draw the buckets with their plain materials again, without waiting for the next rebuild.
+   */
+  private endFades(): void {
+    this.fadeEnd = Infinity;
+    for (const b of this.buckets.values()) {
+      if (!b.fading) continue;
+      const n = b.cCount;
+      let out = false;
+      for (let i = 0; i < n && !out; i++) out = b.cFade[i * 2 + 1] === FADE_OUT;
+      // Only incoming copies: the plain material draws them whole as they are.
+      if (!out) {
+        this.setFading(b, false);
+        continue;
+      }
+      if (_kept.length < n + 1) _kept = new Uint32Array((n + 1) * 2);
+      const kept = _kept;
+      let w = 0;
+      for (let i = 0; i < n; i++) {
+        kept[i] = w;
+        if (b.cFade[i * 2 + 1] === FADE_OUT) continue;
+        if (w !== i) {
+          b.cMat.copyWithin(w * 16, i * 16, i * 16 + 16);
+          if (b.tinted) b.cCol.copyWithin(w * 3, i * 3, i * 3 + 3);
+          if (b.variants) b.cVar[w] = b.cVar[i];
+          b.cFade[w * 2] = b.cFade[i * 2];
+        }
+        b.cFade[w * 2 + 1] = FADE_SOLID;
+        w++;
+      }
+      kept[n] = w;
+      // Staged index -> new position; the dropped copies are gone (a move no longer patches them).
+      for (let i = 0; i < b.count; i++) {
+        const pos = b.order[i];
+        if (pos === GONE || pos >= n) continue;
+        const next = pos + 1 < n ? kept[pos + 1] : w;
+        b.order[i] = next > kept[pos] ? kept[pos] : GONE;
+      }
+      if (b.binStart)
+        for (let k = 0; k < b.binStart.length; k++)
+          b.binStart[k] = kept[Math.min(n, b.binStart[k])];
+      b.cCount = w;
+      this.pack(b);
+      this.setFading(b, false);
+    }
   }
 
   /**
@@ -966,7 +1088,29 @@ export class InstanceStreamer {
               64,
             );
           }
-          for (const m of this.buckets.get(key)!.meshes) m.visible = true;
+          const bucket = this.buckets.get(key)!;
+          for (const m of bucket.meshes) m.visible = true;
+          // The fade programs too (a fade's first frame must not compile one).
+          if (bucket.fades)
+            bucket.meshes.forEach((m, pi) => {
+              const twin = new InstancedMesh(
+                m.geometry,
+                bucket.fadeMats[pi],
+                1,
+              );
+              // Same program inputs as the mesh: instance colours, shadows.
+              if (m.instanceColor)
+                twin.instanceColor = new InstancedBufferAttribute(
+                  new Float32Array(3).fill(1),
+                  3,
+                );
+              twin.customDepthMaterial = bucket.fadeDepth[pi];
+              twin.castShadow = bucket.castShadow;
+              twin.receiveShadow = m.receiveShadow;
+              twin.frustumCulled = false;
+              this.warmTwins.push(twin);
+              this.group.add(twin);
+            });
         }
       }
     }
@@ -975,6 +1119,10 @@ export class InstanceStreamer {
 
   /** Re-apply visibility after prewarm/compile. */
   settle(): void {
+    for (const t of this.warmTwins.splice(0)) {
+      this.group.remove(t);
+      t.dispose();
+    }
     for (const b of this.buckets.values())
       for (const m of b.meshes) m.visible = m.count > 0;
     this.parkCars?.settle();
@@ -1015,8 +1163,12 @@ export class InstanceStreamer {
 
 /** Every catalog asset the map places (tree types are not assets: trees/). */
 export function assetIds(world: World): Set<string> {
+  // Scatter rules of other seasons place nothing (world.ts): their assets would only cost prewarm and downloads.
+  const season = mapSeason(world.map.environment);
   const ids = new Set([
-    ...world.map.scatter.map((r) => r.asset),
+    ...world.map.scatter
+      .filter((r) => !r.season || r.season.includes(season))
+      .map((r) => r.asset),
     ...world.map.roadside.map((r) => r.asset),
     ...(world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
     ...(world.stageDef.servicePark ? SERVICE_PARK_ASSETS : []),
@@ -1040,6 +1192,9 @@ function geometryBytes(g: BufferGeometry): number {
 }
 
 let _bins = new Uint16Array(4096);
+let _kept = new Uint32Array(4096);
+/** `Bucket.order` of a copy `endFades` dropped. */
+const GONE = 0xffffffff;
 const _cursor = new Uint32Array(BINS + 1);
 
 function newBucket(
@@ -1060,6 +1215,13 @@ function newBucket(
     tinted,
     variants,
     fades,
+    sFading: false,
+    fading: false,
+    plainMats: [],
+    fadeMats: [],
+    plainDepth: [],
+    fadeDepth: [],
+    cCount: 0,
     geometries: [],
     cMat: new Float32Array(16 * 64),
     cCol: new Float32Array(tinted ? 3 * 64 : 0),

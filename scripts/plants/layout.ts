@@ -5,7 +5,7 @@
  */
 import { hashString, Rng } from '../../src/shared/rng.ts';
 
-/** Poly Haven model (CC0) -> the textures a clump can wear ('dry' = the scan's dry colour map). */
+/** The textures a clump wears: the model's own ('diff') or, Poly Haven scans with one, its dry colour map. */
 export type Look = 'diff' | 'dry';
 
 export interface Placement {
@@ -53,6 +53,9 @@ export interface Sheet {
 
 const GRASS_01 = 'grass_medium_01';
 const GRASS_02 = 'grass_medium_02';
+/** CC BY 4.0 Sketchfab models (Nicholas-3D, glb): pieces picked by bake-plants.mjs (`GLB_MODELS`). */
+const REEDS = 'reed_pack';
+const CATTAILS = 'cattails';
 
 /** A grass tuft: a few big clumps in the middle, smaller ones and single blades round them (a dome, no flat top). */
 const tuft = (seed: number, look: Look): Cell => ({
@@ -176,8 +179,8 @@ const nettles = (seed: number, look: Look): Cell => ({
   ],
 });
 
-/** Reeds: the tall grass clumps stretched up (no reed scan is free; the blades read as reed leaves). */
-const reeds = (seed: number): Cell => ({
+/** Weed sheet cells 4, 5: unused since the reeds sheet (stretched grass); drop them on the next full bake. */
+const stretchedGrass = (seed: number): Cell => ({
   seed,
   look: 'dry',
   groups: [
@@ -196,6 +199,52 @@ const reeds = (seed: number): Cell => ({
       scale: [0.9, 1.1],
       sy: [2.2, 2.6],
       spread: 0.7,
+    },
+  ],
+});
+
+/** A reed bed: the CC BY reed models (Nicholas-3D), each piece normalised to 1 m so the scale is its height. */
+const reedBed = (seed: number): Cell => ({
+  seed,
+  look: 'diff',
+  groups: [
+    {
+      model: REEDS,
+      meshes: ['Reed_'],
+      count: [8, 9],
+      scale: [1.9, 2.4],
+      spread: 0.8,
+    },
+    {
+      model: REEDS,
+      meshes: ['Reed_'],
+      count: [6, 7],
+      scale: [1.3, 1.7],
+      spread: 0.95,
+    },
+  ],
+});
+
+/** Cattails in a reed bed (wet ditches): the cattail clumps of the CC BY ground-cover showcase in front of reeds. */
+const cattailBed = (seed: number): Cell => ({
+  seed,
+  look: 'diff',
+  groups: [
+    {
+      model: REEDS,
+      meshes: ['Reed_'],
+      count: [4, 5],
+      scale: [1.8, 2.2],
+      spread: 0.8,
+    },
+    {
+      // The clump is as wide as tall: drawn narrower and stretched up, so it stays inside the cell.
+      model: CATTAILS,
+      meshes: ['cattail'],
+      count: [2, 3],
+      scale: [0.65, 0.75],
+      sy: [2.0, 2.4],
+      spread: 0.35,
     },
   ],
 });
@@ -232,10 +281,29 @@ export const SHEETS: Sheet[] = [
       nettles(32, 'diff'),
       nettles(33, 'dry'),
       nettles(34, 'dry'),
-      reeds(35),
-      reeds(36),
+      stretchedGrass(35),
+      stretchedGrass(36),
       nettles(37, 'diff'),
       nettles(38, 'dry'),
+    ],
+  },
+  // Reed cards: 4 x 2 cells of 1.2 x 2.4 m, cells 0-5 reed beds, 6-7 cattails.
+  {
+    id: 'reeds',
+    w: 1024,
+    h: 1024,
+    cols: 4,
+    rows: 2,
+    window: [1.2, 2.4],
+    cells: [
+      reedBed(41),
+      reedBed(42),
+      reedBed(43),
+      reedBed(44),
+      reedBed(45),
+      reedBed(46),
+      cattailBed(47),
+      cattailBed(48),
     ],
   },
 ];
@@ -278,6 +346,8 @@ export const MODEL_MESHES: Record<string, string[]> = {
   weed_plant_02: ['a', 'b', 'c', 'd', 'e'].map(
     (n) => `weed_plant_02_${n}_LOD0`,
   ),
+  reed_pack: [1, 2, 3, 4, 5].map((n) => `Reed_${n}_${n}`),
+  cattails: ['cattail'],
 };
 
 /** Every clump of a cell, back to front (the bake draws them with a depth test, the order only fixes the RNG). */

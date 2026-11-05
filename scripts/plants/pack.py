@@ -5,9 +5,11 @@ usage: python3 scripts/plants/pack.py <manifest.json> <repo root>   (bake-plants
 Writes src/games/rally/engine/plants/<sheet>.webp and plant-atlas.data.ts: per sheet and per cell the measured mean
 albedo (linear) of the covered texels, of the roots (lowest 30 % of the cell), of the tips (the top 40 % of the
 covered rows) and of the body between them. The spring sheet is the green one (same layout) with its linear colour scaled to SPRING.
+A bake of some sheets (`--sheets`) keeps the other sheets' atlases and data as they are.
 """
 import json
 import os
+import re
 import sys
 
 import numpy as np
@@ -73,6 +75,18 @@ def bleed(img):
     return img
 
 
+def committed(path):
+    """The PLANT_SHEETS entries of the committed plant-atlas.data.ts (prettier's TS object literal -> JSON)."""
+    if not os.path.exists(path):
+        return {}
+    src = open(path, encoding='utf8').read()
+    body = src[src.index('PLANT_SHEETS = ') + len('PLANT_SHEETS = '):src.rindex(' as const')]
+    body = re.sub(r"'([^']*)'", r'"\1"', body)
+    body = re.sub(r'([{,]\s*)([A-Za-z_]\w*):', r'\1"\2":', body)
+    body = re.sub(r',(\s*[}\]])', r'\1', body)
+    return json.loads(body)
+
+
 def r(v):
     return [round(float(x), 4) for x in v]
 
@@ -82,7 +96,7 @@ def main():
     root = sys.argv[2]
     out_dir = os.path.join(root, 'src/games/rally/engine/plants')
     os.makedirs(out_dir, exist_ok=True)
-    data = {}
+    data = committed(os.path.join(out_dir, 'plant-atlas.data.ts'))
     sheets = {}
     for s in manifest['sheets']:
         cw, ch = s['cellW'], s['cellH']
@@ -92,12 +106,13 @@ def main():
             x, y = (i % s['cols']) * cw, (i // s['cols']) * ch
             img[y:y + ch, x:x + cw] = cell
         sheets[s['id']] = (s, img)
-    green_spec, green = sheets['grass-green']
-    gm = means(green)[0]
-    spring = green.copy()
-    lin = to_lin(spring[..., :3].astype(np.float64)) * (SPRING / gm)
-    spring[..., :3] = np.round(to_srgb(lin)).astype(np.uint8)
-    sheets['grass-spring'] = ({**green_spec, 'id': 'grass-spring'}, spring)
+    if 'grass-green' in sheets:
+        green_spec, green = sheets['grass-green']
+        gm = means(green)[0]
+        spring = green.copy()
+        lin = to_lin(spring[..., :3].astype(np.float64)) * (SPRING / gm)
+        spring[..., :3] = np.round(to_srgb(lin)).astype(np.uint8)
+        sheets['grass-spring'] = ({**green_spec, 'id': 'grass-spring'}, spring)
     for sid, (s, img) in sheets.items():
         cw, ch = s['cellW'], s['cellH']
         cells = []
@@ -152,7 +167,7 @@ def main():
         'export const PLANT_SHEETS = ' + json.dumps(data, indent=2) + ' as const satisfies Record<string, PlantSheetInfo>;',
         '',
     ]
-    open(os.path.join(out_dir, 'plant-atlas.data.ts'), 'w').write('\n'.join(ts))
+    open(os.path.join(out_dir, 'plant-atlas.data.ts'), 'w', encoding='utf8', newline='\n').write('\n'.join(ts))
 
 
 main()
