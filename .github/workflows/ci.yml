@@ -161,7 +161,7 @@ jobs:
       - run: npm ci
       - name: Dev server
         run: |
-          npm run dev -- --port 3000 > dev-server.log 2>&1 &
+          npm run dev:noreload -- --port 3000 > dev-server.log 2>&1 &
           for i in $(seq 1 150); do curl -sf http://localhost:3000/ > /dev/null && exit 0; sleep 2; done
           cat dev-server.log; exit 1
       - name: Stage, map viewer and car viewer load without console / WebGL errors
