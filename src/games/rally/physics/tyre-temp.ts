@@ -30,8 +30,12 @@ export interface TempWindow {
 export const COLD_SPAN = 45;
 /** °C above the window over which a tyre goes from full grip to `hot`. */
 export const HOT_SPAN = 35;
-/** Share of the surface temperature in the grip temperature (the rest is the core). */
+/**
+ * Share of the surface temperature in the grip temperature (the rest is the core): on tarmac the whole patch works,
+ * on loose ground the tread face biting the stones does, so grip there follows the surface more.
+ */
 const SURFACE_SHARE = 0.4;
+const LOOSE_SURFACE_SHARE = 0.8;
 // Surface (°C/s): sliding friction work per unit of nominal load in, heat out to the core, the air (more with
 // speed) and the ground under the tyre.
 const SLIDE_HEAT = 3;
@@ -71,9 +75,10 @@ export function startTemp(c: Climate): number {
   return c.air;
 }
 
-/** The temperature grip follows (°C): mostly the core, plus a share of the surface. */
-export function gripTemp(surface: number, core: number): number {
-  return core + SURFACE_SHARE * (surface - core);
+/** The temperature grip follows (°C): the core plus a share of the surface (`loose` 0 = tarmac ... 1 = gravel). */
+export function gripTemp(surface: number, core: number, loose = 0): number {
+  const share = SURFACE_SHARE + (LOOSE_SURFACE_SHARE - SURFACE_SHARE) * loose;
+  return core + share * (surface - core);
 }
 
 const smooth = (x: number) => {
@@ -142,5 +147,5 @@ export function stepTemp(i: TyreHeatInput, c: Climate, dt: number): number {
   }
   i.surfaceTemp = Math.min(MAX_SURFACE, ts + rs * dt);
   i.coreTemp = Math.min(MAX_CORE, tc + rc * dt);
-  return gripTemp(i.surfaceTemp, i.coreTemp);
+  return gripTemp(i.surfaceTemp, i.coreTemp, i.contact ? i.surface.loose : 0);
 }

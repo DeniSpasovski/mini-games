@@ -341,7 +341,8 @@ without it the Tarmac tyre arrived at Petralica's gravel at 116 km/h and slid 30
 
 Cold tyres grip less, tyres overheated by sliding grip less, in between they are at full grip. Two temperatures per tyre:
 the tread **surface** (`WheelState.surfaceTemp`, moves in seconds) and the **core** (`coreTemp`, the carcass, moves over
-a minute or two); grip and the HUD follow `temp` = core + 0.4 x (surface - core) (`gripTemp`). Only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
+a minute or two); grip and the HUD follow `temp` = core + 0.4 x (surface - core) on tarmac, up to 0.8 on loose ground where the tread face
+biting the stones does the work (`gripTemp`). Only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
 pages and the reference tests above are unchanged).
 
 - **Climate:** every stage hardcodes its temperatures: `StageDef.temps` (`maps/<map>/stages.ts`) = `[air, road]` °C for each
