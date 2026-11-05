@@ -11,7 +11,7 @@ material only (no cuts). In game it is **Peugeot 206**: FWD, 1100 kg, 2.0 four, 
 - **Tail lamps (ours):** the model has flat colours only, so the lamp meshes get procedural LED-lamp textures (red lens, smoked
   pockets, glowing tubes that light with the brake, a dotted strip that lights white in reverse; `lampclear` / `lampred` in
   `cars/shared/part-materials.ts`).
-- **Size:** the model is built small, so it is scaled to the real wheelbase (2.443 m); its flared arches make it about 1.86 m wide.
+- **Size:** the model is built small, so it is scaled to the real wheelbase (2.443 m); its flared arches make it about 1.86 m wide. The full source mesh ships (no simplification).
 
 ![Front three-quarter](screenshots/front-34.jpg)
 

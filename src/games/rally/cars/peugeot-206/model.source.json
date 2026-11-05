@@ -6,7 +6,7 @@
   "scale": 1.2215,
   "offset": [0, -0.0088, -0.2294],
   "groundAtMin": false,
-  "targetTriangles": 30000,
+  "targetTriangles": 50000,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
@@ -110,6 +110,21 @@
       {
         "mat": "emzone_plasmase1",
         "material": "trim"
+      },
+      {
+        "$comment": "the black back plate behind each head lamp's two rings faces into the car (the source draws it two-sided): two-sided, else the rings show the spring and body through it",
+        "mat": "emzone_juoda1",
+        "x": [0.28, 0.65],
+        "y": [0.44, 0.68],
+        "z": [1.18, 1.56],
+        "material": "trim:2s"
+      },
+      {
+        "mat": "emzone_juoda1",
+        "x": [-0.65, -0.28],
+        "y": [0.44, 0.68],
+        "z": [1.18, 1.56],
+        "material": "trim:2s"
       },
       {
         "mat": "emzone_juoda1",
@@ -240,6 +255,7 @@
       "mirror",
       "interior",
       "interior:2s",
+      "trim:2s",
       "logo",
       "headled"
     ],

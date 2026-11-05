@@ -770,6 +770,49 @@
         }
       },
       {
+        "name": "right wiper blade tip by the A pillar (x -0.72 .. -0.6, past the band's end) and the left-parked arm's forward end (z 0.92 - 0.95 over the bonnet edge): black like the rest of the wiper; only above y 0.9 / 0.915, the cowl and bonnet below keep the livery",
+        "material": "trim",
+        "mirror": false,
+        "region": {
+          "view": "top",
+          "poly": [
+            [0.733, -0.72],
+            [0.769, -0.6],
+            [0.831, -0.6],
+            [0.78, -0.72]
+          ],
+          "depth": [0.9, 0.95],
+          "facing": -1
+        }
+      },
+      {
+        "name": "the left-parked wiper arm's forward end over the bonnet edge (see above)",
+        "material": "trim",
+        "mirror": false,
+        "region": {
+          "view": "top",
+          "poly": [
+            [0.9, -0.12],
+            [0.9, 0.03],
+            [0.95, 0.03],
+            [0.95, -0.12]
+          ],
+          "depth": [0.915, 0.96],
+          "facing": -1
+        }
+      },
+      {
+        "name": "the same arm end's front face (faces forward, centre below y 0.915): forward-facing faces only, the bonnet under it faces up",
+        "material": "trim",
+        "mirror": false,
+        "box": {
+          "x": [-0.12, 0.03],
+          "y": [0.895, 0.96],
+          "z": [0.9, 0.96],
+          "facing": { "z": [0.6, 1] }
+        }
+      },
+      {
         "name": "fender gills",
         "material": "gloss",
         "inside": {

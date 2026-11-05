@@ -33,11 +33,11 @@
     },
     "chartBoxes": [
       {
-        "$comment": "belt-crease ledge under the quarter window (|x| 0.78 - 1.1, y 0.78 - 1.02, z -1.45 .. -0.1): its sloped triangles were on the side chart, where the ledge's tiny height range made the cell edge saw-tooth (red teeth in a light blue block, user view 2026-10-07) -> top chart, which holds the shoulder strip",
+        "$comment": "belt-crease ledge under the quarter window (|x| 0.78 - 1.1, y 0.795 - 1.02, z -1.45 .. -0.1; its lower lip stays on the side chart, where the top table jumps to the flare below and painted a red line): its sloped triangles were on the side chart, where the ledge's tiny height range made the cell edge saw-tooth (red teeth in a light blue block, user view 2026-10-07) -> top chart, which holds the shoulder strip",
         "chart": "top",
         "minNy": 0.1,
         "x": [0.78, 1.1],
-        "y": [0.78, 1.02],
+        "y": [0.795, 1.02],
         "z": [-1.45, -0.1]
       },
       {
@@ -127,7 +127,7 @@
         "z": [-2.45, 1.1]
       },
       {
-        "$comment": "the vent slot in each rear bumper corner (behind the rear wheel, opening backwards): its inside walls black, not livery",
+        "$comment": "the vent slot in each rear bumper corner (behind the rear wheel, opening backwards): its inside walls black, not livery. facing z >= -0.4 = back wall (nz ~ -0.2) and floor / ceiling (nz ~ -0.3); the bumper skin round the slot faces rearward (nz -0.41 .. -0.8) and keeps the livery",
         "mat": "Body",
         "region": {
           "view": "rear",
@@ -138,7 +138,8 @@
             [0.765, 0.517]
           ],
           "depth": [-2.26, -2.05],
-          "mirror": true
+          "mirror": true,
+          "facing": { "z": [-0.4, 1] }
         },
         "material": "trim"
       },

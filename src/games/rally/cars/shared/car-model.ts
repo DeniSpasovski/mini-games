@@ -1389,11 +1389,32 @@ export class CarModel {
     // wraps round the corner of the car).
     const ray = new Ray();
     const hit = new Vector3();
+    // How far behind its cover a lamp's inside reaches: without it a ray from the tail end of the car met the head lamp.
+    const LAMP_DEPTH = 0.35;
     const dirs = [
       new Vector3(0, 0, 1),
       new Vector3(0.6, 0, 0.8),
       new Vector3(0, 0.6, 0.8),
     ];
+    /** The ray from o along d meets the cover within LAMP_DEPTH. */
+    const meets = (o: Vector3, d: Vector3): boolean => {
+      ray.origin.copy(o);
+      ray.direction.copy(d);
+      for (let i = 0; i < cover.length; i += 3)
+        if (
+          ray.intersectTriangle(
+            cover[i],
+            cover[i + 1],
+            cover[i + 2],
+            false,
+            hit,
+          ) &&
+          hit.distanceTo(o) < LAMP_DEPTH
+        )
+          return true;
+      return false;
+    };
+    const dir = new Vector3();
     const ahead = (o: Vector3): boolean => {
       // Only near the lamp (the ray test is the real one): beside the cover, anywhere behind it.
       if (
@@ -1404,31 +1425,28 @@ export class CarModel {
         o.z > box.max.z
       )
         return false;
-      ray.origin.copy(o);
-      return dirs.some((d) => {
-        ray.direction.set(Math.sign(o.x) * d.x, d.y, d.z);
-        for (let i = 0; i < cover.length; i += 3)
-          if (
-            ray.intersectTriangle(
-              cover[i],
-              cover[i + 1],
-              cover[i + 2],
-              false,
-              hit,
-            )
-          )
-            return true;
-        return false;
-      });
+      return dirs.some((d) =>
+        meets(o, dir.set(Math.sign(o.x) * d.x, d.y, d.z)),
+      );
     };
-    // The centre or a corner (pulled a little in) of the triangle: a big wall triangle reaches past the cover's edge.
+    // The centre or two corners (pulled a little in) of the triangle: a big wall triangle reaches past the cover's edge,
+    // while a body triangle with one corner tucked under the cover's rim stays body (else black teeth on the wing).
+    // A face that does not face forward at all must also look at the cover along its own normal: one at the cover's rear
+    // tip that faces up / out past the rim is outside the lamp (black teeth by the head lamp's rear corner), while the
+    // lamp box's side walls under the cover face a little forward and stay black.
     const mid = new Vector3();
     const p = new Vector3();
+    const n = new Vector3();
+    const e = new Vector3();
     const behindCover = (a: Vector3, b: Vector3, c: Vector3): boolean => {
       mid.copy(a).add(b).add(c).divideScalar(3);
-      return (
-        ahead(mid) || [a, b, c].some((v) => ahead(p.copy(v).lerp(mid, 0.1)))
-      );
+      if (
+        !ahead(mid) &&
+        [a, b, c].filter((v) => ahead(p.copy(v).lerp(mid, 0.1))).length < 2
+      )
+        return false;
+      n.subVectors(b, a).cross(e.subVectors(c, a)).normalize();
+      return n.z > 0.1 || meets(p.copy(mid).addScaledVector(n, 0.001), n);
     };
     for (const mesh of bodies) {
       const inside = splitLampTriangles(mesh, toBody, behindCover, 'lampbody');
