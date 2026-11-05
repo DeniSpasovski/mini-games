@@ -1,0 +1,21 @@
+rally-v0.18.25	0c2a947	Gravel Rally 0.18.25	Car times versions raised by one for the released cars; the 22B stays a test car.
+rally-v0.19.7	83acbf6	Gravel Rally 0.19.7	Mustang GT3 and Mercedes 190E are no longer test cars.
+rally-v0.20.1	b5d6ba1	Gravel Rally 0.20.1	New graphics release.\n- Audi RS6 released\n- Contributors section in About\n- Main menu cars grouped AWD, FWD, RWD\n- Foliage and rendering improvements by hyphyphyph
+rally-v0.21.42	e3f0f7f	Gravel Rally 0.21.42	Vodno, Galichica West and Peugeot 206 released.\n- New stage order: Ajvatovci, Petralica, Vodno, Galichica West, Jackie\n- Stage cards show badges and best time at the bottom
+rally-v0.23.9	cb68ccd	Gravel Rally 0.23.9	- Subaru WRX STI released\n- Vodno stage times version 2 (new temperatures and trees)\n- About: NPC cars section with background car and truck credits
+rally-v0.24.17	95f79f0	Gravel Rally 0.24.17	- Stage Board menu and HUD look\n- Front and tail lamps, background cars and people\n- Building textures, Vodno trees, new sky and colour grade\n- Season and time of day on stage times, faster loading
+rally-v0.25.4	f048fa4	Gravel Rally 0.25.4	- Fiat 126p and Subaru 22B released\n- Bloom off and ambient occlusion on by default\n- Ground textures, new grass and far shadows\n- Forested far mountains
+rally-v0.25.8	3104cef	Gravel Rally 0.25.8	Performance tuning.\n- Fewer frame spikes while driving, faster loads\n- Faster tree loading, no freeze on the first steer
+rally-v0.25.12	93ff534	Gravel Rally 0.25.12	Version label update.
+rally-v0.26.4	daed90a	Gravel Rally 0.26.4	- Faster tree rendering\n- Real far trees on slopes\n- Render scale option
+rally-v0.27.1	452fee5	Gravel Rally 0.27.1	Roadside props and scenery closer to real.\n- New rocks, hay bales, delineators, barriers and chevron signs\n- Green spring grass on Vodno and Galichica\n- Gravel spray as tumbling stones, water ripples
+rally-v0.31.42	7eed0be	Gravel Rally 0.31.42	Rendering performance.\n- Fewer slow frames and stalls on every stage\n- Fewer draw calls on forest stages\n- Auto render scale option
+rally-v0.32.64	a12b4e8	Gravel Rally 0.32.64	Trees V3.\n- New crown colour and shading, impostors, branches, bark and wind\n- Portal tagline and README note on playtesting
+rally-v0.33.23	fd14ae5	Gravel Rally 0.33.23	Tires, replays and fixes.\n- Realistic tyres with tread, sidewall lettering and dust\n- Record runs and watch replays\n- Updated README and docs
+kaboom-v0.3.5	5bd3a46	3, 2, 1 Kabooom 0.3.5	First release: Kaboom is available in the game menu.
+kaboom-v0.4.2	14453cb	3, 2, 1 Kabooom 0.4.2	Mid-poly art pass.\n- Filmic light, painted parts and bevels\n- Clearer team rings, hats and camera angle\n- New blocks, crates and story props per level\n- Plank chunks, stone chips, hit-stop and smoke
+kaboom-v0.4.3	759938d	3, 2, 1 Kabooom 0.4.3	New textured dynamite and power-up graphics.
+kaboom-v0.5.1	598e633	3, 2, 1 Kabooom 0.5.1	The Boom Crew gets a new cartoon look: seamless bodies, a shared rig with new poses, and toon paint.
+kaboom-v0.5.2	211e937	3, 2, 1 Kabooom 0.5.2	Release build.
+hole-island-v0.6.4	45d1563	Hole Island 0.6.4	Smaller Toy Emporium: 220 x 160 m floor, 9 000 points, hole capped at level 15. Toy Emporium scoring version 9.
+hole-island-v0.7.1	9ba671d	Hole Island 0.7.1	Release build.
