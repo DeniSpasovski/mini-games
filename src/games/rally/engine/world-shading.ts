@@ -17,6 +17,11 @@ import {
 } from '../world/lod-fade';
 import { gradeUniforms } from './grade';
 import { PUDDLE_GLSL } from '../puddles';
+import {
+  CAR_SURROUND_DIFFUSE,
+  CAR_SURROUND_PARS,
+  carSurroundUniforms,
+} from './car-reflections';
 
 /**
  * World shading shared by every material of the rally pages, installed once when this module is imported
@@ -993,7 +998,13 @@ const TERRAIN_SKY = /* glsl */ `
 
 /** three's own `lights_fragment_end` + the ground's sky terms (terrain, then the forest floor) + the wet puddles' sky. */
 function lightsEnd(wet: boolean): string {
-  return baseLightsEnd + TERRAIN_SKY + CANOPY_FLOOR + (wet ? PUDDLE_SKY : '');
+  return (
+    baseLightsEnd +
+    TERRAIN_SKY +
+    CANOPY_FLOOR +
+    CAR_SURROUND_DIFFUSE +
+    (wet ? PUDDLE_SKY : '')
+  );
 }
 
 function install(): void {
@@ -1061,9 +1072,12 @@ function install(): void {
       'world-shading: ShaderChunk.envmap_physical_pars_fragment changed (three upgrade?)',
     );
   chunks.envmap_physical_pars_fragment =
-    '#ifdef RALLY_CAR_ENV\n\tuniform float wsEnvSpec;\n#endif\n' +
+    '#ifdef RALLY_CAR_ENV\n\tuniform float wsEnvSpec;\n' +
+    CAR_SURROUND_PARS +
+    '#endif\n' +
     ibl.slice(0, rAt) +
-    '#ifdef RALLY_CAR_ENV\n\t\t\treturn envMapColor.rgb * envMapIntensity * wsEnvSpec;\n\t\t\t#endif\n\t\t\t' +
+    // The car's surroundings over the sky (engine/car-reflections.ts).
+    '#ifdef RALLY_CAR_ENV\n\t\t\treturn wsSurroundEnv( envMapColor.rgb, reflectVec, roughness ) * envMapIntensity * wsEnvSpec;\n\t\t\t#endif\n\t\t\t' +
     ibl.slice(rAt);
   // Default hook for every material without its own: share the world uniforms.
   Material.prototype.onBeforeCompile = function (
@@ -1074,6 +1088,7 @@ function install(): void {
     if (this.userData.carEnv) {
       const mat = this as Material & { envMapIntensity?: number };
       shader.fragmentShader = '#define RALLY_CAR_ENV\n' + shader.fragmentShader;
+      Object.assign(shader.uniforms, carSurroundUniforms);
       shader.uniforms.wsEnvSpec = {
         get value() {
           return (mat.envMapIntensity ?? 1) / carEnvRef;

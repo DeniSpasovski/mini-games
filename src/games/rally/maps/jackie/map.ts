@@ -17,6 +17,7 @@ import data from './data.json';
 import junction from './junction.json';
 import laneStart from './junction-lane-start.json';
 import { jackieInfo as info } from './info';
+import { forestEdge } from '../shared/forest-edge';
 
 /**
  * "Jackie Robinson Parkway" - real-world city stage in New York: from Vermont Street (East New York,
@@ -296,6 +297,8 @@ export const jackieMap: MapDef = {
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
+    // Pine-needle carpet on the floor of the pine stands (world/ground-moisture.ts).
+    needles: { pine: 1 },
     // [grass, dirt, rock, gravel] - the city reads as pavement / concrete (rock + gravel greys).
     splat: {
       grass: [0.92, 0.06, 0.02, 0],
@@ -496,6 +499,12 @@ export const jackieMap: MapDef = {
       minRoadDist: 1,
       scale: [0.7, 1.3],
     },
+    // Where the road cuts a wood: shrub belt and young trees along the verge (maps/shared/forest-edge.ts).
+    ...forestEdge({
+      woods: ['trees', 'pine'],
+      young: ['birch_tree', 'oak_tree'],
+      open: ['shrub'],
+    }),
   ],
   // Concrete parapets on the bridges, a continuous Jersey wall along the median side and a steel guard
   // rail on the outer side everywhere else (broken across the mouths of ramps / side roads).

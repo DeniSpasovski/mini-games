@@ -72,7 +72,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 | Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                               |
 |          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                      |
 |          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset)                                                                                                     |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset)                                                   |
 | Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit |
 | Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                        |
 
@@ -215,6 +215,12 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   relative to `CAR_ENV_DAY` (0.6: by day 1 = 1.67x the world's, a street sheen, not a studio mirror; `setCarEnvSun`
   eases it to 0.3 with the sun below ~18 deg and at night, where the reflection is what shows a car's shape), the
   diffuse sky light stays the scene's.
+  Over that sky the car reflects its surroundings (`world/car-surround.ts` -> `engine/car-reflections.ts`, medium / high,
+  `?surround=0..1`): per 2.8 deg of azimuth round the car, how much of 8 elevation bands its scatter trees (crowns as
+  cylinders, trunks), the far forest's canopy map and the terrain horizon cover, in their colour lit like the env map's
+  ground, plus the shade of the forest floor; eased (no pops), blurred per roughness row, one 128 x 12 texture. CPU only:
+  a cube-map probe rendering the scene cost milliseconds of draw calls per face and its own shader programs. The covered
+  share of the sky also dims the car's diffuse sky light (`wsSurroundOn.y`). The showroom / car viewer turn it off.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark where
   neither shadow map reaches (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m
   around the camera, rebuilt from the generated scatter chunks every 64 m), height fog
@@ -229,6 +235,8 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   `scripts/ground/bake.py`): grass per season, soil, gravel, rock, leaf litter, stubble under crops. The splat channels blend by
   height (scan brightness), a blurred rotated second tap breaks the tiling, unused layers are not sampled. Leaf litter lies where
   the canopy texture has crowns (`wsCanopyCover`; strength per season, `groundTint.litter`), fresh coloured leaves in autumn.
+  Under pines that litter is a needle carpet in every season (`landcover.needles`: share per cover class, baked into the
+  ground-moisture texture's G channel, `world/ground-moisture.ts`; scan `needles`, patchy where it is under 1).
   `groundTint.shade` (forest floor, default 0) darkens the soil under the crowns to humus and shuts that share of the sky
   light (IBL + hemisphere) out of every ground material there (`CANOPY_FLOOR` in `engine/world-shading.ts`; both read
   `wsFloorCover`, the cover with its edge warped by noise, so a lone tree paints no disc): a wood's floor is lit by sun flecks through the shadow maps, not by the sky (most of a shaded floor's light was the env map).
@@ -307,11 +315,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   is fixed by road distance, never by camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road
   (crossed cards at every distance: blade strips by the road read as bare ground next to them), so nothing swaps or
   fills in as the car drives on.
-- **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from five atlases
+- **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from seven atlases
   (`engine/plants/*.webp`, coverage mips) that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models:
   green / dry / spring grass tufts, the weed margin (dandelion, celandine), nettles (`tall_weeds`); and from CC BY
   Sketchfab models (Nicholas-3D, credits in `THIRD-PARTY.md` and the About page): reed beds and cattails (`reeds`, variant
-  2 = cattails; `--sheets reeds` rebakes only that sheet). `pack.py` `tone()` pulls the green sheet's pale seed stalks towards the leaf colour and turns the dry sheet's orange to straw; grass cards cut at a lower alpha (`GRASS_CARD_ALPHA`, `materials.ts`). `SHEET_GAIN` brings each sheet into the measured bands (cards
+  2 = cattails; `--sheets reeds` rebakes only that sheet); ferns of the shaded woods (`fern`, `fern_autumn` = dead bracken,
+  the `ferns-autumn` sheet that `pack.py` `bracken()` tones from the fern one) from the CC0 Poly Haven Fern 02 (read from
+  `sources/rally/polyhaven/fern_02`). `pack.py` `tone()` pulls the green sheet's pale seed stalks towards the leaf colour and turns the dry sheet's orange to straw; grass cards cut at a lower alpha (`GRASS_CARD_ALPHA`, `materials.ts`). `SHEET_GAIN` brings each sheet into the measured bands (cards
   and blade strips alike; `cardColor` lifts the green / spring cards to meet the blades; a test checks). Variant 1 of `grass_tuft` / `spring_grass` swaps one tuft card for a narrow
   margin card and puts dandelions on its blade strips (a small share of the cards' area); keep grass at two variants,
   it draws as a variant set. A stage loads only the sheets its season's assets use (`plantSheetsReady`, `assetIds`); a
@@ -391,14 +401,18 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   the elevation data, `paintTalus`, cached on a 4 m lattice; coarse far terrain tiles paint the face only) and scree up to
   `reach` m below them, less under a closed canopy; `streamBeds` lists the
   channel kinds whose bed is pebbles and stones. Scatter `minSlope` puts crags and loose rocks on the steep ground only.
+  Rock bands: a scatter rule with `outcrop` (asset `rock_outcrop`, two CC0 Poly Haven rock-face scans, `scripts/rocks/bake-outcrops.mjs`)
+  grows a row of pieces along the contour from each point (`world/outcrops.ts`): faces down the slope, leant back, open backs
+  buried, the row ends where the slope eases under `minSlope` or at the chunk edge (Vodno: the steep spurs).
 - **Hero trees** (`pack_pine` / `pack_lilac` / `pack_bush`, `assets/builders/tree-packs.ts`): CC BY pack models near the road,
   the generated forest beyond; past the third mesh the pines draw the pack's own billboard (to 1.5 km). `realTrees.near` swaps the real trees within `dist` m for a pack model of the nearest height;
   a scatter rule can name a pack asset like any other (Vodno: the near wood band, the verge pines, the understorey).
+  `forestEdge()` (`maps/shared/forest-edge.ts`) adds the shrub belt and young trees of a wood along the road (every map).
   Size ladder: `.claude/reference/trees/Placement.md`.
 - **Piles** (`maps/shared/piles.ts`): sand / crushed-stone / spread heaps for road closures, depots and sites - shape, scanned
   material (kit keys `sand` / `aggregate`, spill `sandSpill` / `stoneSpill`), weeds, colliders; a landmark builds them into its bucket.
 - **Forest-floor debris** (`forest_stump`, `forest_log`, `forest_trunk`, `forest_branches`, `forest_roots`; `simready.ts`): CC0 Poly
-  Haven scans, bake group `forest` - the one group that keeps its models' own colour + normal maps (atlas
+  Haven scans, bake group `forest` - the one group that keeps its models' own colour + normal maps (option `gain` warms a pale scan; atlas
   `engine/props/simready-forest.*.webp`, `debris` material). A map lists `'forest'` in its `models` and scatters them; sunk into
   the ground, colliders on the stump, log and trunk only.
 - **OSM features** (bake `osm.features`, `data.json` "features", `MapDef.features`): park furniture, gates / blocks / bollards,
@@ -417,6 +431,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (one sampler) + a tone shader (blotches and streaks that never repeat; Vodno's tiles also get pale repair patches there, more of
   them higher up the road). A new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN` (same `len` as `texLength`, a test checks),
   a rebake.
+- **Rally-worn tarmac** (`world/road-wear.ts`, the stage road's rally tarmac `WEAR_TEX`: Vodno, Galichica, Petralica's valley,
+  Ajvatovci): masks per 1 m sample from the curvature, the driven line, the verges and the mouths, in the stage road's
+  `rwA` / `rwB` vertex attributes, drawn by the asphalt shader (no extra mesh). Earth and gravel dragged onto the inside of
+  tight bends (from ~90 m radius; most just after the apex, in the stage's direction; more off a bare verge; none on a deck,
+  a kerbed street or behind a barrier), a thin spill on the outside of the exit, rubber lines on the driven line in the
+  braking zone, mud in wheel tracks out of dirt tracks (`MUD_KINDS` in `road-mesh.ts`), gravel washed out of paths; old
+  asphalt (`PATCHES` roads) also gets sealed cracks and filled potholes. Visual only: the physics surface is unchanged.
   The gravel road (`road`) is not baked: it is the terrain's own gravel layer in world space (`world/gravel-road.ts`: the same
   taps, brightness variation and relief rule as `world/terrain-material.ts`, so road and verge are one surface), with two
   two wheel tracks along the line cars drive (`drivenLine` in `world/road-mesh.ts`: the middle on a straight, cut to the inside of a bend; tracks ~1.55 m apart and 0.6 - 0.9 m wide as no two drivers hold the same line, patchy, ragged into the stones; plus ten cars' own tyre-width tracks that drift across each other and come and go, spreading over the road in bends with four tracks where a car slid, and a wider bank of thrown gravel on the outside; stones stay in the tracks), the loose gravel pushed aside (a ridge between the tracks and a berm along each edge, coarser), water standing in the tracks when wet, and an edge that thins out into the verge (dithered, the ribbon is opaque and drawn before the terrain so the terrain under it is not shaded twice). The gravel tile is darker and browner than the scan (`GRAVEL_LUM` / `GRAVEL_TINT` in `scripts/ground/bake.py`, mean sRGB 121 101 77; the scan's own is 147 128 107; `GROUND_MEAN.gravel` follows). Look at it next to the verge

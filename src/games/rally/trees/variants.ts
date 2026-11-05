@@ -1,5 +1,5 @@
 import { derive } from './grammar';
-import type { LeafStyle } from './leaftex';
+import { leafPhoto, type LeafStyle } from './leaftex';
 import { hashText, mix32, type V3 } from './math';
 import { buildMeshes, type Crown, type VariantMeshes } from './mesh';
 import { buildSkeleton, type Skeleton } from './skeleton';
@@ -19,9 +19,16 @@ import {
 
 /**
  * Bump when generated output changes for the same species and seed, or the leaf atlases change (trees/leaftex.ts,
- * `coverageMips`): cached variants and atlases regenerate.
+ * `coverageMips`): cached variants and atlases regenerate. A re-baked photo leaf style (none shipped yet)
+ * changes its baked mean, which the keys carry (`photoStamp`).
  */
-export const GENERATOR_VERSION = 31;
+export const GENERATOR_VERSION = 32;
+
+/** A photo leaf style's bake in the cache keys (its mean shade), '' for a drawn style. */
+function photoStamp(style: LeafStyle): string {
+  const p = leafPhoto(style);
+  return p ? `:p${Math.round(p.mean * 1e4)}` : '';
+}
 
 export interface TreeVariantInfo {
   species: string;
@@ -84,12 +91,12 @@ export function variantSeed(def: SpeciesDef, index: number): number {
 }
 
 export function cacheKey(def: SpeciesDef, seed: number): string {
-  return `${def.name}:${speciesHash(def).toString(16)}:${seed.toString(16)}:v${GENERATOR_VERSION}`;
+  return `${def.name}:${speciesHash(def).toString(16)}:${seed.toString(16)}:v${GENERATOR_VERSION}${photoStamp(def.foliage.leaf)}`;
 }
 
 /** The disk cache key of a leaf style's atlas + mips (trees/worker.ts). */
 export function atlasCacheKey(style: LeafStyle): string {
-  return `atlas:${style}:v${GENERATOR_VERSION}`;
+  return `atlas:${style}:v${GENERATOR_VERSION}${photoStamp(style)}`;
 }
 
 /** Trunk and first-order limb segments at least `collisionRadius` thick, as capsules (trees/Placement.md#collision). */

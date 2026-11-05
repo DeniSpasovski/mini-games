@@ -57,6 +57,8 @@ export interface AssetMeta {
   /** Ordered near -> far. Instances beyond the last LOD are culled. */
   lods: LodSpec[];
   colliders?: ColliderSpec[];
+  /** Colliders per variant (index = variant), in place of `colliders`: models of very different trunks (pack trees). */
+  variantColliders?: ColliderSpec[][];
   /** Per-instance colour jitter (0 = none), applied via instanceColor. */
   tint?: number;
   /**
@@ -193,6 +195,11 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 1500, castShadow: false },
     ],
     colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.12, h: 8 }],
+      [{ kind: 'cylinder', r: 0.25, h: 10 }],
+      [{ kind: 'cylinder', r: 0.4, h: 12 }],
+    ],
     tint: 0.08,
   },
   {
@@ -224,6 +231,26 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 240, castShadow: false },
     ],
     tint: 0.1,
+  },
+  {
+    id: 'fern',
+    name: 'Fern',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Fern stands (male fern / bracken, ~0.6 m) of shaded oak and beech woods: cards baked from the CC0 Poly Haven fern scan (no collision, detail layer).',
+    variants: 3,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
+    id: 'fern_autumn',
+    name: 'Fern (autumn)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The fern stands as rust-brown dead bracken (autumn): the fern cards recoloured by the bake (no collision, detail layer).',
+    variants: 3,
+    lods: [{ maxDistance: 90, castShadow: false }],
   },
   {
     id: 'tall_weeds',
@@ -398,6 +425,21 @@ export const ASSET_CATALOG: AssetMeta[] = [
     ],
     colliders: [{ kind: 'sphere', r: 0.85, y: 0.35 }],
     tint: 0.1,
+  },
+  {
+    id: 'rock_outcrop',
+    name: 'Rock outcrop',
+    category: 'rocks',
+    description:
+      'A piece of a rock band breaking out of a steep hillside (~3 m across, its face at +Z, open back buried in the slope): CC0 Poly Haven rock-face scans; placed in rows along the contour by a scatter rule with `outcrop` (world/outcrops.ts). Solid.',
+    variants: 4,
+    lods: [
+      { maxDistance: 70, castShadow: true },
+      { maxDistance: 220, castShadow: true },
+      { maxDistance: 900, castShadow: false, oneVariant: true },
+    ],
+    colliders: [{ kind: 'box', hx: 1.3, hz: 0.6, z: -0.2, h: 1.6, r: 1.45 }],
+    tint: 0.06,
   },
   {
     id: 'rock_small',

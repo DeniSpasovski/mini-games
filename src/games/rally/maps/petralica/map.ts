@@ -17,6 +17,7 @@ import type {
 import data from './data.json';
 import horizon from './horizon.json';
 import { petralicaInfo as info } from './info';
+import { forestEdge } from '../shared/forest-edge';
 
 /**
  * "Petralica" - real-world mountain stage in Rankovce municipality, north-east North Macedonia: Ginovci village
@@ -70,6 +71,8 @@ export const petralicaMap: MapDef = {
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
+    // Pine-needle carpet on the floor of the pine stands (world/ground-moisture.ts).
+    needles: { pine: 1 },
     // [grass, dirt, rock, gravel]
     splat: {
       grass: [0.86, 0.1, 0.04, 0],
@@ -360,6 +363,12 @@ export const petralicaMap: MapDef = {
       minRoadDist: 1,
       scale: [0.7, 1.3],
     },
+    // Where the road cuts a wood: shrub belt and young trees along the verge (maps/shared/forest-edge.ts).
+    ...forestEdge({
+      woods: ['trees', 'pine'],
+      young: ['oak_tree'],
+      open: ['shrub'],
+    }),
   ],
   roadside: [
     {

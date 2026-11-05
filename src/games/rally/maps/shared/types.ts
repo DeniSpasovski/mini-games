@@ -78,6 +78,23 @@ export interface MapDef {
    * take another pose (variant, rotation, size) that keeps them off: world/scatter.ts `lowOverRoad`.
    */
   treeCrownClear?: number;
+  /**
+   * Hero trees near the stage road: within `dist` m of its edge, `share` of the scattered trees of a generated species
+   * (the `swap` key: a tree asset id) stand as its pack model instead (`asset`, a `pack_*` id, at `scale` x the rule's scale), not nearer
+   * than `minRoadDist`. The forest beyond stays generated. world/scatter.ts.
+   */
+  heroTrees?: {
+    dist: number;
+    swap: Record<
+      string,
+      {
+        asset: string;
+        share: number;
+        scale: [number, number];
+        minRoadDist?: number;
+      }
+    >;
+  };
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
@@ -415,6 +432,12 @@ export interface LandcoverDef {
    * rules with `canopy` thin and size their trees by it.
    */
   canopy?: { cover: RasterDef; height: RasterDef };
+  /**
+   * Pine-needle litter: per cover class, the share (0-1) of the forest-floor litter under the crowns that is a needle
+   * carpet (the `needles` ground scan) instead of leaf litter, e.g. `{ pine: 1, mixed: 0.5 }`; a needle floor is
+   * carpeted whatever the season (world/ground-moisture.ts G channel, world/terrain-material.ts).
+   */
+  needles?: Record<string, number>;
 }
 
 /**
@@ -1012,6 +1035,12 @@ export interface ScatterRule {
    * scrub under the canopy model's 3 m floor.
    */
   canopy?: { full: number; min: number; height?: number; open?: boolean };
+  /**
+   * A rock band (asset `rock_outcrop`, world/outcrops.ts): each point grows a row of `pieces` along the contour, faces
+   * down the slope, `step` m apart at scale 1 (default 2.6), leant back by `lean` x the slope angle (default 0.35);
+   * the row stops where the slope leaves `minSlope` / `maxSlope`. `alignToGround` / `tilt` are ignored.
+   */
+  outcrop?: { pieces: [number, number]; step?: number; lean?: number };
 }
 
 /** An OSM feature point (scripts/realmap/features.py): kind, x, z, heading of the way it sits on (rad), OSM node id. */

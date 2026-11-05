@@ -34,7 +34,8 @@ from mathutils import Matrix, Vector
 #   copy: {new name: (object, (dx, dy, dz, sx, sy, sz))} a second placed copy of a kit piece (a negative scale mirrors it);
 #   tile: keep the model's own colour + normal textures (a Poly Haven model with one material) as this tile of the
 #     group's atlas (TEXTURED), white vertex colour; the UVs are packed too;
-#   smooth: the smoothing angle (deg, default 35): a decimated organic scan wants a wider one or it shows its facets.
+#   smooth: the smoothing angle (deg, default 35): a decimated organic scan wants a wider one or it shows its facets;
+#   gain: (r, g, b) linear gain on the tile's colour map (a scan that reads too pale or blue in game).
 ASSETS = {
     "service": {
         "tool_chest": ("equipment_rolling_tool_chest_cabinet_combo_d01", [8000, 1500], -90),
@@ -126,7 +127,8 @@ ASSETS = {
         "stump_b": ("../polyhaven/tree_stump_02", [1600, 450, 140], 0, {"tile": 1, "smooth": 70}),
         "log": ("../polyhaven/dead_tree_trunk", [1200, 350, 100], 0, {"tile": 2, "smooth": 70}),
         "trunk": ("../polyhaven/dead_tree_trunk_02", [2400, 600, 180], 0, {"tile": 3, "smooth": 70}),
-        "branches": ("../polyhaven/dry_branches_medium_01", [1500, 450, 150], 0, {"tile": 4, "smooth": 70}),
+        # The scan is a cool grey (blue / green 0.8): warmed and darkened to weathered brown-grey deadwood (~0.62, lum 0.062).
+        "branches": ("../polyhaven/dry_branches_medium_01", [1500, 450, 150], 0, {"tile": 4, "smooth": 70, "gain": (0.92, 0.86, 0.67)}),
         "roots_a": ("../polyhaven/pine_roots", [1400, 400, 120], 0, {"tile": 5, "smooth": 70, "keep": ["pine_roots_a"]}),
         "roots_b": ("../polyhaven/pine_roots", [1400, 400, 120], 0, {"tile": 6, "smooth": 70, "keep": ["pine_roots_b"]}),
     },
@@ -251,6 +253,8 @@ def bake(name, folder, budgets, turn, opts=()):
     tile = opts.get("tile")
     if tile is not None:
         use_tile(meshes, tile)
+        if "gain" in opts:
+            gains[tile] = opts["gain"]
     # Colour every face by its material, then join.
     for o in meshes:
         me = o.data
@@ -357,6 +361,7 @@ def drop_small_parts(o, size):
 
 TILE_PAD = 0.01
 tiles = {}
+gains = {}
 
 
 def use_tile(meshes, tile):
@@ -390,6 +395,12 @@ def write_atlas():
             img.scale(size, size)
             tile = np.empty(size * size * 4, np.float32)
             img.pixels.foreach_get(tile)
+            if k == 0 and t in gains:
+                # The byte image's pixels are sRGB: the gain is linear.
+                px = tile.reshape(-1, 4)[:, :3]
+                lin = np.where(px <= 0.04045, px / 12.92, ((px + 0.055) / 1.055) ** 2.4) * np.array(gains[t], np.float32)
+                lin = np.clip(lin, 0, 1)
+                px[:] = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * lin ** (1 / 2.4) - 0.055)
             y = (rows - 1 - t // cols) * size  # pixel rows count from the bottom
             buf[y : y + size, (t % cols) * size : (t % cols + 1) * size] = tile.reshape(size, size, 4)
         img = bpy.data.images.new(f"{group}-{kind}", cols * size, rows * size, alpha=False)

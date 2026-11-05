@@ -108,6 +108,8 @@ import {
   dryCorn,
   dryCornRowCard,
   dryGrass,
+  fern,
+  fernAutumn,
   grassTuft,
   greenWheat,
   reeds,
@@ -118,6 +120,7 @@ import {
   vineRowSummer,
   wheat,
 } from './builders/vegetation';
+import { rockOutcrop } from './builders/outcrops';
 import { getAssetMeta } from './catalog';
 import type { AssetBuilder, BuiltAsset } from './types';
 
@@ -217,6 +220,9 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   fuel_trailer: fuelTrailer,
   control_board: controlBoard,
   reeds,
+  fern,
+  fern_autumn: fernAutumn,
+  rock_outcrop: rockOutcrop,
   tall_weeds: tallWeeds,
   pack_pine: packPine,
   pack_lilac: packLilac,

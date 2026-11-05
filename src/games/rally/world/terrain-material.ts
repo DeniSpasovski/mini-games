@@ -26,7 +26,8 @@ import type { GroundMoisture } from './ground-moisture';
  * - Tiling is broken by a second, rotated, larger-scale tap of the same scan that only modulates the near one (3 taps
  *   per layer; far chunks one). Layers a fragment does not use are not sampled (`textureGrad`, branches are safe).
  * - Grass takes the season's scan (spring / summer / autumn) and the map's tint (`setGroundTint`); fallen leaves and
- *   forest-floor litter lie where the baked canopy texture says there are tree crowns (`wsCanopyCover`).
+ *   forest-floor litter lie where the baked canopy texture says there are tree crowns (`wsCanopyCover`); where the
+ *   map's pine covers are (`landcover.needles`, the moisture texture's G) that litter is a pine-needle carpet instead.
  * Relief: the blended scans' brightness doubles as a height map (bump from screen-space derivatives, faded out by
  * ~90 m) so a low sun picks out stones and leaves.
  * Weight the four channels leave unused (sum < 1) is drawn as ripe crop (wheat fields, stubble scan).
@@ -99,6 +100,9 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
     GY_LITTER: GROUND_LAYER.litter.toFixed(1),
     GY_LEAVES: GROUND_LAYER.leaves.toFixed(1),
     GY_STUBBLE: GROUND_LAYER.stubble.toFixed(1),
+    GY_NEEDLES: GROUND_LAYER.needles.toFixed(1),
+    GM_NEEDLES: GROUND_MEAN.needles.toFixed(4),
+    GS_NEEDLES: (1 / GROUND_SCAN.needles).toFixed(4),
     GM_GRASS: GROUND_MEAN.grassSummer.toFixed(4),
     GM_SOIL: GROUND_MEAN.soil.toFixed(4),
     GM_GRAVEL: GROUND_MEAN.gravel.toFixed(4),
@@ -216,7 +220,8 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         // Meadow patches: deeper green and yellow-green drifts tens of metres across, so a tinted meadow is not one flat colour.
         float pv = texture2D(tMacro, wp * 0.019 + 0.21).r * 0.6 + texture2D(tMacro, wp * 0.083 + 0.53).r * 0.4;
         // Moisture -1 (dry) .. 1 (wet): baked hollows / banks, minus steepness, plus slow noise.
-        float wet = texture2D(tMoist, (wp - uMoistMap.xy) * uMoistMap.zw).r * 2.0 - 1.0;
+        vec2 moistMap = texture2D(tMoist, (wp - uMoistMap.xy) * uMoistMap.zw).rg;
+        float wet = moistMap.r * 2.0 - 1.0;
         wet -= smoothstep(0.04, 0.25, 1.0 - vUpY) * 0.7;
         wet += (texture2D(tMacro, wp * 0.0017 + 0.61).r - 0.5) * 0.7;
         wet = clamp(wet * uMoist, -1.0, 1.0);
@@ -233,7 +238,10 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         float cover = wsCanopyCover(wp);
         // (forest-floor maps: the crown edges ragged, \`wsFloorCover\`; a lone tree paints no disc)
         float floorCover = uFloorShade > 0.0 ? wsFloorCover(wp) : cover;
-        float lit = clamp((floorCover - 0.08) / 0.45 + (macro2 - 0.5) * 0.9, 0.0, 1.0) * uGroundLook.z;
+        // Pine needles (landcover.needles): their share of the litter, in patches where the covers mix; a needle floor is a
+        // carpet in every season (0.85), leaf litter follows the season (uGroundLook.z).
+        float needle = moistMap.g > 0.0 ? smoothstep(0.3, 0.7, moistMap.g + (macro2 - 0.5) * 0.6) : 0.0;
+        float lit = clamp((floorCover - 0.08) / 0.45 + (macro2 - 0.5) * 0.9, 0.0, 1.0) * mix(uGroundLook.z, 0.85, needle);
         lit *= (1.0 - w.z) * (1.0 - 0.6 * w.w);
         // Forest floor: the soil under closed crowns is dark humus, broken up like the litter (none on gravel).
         float humus = uFloorShade * smoothstep(0.05, 0.6, floorCover) * (0.75 + 0.5 * macro2) * (1.0 - w.w);
@@ -296,11 +304,15 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
           rV = 0.5 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.w));
         }
         if (lit > wCut) {
-          cLit = gVar(GY_LITTER, wp, GS_LITTER, GM_LITTER, dpx, dpy, near, h);
-          // Fresh fallen leaves (autumn): golden, thickest near the trunks, in drifts further out (one tap, under crowns only).
-          if (uGroundLook.w > 0.01) {
+          // One scan per fragment (a second \`gVar\` doubled the shader's compile time): needles or leaf litter, dithered by a
+          // fine noise where they mix, so a patch edge reads as needles strewn over the leaves.
+          bool isN = needle > texture2D(tMacro, wp * 0.71 + 0.37).r;
+          cLit = gVar(isN ? GY_NEEDLES : GY_LITTER, wp, isN ? GS_NEEDLES : GS_LITTER, isN ? GM_NEEDLES : GM_LITTER, dpx, dpy, near, h);
+          // Fresh fallen leaves (autumn): golden, thickest near the trunks, in drifts further out (one tap, under crowns only;
+          // none on a needle floor).
+          if (uGroundLook.w > 0.01 && needle < 0.98) {
             vec3 cLeaf = gTap(GY_LEAVES, wp, GS_LEAVES, dpx, dpy) * vec3(1.3, 1.08, 0.62);
-            float lp = uGroundLook.w * clamp(smoothstep(0.3, 0.6, texture2D(tMacro, wp * 0.06 + 0.77).r) + (cover - 0.55) * 1.6, 0.0, 1.0);
+            float lp = uGroundLook.w * (1.0 - needle) * clamp(smoothstep(0.3, 0.6, texture2D(tMacro, wp * 0.06 + 0.77).r) + (cover - 0.55) * 1.6, 0.0, 1.0);
             cLit = mix(cLit, cLeaf, lp * 0.9);
           }
           aL = lit + 0.1 + HB_K * (h.x - 1.0);
@@ -341,7 +353,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
       );
   };
   mat.customProgramCacheKey = () =>
-    far ? 'rally-terrain-far-v7' : 'rally-terrain-v12';
+    far ? 'rally-terrain-far-v9' : 'rally-terrain-v14';
   if (far) sharedFar = mat;
   else shared = mat;
   return mat;

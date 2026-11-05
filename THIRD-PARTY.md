@@ -113,11 +113,15 @@ files are not in the repository).
 
 ### Ground textures (baked into `src/games/rally/engine/ground/`)
 
-CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni). No credit is required.
+CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni), Forest Ground 03 (Rob Tuytel; the pine-needle floor). No credit is required.
 
 ### Rocks (baked into `src/games/rally/assets/builders/rock-models.data.ts` and `src/games/rally/engine/props/`)
 
 CC0 scan from Poly Haven, simplified by `scripts/rocks/bake-rocks.mjs`: Rock Moss Set 01 (Kless Gyzen). No credit is required.
+
+The rock bands of steep hillsides (`rock_outcrop`, `outcrop-models.data.ts`, `engine/props/outcrop.*.webp`): CC0 scans from Poly
+Haven, simplified by `scripts/rocks/bake-outcrops.mjs`: [Rock Face 01](https://polyhaven.com/a/rock_face_01) (Dario Barresi),
+[Rock Face 02](https://polyhaven.com/a/rock_face_02) (Dario Barresi, Rico Cilliers). No credit is required.
 
 The road-cut rock faces (`engine/props/cut-face.*.webp`): CC0 scan from Poly Haven, toned to a light stone by
 `scripts/rocks/bake-cut-face.py`: [Cliff Side](https://polyhaven.com/a/cliff_side) (James Ray Cock, Dario Barresi, Jenelle van
@@ -133,7 +137,7 @@ CC0 scans from Poly Haven, made grey (with their normal maps) by `scripts/trees/
 
 ### Grass, weeds and reeds (baked into `src/games/rally/engine/plants/`)
 
-CC0 plant models from Poly Haven, rendered into card atlases by `scripts/plants/bake-plants.mjs`: Grass Medium 01 (Rob Tuytel, Rico Cilliers), Grass Medium 02 (Rico Cilliers), Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02 (Rob Tuytel, Rico Cilliers). No credit is required.
+CC0 plant models from Poly Haven, rendered into card atlases by `scripts/plants/bake-plants.mjs`: Grass Medium 01 (Rob Tuytel, Rico Cilliers), Grass Medium 02 (Rico Cilliers), Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02, Fern 02 (Rob Tuytel, Rico Cilliers; the fern sheets `ferns.webp` / `ferns-autumn.webp`). No credit is required.
 
 The reeds sheet (`reeds.webp`) is rendered the same way from two CC BY 4.0 models (the reed plants, and the cattail
 clump of the showcase; the source files are not in the repository).
@@ -208,11 +212,11 @@ Vodno's roadside (pines near the road, lilac and bush understorey) uses a few mo
 levels of detail, the pines also their far billboards; the textures shrunk and recompressed; packed by `scripts/trees/bake-tree-packs.py`; the source files are not in the
 repository).
 
-| Pack                                          | Author                                    | Licence   |
-| --------------------------------------------- | ----------------------------------------- | --------- |
-| "Pine trees pack (lowpoly, game ready, LODs)" | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
-| "Lilac bush pack (12 vars, LODs, game ready)" | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
-| "Bush models pack (gameready, LODs)"          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| Pack                                                                                                                                                      | Author                                    | Licence   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | --------- |
+| ["Pine trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/pine-trees-pack-lowpoly-game-ready-lods-e1e9c07b8e2e445c943fec660beefba2) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Lilac bush pack (12 vars, LODs, game ready)"](https://sketchfab.com/3d-models/lilac-bush-pack-12-vars-lods-game-ready-10312697ec994fc99355cb94f1963a2e) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Bush models pack (gameready, LODs)"](https://sketchfab.com/3d-models/bush-models-pack-gameready-lods-f2d9ffd3e6a94cf0b9464ccd66a4c2f8)                  | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
 
 ### Straw texture (`src/games/rally/engine/props/straw.webp`)
 

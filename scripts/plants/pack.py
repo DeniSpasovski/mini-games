@@ -5,6 +5,7 @@ usage: python3 scripts/plants/pack.py <manifest.json> <repo root>   (bake-plants
 Writes src/games/rally/engine/plants/<sheet>.webp and plant-atlas.data.ts: per sheet and per cell the measured mean
 albedo (linear) of the covered texels, of the roots (lowest 30 % of the cell), of the tips (the top 40 % of the
 covered rows) and of the body between them. The spring sheet is the green one (same layout) with its linear colour scaled to SPRING.
+The autumn fern sheet is the fern one turned to dead bracken (`bracken`).
 A bake of some sheets (`--sheets`) keeps the other sheets' atlases and data as they are.
 """
 import json
@@ -59,6 +60,29 @@ def tone(sid, img):
     img = img.copy()
     img[..., :3] = np.round(to_srgb(lin)).astype(np.uint8)
     return img
+
+
+# Dead bracken (autumn ferns), linear: rust brown (red / green, 1, blue / green), mean luminance and contrast about it.
+BRACKEN = np.array([1.75, 1.0, 0.42])
+BRACKEN_LUM = 0.11
+BRACKEN_PULL = 0.85
+BRACKEN_CONTRAST = 0.8
+
+
+def bracken(img):
+    """The fern sheet in autumn: each covered texel's chroma BRACKEN_PULL of the way to rust, its luminance about BRACKEN_LUM."""
+    cov = img[..., 3] > 0
+    lin = to_lin(img[..., :3].astype(np.float64))
+    px = lin[cov]
+    lum = np.maximum(px @ LUMA, 1e-6)
+    rust = BRACKEN / float(BRACKEN @ LUMA)
+    chroma = px / lum[:, None] * (1 - BRACKEN_PULL) + rust * BRACKEN_PULL
+    mean = float(lum.mean())
+    px = chroma * (BRACKEN_LUM * (lum / mean) ** BRACKEN_CONTRAST)[:, None]
+    lin[cov] = px
+    out = img.copy()
+    out[..., :3] = np.round(to_srgb(lin)).astype(np.uint8)
+    return out
 
 
 def to_lin(c):
@@ -153,6 +177,9 @@ def main():
         lin = to_lin(spring[..., :3].astype(np.float64)) * (SPRING / gm)
         spring[..., :3] = np.round(to_srgb(lin)).astype(np.uint8)
         sheets['grass-spring'] = ({**green_spec, 'id': 'grass-spring'}, spring)
+    if 'ferns' in sheets:
+        fern_spec, ferns = sheets['ferns']
+        sheets['ferns-autumn'] = ({**fern_spec, 'id': 'ferns-autumn'}, bracken(ferns))
     for sid, (s, img) in sheets.items():
         cw, ch = s['cellW'], s['cellH']
         cells = []

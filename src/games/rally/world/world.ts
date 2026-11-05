@@ -235,6 +235,7 @@ export class World implements GroundProvider {
             parkQ.distance < parkQ.halfWidth + r + 2) ||
           (!!this.gen.lakes?.query(x, z, parkLq) && parkLq.sd < r + 2),
       });
+    // Pack trees and shrubs wear the map's season (shared materials: set before anything is built).
     this.scatter = new ScatterField(
       this.analytic,
       this.road,
@@ -266,6 +267,7 @@ export class World implements GroundProvider {
         stageId: map.id,
         treeSetback: map.treeSetback,
         treeCrownClear: map.treeCrownClear,
+        heroTrees: map.heroTrees,
       },
     );
     const crowdQ = newPathQuery();

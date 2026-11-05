@@ -144,6 +144,48 @@ function banded(
   });
 }
 
+// ---- Ground layer and rock bands (used by `landcover.needles` and the end of `scatter`) ----
+/** Pine-needle carpet: the whole floor of the black pine stands, patches of it in the mixed stands. */
+const NEEDLE_FLOOR = { pine: 1, mixed: 0.5 };
+/** Ferns in the shade of the oak / hornbeam coppice and the mixed stands; rock bands on the steep spurs. */
+const GROUND_LAYER: ScatterRule[] = [
+  // Ferns in drifts under closed crowns: unfurling in spring, full in summer, dead rust-brown bracken in autumn.
+  ...(
+    [
+      ['fern', ['spring'], [0.55, 0.8]],
+      ['fern', ['summer'], [0.8, 1.15]],
+      ['fern_autumn', ['autumn'], [0.8, 1.1]],
+    ] as const
+  ).map(([asset, season, scale]): ScatterRule => ({
+    asset,
+    season: [...season],
+    cover: ['oakwood', 'mixed', 'trees'],
+    canopy: { full: 0.75, min: 0.35 },
+    density: 40,
+    detail: true,
+    mask: { scale: 28, threshold: 0.15 },
+    minRoadDist: 1.5,
+    maxSlope: 0.4,
+    scale: [scale[0], scale[1]],
+    sink: 0.05,
+  })),
+  // Schist breaking through the wooded hillside where it steepens past ~27 deg (the spurs of 650-850 m, 1 300-1 400 m
+  // and 2 550-2 750 m): short bands of rock faces along the contour, faces down the slope, backs in the hill. Past the
+  // road's cut faces and fill banks (steeper than any natural slope here: `maxSlope`).
+  {
+    asset: 'rock_outcrop',
+    cover: [...WOODS, 'shrub', 'bare', 'grass'],
+    density: 2.5,
+    minRoadDist: 9,
+    minSlope: 0.095,
+    maxSlope: 0.17,
+    mask: { scale: 45, threshold: 0 },
+    scale: [1.2, 1.7],
+    sink: 0.4,
+    outcrop: { pieces: [3, 6], lean: 0.5 },
+  },
+];
+
 const props: PropPlacement[] = [
   // The cross faces the city: its arm runs north-west / south-east, square to the view from the stage.
   { asset: 'millennium_cross', x: CROSS.x, z: CROSS.z, rotY: -45 },
@@ -187,6 +229,7 @@ export const vodnoMap: MapDef = {
       cover: canopy.cover as RasterDef,
       height: canopy.height as RasterDef,
     },
+    needles: NEEDLE_FLOOR,
     // [grass, dirt, rock, gravel]
     splat: {
       grass: [0.78, 0.16, 0.06, 0],
@@ -627,7 +670,8 @@ export const vodnoMap: MapDef = {
       canopy: { full: 0.6, min: 0.15 },
       density,
       minRoadDist: 3,
-      maxSlope: 0.5,
+      // A 1.7 m root plate bridges a bump on steep ground: gentler ground only.
+      maxSlope: asset === 'forest_roots' ? 0.2 : 0.5,
       scale: [scale[0], scale[1]],
       alignToGround: align,
       sink: 0.05,
@@ -655,6 +699,7 @@ export const vodnoMap: MapDef = {
       alignToGround: true,
       sink: 0.08,
     },
+    ...GROUND_LAYER,
     // The suburb's garden trees: `realTrees`.
     {
       asset: 'fruit_tree',

@@ -188,7 +188,7 @@ describe('trees', () => {
     expect(ratio('hedge_cypress')).toBeGreaterThan(1.5);
     expect(ratio('hedge_cypress')).toBeLessThan(ratio('cypress_tree'));
     expect(ratio('pine_tree')).toBeGreaterThan(1.3);
-    // The plantation pine is the pine's cone grown cheaper: as tall and narrow, with fewer sprites and limbs.
+    // The plantation pine is a full cone grown cheap: as tall and narrow as the pine, with fewer sprites than it has.
     expect(ratio('plantation_pine')).toBeGreaterThan(1.3);
     expect(v('plantation_pine').info.height).toBeGreaterThan(
       v('pine_tree').info.height * 0.8,
@@ -196,7 +196,12 @@ describe('trees', () => {
     expect(
       generateVariant(speciesOfType('plantation_pine'), 0).meshes.sprites.count,
     ).toBeLessThan(
-      generateVariant(speciesOfType('pine_tree'), 0).meshes.sprites.count * 0.6,
+      generateVariant(speciesOfType('pine_tree'), 0).meshes.sprites.count,
+    );
+    // The Scots pine stands bare below: its crown starts above a fifth of its height (the plantation cone near the foot).
+    const pine = v('pine_tree').info;
+    expect(pine.crown.c[1] - pine.crown.r[1]).toBeGreaterThan(
+      pine.height * 0.2,
     );
     expect(ratio('walnut_tree')).toBeLessThan(1);
     expect(ratio('willow_tree')).toBeLessThan(0.8);

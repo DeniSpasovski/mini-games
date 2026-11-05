@@ -11,11 +11,13 @@ import type {
   LandcoverDef,
   MapDef,
   PathDef,
+  ScatterRule,
 } from '../shared/types';
 import data from './data.json';
 import horizon from './horizon.json';
 import { galichicaInfo as info } from './info';
 import { galichicaLotPads } from './service-park';
+import { forestEdge } from '../shared/forest-edge';
 
 /**
  * "Galichica" - the pass road over Galichica mountain (national park, North Macedonia) between Lake Ohrid (west, 693 m)
@@ -60,6 +62,8 @@ export const galichicaMap: MapDef = {
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
+    // Pine-needle carpet on the floor of the pine stands (world/ground-moisture.ts).
+    needles: { pine: 1 },
     // [grass, dirt, rock, gravel]
     splat: {
       grass: [0.82, 0.12, 0.06, 0],
@@ -292,6 +296,45 @@ export const galichicaMap: MapDef = {
       minRoadDist: 1,
       scale: [0.7, 1.3],
     },
+    // Ferns under the closed beech / oak crowns (dead rust-brown bracken in autumn); limestone bands where the
+    // mountainside steepens, past the road's cut faces.
+    ...(
+      [
+        ['fern', ['spring'], [0.55, 0.8]],
+        ['fern', ['summer'], [0.8, 1.15]],
+        ['fern_autumn', ['autumn'], [0.8, 1.1]],
+      ] as const
+    ).map(([asset, season, scale]): ScatterRule => ({
+      asset,
+      season: [...season],
+      cover: ['beech', 'trees'],
+      canopy: { full: 0.75, min: 0.35 },
+      density: 40,
+      detail: true,
+      mask: { scale: 28, threshold: 0.15 },
+      minRoadDist: 1.5,
+      maxSlope: 0.4,
+      scale: [scale[0], scale[1]],
+      sink: 0.05,
+    })),
+    {
+      asset: 'rock_outcrop',
+      cover: ['bare', 'beech', 'pine', 'shrub'],
+      density: 2.5,
+      minRoadDist: 9,
+      minSlope: 0.13,
+      maxSlope: 0.3,
+      mask: { scale: 45, threshold: 0 },
+      scale: [1.2, 1.7],
+      sink: 0.4,
+      outcrop: { pieces: [3, 6], lean: 0.5 },
+    },
+    // Where the road cuts a wood: shrub belt and young trees along the verge (maps/shared/forest-edge.ts).
+    ...forestEdge({
+      woods: ['trees', 'beech', 'pine'],
+      young: ['hornbeam_tree', 'oak_tree'],
+      open: ['shrub'],
+    }),
   ],
   roadside: [
     // White / red chevrons on the outside of the hairpins (real Macedonian mountain roads have them).

@@ -828,6 +828,22 @@ export class FarForest {
     };
   }
 
+  /**
+   * The canopy map's cell at xz on the CPU (the car's reflections, world/car-surround.ts): cover 0..1 (0 outside the map
+   * or without trees); `out` gets [canopy top height (m), r, g, b (linear crown colour)].
+   */
+  sampleCanopy(x: number, z: number, out: Float32Array): number {
+    const i = Math.floor((x - this.x0) / this.res);
+    const j = Math.floor((z - this.z0) / this.res);
+    if (i < 0 || j < 0 || i >= this.nx || j >= this.nz) return 0;
+    const k = j * this.nx + i;
+    const a = this.area[k];
+    if (a <= 0) return 0;
+    out[0] = this.top[k] / a;
+    for (let c = 0; c < 3; c++) out[c + 1] = this.rgb[k * 3 + c] / a;
+    return Math.min(1, a / (this.res * this.res));
+  }
+
   dispose(): void {
     this.mesh.geometry.dispose();
     (this.mesh.material as MeshLambertMaterial).dispose();

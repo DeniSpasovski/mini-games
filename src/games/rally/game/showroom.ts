@@ -1,3 +1,4 @@
+import { surroundOff } from '../engine/car-reflections';
 import {
   CircleGeometry,
   Color,
@@ -725,6 +726,8 @@ export class Showroom {
     // Stage view: the subject a little above the middle (MAP_LIFT); car screens: vertically centred.
     const lift = this.mapView ? h * MAP_LIFT : 0;
     cam.setViewOffset(w, h, -w * shift, lift, w, h);
+    // The car reflects this sky / studio alone (a stage driven before on this page left its surroundings on).
+    surroundOff();
     this.env.follow(cam.position);
     if (this.dof && !this.mapView)
       this.dof.render(this.scene, cam, cam.position.distanceTo(this.target));

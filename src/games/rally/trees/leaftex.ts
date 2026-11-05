@@ -1,3 +1,4 @@
+import { LEAF_PHOTOS } from './leaf-photos.data';
 import { mix32, tcos, tsin, unit } from './math';
 import type { FoliageKind } from './species';
 
@@ -6,6 +7,10 @@ import type { FoliageKind } from './species';
  * cluster of leaves (broadleaf) or needle sprays (needles), in a CLUSTER_COLS x CLUSTER_ROWS grid of squares
  * (NEEDLE_IMAGE px for the pine, BROAD_IMAGE for the rest). Pure (the meshing worker reads the outlines, trees/materials.ts makes the textures), drawn with the tree
  * code's own trig (trees/math.ts), so the pixels and the outlines fitted to them are the same on every platform.
+ *
+ * Photo styles (`LEAF_PHOTOS`, trees/leafphoto.ts; none shipped yet) would be cut from pack leaf textures
+ * in this layout; meshing reads their baked shape (`atlasShape`), and `spriteAtlas` draws
+ * every style here, the synchronous path (node, vineyards) and their fallback.
  *
  * A broadleaf image is a leafy branch lying along the image's x axis (its base on the left, `SPRAY_*`): a stem with
  * twigs alternating along it, small stalked leaves alternating along each twig (a leaf is 4-6 % of the image), dark
@@ -39,6 +44,7 @@ export type LeafStyle =
   | 'serrate'
   | 'lobed'
   | 'round'
+  | 'palmate'
   | 'narrow'
   | 'small';
 
@@ -49,6 +55,7 @@ export const LEAF_STYLES: readonly LeafStyle[] = [
   'serrate',
   'lobed',
   'round',
+  'palmate',
   'narrow',
   'small',
 ];
@@ -58,16 +65,14 @@ export function styleKind(style: LeafStyle): FoliageKind {
   return style === 'pine' || style === 'juniper' ? 'needles' : 'broadleaf';
 }
 
-export interface SpriteAtlas {
+/** What meshing reads of an atlas (no pixels): the same in node, a worker and the page. */
+export interface AtlasShape {
   width: number;
   height: number;
   /** Leaf sprays and fronds lie along x and are turned to their twig; pine needle bursts are round. */
   aligned: boolean;
   /** Sprite size factor: a thin frond covers less of its image than a leafy branch, so it is drawn larger. */
   grow: number;
-  /** RGBA8, row 0 = v 0. */
-  albedo: Uint8Array;
-  normal: Uint8Array;
   /** Per image: outline polygon (CCW, 6-8 vertices) in image coordinates (0..1)^2. */
   outlines: Outline[];
   /**
@@ -75,6 +80,45 @@ export interface SpriteAtlas {
    * this, so a cluster's mean albedo is its palette colour (trees/mesh.ts).
    */
   mean: number;
+}
+
+export interface SpriteAtlas extends AtlasShape {
+  /** RGBA8, row 0 = v 0. */
+  albedo: Uint8Array;
+  normal: Uint8Array;
+}
+
+/**
+ * A photo leaf style (trees/leaf-photos.data.ts, scripts/trees/bake-leaves.py): its images are cut from the CC BY pack
+ * leaf textures and decoded in the tree worker (trees/leafphoto.ts); meshing reads only these baked numbers.
+ */
+export interface LeafPhoto {
+  /** Image side (px): the atlas is CLUSTER_COLS x CLUSTER_ROWS of them. */
+  image: number;
+  mean: number;
+  outlines: Outline[];
+}
+
+/** The baked photo of a style, or none (drawn here). */
+export function leafPhoto(style: LeafStyle): LeafPhoto | undefined {
+  return LEAF_PHOTOS[style];
+}
+
+/**
+ * The shape of a style's atlas as the game draws it: a photo style's from its baked data (its pixels decode
+ * asynchronously), a drawn one's from `spriteAtlas`.
+ */
+export function atlasShape(style: LeafStyle): AtlasShape {
+  const p = LEAF_PHOTOS[style];
+  if (!p) return spriteAtlas(style);
+  return {
+    width: p.image * CLUSTER_COLS,
+    height: p.image * CLUSTER_ROWS,
+    aligned: style !== 'pine',
+    grow: 1,
+    outlines: p.outlines,
+    mean: p.mean,
+  };
 }
 
 /** Polygon vertices (CCW) in image coordinates. */
@@ -142,7 +186,19 @@ const BROAD: Record<Exclude<LeafStyle, 'pine' | 'juniper'>, BroadStyle> = {
     gap: 0.8,
     bend: 0.1,
   },
-  // Oak, plane: lobed outline.
+  // Plane (the drawn stand-in for its photo): lobed outline, broader.
+  palmate: {
+    len: [12, 16],
+    aspect: 1.2,
+    edge: 'wave',
+    repeats: 2.5,
+    amp: 0.4,
+    step: 8,
+    twig: [1.8, 4],
+    gap: 1,
+    bend: 0.12,
+  },
+  // Oak: lobed outline.
   lobed: {
     len: [11, 15],
     aspect: 1.55,
@@ -216,11 +272,6 @@ const PINE_NEEDLES: NeedleStyle = {
 };
 
 const atlases = new Map<LeafStyle, SpriteAtlas>();
-
-/** An atlas made elsewhere (a worker) stands for `spriteAtlas(style)`. */
-export function primeSpriteAtlas(style: LeafStyle, atlas: SpriteAtlas): void {
-  atlases.set(style, atlas);
-}
 const profiles = new Map<LeafStyle, Float32Array>();
 
 const PROFILE_STEPS = 256;

@@ -33,6 +33,8 @@ generated deterministically from it. There is no map editor on purpose — edit 
 - Surface changes along the stage: `road.sections: [{ from: <metres along>, surface, texture }]` (applies until the
   next entry; `road.surface` / `texture` are used before the first). E.g. asphalt valley road -> gravel climb
   (`maps/petralica`). Real maps: check Street View for where the surface really changes.
+- Rally tarmac (`road_tarmac*`) wears by itself (`world/road-wear.ts`, DETAILS.md "Rally-worn tarmac"): cut dirt in tight
+  bends, rubber, mud at dirt-track mouths; a barrier rule or a kerbed texture keeps a verge clean. Check hairpins in shots.
 - `stage.start` / `stage.finishFromEnd` / `stage.splits` define timing. They also place the start / finish gantries, the lines
   and the split boards automatically (`world/stage-signs.ts`; the gantry header shows `name` + `year`) -
   do not add arch props. Every map needs `year`.
@@ -97,7 +99,9 @@ Example: `maps/ajvatovci/` (`map.ts`, baked `data.json`, task list `TODO.md`, so
    DETAILS "Guard rails" / "Fill banks"); `osm.features: { corridor: 300 }` bakes park furniture / gates / fences into
    `data.json` "features" (`features.py`; place them with a map landmark, worked example Vodno `osm-features.ts`).
    `terrain.talus` / `terrain.streamBeds` and scatter `minSlope` give steep ground its bare rock, scree and crags and the
-   streams their pebble beds (rally DETAILS "Natural ground"); pack hero trees near the road: "Hero trees".
+   streams their pebble beds, scatter `outcrop` (asset `rock_outcrop`) rock bands along the contour (rally DETAILS "Natural
+   ground"); `landcover.needles` = pine-needle floor per cover, `fern` / `fern_autumn` (`season`) under shaded crowns;
+   `forestEdge()` for the shrub belt along a wood: "Hero trees".
    `buildings.worldcover: true` generates houses on WorldCover built-up ground where no footprint data set covers
    the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon;
    `msRoads: { country, clearance, minLength }` adds roads OSM lacks from Microsoft ML Road Detections (ODbL,
