@@ -12,33 +12,28 @@ look is "late-2000s rally game" and the feel is grounded sim-lite that is still 
 npm run dev     # then open http://localhost:3000/games/rally/
 ```
 
-Menu: select stage (with its time of day: night to evening) -> select car -> (optional) car set-up -> drive. Keyboard, gamepad and touch controls are supported.
+Menu: select stage (with its time of day: night to evening) -> select car -> (optional) car set-up -> drive.
+
+**Controls:** keyboard (`W` / `S` throttle / brake, `A` / `D` steer, `Space` handbrake, `R` reset to road, `Esc` pause), gamepad
+(triggers throttle / brake, left stick steer, menus with the d-pad) and touch (on-screen steer arrows, brake and gas, landscape). All keys
+and buttons: [`DETAILS.md`](DETAILS.md) "Controls".
 
 UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 
 [![Select car](screenshots/ui-car.jpg)](STYLEGUIDE.md) [![Setup car](screenshots/ui-setup.jpg)](STYLEGUIDE.md)
 
-| Keys                |                                                    |
-| ------------------- | -------------------------------------------------- |
-| `W` / `S`           | throttle / brake (hold `S` when stopped = reverse) |
-| `A` / `D`           | steer                                              |
-| `Space`             | handbrake                                          |
-| `R`, `C`, `Esc`     | reset to road, camera, pause menu                  |
-| `Q` / `E`, `G`, `T` | shift, manual gearbox, traction assist             |
-| `B`                 | ABS (on by default; not on the Zastava)            |
-
 ## Features
 
-- Real-world stages with bridges, junctions, buildings, power lines and city streets (see maps below).
-- Seeded procedural vegetation, rocks and props through one instanced asset library, streamed terrain with LODs.
-- Five tyres (tarmac and gravel in soft and hard, plus mixed), tyre sizes and class per car, suspension and gearing set-ups, with a live 3D set-up screen.
-- Tyre and brake temperature per stage weather (Ajvatovci a hot June morning, Petralica a cool September afternoon): cold tyres and pads
-  grip less, hot discs fade; HUD marks for both.
-- Tyres that look like rally tyres: a tread pattern per compound, printed sidewall lettering and dust that builds up over a run.
-- Replays of every run, saved in the browser: Broadcast, Trackside, chase, bonnet, bumper and Drone cameras, a timeline, speed control and video recording.
-- Stage timer with sectors, time penalties for cutting and knocking over marker posts, top-10 times per stage (stored
-  locally).
-- Tool pages: map viewer, car viewer, asset debugger (dev server).
+- Real-world stages with bridges, junctions, buildings, power lines and city streets (see maps below); seeded procedural
+  vegetation, rocks and props through one instanced asset library, streamed terrain with LODs.
+- Five tyres (tarmac and gravel in soft and hard, plus mixed) with a tread pattern per compound, printed sidewall lettering and
+  dust that builds up over a run; tyre sizes and class per car, suspension and gearing set-ups, with a live 3D set-up screen.
+- Tyre and brake temperature per stage weather (Ajvatovci a hot June morning, Petralica a cool September afternoon): cold tyres
+  and pads grip less, hot discs fade; HUD marks for both.
+- Replays of every run, saved in the browser: Broadcast, Trackside, chase, bonnet, bumper and Drone cameras, a timeline and speed
+  control (video recording on the dev server only).
+- Stage timer with sectors, time penalties for cutting and knocking over marker posts, top-10 times per stage (stored locally).
+  Tool pages (map viewer, car viewer, asset debugger) on the dev server.
 
 ## Stages
 
@@ -77,11 +72,9 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 
 ## Documentation
 
-| Doc                         | Content                                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------------------ |
-| [`DETAILS.md`](DETAILS.md)  | pages and URLs, game / stage flow, map engine features, architecture, performance, set-up screen |
-| [`PHYSICS.md`](PHYSICS.md)  | vehicle model, tuning guide, tyres and set-ups, test results                                     |
-| `maps/<id>/`, `cars/<car>/` | per map / car: `README.md` (overview) and `DETAILS.md` (sources, licences, build notes)          |
+[`DETAILS.md`](DETAILS.md): pages and URLs, game / stage flow, map engine features, architecture, performance, set-up screen.
+[`PHYSICS.md`](PHYSICS.md): vehicle model, tuning guide, tyres and set-ups, test results. Each map and car folder has its own
+`README.md` with the overview, sources and licences.
 
 ## Credits
 
