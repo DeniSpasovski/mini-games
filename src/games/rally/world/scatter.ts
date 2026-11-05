@@ -39,6 +39,8 @@ export interface ScatterContext {
   treeSetback?: MapDef['treeSetback'];
   /** `MapDef.treeCrownClear`: how far a roadside tree's crown may reach over the stage road's edge. */
   treeCrownClear?: MapDef['treeCrownClear'];
+  /** `MapDef.heroTrees`: pack models standing in for generated trees near the stage road. */
+  heroTrees?: MapDef['heroTrees'];
   /** The crop standing at a point (rules with `crop`; world/terrain-gen.ts `cropAt`). */
   cropAt?: (x: number, z: number) => string | undefined;
   /** Direction of the field strips (rad, `landcover.fields.angle`): `rows.fields` rules run along it. */
@@ -678,9 +680,26 @@ export class ScatterField {
           tiltX,
           tiltZ,
         };
-        if (tree) {
+        const hero = tree ? this.ctx.heroTrees : undefined;
+        const swap = hero?.swap[rule.asset];
+        const index = tree ? hash3(cx, cz, ri * 65536 + i, 0x7ee5) : 0;
+        if (
+          swap &&
+          rd < hero!.dist &&
+          rd >= (swap.minRoadDist ?? 0) &&
+          (mix32(index, 0x4e70) >>> 0) / 4294967296 < swap.share
+        ) {
+          // A pack model in its place: its own variant, upright (sunk by nothing: its roots are buried), sized by the
+          // swap's range times the rule's (young trees stay young).
+          const u = (k: number) => (mix32(index, k) >>> 0) / 4294967296;
+          inst.asset = swap.asset;
+          inst.variant = Math.floor(u(1) * assetVariants(swap.asset));
+          inst.rotY = u(2) * Math.PI * 2;
+          inst.scale *= swap.scale[0] + u(3) * (swap.scale[1] - swap.scale[0]);
+          inst.y = ground.height(x, z);
+          inst.tiltX = inst.tiltZ = 0;
+        } else if (tree) {
           const ruleScale = inst.scale;
-          const index = hash3(cx, cz, ri * 65536 + i, 0x7ee5);
           this.poseTree(inst, index, true);
           // No low limbs over the road: a solid tree whose leaves hang low over the stage road takes another pose
           // (variant, rotation, size) from the same hash: the one of REPOSE_TRIES that keeps them furthest off.
@@ -1013,13 +1032,16 @@ export function roadsideInstances(
 export function collidersOf(inst: ScatterInstance): StaticCollider[] {
   if (inst.tree) return treeColliders(inst);
   const meta = getAssetMeta(inst.asset);
-  if (!meta.colliders) return [];
+  const specs =
+    meta.variantColliders?.[inst.variant % meta.variantColliders.length] ??
+    meta.colliders;
+  if (!specs) return [];
   const c = Math.cos(inst.rotY);
   const s = Math.sin(inst.rotY);
   const sx = inst.scale * (inst.sx ?? 1);
   const sy = inst.scale * (inst.sy ?? 1);
   const sz = inst.scale * (inst.sz ?? 1);
-  return meta.colliders.map((col) => {
+  return specs.map((col) => {
     const lx = (col.x ?? 0) * sx;
     const lz = (col.z ?? 0) * sz;
     const c0: StaticCollider = {

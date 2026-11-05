@@ -1,7 +1,7 @@
 import type { ScatterRule } from './types';
 
 /**
- * The edge a road cuts through a wood: a belt of shrubs (generated bush and hazel, in clumps) and young trees of
+ * The edge a road cuts through a wood: a belt of shrubs (the bush and lilac pack models, in clumps) and young trees of
  * the wood's own species in the light along the verge, where the generated stand would otherwise meet the road as a
  * wall of trunks. `open` covers (scrub, pasture) get a thinner scatter of bushes. Scatter rules for `MapDef.scatter`.
  */
@@ -20,24 +20,24 @@ export function forestEdge(o: {
 }): ScatterRule[] {
   const rules: ScatterRule[] = [
     {
-      asset: 'bush',
+      asset: 'pack_bush',
       cover: o.woods,
       density: 12,
       minRoadDist: 1.5,
       maxRoadDist: 14,
       mask: { scale: 35, threshold: -0.15 },
-      scale: [0.7, 1.1],
+      scale: [0.8, 1.5],
       maxSlope: SLOPE,
       sink: 0.1,
     },
     {
-      asset: 'hazelnut_tree',
+      asset: 'pack_lilac',
       cover: o.woods,
       density: 3,
       minRoadDist: 3,
       maxRoadDist: 18,
       mask: { scale: 55, threshold: 0 },
-      scale: [0.5, 0.8],
+      scale: [0.6, 1.2],
       maxSlope: SLOPE,
       sink: 0.15,
     },
@@ -56,13 +56,13 @@ export function forestEdge(o: {
   ];
   if (o.open?.length)
     rules.push({
-      asset: 'bush',
+      asset: 'pack_bush',
       cover: o.open,
       density: 4,
       minRoadDist: 2,
       maxRoadDist: 22,
       mask: { scale: 40, threshold: 0 },
-      scale: [0.6, 1],
+      scale: [0.7, 1.3],
       maxSlope: SLOPE,
       sink: 0.1,
     });

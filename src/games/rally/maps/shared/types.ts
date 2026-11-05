@@ -78,6 +78,23 @@ export interface MapDef {
    * take another pose (variant, rotation, size) that keeps them off: world/scatter.ts `lowOverRoad`.
    */
   treeCrownClear?: number;
+  /**
+   * Hero trees near the stage road: within `dist` m of its edge, `share` of the scattered trees of a generated species
+   * (the `swap` key: a tree asset id) stand as its pack model instead (`asset`, a `pack_*` id, at `scale` x the rule's scale), not nearer
+   * than `minRoadDist`. The forest beyond stays generated. world/scatter.ts.
+   */
+  heroTrees?: {
+    dist: number;
+    swap: Record<
+      string,
+      {
+        asset: string;
+        share: number;
+        scale: [number, number];
+        minRoadDist?: number;
+      }
+    >;
+  };
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
@@ -1048,36 +1065,6 @@ export interface ScatterRule {
    * the row stops where the slope leaves `minSlope` / `maxSlope`. `alignToGround` / `tilt` are ignored.
    */
   outcrop?: { pieces: [number, number]; step?: number; lean?: number };
-}
-
-/** An OSM feature point (scripts/realmap/features.py): kind, x, z, heading of the way it sits on (rad), OSM node id. */
-export type MapFeaturePoint = [string, number, number, number, number];
-
-/** Road-side features OSM maps (data.json "features", baked by scripts/realmap/features.py; ODbL). */
-export interface MapFeatures {
-  points: MapFeaturePoint[];
-  /** Barrier lines: fence / wall / kerb / guard_rail / retaining_wall / hedge, `pts` flat [x, z, ...], `type` = fence_type / material. */
-  lines: { kind: string; pts: number[]; id: number; type?: string }[];
-}
-
-/**
- * Derived guard rails: wherever the carved ground falls more than `minDrop` m below the stage road within `within` m
- * (default 3) of the valley edge (the verge's outer edge), a guard rail runs along that edge. Gaps under `gap` m (14) are bridged, runs under
- * `minLength` m (16) dropped, ends led in `lead` m (4). Explicit `barriers` rules (hand-placed, hairpin, OSM-mapped
- * `barrier=guard_rail`) win: no derived run overlaps one on the same side; one that meets it carries it on (its steel).
- */
-export interface DropRails {
-  minDrop: number;
-  within?: number;
-  gap?: number;
-  minLength?: number;
-  lead?: number;
-  offset?: number;
-  from?: number;
-  to?: number;
-  skipJunctions?: number;
-  /** Weathered rusty steel (default) or galvanised. */
-  rusty?: boolean;
 }
 
 /** An OSM feature point (scripts/realmap/features.py): kind, x, z, heading of the way it sits on (rad), OSM node id. */

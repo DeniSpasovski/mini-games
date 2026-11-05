@@ -377,9 +377,29 @@ export const vodnoMap: MapDef = {
     // the model nearest its height (the canopy model reads these pines ~0.6x low).
     near: {
       dist: 30,
-      assets: { pine: ['pack_pine'], mixed: ['pack_pine'] },
-      heights: { pack_pine: [0, 1, 2].map((v) => packHeight('pine', v)) },
+      assets: {
+        pine: ['pack_pine'],
+        mixed: ['pack_pine', 'pack_oak'],
+        trees: ['pack_oak'],
+        oakwood: ['pack_oak'],
+      },
+      heights: {
+        pack_pine: [0, 1, 2].map((v) => packHeight('pine', v)),
+        pack_oak: [0, 1, 2, 3, 4].map((v) => packHeight('oak', v)),
+      },
       gain: 1.5,
+    },
+  },
+  // Pack hero trees near the road among the generated stands (the forest beyond stays generated).
+  heroTrees: {
+    dist: 35,
+    swap: {
+      oak_tree: {
+        asset: 'pack_oak',
+        share: 0.4,
+        scale: [0.85, 1.1],
+        minRoadDist: 4,
+      },
     },
   },
   scatter: [

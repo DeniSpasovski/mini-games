@@ -233,6 +233,37 @@ export const ajvatovciMap: MapDef = {
     // The Aracinovo canal bridge (OSM bridge=yes): a deck over the lowered channel, abutments + parapets.
     spans: routeSpans(data.routeSpans),
   },
+  // Pack hero trees near the road among the generated stands (the forest beyond stays generated).
+  heroTrees: {
+    dist: 35,
+    swap: {
+      oak_tree: {
+        asset: 'pack_oak',
+        share: 0.5,
+        scale: [0.85, 1.1],
+        minRoadDist: 4,
+      },
+      pine_tree: {
+        asset: 'pack_pine',
+        share: 0.4,
+        scale: [0.6, 0.85],
+        minRoadDist: 4,
+      },
+      plantation_pine: {
+        asset: 'pack_pine',
+        share: 0.4,
+        scale: [0.6, 0.85],
+        minRoadDist: 4,
+      },
+      // (the models: 10, 14 and 19 m)
+      willow_tree: {
+        asset: 'pack_willow',
+        share: 0.5,
+        scale: [0.75, 1],
+        minRoadDist: 4,
+      },
+    },
+  },
   scatter: [
     // The planted pine stands on the hills (the hilltop's above the church): young full cones, needled to the foot.
     {

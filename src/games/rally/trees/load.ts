@@ -21,6 +21,7 @@ import {
   barkReady,
   barkTexture,
   barkTileSize,
+  coverageMips,
   impostorMaterial,
   primeSpriteTextures,
   spriteMaterial,
@@ -50,6 +51,7 @@ import type {
 } from './worker';
 import { WorkerPool } from '../../../shared/worker-pool';
 import { LEAF_STYLES, type LeafStyle } from './leaftex';
+import { photoAtlas, photoUrls } from './leafphoto';
 import { meshBuffers } from './mesh';
 import { crownProxy, quadSprites } from './proxy';
 import type { TreeLoadStats } from './stats';
@@ -212,20 +214,47 @@ class Generator {
     });
   }
 
-  /** Makes the atlas + mips of every style in a worker and primes `spriteTextures` with them. */
+  /**
+   * Makes the atlas + mips of every style in a worker (a photo style decodes its images there, trees/leafphoto.ts) and
+   * primes `spriteTextures` with them.
+   */
   atlases(styles: LeafStyle[]): Promise<void> {
     return Promise.all(
       styles.map(
         (style) =>
           new Promise<void>((resolve) => {
-            const req: Omit<AtlasRequest, 'id'> = { atlas: style };
+            const urls = photoUrls(style);
+            // No worker: a photo style decodes here; a drawn one `spriteTextures` makes itself.
+            const inline = () => {
+              if (!urls) return resolve();
+              photoAtlas(style, urls)
+                .then((atlas) => {
+                  if (atlas)
+                    primeSpriteTextures(
+                      style,
+                      atlas,
+                      coverageMips(
+                        atlas.albedo,
+                        atlas.width,
+                        atlas.height,
+                        false,
+                        atlas.normal,
+                      ),
+                    );
+                })
+                .catch((err: unknown) =>
+                  console.warn(`trees: leaf photo ${style}:`, err),
+                )
+                .finally(resolve);
+            };
+            const req: Omit<AtlasRequest, 'id'> = { atlas: style, urls };
             const sent = this.pool.post(req, [], (r) => {
-              // Without the worker `spriteTextures` makes them itself.
-              if (r && 'atlas' in r)
+              if (r && 'atlas' in r) {
                 primeSpriteTextures(style, r.atlas, r.mips);
-              resolve();
+                resolve();
+              } else inline();
             });
-            if (!sent) resolve();
+            if (!sent) inline();
           }),
       ),
     ).then(() => undefined);

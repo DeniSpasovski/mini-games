@@ -104,6 +104,44 @@ export const galichicaMap: MapDef = {
     texture: 'road_tarmac',
     points: routePoints(data.route, () => 5.6),
   },
+  // Pack hero trees near the road among the generated stands (the forest beyond stays generated).
+  heroTrees: {
+    dist: 35,
+    swap: {
+      oak_tree: {
+        asset: 'pack_oak',
+        share: 0.4,
+        scale: [0.85, 1.1],
+        minRoadDist: 4,
+      },
+      beech_tree: {
+        asset: 'pack_maple',
+        share: 0.25,
+        scale: [0.8, 1],
+        minRoadDist: 4,
+      },
+      black_pine: {
+        asset: 'pack_pine',
+        share: 0.3,
+        scale: [0.6, 0.85],
+        minRoadDist: 4,
+      },
+      // Wych elms among the hornbeams of the mixed woods (the models: 21, 24 and 32 m, young to mature here).
+      hornbeam_tree: {
+        asset: 'pack_elm',
+        share: 0.1,
+        scale: [0.5, 0.75],
+        minRoadDist: 4,
+      },
+      // (the models: 10, 14 and 19 m)
+      willow_tree: {
+        asset: 'pack_willow',
+        share: 0.5,
+        scale: [0.75, 1],
+        minRoadDist: 4,
+      },
+    },
+  },
   scatter: [
     // Low slopes (Ohrid / Prespa sides, < 1 150 m): a closed canopy of bright-green hornbeam / oak coppice over
     // hazel and juniper, black pine only in its plantations, flowering broom on the road cuttings.

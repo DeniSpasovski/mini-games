@@ -1,4 +1,4 @@
-import { atlasUv, CLUSTER_IMAGES, SPRAY_BASE, spriteAtlas } from './leaftex';
+import { atlasShape, atlasUv, CLUSTER_IMAGES, SPRAY_BASE } from './leaftex';
 import {
   cross,
   GOLDEN,
@@ -620,7 +620,7 @@ function sprites(
   wd: WindData,
   colors: V3[],
 ): SpriteData {
-  const atlas = spriteAtlas(def.foliage.leaf);
+  const atlas = atlasShape(def.foliage.leaf);
   // The palette is the cluster's mean albedo: the atlas shades around it (trees/leaftex.ts `mean`).
   const gain = 1 / atlas.mean;
   const order = spriteOrder(sk, seed);

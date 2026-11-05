@@ -386,10 +386,19 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   Rock bands: a scatter rule with `outcrop` (asset `rock_outcrop`, two CC0 Poly Haven rock-face scans, `scripts/rocks/bake-outcrops.mjs`)
   grows a row of pieces along the contour from each point (`world/outcrops.ts`): faces down the slope, leant back, open backs
   buried, the row ends where the slope eases under `minSlope` or at the chunk edge (Vodno: the steep spurs).
-- **Forest edges**: `forestEdge()` (`maps/shared/forest-edge.ts`) adds the shrub belt and young trees of a wood along the road (every map).
-- **Hero trees** (`pack_pine` / `pack_lilac` / `pack_bush`, `assets/builders/tree-packs.ts`): CC BY pack models near the road,
-  the generated forest beyond; past the third mesh the pines draw the pack's own billboard (to 1.5 km). `realTrees.near` swaps the real trees within `dist` m for a pack model of the nearest height;
-  a scatter rule can name a pack asset like any other (Vodno: the near wood band, the verge pines, the understorey).
+- **Generated trees' leaves** (`trees/leaves/<style>.webp` + `-n.webp`, `scripts/trees/bake-leaves.py`): the broadleaf and
+  pine sprays are photo crops of the same LOLIPOP packs' leaf textures (normal + thickness from the pack normal map), decoded
+  in the tree worker (`trees/leafphoto.ts`); node tests, vines and the narrow / juniper styles keep the drawn atlas (`leaftex.ts`).
+- **Hero trees** (`pack_pine` / `pack_oak` / `pack_fir` / `pack_birch` / `pack_maple` / `pack_elm` / `pack_willow` / `pack_lilac` /
+  `pack_bush`, `assets/builders/tree-packs.ts`): CC BY pack models near the road, the generated forest beyond; past the third mesh the
+  trees draw a billboard (the pack's own, else baked; one atlas per kind) to 1.5 km; the elm and willow models have one dense
+  level only, the baker makes their levels (`reduce`). Oak, fir, birch, maple, elm and willow are chunks of their own: a world that places them awaits `loadTreePacks(kinds)` first. The leaves follow the world's season
+  (`setPackSeason`: the oak's own spring / autumn textures, recoloured autumn for the rest, a colour gain otherwise).
+  `variantColliders` gives each model its own trunk. `realTrees.near` swaps the real trees within `dist` m for a pack
+  model of the nearest height; `MapDef.heroTrees` swaps a share of a generated species' scattered trees within `dist` m
+  for a pack kind (every map: oaks, and pines / maples / birches where the map grows them; the map's `packs` in
+  `maps/index.ts` load them); `forestEdge()` (`maps/shared/forest-edge.ts`) adds the shrub belt and young trees of a wood
+  along the road. A scatter rule can name a pack asset like any other (Vodno: the near wood band, the verge pines).
   Size ladder: `.claude/reference/trees/Placement.md`.
 - **Piles** (`maps/shared/piles.ts`): sand / crushed-stone / spread heaps for road closures, depots and sites - shape, scanned
   material (kit keys `sand` / `aggregate`, spill `sandSpill` / `stoneSpill`), weeds, colliders; a landmark builds them into its bucket.

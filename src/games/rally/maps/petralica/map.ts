@@ -128,6 +128,24 @@ export const petralicaMap: MapDef = {
     // OSM's 34 m deck sits off-centre over the motorway: its cut reached the north abutment, so it is lengthened.
     spans: lengthenBridges(routeSpans(data.routeSpans), 44),
   },
+  // Pack hero trees near the road among the generated stands (the forest beyond stays generated).
+  heroTrees: {
+    dist: 35,
+    swap: {
+      oak_tree: {
+        asset: 'pack_oak',
+        share: 0.4,
+        scale: [0.85, 1.1],
+        minRoadDist: 4,
+      },
+      pine_tree: {
+        asset: 'pack_pine',
+        share: 0.4,
+        scale: [0.6, 0.85],
+        minRoadDist: 4,
+      },
+    },
+  },
   scatter: [
     // Oak / beech woods on the slopes, with darker pine clumps mixed in.
     {

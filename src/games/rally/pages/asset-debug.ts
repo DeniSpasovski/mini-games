@@ -19,6 +19,11 @@ import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { ASSET_CATALOG, getAssetMeta, hasAsset } from '../assets/catalog';
 import { buildAsset, variantSeed } from '../assets/library';
 import { loadSimready } from '../assets/builders/simready';
+import {
+  LAZY_PACK_KINDS,
+  loadTreePacks,
+  setPackSeason,
+} from '../assets/builders/tree-packs';
 import type { BuiltAsset } from '../assets/types';
 import { CarModel } from '../cars/shared/car-model';
 import { CARS, getCar } from '../cars';
@@ -85,6 +90,8 @@ const TREE_SHADOW_EXTENT = 40;
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
 
 const isTree = (id: string) => id.startsWith('tree:');
+/** Pack trees (catalog assets): a tree's shadow box, the season control. */
+const isPack = (id: string) => id.startsWith('pack_');
 type AssetKind = 'asset' | 'car' | 'tree' | 'tex';
 const kindOf = (id: string): AssetKind =>
   id.startsWith('tex:')
@@ -97,7 +104,8 @@ const kindOf = (id: string): AssetKind =>
 // A tree needs a bigger shadow box than a prop (set at load: switching between the two reloads the page).
 const shell = new ViewerShell({
   title: 'Asset debugger',
-  shadowExtent: isTree(state.asset) ? TREE_SHADOW_EXTENT : 12,
+  shadowExtent:
+    isTree(state.asset) || isPack(state.asset) ? TREE_SHADOW_EXTENT : 12,
 });
 const { scene, camera, controls } = shell;
 const holder = new Group();
@@ -132,7 +140,8 @@ const items = [
   })),
 ];
 shell.panel.section('Assets').list(items, state.asset, (id) => {
-  const reload = isTree(id) !== isTree(state.asset);
+  const reload =
+    isTree(id) !== isTree(state.asset) || isPack(id) !== isPack(state.asset);
   state.asset = id;
   state.lod = 0;
   ViewerShell.clearCameraLink(state); // the new asset is framed afresh
@@ -325,6 +334,10 @@ function rebuild(reframe = false): void {
   if (!hasAsset(id)) return;
   const meta = getAssetMeta(id);
   showOptions('asset', meta.variants, meta.lods.length);
+  if (isPack(id)) {
+    seasonCtl.el.hidden = false;
+    setPackSeason(seasonParam(state.season, DEFAULT_SEASON));
+  }
   const lod = Math.min(state.lod, meta.lods.length - 1);
   const seed =
     state.seed < 0
@@ -623,9 +636,12 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// The park, yard, village and forest props' models are chunks of their own (`loadSimready`).
+// The park, yard, village and forest props' models are chunks of their own (`loadSimready`), as are most pack trees'.
 const propsLoaded = loadingPlate('asset models');
-void loadSimready('park', 'yard', 'village', 'forest').then(() => {
+void Promise.all([
+  loadSimready('park', 'yard', 'village', 'forest'),
+  loadTreePacks(...LAZY_PACK_KINDS),
+]).then(() => {
   propsLoaded();
   rebuild(true);
   // A shared camera link wins over the automatic framing.

@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import { hashString } from '../../../shared/rng';
 import { mapSeason } from '../maps/shared/climate';
+import { setPackSeason } from '../assets/builders/tree-packs';
 import type {
   BarrierRule,
   BuildingDef,
@@ -236,6 +237,8 @@ export class World implements GroundProvider {
             parkQ.distance < parkQ.halfWidth + r + 2) ||
           (!!this.gen.lakes?.query(x, z, parkLq) && parkLq.sd < r + 2),
       });
+    // Pack trees and shrubs wear the map's season (shared materials: set before anything is built).
+    setPackSeason(mapSeason(map.environment));
     this.scatter = new ScatterField(
       this.analytic,
       this.road,
@@ -269,6 +272,7 @@ export class World implements GroundProvider {
         stageId: map.id,
         treeSetback: map.treeSetback,
         treeCrownClear: map.treeCrownClear,
+        heroTrees: map.heroTrees,
       },
     );
     const crowdQ = newPathQuery();

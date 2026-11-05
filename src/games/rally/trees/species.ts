@@ -536,21 +536,30 @@ function conifer(o: ConiferShape): SpeciesDef {
 /** Broadleaf summer crowns: sun leaves outside, shade leaves inside, trees a little apart (`foliage.turn`). */
 const SUMMER_TURN = { turn: 0.25, stages: 0.15 };
 
-/** Scots pine / spruce: the forest backbone, a straight leader and layered whorls of level limbs down to the foot. */
+/**
+ * Scots pine: the forest backbone. A straight trunk, bare for its lowest few metres but for dead stubs, under an open
+ * cone of whorled limbs that curve up at their ends; needle tufts only on the limbs' outer generations, a share of the
+ * limbs died back, so the limbs and sky show between the tufts (the pack pine's look, `pack_pine`).
+ */
 export const PINE = conifer({
   name: 'Pine',
-  bole: 0.6,
+  bole: 2.6,
   whorls: 12,
-  step: 0.95,
+  step: 1,
   taper: 0.97,
-  perWhorl: 5,
-  limb: 2.8,
+  perWhorl: 4,
+  limb: 2.9,
   shape: 'cone',
-  pitch: [88, 62],
-  spray: [38, 55],
-  leafFrom: 1,
+  pitch: [86, 58],
+  curl: 4,
+  limbJitter: [0.6, 1.2],
+  deadLimbs: 0.14,
+  spray: [35, 55],
+  leafFrom: 2,
+  sprayFrom: 1,
+  stubs: { p: 0.6, len: [0.2, 0.5] },
   tropism: [0, -1, 0],
-  tropismStrength: 0.12,
+  tropismStrength: 0.1,
   baseRadius: 0.22,
   bark: {
     color: '#7e6b5b',
@@ -561,7 +570,7 @@ export const PINE = conifer({
   },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.95,
+    spriteSize: 1.05,
     leaf: 'pine',
     palette: ['#4c5a44', '#525f45', '#465541', '#4b5c4a'],
   },
@@ -575,9 +584,9 @@ export const PINE = conifer({
 });
 
 /**
- * Plantation pine: the pine's cone for the dense stands of a mountain forest, grown cheaper: four limbs to a whorl
- * and half the sprites, each larger (a pine stand costs about a third of the GPU time per tree); a full cone on
- * a short foot, like the planted hillside stands.
+ * Plantation pine: a full layered cone on a short foot, like the young planted hillside stands, grown cheap for dense
+ * stands: four limbs to a whorl and half the sprites, each larger (a pine stand costs about a third of the GPU time per
+ * tree).
  */
 export const PLANTATION_PINE = conifer({
   name: 'Plantation pine',
@@ -619,15 +628,20 @@ export const BLACK_PINE = conifer({
   limb: 4.6,
   shape: 'umbrella',
   pitch: [42, 70],
-  spray: [25, 40],
+  curl: 3,
+  limbJitter: [0.7, 1.15],
+  deadLimbs: 0.12,
+  spray: [25, 45],
   leafFrom: 2,
+  // Tufts on the outer limb ends only: the umbrella breaks into clumps with the limbs showing.
+  sprayFrom: 1,
   tropism: [0, -1, 0],
   tropismStrength: 0.05,
   baseRadius: 0.26,
   bark: { color: '#4a4541', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
   foliage: {
     kind: 'needles',
-    spriteSize: 1.3,
+    spriteSize: 1.2,
     leaf: 'pine',
     palette: ['#44533a', '#49583b', '#3e4e38', '#43563f'],
   },
@@ -861,7 +875,7 @@ export const PLANE = broadleaf({
     kind: 'broadleaf',
     ...SUMMER_TURN,
     spriteSize: 1.6,
-    leaf: 'lobed',
+    leaf: 'palmate',
     palette: ['#566a3f', '#5d6f40', '#647441', '#6b7a43'],
   },
   scale: [0.95, 1.2],
@@ -877,16 +891,21 @@ export const BIRCH: SpeciesDef = {
   rules: [
     {
       pred: 'A(l,k)',
-      cond: 'k < 9',
-      succ: 'F(l)L[&(rnd(38,58))!!!B(l*(1.6-k*0.13),0)]>(137.5)A(l*0.96,k+1)',
+      cond: 'k < 10',
+      succ: 'F(l)L[&(rnd(26,40))!!!B(l*(1.1-k*0.08),0)]>(137.5)A(l*0.97,k+1)',
     },
-    { pred: 'A(l,k)', cond: 'k >= 9', succ: 'F(l*0.6)L' },
+    { pred: 'A(l,k)', cond: 'k >= 10', succ: 'F(l*0.6)L' },
     {
       pred: 'B(l,o)',
       cond: 'o < 3',
-      succ: 'F(l)L[T(0.22)&(rnd(25,45))!B(l*0.6,o+1)]>(137.5)[T(0.22)&(rnd(25,45))!B(l*0.55,o+1)]!B(l*0.75,o+1)',
+      succ: 'F(l)L[T(0.32)&(rnd(30,50))!B(l*0.62,o+1)]>(137.5)[T(0.32)&(rnd(30,50))!B(l*0.58,o+1)]!B(l*0.75,o+1)',
     },
-    { pred: 'B(l,o)', cond: 'o >= 3', succ: 'F(l*0.5)L' },
+    // The twig ends hang in strands (a weeping birch's curtains): two more pieces pulled down hard.
+    {
+      pred: 'B(l,o)',
+      cond: 'o >= 3',
+      succ: 'F(l*0.5)L[T(0.5)&(rnd(40,70))!F(l*0.45)L!F(l*0.4)L]',
+    },
   ],
   iterations: 12,
   segmentCap: 1400,
@@ -985,7 +1004,7 @@ export const POPLAR: SpeciesDef = {
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 1.3,
+    spriteSize: 1.6,
     leaf: 'round',
     palette: ['#465b39', '#4c603a', '#52653a', '#58693a'],
   },

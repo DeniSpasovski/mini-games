@@ -205,18 +205,44 @@ repository).
 | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
 | ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
 
-### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*.webp`)
+### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*`)
 
-Vodno's roadside (pines near the road, lilac and bush understorey) uses a few models of three CC BY 4.0 packs by LOLIPOP
-(Sketchfab account lolipop_1707): Scots pines, lilac and bush shrubs (their own triangles, normals, uvs and textures, three
-levels of detail, the pines also their far billboards; the textures shrunk and recompressed; packed by `scripts/trees/bake-tree-packs.py`; the source files are not in the
-repository).
+Roadside model trees and shrubs (Vodno's pines, lilac and bush understorey; the oaks, firs, birches, maples, elms and
+willows where a map places them) are a few models of seven CC BY 4.0 packs by LOLIPOP (Sketchfab account lolipop_1707) and
+two CC BY 4.0 collections by Jagobo: their own triangles, normals, uvs and textures, three levels of detail and the packs'
+far billboards (the birches', elms' and willows' cards rendered from the model); the elms and willows converted and
+simplified (bark simplified, leaf cards thinned, the willows' rig dropped for its rest pose); the textures shrunk and
+recompressed, the oak's spring / autumn leaves its own season textures, the other kinds' autumn leaves, the lilac's seed
+heads and the maple's summer green recoloured; packed by `scripts/trees/bake-tree-packs.py` (the source files are not in
+the repository).
 
-| Pack                                          | Author                                    | Licence   |
-| --------------------------------------------- | ----------------------------------------- | --------- |
-| "Pine trees pack (lowpoly, game ready, LODs)" | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
-| "Lilac bush pack (12 vars, LODs, game ready)" | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
-| "Bush models pack (gameready, LODs)"          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| Pack                                                                                                                                                               | Author                                    | Licence   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- | --------- |
+| ["Pine trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/pine-trees-pack-lowpoly-game-ready-lods-e1e9c07b8e2e445c943fec660beefba2)          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Lilac bush pack (12 vars, LODs, game ready)"](https://sketchfab.com/3d-models/lilac-bush-pack-12-vars-lods-game-ready-10312697ec994fc99355cb94f1963a2e)          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Bush models pack (gameready, LODs)"](https://sketchfab.com/3d-models/bush-models-pack-gameready-lods-f2d9ffd3e6a94cf0b9464ccd66a4c2f8)                           | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Oak trees pack (17var, LODs, seasons, gameready)"](https://sketchfab.com/3d-models/oak-trees-pack-17var-lods-seasons-gameready-a5e4e64f9f1d4089bdcc6170a9333393) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Realistic fir trees pack (LODS, gameready)"](https://sketchfab.com/3d-models/realistic-fir-trees-pack-lods-gameready-f58e8b6d733e4b0586e5b7db847b89e7)           | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Five Birch trees pack (lowpoly, LODs)"](https://sketchfab.com/3d-models/five-birch-trees-pack-lowpoly-lods-08fe5117138e4fdaa7ca440ef1201e07)                     | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Maple trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/maple-trees-pack-lowpoly-game-ready-lods-b5d2833c258f4054a01ee2b4ef85adf0)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["High Detail Elm Tree Collection"](https://sketchfab.com/3d-models/high-detail-elm-tree-collection-0fee36ee370244688c91ab430f87b039)                              | Jagobo (Sketchfab)                        | CC BY 4.0 |
+| ["Rigged & Animated Weeping Willows"](https://sketchfab.com/3d-models/rigged-animated-weeping-willows-c315c039042240dbbc0c2704f7cec83c)                            | Jagobo (Sketchfab)                        | CC BY 4.0 |
+
+### Tree leaf photos (`src/games/rally/trees/leaves/*.webp`)
+
+The generated trees' leaf and needle sprays on every map are cut from the leaf cluster textures (colour and normal map) of
+six CC BY 4.0 packs by LOLIPOP (Sketchfab account lolipop_1707): sprays cut out, turned, scaled, mirrored, the pine twig
+ends laid into bursts, the colours levelled to grey (the game tints them) and the lilac panicles removed, by
+`scripts/trees/bake-leaves.py` (outlines in `trees/leaf-photos.data.ts`; the source files are not in the repository).
+
+| Pack                                                                                                                                                        | Leaf style                   | Author                                    | Licence   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------- | --------- |
+| ["Oak trees pack (17var, LODs, seasons)"](https://sketchfab.com/3d-models/oak-trees-pack-17var-lods-seasons-gameready-a5e4e64f9f1d4089bdcc6170a9333393)     | oak (lobed)                  | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Maple trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/maple-trees-pack-lowpoly-game-ready-lods-b5d2833c258f4054a01ee2b4ef85adf0) | plane (palmate)              | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Five Birch trees pack (lowpoly, LODs)"](https://sketchfab.com/3d-models/five-birch-trees-pack-lowpoly-lods-08fe5117138e4fdaa7ca440ef1201e07)              | birch, bushes (small)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Bush models pack (gameready, LODs)"](https://sketchfab.com/3d-models/bush-models-pack-gameready-lods-f2d9ffd3e6a94cf0b9464ccd66a4c2f8)                    | beech, walnut (ovate, round) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Lilac bush pack (12 vars, LODs, game ready)"](https://sketchfab.com/3d-models/lilac-bush-pack-12-vars-lods-game-ready-10312697ec994fc99355cb94f1963a2e)   | hornbeam, hazel (serrate)    | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Pine trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/pine-trees-pack-lowpoly-game-ready-lods-e1e9c07b8e2e445c943fec660beefba2)   | pines (needle bursts)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
 
 ### Straw texture (`src/games/rally/engine/props/straw.webp`)
 

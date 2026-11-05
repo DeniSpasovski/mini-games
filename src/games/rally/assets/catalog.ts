@@ -57,6 +57,8 @@ export interface AssetMeta {
   /** Ordered near -> far. Instances beyond the last LOD are culled. */
   lods: LodSpec[];
   colliders?: ColliderSpec[];
+  /** Colliders per variant (index = variant), in place of `colliders`: models of very different trunks (pack trees). */
+  variantColliders?: ColliderSpec[][];
   /** Per-instance colour jitter (0 = none), applied via instanceColor. */
   tint?: number;
   /**
@@ -213,6 +215,11 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 1500, castShadow: false },
     ],
     colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.12, h: 8 }],
+      [{ kind: 'cylinder', r: 0.25, h: 10 }],
+      [{ kind: 'cylinder', r: 0.4, h: 12 }],
+    ],
     tint: 0.08,
   },
   {
@@ -244,6 +251,162 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 240, castShadow: false },
     ],
     tint: 0.1,
+  },
+  // Pack oaks, firs, birches, maples, elms and willows: their models are a chunk of their own (`loadTreePacks`, tree-packs.ts).
+  {
+    id: 'pack_oak',
+    name: 'Oak (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Oaks of a CC BY pack, young to old (5, 10, 13, 20 m and a broad forked 21 m field oak), the pack season leaves; three meshes and the pack billboard far away. Solid trunk.',
+    variants: 5,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 350, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.3, h: 8 }],
+    variantColliders: [
+      [],
+      [{ kind: 'cylinder', r: 0.15, h: 5 }],
+      [{ kind: 'cylinder', r: 0.15, h: 6 }],
+      [{ kind: 'cylinder', r: 0.5, h: 8 }],
+      [{ kind: 'cylinder', r: 0.45, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_fir',
+    name: 'Fir (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Young firs of a CC BY pack (4.4, 6.6 and 9.3 m, branches to the ground); three meshes and the pack billboard far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 30, castShadow: true },
+      { maxDistance: 80, castShadow: true },
+      { maxDistance: 220, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.1, h: 3 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.08, h: 2 }],
+      [{ kind: 'cylinder', r: 0.1, h: 3 }],
+      [{ kind: 'cylinder', r: 0.14, h: 4 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_birch',
+    name: 'Birch (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Silver birches of a CC BY pack (10 m: a slim leaning one, a mature one, a broad old one); three meshes and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 35, castShadow: true },
+      { maxDistance: 100, castShadow: true },
+      { maxDistance: 250, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.25, h: 6 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.14, h: 6 }],
+      [{ kind: 'cylinder', r: 0.3, h: 6 }],
+      [{ kind: 'cylinder', r: 0.35, h: 5 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_maple',
+    name: 'Maple (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Maples of a CC BY pack (6, 10, 13.5 and 24 m); three meshes and the pack billboard far away. Solid trunk.',
+    variants: 4,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.2, h: 8 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.08, h: 3 }],
+      [{ kind: 'cylinder', r: 0.16, h: 5 }],
+      [{ kind: 'cylinder', r: 0.17, h: 6 }],
+      [{ kind: 'cylinder', r: 0.37, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_elm',
+    name: 'Elm (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Elms of a CC BY collection (21, 24 and 32 m, open vase-shaped crowns), simplified to three meshes, and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.3, h: 8 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.24, h: 6 }],
+      [{ kind: 'cylinder', r: 0.3, h: 7 }],
+      [{ kind: 'cylinder', r: 0.4, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_willow',
+    name: 'Weeping willow (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Weeping willows of a CC BY collection (10, 14 and 19 m, curtains of hanging shoots), simplified to three meshes, and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.25, h: 3 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.14, h: 2 }],
+      [{ kind: 'cylinder', r: 0.22, h: 3 }],
+      [{ kind: 'cylinder', r: 0.5, h: 3 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'fern',
+    name: 'Fern',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Fern stands (male fern / bracken, ~0.6 m) of shaded oak and beech woods: cards baked from the CC0 Poly Haven fern scan (no collision, detail layer).',
+    variants: 3,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
+    id: 'fern_autumn',
+    name: 'Fern (autumn)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The fern stands as rust-brown dead bracken (autumn): the fern cards recoloured by the bake (no collision, detail layer).',
+    variants: 3,
+    lods: [{ maxDistance: 90, castShadow: false }],
   },
   {
     id: 'tall_weeds',

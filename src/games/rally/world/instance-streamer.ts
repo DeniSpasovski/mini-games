@@ -1176,6 +1176,8 @@ export function assetIds(world: World): Set<string> {
     ...(world.stageDef.servicePark ? SERVICE_PARK_ASSETS : []),
     ...world.map.props.map((p) => p.asset),
     ...(world.stageDef.props ?? []).map((p) => p.asset),
+    // The pack models standing in for generated trees near the road.
+    ...Object.values(world.map.heroTrees?.swap ?? {}).map((s) => s.asset),
   ]);
   // Placed by the world itself (gore cushions, catenary masts, pylons, street dressing ...): `prewarm` must cover them
   // too, or their shaders compile when the first one streams in (a 1-4 s freeze on a fresh shader cache).
