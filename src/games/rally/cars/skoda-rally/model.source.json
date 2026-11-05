@@ -49,6 +49,14 @@
         "z": [-2.2, -1.72]
       },
       {
+        "$comment": "rear bumper corner, the wedge under the lip beside the arch (|x| 0.72 - 0.9, y 0.41 - 0.47): it faces down (normal y about -0.7), so the bottom chart painted it black above the black lower section - it reads the rear chart's livery",
+        "chart": "rear",
+        "minNy": -0.85,
+        "x": [0.72, 0.9],
+        "y": [0.41, 0.47],
+        "z": [-1.82, -1.7]
+      },
+      {
         "$comment": "rear bumper lower edge (|x| < 0.55, y 0.28 - 0.34, z -2.0 - -1.85): the 45 degree bevel under the bumper (normal y -0.7) went to the dark bottom chart and showed as black triangles between the body colour - it reads the rear chart like the rest of the bumper",
         "chart": "rear",
         "minNy": -0.8,

@@ -30,7 +30,18 @@
       "front": [0, 5.65],
       "rear": [2.2, 5.65],
       "bottom": [0, 7.45]
-    }
+    },
+    "chartBoxes": [
+      {
+        "$comment": "the two aero blades in front of each rear wheel (|x| 0.8 - 0.95, y 0.22 / 0.48, z -0.85 .. -0.42): their tops faced up onto the top chart's white -> the side chart, the livery round them",
+        "chart": "side",
+        "maxNy": 1.01,
+        "minNy": 0.2,
+        "x": [0.78, 1.0],
+        "y": [0.18, 0.54],
+        "z": [-0.9, -0.4]
+      }
+    ]
   },
   "gltf": {
     "$comment": "material / node -> part; first matching rule wins. Wheels, discs, calipers, light-glow polygons, tail lamp trays, plate, spare wheel and dash display bits are dropped (the game builds its own wheels / brakes).",
@@ -132,6 +143,69 @@
         "material": "interior"
       },
       {
+        "$comment": "rear ducts behind the rear wheels (left): the louvre fins (normals down and back) are carbon like the real car's, not livery",
+        "mat": "WCCARBODY",
+        "x": [0.63, 0.89],
+        "y": [0.27, 0.65],
+        "z": [-1.87, -1.63],
+        "facing": { "y": [-1, -0.2], "z": [-1, -0.5] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts (right): louvre fins",
+        "mat": "WCCARBODY",
+        "x": [-0.89, -0.63],
+        "y": [0.27, 0.65],
+        "z": [-1.87, -1.63],
+        "facing": { "y": [-1, -0.2], "z": [-1, -0.5] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts (left): the side walls between the fins",
+        "mat": "WCCARBODY",
+        "x": [0.63, 0.89],
+        "y": [0.27, 0.65],
+        "z": [-1.87, -1.63],
+        "facing": { "|x|": [0.9, 1], "z": [-0.25, 0.25] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts (right): side walls",
+        "mat": "WCCARBODY",
+        "x": [-0.89, -0.63],
+        "y": [0.27, 0.65],
+        "z": [-1.87, -1.63],
+        "facing": { "|x|": [0.9, 1], "z": [-0.25, 0.25] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "front wheel wells: the inner walls (strut towers, |x| 0.5 - 0.62, facing sideways into the arch) are carbon too, not livery",
+        "mat": "WCCARBODY",
+        "arch": {
+          "axles": [1.262],
+          "y": 0.194,
+          "r": [0.2, 0.48],
+          "toward": -0.2,
+          "|x|": [0.5, 0.62],
+          "dy": -0.15
+        },
+        "facing": { "|x|": [0.6, 1] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "wheel wells: the faces round each axle that point at the hub (the bumper's wall in front of the front tyre, the arch liners) are carbon, not livery - the front wall faced back into the well and took the side charts' blue. Source coords (hub y 0.194, z 1.262 / -1.218)",
+        "mat": "WCCARBODY",
+        "arch": {
+          "axles": [1.262, -1.218],
+          "y": 0.194,
+          "r": [0.28, 0.5],
+          "toward": 0.6,
+          "|x|": [0.6, 1.05],
+          "dy": -0.15
+        },
+        "material": "carbon"
+      },
+      {
         "$comment": "rear wing: upper blade (560 triangles) blue, lower blade (408) green; end plates follow below",
         "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
         "whole": true,
@@ -146,6 +220,14 @@
         "islandTris": [340, 440],
         "x": [-0.75, 0.75],
         "y": [0.9, 1.08],
+        "material": "winggreen"
+      },
+      {
+        "$comment": "the left low end plate comes in pieces: besides its 364-triangle island, four flat panels (4 - 8 triangles) on its inner side - green like the right plate (one 401-triangle island), not livery white",
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [3, 10],
+        "x": [-0.75, -0.55],
         "material": "winggreen"
       },
       {
@@ -575,7 +657,7 @@
         "material": "trim"
       },
       {
-        "$comment": "rear valance (diffuser fins + bumper below y 0.28): black like the real car's diffuser",
+        "$comment": "rear valance (diffuser fins + bumper below y 0.28): carbon like the real car's diffuser",
         "mat": "WCCARBODY",
         "region": {
           "view": "rear",
@@ -587,10 +669,10 @@
           ],
           "depth": [-2.1, -1.5]
         },
-        "material": "trim"
+        "material": "carbon"
       },
       {
-        "$comment": "rear diffuser: its fins and top plate reach y 0.335 and the curved end plates to y 0.315; black up to the bumper face above them",
+        "$comment": "rear diffuser: its fins and top plate reach y 0.335 and the curved end plates to y 0.315; carbon up to the bumper face above them",
         "node": "bumper_WCCARBODY_0",
         "region": {
           "view": "rear",
@@ -604,7 +686,7 @@
           ],
           "depth": [-2.1, -1.6]
         },
-        "material": "trim"
+        "material": "carbon"
       },
       {
         "mat": "WCCARBODY",

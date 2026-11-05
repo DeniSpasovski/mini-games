@@ -37,18 +37,20 @@ const girthRow = (rows: number[][], z: number): number[] => {
   }
   return row;
 };
-/** Inverse of a monotone row: the sample coordinate (k * d) where the row reaches girth g; 1:1 past either end. */
+/** Inverse of a monotone row: the sample coordinate where the row reaches girth g; 1:1 past either end. Top rows (rising,
+ * |x| every dx) or side rows (falling, y every d). */
 const invert = (row: number[], g: number, rising: boolean): number => {
   const n = row.length;
+  const step = rising ? G.dx : G.d;
   const at = (k: number) => (rising ? row[k] : -row[k]);
   const v = rising ? g : -g;
   if (v <= at(0)) return v - at(0);
   for (let k = 1; k < n; k++)
     if (v <= at(k)) {
       const f = (v - at(k - 1)) / (at(k) - at(k - 1) || 1);
-      return (k - 1 + f) * G.d;
+      return (k - 1 + f) * step;
     }
-  return (n - 1) * G.d + v - at(n - 1);
+  return (n - 1) * step + v - at(n - 1);
 };
 /**
  * Below the waist the side keeps straight rows: p = P_REF + (yRef - y), so the rear quarter and doors read level although

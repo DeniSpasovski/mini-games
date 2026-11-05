@@ -702,8 +702,9 @@ def main():
 def relief(T, L, labels, rl, off):
     """`gltf.relief`: flatten a lens whose rows step in and out too deep (stair edges off-axis). For the triangles labelled
     `materials` (centre in the model-space `z` range), per `bin` of |x| the outermost depth along -z of the rear-facing faces (nz <= -0.9) is the
-    lens face; every vertex moves toward it: z' = z_out + k (z - z_out). Inside `|x|` fully, fading out over `fade` beyond
-    it (a lens wrapping round the corner keeps its shape there). In place."""
+    lens face; a vertex up to `depth`[0] behind it moves toward it (z' = z_out + k (z - z_out)), one deeper than `depth`[1]
+    stays (the lens walls still meet the housing), linear between. Inside `|x|` fully, fading out over `fade` beyond it (a lens
+    wrapping round the corner keeps its shape there). In place."""
     sel = np.isin(L, labels)
     if 'z' in rl:  # model-space z range of the lamp (front lamps share the materials)
         cz = T.mean(1)[:, 2] + off[2]
@@ -727,8 +728,10 @@ def relief(T, L, labels, rl, off):
     lo, hi = rl.get('|x|', [0, 10])
     fade = rl.get('fade', 0.04)
     w = np.clip(1 - np.maximum(lo - vx, vx - hi) / fade, 0, 1)
-    k = 1 - w * (1 - rl['k'])
-    V[:, 2] = z_out + k * (V[:, 2] - z_out)
+    d = V[:, 2] - z_out
+    d1, d2 = rl.get('depth', [0.022, 0.045])
+    dn = np.where(d <= d1, rl['k'] * d, np.where(d >= d2, d, rl['k'] * d1 + (d - d1) * (d2 - rl['k'] * d1) / (d2 - d1)))
+    V[:, 2] = z_out + d + w * (dn - d)
     T[sel] = V.reshape(-1, 3, 3) - off
 
 

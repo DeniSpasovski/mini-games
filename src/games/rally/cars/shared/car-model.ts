@@ -1389,6 +1389,8 @@ export class CarModel {
     // wraps round the corner of the car).
     const ray = new Ray();
     const hit = new Vector3();
+    // How far behind its cover a lamp's inside reaches: without it a ray from the tail end of the car met the head lamp.
+    const LAMP_DEPTH = 0.35;
     const dirs = [
       new Vector3(0, 0, 1),
       new Vector3(0.6, 0, 0.8),
@@ -1415,19 +1417,22 @@ export class CarModel {
               cover[i + 2],
               false,
               hit,
-            )
+            ) &&
+            hit.distanceTo(o) < LAMP_DEPTH
           )
             return true;
         return false;
       });
     };
-    // The centre or a corner (pulled a little in) of the triangle: a big wall triangle reaches past the cover's edge.
+    // The centre or two corners (pulled a little in) of the triangle: a big wall triangle reaches past the cover's edge,
+    // while a body triangle with one corner tucked under the cover's rim stays body (else black teeth on the wing).
     const mid = new Vector3();
     const p = new Vector3();
     const behindCover = (a: Vector3, b: Vector3, c: Vector3): boolean => {
       mid.copy(a).add(b).add(c).divideScalar(3);
       return (
-        ahead(mid) || [a, b, c].some((v) => ahead(p.copy(v).lerp(mid, 0.1)))
+        ahead(mid) ||
+        [a, b, c].filter((v) => ahead(p.copy(v).lerp(mid, 0.1))).length >= 2
       );
     };
     for (const mesh of bodies) {

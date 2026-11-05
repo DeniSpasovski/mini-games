@@ -1,12 +1,12 @@
 """Girth table of an imported car: how far round the body (arc length from the roof centre line) each surface point is.
 
-    python scripts/car-model/girth-table.py <model.source.json> <out.json> [--parts body,glass] [--dz 0.05] [--d 0.03]
+    python scripts/car-model/girth-table.py <model.source.json> <out.json> [--parts body,glass] [--dz 0.05] [--d 0.03] [--dx 0.01]
 
 Reads the GLB written by stl-to-glb.mjs (`output` of the config) and, every `dz` metres along z, cuts the given parts with
 the plane z, takes the outer outline of the cut (farthest hit per 1-degree ray from the cut's centre, both sides folded
 onto |x|) and measures its arc length s from the top centre line down to the sill. Writes, per z row:
 
-- `top`: s at |x| = 0, d, 2d ... (the upper part of the outline: roof, pillars, shoulder) - for top-chart faces;
+- `top`: s at |x| = 0, dx, 2dx ... (the upper part of the outline: roof, pillars, shoulder) - for top-chart faces;
 - `side`: s at y = 0, d, 2d ... (the outer side, found from the sill upward) - for side-chart faces;
 
 in millimetres. A livery drawn in (z, s) through this table paints the same block on both charts where a surface switches
@@ -32,6 +32,7 @@ Bd = cfg['atlas']['bounds']
 parts = opt('--parts', 'body,glass').split(',')
 DZ = float(opt('--dz', 0.05))
 D = float(opt('--d', 0.03))
+DX = float(opt('--dx', 0.01))  # finer: past a crease the outline jumps to the flare below
 
 glb = open(cfg['output'], 'rb').read()
 jl = struct.unpack('<I', glb[12:16])[0]
@@ -96,7 +97,7 @@ def outline(S):
 
 
 zs = np.round(np.arange(Bd['z'][0], Bd['z'][1] + 1e-9, DZ), 4)
-xs = np.round(np.arange(0, Bd['x'][1] + D, D), 4)
+xs = np.round(np.arange(0, Bd['x'][1] + DX, DX), 4)
 ys = np.round(np.arange(0, Bd['y'][1] + D, D), 4)
 top_rows, side_rows = [], []
 for z in zs:
@@ -145,6 +146,6 @@ for rows in (top_rows, side_rows):
             rows[i] = rows[min(have, key=lambda j: abs(j - i))]
 
 json.dump({'$comment': f'girth table (mm), scripts/car-model/girth-table.py {cfg_path} (parts {",".join(parts)})',
-           'z0': float(zs[0]), 'dz': DZ, 'd': D, 'top': top_rows, 'side': side_rows},
+           'z0': float(zs[0]), 'dz': DZ, 'd': D, 'dx': DX, 'top': top_rows, 'side': side_rows},
           open(out_path, 'w', encoding='utf8', newline='\n'), separators=(',', ':'))
 print(f'{len(zs)} rows, {len(xs)} x / {len(ys)} y samples -> {out_path}')
