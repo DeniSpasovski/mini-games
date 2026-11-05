@@ -149,7 +149,7 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
   the others between them; no cut under 2.5 s or in the air.
 - **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed
   0.25-2x, camera picker (a dropdown under 1360 px), Save (name), Clean feed, Record video, Exit (back to results, or the menu for a URL replay).
-- **Video** (`video.ts`): `MediaRecorder` on the canvas + game audio (mp4 / webm), clean feed, real time; downloads on stop.
+- **Video** (`video.ts`; dev server and `build:test` only until it is fixed, `videoSupported()`): `MediaRecorder` on the canvas + game audio (mp4 / webm), clean feed, real time; downloads on stop.
 - **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`;
   `trace(s, every)` / `copyTrace()` / `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel
   load / slip / forces) as TSV. The F2 panel has the same as buttons. `load` of another stage / car reloads into it.
