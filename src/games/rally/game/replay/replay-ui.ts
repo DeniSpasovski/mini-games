@@ -40,7 +40,12 @@ export class ReplayUi {
   constructor(
     private root: HTMLElement,
     private game: RallyGame,
-    private opts: { onExit: () => void; exitLabel: string },
+    private opts: {
+      onExit: () => void;
+      exitLabel: string;
+      /** False for a replay opened from the menu (already saved, renamed in Stage times): no Save button. */
+      canSave: boolean;
+    },
   ) {
     this.el = document.createElement('div');
     this.el.className = 'replay-ui hidden';
@@ -70,7 +75,7 @@ export class ReplayUi {
           <div class="menu-seg rp-cams" data-ref="cams">${cams}</div>
           <label class="rp-cam-pick menu-select"><select data-ref="camSelect" aria-label="Camera">${REPLAY_CAMS.map((c) => `<option value="${c.id}">${c.label}</option>`).join('')}</select></label>
           <div class="rp-actions">
-            <button class="menu-btn small" data-a="name" title="Name this replay: a named save is never deleted with the auto saves">Save</button>
+            <button class="menu-btn small" data-a="name" data-ref="save" title="Name this replay: a named save is never deleted with the auto saves">Save</button>
             <button class="menu-btn small" data-a="clean">Clean feed</button>
             ${videoSupported() ? `<button class="menu-btn small rp-video" data-a="video" data-ref="video">${ICON.rec}<span>Record video</span></button>` : ''}
             <button class="menu-btn small primary" data-a="exit">${opts.exitLabel}</button>
@@ -79,6 +84,7 @@ export class ReplayUi {
         <div class="rp-keys"><b>Space</b> play · <b>← →</b> ${SKIP} s · <b>, .</b> frame · <b>[ ]</b> speed · <b>1–7</b> camera · <b>C</b> next camera · <b>H</b> clean feed${videoSupported() ? ' · <b>V</b> video' : ''} · <b>Esc</b> exit</div>
       </div>
       <div class="rp-clean-hint" data-ref="hint">Clean feed · <b>H</b> or tap to show the controls</div>`;
+    if (!opts.canSave) this.el.querySelector('[data-a="name"]')?.remove();
     root.append(this.el);
     this.el
       .querySelectorAll<HTMLElement>('[data-ref]')
@@ -109,6 +115,7 @@ export class ReplayUi {
   show(session: ReplaySession): void {
     this.session = session;
     this.cache = {};
+    this.markSaved(false);
     this.el.classList.remove('hidden', 'clean');
     this.root.classList.add('replaying');
     this.buildMarks();
@@ -267,11 +274,23 @@ export class ReplayUi {
           ok ? 'small' : 'small bad',
         );
         close();
+        if (ok && name) {
+          this.markSaved(true);
+          this.refs.play.focus({ preventScroll: true });
+        }
       },
       close,
     );
     pop.classList.add('rp-name-pop');
     this.refs.bar.append(pop);
+  }
+
+  /** A named save: the button says "Saved" and goes inactive (a second save has nothing to add); off again for each replay. */
+  private markSaved(on: boolean): void {
+    const b = this.refs.save as HTMLButtonElement | undefined;
+    if (!b) return;
+    b.disabled = on;
+    b.textContent = on ? 'Saved' : 'Save';
   }
 
   private setCam(id: ReplayCamId): void {

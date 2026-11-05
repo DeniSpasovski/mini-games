@@ -106,7 +106,6 @@ import { Showroom } from './showroom';
 import { replayUrl } from './replay/debug-export';
 import {
   confirmButton,
-  formatBytes,
   nameForm,
   storageLine,
 } from './replay/manage-ui';
@@ -883,7 +882,7 @@ class MainMenu {
     });
     const info = document.createElement('span');
     info.className = 'menu-replay-info';
-    const facts = `${carName(r.car)} · ${when} · ${formatBytes(r.bytes)}`;
+    const facts = `${carName(r.car)} · ${when}`;
     if (isNamed(r)) {
       const name = document.createElement('b');
       name.textContent = r.name!;

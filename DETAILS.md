@@ -143,6 +143,8 @@ See `.claude/skills/new-minigame/SKILL.md` for the full checklist.
 
 `npm run build` writes `dist/`, which can be uploaded to the domain root or any sub-folder (e.g. `https://example.com/games/`): asset URLs are relative (`output.assetPrefix: 'auto'`, in dev too), and so are all in-app links. Keep it that way - never start an href with `/`. From a game page the portal is `../../`; sibling pages of the same game are just `<page>.html` / `./`.
 
+Fonts keep their file names (`static/font/<name>.woff2`, no content hash): they never change, so a deploy does not make browsers re-download them (`rsbuild.config.ts`).
+
 **Every game is self-contained.** `rsbuild.config.ts` creates one Rsbuild _environment_ per game (named after its id) plus
 `portal`, each with its own output folder and nothing shared between them (each game ships its own three.js chunk):
 

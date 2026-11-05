@@ -105,7 +105,7 @@ export class ReplayRecorder {
   private traceHead = 0;
   private traceCount = 0;
 
-  /** `enabled` false (release build, `REPLAYS_ENABLED`): no buffers, `step` does nothing. */
+  /** `enabled` false (`REPLAYS_ENABLED` false): no buffers, `step` does nothing. */
   constructor(
     hz: number,
     stride = DEFAULT_STRIDE,

@@ -96,7 +96,7 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
 
 ## HUD
 
-- Stage timer: italic time on a plate, amber underline; split chips under it, green when faster than the reference, red when slower.
+- Stage timer: italic time on a plate, amber underline; split chips under it, green when faster than the reference, red when slower; chips, split popup and sector bar all colour from the sector's own gap to the reference (`StageTimer.sectorDelta`), not the running total.
 - Top left: stage name, sector bar (amber running, green / red when done), distance, on a plate with an amber edge.
 - Bottom right: dash plate with rev bars, gear (amber italic), speed, TC / ABS flags (amber when active).
 - Centre messages and the off-stage warning use the display face on a plate or a text shadow.
@@ -111,7 +111,7 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
 - **Replay** (`game/replay/replay.css`): the HUD stays (clock, splits, dash above the bar); top right a camera plate (`REPLAY`
   on amber, then the shot); along the bottom one slanted glass slab with an amber edge: time, timeline (amber fill, white
   playhead, split / finish ticks with labels), transport (play = the one amber button), speed and camera `.menu-seg`s
-  (camera = a dropdown under 1360 px), Save / Clean feed / Record video / Exit, and a key-hint line (hidden on touch and phones).
+  (camera = a dropdown under 1360 px), Save ("Saved", inactive, once named; absent on a replay opened from the menu) / Clean feed / Record video (not in the release build) / Exit, and a key-hint line (hidden on touch and phones).
   Clean feed hides everything; a hint fades out after 3 s. Stage times lists replays with ▶ chips (`.menu-replay`; a named
   save's edge in `--ui-best`), quiet row actions (Name / Rename, ×) and a storage line; anything destructive asks once
   (`.replay-confirm.armed`: "Delete?" in `--ui-penalty`). The name field (`.replay-name`) is an amber-edged input with
