@@ -298,7 +298,8 @@ function canvas(
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  draw(c.getContext('2d')!);
+  // Lamp sheets are read back (hot spots here, lamp-halo.ts), so keep the canvas on the CPU.
+  draw(c.getContext('2d', { willReadFrequently: true })!);
   const t = new CanvasTexture(c);
   if (color) t.colorSpace = SRGBColorSpace;
   t.flipY = false; // glTF UV convention: v down
