@@ -44,6 +44,15 @@ const WIND: Record<PackKind, number> = {
   lilac: 0.0016,
   bush: 0.012,
 };
+/**
+ * Colour over the pack's own textures (bark, leaf): Vodno's pines have dark grey-brown trunks and dark needles, the
+ * pack's are a light orange plate bark and yellow-green tufts.
+ */
+const COLOUR: Record<PackKind, [number, number]> = {
+  pine: [0x8a8580, 0x8aa595],
+  lilac: [0xffffff, 0xffffff],
+  bush: [0xffffff, 0xffffff],
+};
 /** Light through the leaves against the sun (RALLY_FOLIAGE). */
 const THROUGH: Record<PackKind, number> = { pine: 0.25, lilac: 0.4, bush: 0.4 };
 
@@ -111,6 +120,7 @@ export function packMaterial(
   const [bark, barkN, leaf, leafN] = TEXTURES[kind];
   const isBark = part === 'bark';
   m = new MeshStandardMaterial({
+    color: COLOUR[kind][isBark ? 0 : 1],
     map: load(isBark ? bark : leaf, true, isBark),
     normalMap: load(isBark ? barkN : leafN, false, isBark),
     roughness: isBark ? 0.95 : 0.85,
