@@ -238,13 +238,14 @@ const cattailBed = (seed: number): Cell => ({
       spread: 0.8,
     },
     {
-      // The clump is as wide as tall: drawn narrower and stretched up, so it stays inside the cell.
+      // The clump is as wide as tall: drawn a little narrower and taller so it stays inside the cell; one or two, so
+      // the reeds show between them (more read as a solid block).
       model: CATTAILS,
       meshes: ['cattail'],
-      count: [2, 3],
-      scale: [0.65, 0.75],
-      sy: [2.0, 2.4],
-      spread: 0.35,
+      count: [1, 2],
+      scale: [0.75, 0.82],
+      sy: [1.5, 1.7],
+      spread: 0.45,
     },
   ],
 });

@@ -118,6 +118,10 @@ uniform float uFlagTime;`,
   return m;
 }
 
+/** Grass cards cut lower than the other cards: the scans' thin blades keep their body at a distance (the tufts
+ * stay a meadow, not a few stalks over bare ground). */
+const GRASS_CARD_ALPHA = 0.35;
+
 /**
  * Wind sway (`RALLY_WIND`, metres of sway per m² of height) and leaf translucency (`RALLY_FOLIAGE`) for the
  * world shading (engine/world-shading.ts): grass / reed cards bend at their tips. Trees sway in their own shader
@@ -167,7 +171,7 @@ export function getMaterial(id: MaterialId): Material {
         vertexColors: true,
         map: plantSheet('grass-green'),
         color: new Color(...cardColor('grass-green')),
-        alphaTest: 0.5,
+        alphaTest: GRASS_CARD_ALPHA,
         side: DoubleSide,
         roughness: 1,
       });
@@ -177,7 +181,7 @@ export function getMaterial(id: MaterialId): Material {
         vertexColors: true,
         map: plantSheet('grass-dry'),
         color: new Color(...cardColor('grass-dry')),
-        alphaTest: 0.5,
+        alphaTest: GRASS_CARD_ALPHA,
         side: DoubleSide,
         roughness: 1,
       });
@@ -187,7 +191,7 @@ export function getMaterial(id: MaterialId): Material {
         vertexColors: true,
         map: plantSheet('grass-spring'),
         color: new Color(...cardColor('grass-spring')),
-        alphaTest: 0.5,
+        alphaTest: GRASS_CARD_ALPHA,
         side: DoubleSide,
         roughness: 1,
       });

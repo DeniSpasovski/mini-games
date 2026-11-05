@@ -21,6 +21,46 @@ SPRING = np.array([0.085, 0.14, 0.04], dtype=np.float64)
 LUMA = np.array([0.2126, 0.7152, 0.0722])
 
 
+# Per-texel toning of the grass scans (linear), so the cards read as a meadow from afar:
+# - green: the pale texels (seed stalks, dead blades: red >= green) go halfway to the sheet's leaf colour and stay
+#   under PALE_MAX x its luminance, else the thin stalks turn the far cards white;
+# - dry: the scan's dry map runs from orange bases (red / green ~1.5) to near-white tips; each texel's chroma goes
+#   DRY_PULL of the way to one straw hue and its luminance range is compressed (DRY_CONTRAST) about the sheet mean.
+PALE_PULL = 0.5
+PALE_MAX = 1.3
+STRAW = np.array([1.15, 1.0, 0.5])  # red / green, 1, blue / green
+DRY_PULL = 0.75
+DRY_CONTRAST = 0.6
+
+
+def tone(sid, img):
+    if sid not in ('grass-green', 'grass-dry'):
+        return img
+    cov = img[..., 3] > 0
+    lin = to_lin(img[..., :3].astype(np.float64))
+    px = lin[cov]
+    lum = px @ LUMA
+    if sid == 'grass-green':
+        leafy = px[:, 1] > px[:, 0] * 1.05
+        leaf = px[leafy].mean(axis=0)
+        leaf_lum = float(leaf @ LUMA)
+        pale = ~leafy
+        target = leaf * (np.minimum(lum, PALE_MAX * leaf_lum) / leaf_lum)[:, None]
+        px[pale] = px[pale] * (1 - PALE_PULL) + target[pale] * PALE_PULL
+        over = (px @ LUMA) > PALE_MAX * leaf_lum
+        px[over] *= (PALE_MAX * leaf_lum / (px[over] @ LUMA))[:, None]
+    else:
+        lum = np.maximum(lum, 1e-6)
+        straw = STRAW / float(STRAW @ LUMA)
+        chroma = px / lum[:, None] * (1 - DRY_PULL) + straw * DRY_PULL
+        mean = float(lum.mean())
+        px = chroma * (mean * (lum / mean) ** DRY_CONTRAST)[:, None]
+    lin[cov] = px
+    img = img.copy()
+    img[..., :3] = np.round(to_srgb(lin)).astype(np.uint8)
+    return img
+
+
 def to_lin(c):
     c = c / 255.0
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
@@ -105,7 +145,7 @@ def main():
             cell = np.frombuffer(open(f, 'rb').read(), dtype=np.uint8).reshape(ch, cw, 4)
             x, y = (i % s['cols']) * cw, (i // s['cols']) * ch
             img[y:y + ch, x:x + cw] = cell
-        sheets[s['id']] = (s, img)
+        sheets[s['id']] = (s, tone(s['id'], img))
     if 'grass-green' in sheets:
         green_spec, green = sheets['grass-green']
         gm = means(green)[0]

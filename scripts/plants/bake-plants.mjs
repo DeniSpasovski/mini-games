@@ -112,7 +112,8 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((ok) => server.listen(0, ok));
 const base = `http://127.0.0.1:${server.address().port}`;
-const web = (p) => (p ? `${base}/@src/${path.relative(src, p)}` : null);
+const web = (p) =>
+  p ? `${base}/@src/${path.relative(src, p).split(path.sep).join('/')}` : null;
 
 // Playwright as in scripts/asphalt/bake.mjs: PLAYWRIGHT_MODULE / CHROMIUM_PATH when it is not installed as `playwright`.
 const { chromium } = await import(

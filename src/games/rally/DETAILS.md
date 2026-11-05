@@ -308,7 +308,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (`engine/plants/*.webp`, coverage mips) that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models:
   green / dry / spring grass tufts, the weed margin (dandelion, celandine), nettles (`tall_weeds`); and from CC BY
   Sketchfab models (Nicholas-3D, credits in `THIRD-PARTY.md` and the About page): reed beds and cattails (`reeds`, variant
-  2 = cattails; `--sheets reeds` rebakes only that sheet). `SHEET_GAIN` brings each sheet into the measured bands (cards
+  2 = cattails; `--sheets reeds` rebakes only that sheet). `pack.py` `tone()` pulls the green sheet's pale seed stalks towards the leaf colour and turns the dry sheet's orange to straw; grass cards cut at a lower alpha (`GRASS_CARD_ALPHA`, `materials.ts`). `SHEET_GAIN` brings each sheet into the measured bands (cards
   and blade strips alike; `cardColor` lifts the green / spring cards to meet the blades; a test checks). Variant 1 of `grass_tuft` / `spring_grass` swaps one tuft card for a narrow
   margin card and puts dandelions on its blade strips (a small share of the cards' area); keep grass at two variants,
   it draws as a variant set. A stage loads only the sheets its season's assets use (`plantSheetsReady`, `assetIds`); a

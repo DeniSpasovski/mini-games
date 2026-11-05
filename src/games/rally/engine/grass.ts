@@ -67,25 +67,27 @@ interface Palette {
 /**
  * Colour gain (linear) of each sheet's cards (the material colour) and of the blade strips made from its means: the
  * scans brought into the measured bands (trees/Foliage.md; ground tiles, engine/ground): summer grass olive at luminance
- * ~0.12, a little above the grass ground; spring the flush band (~0.14); dry grass pale straw (red / green ~1.3, blue /
- * green ~0.45, ~0.3), not the scans' orange; nettles a touch less blue-starved; reeds (green with pale plumes and dead
- * leaves) a little under the grass.
+ * ~0.12, a little above the grass ground; spring the flush band (~0.14, yellower); dry grass pale straw (red / green
+ * ~1.1, blue / green ~0.45, ~0.3; scripts/plants/pack.py already tones the scan's orange down); nettles a touch less
+ * blue-starved; reeds (green with pale plumes and dead leaves) about the grass, the plumes and cattail heads brown,
+ * not black.
  */
 export const SHEET_GAIN: Record<PlantSheet, RGB> = {
   'grass-green': [1.15, 1.3, 1.2],
-  'grass-dry': [1.35, 1.5, 1.35],
-  'grass-spring': [1.1, 1.05, 1.15],
+  'grass-dry': [1.38, 1.42, 1.26],
+  'grass-spring': [1.4, 1.2, 1.25],
   weeds: [1.1, 1.15, 1.15],
-  reeds: [0.85, 0.95, 0.85],
+  reeds: [0.95, 1.05, 0.95],
 };
 
 /**
  * The cards' extra lift over `SHEET_GAIN` (their vertex colour darkens the roots, the scans carry their own shading):
- * green and spring cards a little lighter and less saturated, so they meet the blade strips at the level switch.
+ * green and spring cards a little lighter, so they meet the blade strips at the level switch (green more: pack.py
+ * pulls its pale seed stalks towards the leaf colour, which darkens the sheet).
  */
 const CARD_LIFT: Partial<Record<PlantSheet, RGB>> = {
-  'grass-green': [1.25, 1.18, 1.3],
-  'grass-spring': [1.3, 1.15, 1.3],
+  'grass-green': [1.5, 1.35, 1.5],
+  'grass-spring': [1.06, 1.02, 1.0],
 };
 
 /** A sheet's card material colour (linear): its gain x the card lift. */
