@@ -39,8 +39,8 @@ const COPIES = 3;
  */
 const KINDS = 4;
 /** Distance (m) over which a mark builds up to its full darkness / fades out again, and the length (m) of its patchy swells. */
-const RAMP_IN = 3;
-const RAMP_OUT = 4;
+const RAMP_IN = 2;
+const RAMP_OUT = 3;
 const PATCH_SCALE = 1.7;
 const TILE_W = 64;
 const TILE_H = 128;
@@ -196,8 +196,8 @@ export class TyreMarks {
       const target = !w.contact
         ? 0
         : loose
-          ? Math.min(0.62, s.loose * (0.22 + 0.4 * slide))
-          : slide * (0.3 + 0.7 * loadN) * 0.75;
+          ? Math.min(0.62, s.loose * (0.22 + 0.4 * slide)) * (0.6 + 0.4 * loadN)
+          : slide * (0.3 + 0.7 * loadN) * 0.9;
       if (speed < 0.5 || (target < 0.02 && this.heat[i] < 0.02)) {
         this.last[i] = null;
         this.heat[i] = 0;
@@ -234,7 +234,7 @@ export class TyreMarks {
       const rate = target > this.heat[i] ? d / RAMP_IN : d / RAMP_OUT;
       this.heat[i] += (target - this.heat[i]) * Math.min(1, rate);
       const patch = 0.7 + 0.3 * noise1(this.along[i] / PATCH_SCALE + i * 31.7);
-      const alpha = this.heat[i] * (loose ? 1 : patch);
+      const alpha = this.heat[i] * patch;
       // Kind (atlas tile): imprint while rolling, smeared while sliding / spinning; on hard ground rubber along the
       // tyre (spin, lock) or a scuff when it slides sideways.
       const kind = loose ? (slide > 0.3 ? 1 : 0) : beta > 0.3 ? 3 : 2;
