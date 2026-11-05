@@ -7,6 +7,7 @@ import { Raster } from '../../../world/real-data';
 import { Piles } from '../../shared/piles';
 import type { PathDef, RasterDef } from '../../shared/types';
 import canopy from '../canopy.json';
+import { packHeight } from '../../../assets/builders/tree-packs';
 import { cylinderCollider, type Local, type V2, type V3 } from './common';
 import {
   bin,
@@ -164,21 +165,21 @@ const TRAIL_PINES_SET: [number, number][] = [
  * 3.4 m cell of the stand (a pine keeps 3 m from the next, 1.3 m off the path, clear of the posts, tables and the road's
  * bank), where the canopy height model (Meta / WRI, `canopy.json`) reads a stand of 9 m or more (it reads ~12 m here, the
  * photos ~20-22 m: it underestimates tall conifers, so the heights follow it relative to that). World x, z, scale and
- * variant of the generated `tall_black_pine` (~19.5 m at scale 1: scaled to the stand's 18-25 m).
+ * variant of the `pack_pine` (Scots pine models of 14, 16 and 31.6 m: scaled to the stand's 18-25 m).
  */
 export const TRAIL_PINES: [number, number, number, number][] = [];
 /** Oaks and hornbeams standing among the pines (world x, z, asset, scale). */
 export const TRAIL_STAND_OAKS: [number, number, string, number][] = [];
 {
   const chm = new Raster(canopy.height as RasterDef);
-  // A pine: the stand's height (the canopy model's, 1.75 x, 18-25 m) over the tall black pine's own (~19.5 m).
+  // A pine of a pack model: the stand's height (the canopy model's, 1.75 x, 18-25 m) over the model's own.
   const pineAt = (x: number, z: number, k: number): [number, number] => {
     const u = (j: number) =>
       (hash3(Math.round(x), Math.round(z), k + 10 * j, 7) % 100) / 100;
-    const variant = Math.floor(u(1) * 4);
+    const variant = u(1) < 0.4 ? 2 : u(1) < 0.7 ? 1 : 0;
     const h =
       Math.max(18, Math.min(25, 1.75 * chm.at(x, z))) * (0.92 + 0.16 * u(2));
-    return [h / 19.5, variant];
+    return [h / packHeight('pine', variant), variant];
   };
   const clear = (x: number, z: number) =>
     trailDistance(x, z) > 1.3 &&
@@ -278,6 +279,16 @@ export const TRAIL_SCRUB: [number, number, string, number][] = [];
           k === 1 || k === 3 ? 0.5 + 0.2 * s : 0.26 + 0.14 * s,
         ]);
     }
+  // Half the bushes and thickets are the packs' lilac and bush models (their real look close to the path), the rest
+  // generated ones: lilac 2-4 m (its tree variant 4-6 m), bush 1-1.8 m.
+  TRAIL_SCRUB.forEach((e, i) => {
+    const u =
+      (hash3(Math.round(e[0] * 10), Math.round(e[1] * 10), i, 97) % 100) / 100;
+    if (u >= 0.5) return;
+    if (e[2] === 'bush') [e[2], e[3]] = ['pack_bush', 0.8 + 0.6 * u];
+    else if (e[2] === 'thicket_shrub' || e[2] === 'hazelnut_tree')
+      [e[2], e[3]] = ['pack_lilac', 0.55 + 0.7 * u];
+  });
 }
 
 /**

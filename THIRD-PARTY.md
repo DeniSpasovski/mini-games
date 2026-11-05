@@ -205,6 +205,19 @@ repository).
 | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
 | ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
 
+### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*.webp`)
+
+Vodno's trail stand, car park and hairpin use a few models of three CC BY 4.0 packs by LOLIPOP (Sketchfab account
+lolipop_1707): Scots pines, lilac and bush shrubs (their own triangles, normals, uvs and textures, three levels of detail,
+the textures shrunk and recompressed; packed by `scripts/trees/bake-tree-packs.py`; the source files are not in the
+repository).
+
+| Pack                                          | Author                                    | Licence   |
+| --------------------------------------------- | ----------------------------------------- | --------- |
+| "Pine trees pack (lowpoly, game ready, LODs)" | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| "Lilac bush pack (12 vars, LODs, game ready)" | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| "Bush models pack (gameready, LODs)"          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+
 ### Straw texture (`src/games/rally/engine/props/straw.webp`)
 
 The hay bales wear a tile cut from the photo texture of a CC BY 4.0 scan (one bale side, made to repeat and levelled by
