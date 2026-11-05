@@ -14,7 +14,7 @@ import {
   groundArray,
 } from '../engine/ground-textures';
 import { type Season } from '../season';
-import { addWorldUniforms } from '../engine/world-shading';
+import { addWorldUniforms, worldUniforms } from '../engine/world-shading';
 import type { GroundMoisture } from './ground-moisture';
 
 /**
@@ -77,6 +77,8 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
     uMoist: { value: 1 },
     /** Meadow colour patches (0 = off, `groundTint.variety`). */
     uVariety: { value: 0 },
+    /** Forest floor under the crowns 0..1 (`GroundTint.shade`): darker, browner humus soil. */
+    uFloorShade: { value: 0 },
     /** Bump strength (0 = flat, `setTerrainRelief`). */
     uRelief: { value: 1 },
     /** Distance (m) of the second taps and the relief (0 = off, `setTerrainDetail`). */
@@ -141,6 +143,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         uniform vec3 uTintGrass;
         uniform float uTintAmount;
         uniform float uVariety;
+        uniform float uFloorShade;
         uniform vec3 uTintCrop;
         uniform float uRelief;
         uniform sampler2D tMoist;
@@ -228,8 +231,12 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         crop /= wSum;
         // Leaf litter: under the tree crowns (baked canopy texture), broken up by noise; not on rock, little on gravel.
         float cover = wsCanopyCover(wp);
-        float lit = clamp((cover - 0.08) / 0.45 + (macro2 - 0.5) * 0.9, 0.0, 1.0) * uGroundLook.z;
+        // (forest-floor maps: the crown edges ragged, \`wsFloorCover\`; a lone tree paints no disc)
+        float floorCover = uFloorShade > 0.0 ? wsFloorCover(wp) : cover;
+        float lit = clamp((floorCover - 0.08) / 0.45 + (macro2 - 0.5) * 0.9, 0.0, 1.0) * uGroundLook.z;
         lit *= (1.0 - w.z) * (1.0 - 0.6 * w.w);
+        // Forest floor: the soil under closed crowns is dark humus, broken up like the litter (none on gravel).
+        float humus = uFloorShade * smoothstep(0.05, 0.6, floorCover) * (0.75 + 0.5 * macro2) * (1.0 - w.w);
         w *= 1.0 - lit;
         crop *= 1.0 - lit;
         // Scans of the layers in use only (a = weight + height, -1 = unused; r = relief height).
@@ -266,6 +273,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         }
         if (w.y > wCut) {
           cDirt = gVar(GY_SOIL, wp, GS_SOIL, GM_SOIL, dpx, dpy, near, h);
+          cDirt *= mix(vec3(1.0), vec3(0.6, 0.52, 0.44), clamp(humus, 0.0, 1.0));
           aD = w.y + HB_K * (h.x - 1.0);
           rD = 0.35 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.y));
         }
@@ -333,7 +341,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
       );
   };
   mat.customProgramCacheKey = () =>
-    far ? 'rally-terrain-far-v6' : 'rally-terrain-v11';
+    far ? 'rally-terrain-far-v7' : 'rally-terrain-v12';
   if (far) sharedFar = mat;
   else shared = mat;
   return mat;
@@ -385,6 +393,8 @@ export function setGroundTint(
   u.uTintCrop.value.set(tint?.crop ?? DEFAULT_CROP);
   u.uMoist.value = tint?.moisture ?? 1;
   u.uVariety.value = tint?.variety ?? 0;
+  u.uFloorShade.value = tint?.shade ?? 0;
+  worldUniforms.wsCanopyAO.value = tint?.shade ?? 0;
   const look = SEASON_LOOK[season];
   u.uGroundLook.value.set(
     look.grass,

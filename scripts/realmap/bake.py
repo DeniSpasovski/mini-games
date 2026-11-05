@@ -27,6 +27,9 @@ that a MapDef imports (see src/games/rally/maps/ajvatovci/map.ts):
                 Config paths {dropWays: [OSM way ids], dropKinds: [kinds], mergeJoints: true}: leave ways / kinds out;
                 join ways that meet end to end at a node no other road touches (a street cut into 20 m ways has a
                 height step at every joint).
+                Config osm.footpaths {kinds: [path, footway, ...], corridor: m} (Overpass only): + foot ways within
+                `corridor` m of the stage road, from a query of their own (sidewalks / crossings left out); added
+                last, so the roads, their indices and the buildings stay as baked without them.
   - buildings   OSM + Microsoft ML footprints as oriented boxes, typed house / flat, numbered along the
                 route (stable ids) -> also <map folder>/buildings.csv (see buildings.py)
   - power       OSM pylons + lines
@@ -1120,6 +1123,9 @@ def main():
     corridor = pcfg.get('corridor')  # keep other roads only this close to the stage road (m); None = all
     hw_corridor = pcfg.get('highwayCorridor', corridor)  # same for motorway / trunk (+ links)
     keep_near = [(*proj.fwd(la, lo), r) for la, lo, r in pcfg.get('keepNear', ())]
+    foot_cfg = cfg.get('osm', {}).get('footpaths') if use_overpass else None
+    foot_kinds = set(foot_cfg['kinds']) if foot_cfg else set()
+    foot_corridor = foot_cfg.get('corridor', corridor) if foot_cfg else None
     big_kinds = ('motorway', 'motorway_link', 'trunk', 'trunk_link')
     def add_way(t, refs, pts=None, detected=False, branch=False):
         """One road / water way -> runs of `paths` (cut short of the stage road unless grade-separated)."""
@@ -1230,7 +1236,7 @@ def main():
         cut = (d <= 2.5) if mainline or beside else near
         cutoff = cut & ~under_bridge if not is_deck else np.zeros(len(pts), bool)
         keep = ~cutoff | (surface == 'water')
-        lim = hw_corridor if kind in big_kinds else corridor
+        lim = hw_corridor if kind in big_kinds else foot_corridor if kind in foot_kinds else corridor
         if lim is not None and surface != 'water':
             # Config paths.keepNear [[lat, lon, radius], ...]: whole roads round these points (stage starts / finishes)
             # stay, beyond the corridor.
@@ -1309,6 +1315,22 @@ def main():
     # Water ways OSM lacks (config "waterways", e.g. from dem_stream.py): added last, so the other paths keep their index.
     for w in cfg.get('waterways', ()):
         add_way({'waterway': w.get('kind', 'stream')}, (), np.array([proj.fwd(la, lo) for la, lo in w['pts']]))
+    n_roads = len(paths)
+    if foot_cfg:
+        # Last of all: the other paths keep their index, and the buildings / route never see them (ids stay as baked).
+        f_nodes, _, f_ways, _ = ovp.load_footpaths(ll_box(lcc['extent'], 150), foot_cfg['kinds'], CACHE)
+        for k, v in f_nodes.items():
+            nodes.setdefault(k, v)
+        foot_list = [
+            (wid, w['tags'], w['refs'])
+            for wid, w in f_ways.items()
+            if wid not in drop_ways and w['tags'].get('footway') not in ('sidewalk', 'crossing')
+            and w['tags'].get('access') not in ('no', 'private')
+        ]  # fmt: skip
+        foot_list, n_merged = merge_joints(foot_list, route_nodes)
+        for wid, tags, refs in foot_list:
+            add_way(tags, refs)
+        print(f'  osm.footpaths: {len(paths) - n_roads} runs from {len(foot_list)} ways ({n_merged} joints merged)')
     print(f'  {no_junction} way(s) pass the stage road without a junction (bridge / not connected)')
 
     def simplify(p, tol=0.4):
@@ -1320,7 +1342,7 @@ def main():
         for k, w, s, p, nj, ex in paths
     ]
     print(f'  {len(path_json)} paths ({sum(1 for q in path_json if q.get("bridge"))} on bridges)')
-    paths = [q[:4] for q in paths]
+    paths = [q[:4] for q in paths[:n_roads]]
 
     print('buildings...')
     lc_ext = lcc['extent']

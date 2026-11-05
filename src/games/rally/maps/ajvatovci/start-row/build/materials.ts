@@ -119,6 +119,8 @@ export const MATS = {
     decal: 1,
     shadow: false,
   },
+  /** Heaped sand / crushed stone (the gravel stones on a solid that casts shadows; the Vodno side-road piles). */
+  heap: { map: 'gravel', tile: [2.5, 2.5], roughness: 1 },
   /** Concrete block paving (yards, sidewalks). */
   pavers: {
     map: 'lot_pavers',
@@ -170,6 +172,22 @@ export const MATS = {
   marking: { tile: [1, 1], roughness: 0.7, decal: 3, shadow: false },
   /** Hilltop church (maps/ajvatovci/hilltop): rough-cut limestone walls. */
   ashlar: { map: 'lot_ashlar', tile: [2, 2], roughness: 0.92 },
+  /** Dry-stone grey limestone (Vodno's walls; a Poly Haven scan, so its landmark waits for the facade photos). */
+  drystone: { map: 'facade_drystone', tile: [3.2, 3.2], roughness: 0.95 },
+  /** Layered limestone (the Vodno rock cuts' scan): the trail start's stone posts and flat stones; half the sky's sheen. */
+  limestone: {
+    map: 'facade_limestone',
+    tile: [1.2, 1.2],
+    roughness: 0.95,
+    envMapIntensity: 0.6,
+  },
+  /** Pine bark (the trees' scan, browned by the vertex colour): roots across the Vodno trail; u round, v along. */
+  bark: {
+    map: 'facade_bark',
+    tile: [0.5, 1],
+    roughness: 0.95,
+    envMapIntensity: 0.6,
+  },
   /** Hilltop bell tower: rubble stone masonry. */
   rubble: { map: 'lot_rubble', tile: [2, 2], roughness: 0.95 },
   /** Low concrete walls (the hilltop courtyard wall). */
@@ -230,9 +248,13 @@ const GROUPS: Partial<Record<MatKey, MatGroup>> = {
   metal: 'solid',
   ashlar: 'solid',
   rubble: 'solid',
+  drystone: 'solid',
+  limestone: 'solid',
+  bark: 'solid',
   wall: 'solid',
   tiles: 'solid',
   brick: 'solid',
+  heap: 'solid',
   asphalt: 'ground',
   gravel: 'ground',
   pavers: 'ground',

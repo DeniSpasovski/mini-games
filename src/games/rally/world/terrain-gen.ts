@@ -102,6 +102,8 @@ const PATH_PROFILE: Record<string, [number, number]> = {
   rail: [300, 0.025],
 };
 const PATH_PROFILE_DEFAULT: [number, number] = [14, 0.3];
+/** Ways this narrow (m) are foot paths / footways (bake `osm.footpaths`). */
+export const FOOT_WIDTH = 2;
 /** Streets ease from a junction plaza's height back to their own over this distance beyond its edge (m). */
 const PLAZA_EASE = 30;
 /** Depth of the girder under a deck surface (m): the underside of a bridge sits this far below the road. */
@@ -195,6 +197,8 @@ export class TerrainGenerator {
   private pq2: PathQuery = newPathQuery();
   private cq: PathQuery = newPathQuery();
   private dq: RoadQuery = newRoadQuery();
+  /** The splat's own road query (`paintScree`): the height queries keep theirs. */
+  private sq: RoadQuery = newRoadQuery();
   /** 1 = path is a bridge deck (OSM bridge=yes): not carved into the ground, lifted over lower roads. */
   private deckFlag = new Uint8Array(0);
   /** 1 = a road in the highway's cut beside the carriageways (MapDef.parkwayLanes): treated as a carriageway. */
@@ -219,6 +223,9 @@ export class TerrainGenerator {
   private portalDeck = new Uint8Array(0);
   /** Path accept filters (decks are not ground). */
   private readonly onGround = (pi: number): boolean => this.deckFlag[pi] === 0;
+  /** A road on the ground, not a foot way (a trail climbs a rock cut's bank, it does not open it). */
+  private readonly roadOnGround = (pi: number): boolean =>
+    this.deckFlag[pi] === 0 && this.paths!.paths[pi].width > FOOT_WIDTH;
   /** A mainline carriageway of the divided highway (ground level): cut sheer like the stage road, walls beyond it. */
   isCarriageway(pi: number): boolean {
     const p = this.paths!.paths[pi];
@@ -2182,6 +2189,22 @@ export class TerrainGenerator {
     return w;
   }
 
+  /**
+   * 0..1: how much of a rock cut (RoadDef.rockCuts) the stage road's bank is at (x, z), the land `rise` m above the
+   * road `along` m along it (0 = the gentle embankment). Mouths of other roads keep the bank; foot ways do not.
+   */
+  rockCutWeightAt(x: number, z: number, rise: number, along: number): number {
+    const rc = this.map.road.rockCuts;
+    if (!rc || !(rise > rc.minRise)) return 0;
+    if (rc.exclude?.some(([a, b]) => along > a && along < b)) return 0;
+    let w = smoothstep(rc.minRise, rc.minRise + 1.5, rise);
+    if (this.paths) {
+      const pq = this.paths.query(x, z, this.pq, undefined, this.roadOnGround);
+      if (pq.found) w *= smoothstep(3, 14, pq.distance - pq.halfWidth);
+    }
+    return w;
+  }
+
   /** 0..1: how much (x, z) lies on a ground road that is not a street passing under a bridge (full on its width + 0.5 m, none 6 m beyond). */
   private roadHold(x: number, z: number): number {
     if (!this.paths) return 0;
@@ -2304,6 +2327,21 @@ export class TerrainGenerator {
         q.height + (base - q.height) * smoothstep(wall, wall + shape.rise, d);
       return h + (cut - h) * w;
     }
+    // A rock cut: the land rises steeply from its foot (world/rock-cut-mesh.ts lays the face on it).
+    const rise = base - q.height;
+    const rw = this.rockCutWeightAt(x, z, rise, q.along);
+    if (rw > 0) {
+      const rc = r.rockCuts!;
+      const foot = hw + r.shoulder + rc.foot;
+      // The face up to `maxFace`, the rest of a deeper cut laid back as an earth bank above it.
+      const face = Math.min(rise, rc.maxFace);
+      const top = foot + face / rc.slope;
+      const cut =
+        q.height +
+        face * smoothstep(foot, top, d) +
+        (rise - face) * smoothstep(top, top + 3 + (rise - face) * 1.6, d);
+      h += (cut - h) * rw;
+    }
     // Ditch just outside the verge, fading where the embankment is tall (no ditch on fills).
     const ditchCentre = hw + r.shoulder + 0.7;
     const x01 = (d - ditchCentre) / 1.1;
@@ -2408,6 +2446,7 @@ export class TerrainGenerator {
         minPathHw,
       );
       this.paintLawns(x, z, out);
+      if (near) this.paintScree(x, z, roadDist - roadHw, out);
       return;
     }
     let dirt = smoothstep(0.15, 0.55, n) * 0.85;
@@ -2425,6 +2464,29 @@ export class TerrainGenerator {
     out[SPLAT_DIRT] = dr;
     out[SPLAT_GRASS] = Math.max(0, 1 - gravel - rk - dr);
     this.paintLawns(x, z, out);
+    if (near) this.paintScree(x, z, roadDist - roadHw, out);
+  }
+
+  /** Scree (rock chips and grit) along the foot of a rock cut (RoadDef.rockCuts), `edge` m beyond the road edge. */
+  private paintScree(
+    x: number,
+    z: number,
+    edge: number,
+    out: Float32Array | number[],
+  ): void {
+    const rc = this.map.road.rockCuts;
+    if (!rc) return;
+    const sh = this.map.road.shoulder;
+    if (edge < sh || edge > sh + rc.foot + 2.5) return;
+    const q = this.road.query(x, z, this.sq);
+    if (!q.found) return;
+    const w =
+      this.rockCutWeightAt(x, z, this.naturalHeight(x, z) - q.height, q.along) *
+      smoothstep(sh, sh + 0.8, edge) *
+      (1 - smoothstep(sh + rc.foot + 0.5, sh + rc.foot + 2.5, edge));
+    if (w <= 0) return;
+    const scree = [0.05, 0.15, 0.5, 0.3];
+    for (let i = 0; i < 4; i++) out[i] += (scree[i] - out[i]) * w;
   }
 
   /** `MapDef.terrain.lawns` with their bounds. */

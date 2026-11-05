@@ -89,12 +89,41 @@ export const LOT_PADS: PadDef[] = [
     ],
     lift: PAD_LIFT,
   },
+  {
+    // The hikers' car park below the big hairpin (OSM way 37998024, landmarks/trail-lot.ts): a gravel lot falling with the
+    // land (6.5 m along it, its far end on the ground); its aisle is dropped.
+    name: 'trail_lot',
+    polygon: [2087.5, -221, 2119, -240.2, 2126.5, -227.5, 2088.5, -203.5],
+    blend: 5,
+    frontage: [2083.3, -224, 2084, -204],
+    surface: 'gravel',
+    ramp: { from: [2089, -212], to: [2121, -232], lift: [0, -6.5] },
+  },
+  {
+    // Beyond it the earth path down to the picnic shelter and the hiking trail east: one walkable slope instead of the
+    // land's 3.5 m step at the lot's end.
+    name: 'trail_start',
+    polygon: [2119, -240.2, 2126.5, -227.5, 2150, -238, 2148, -254, 2122, -254],
+    blend: 4,
+    frontage: [2083.3, -224, 2084, -204],
+    surface: 'dirt',
+    ramp: { from: [2124, -232], to: [2142, -246], lift: [-6.6, -9.5] },
+  },
 ];
 
-/** The baked OSM aisle lines the lots replace (first point, rounded): the Vidikovec aisle, two Sredno aisles, the small lot's ring + its stub. */
-const REPLACED = new Set(['1492,-570', '539,-349', '554,-339', '477,-329']);
+/**
+ * The baked OSM aisle lines the lots replace (first point, rounded): the Vidikovec aisle, two Sredno aisles, the small lot's
+ * ring + its stub, the trail lot's aisle.
+ */
+const REPLACED = new Set([
+  '1492,-570',
+  '539,-349',
+  '554,-339',
+  '477,-329',
+  '2094,-213',
+]);
 
-/** Painted lawns (`MapDef.terrain.lawns`): the Sredno park strip and the two garden terraces. */
+/** Painted lawns (`MapDef.terrain.lawns`): the Sredno park strip, the two garden terraces and the trail start's bank. */
 export const LAWNS: number[][] = lawnPolygons();
 
 /**
@@ -114,15 +143,87 @@ const pointKey = (x: number, z: number): string =>
   `${Math.round(x)},${Math.round(z)}`;
 
 export const dropLotAisles = (paths: PathDef[]): PathDef[] =>
-  paths.filter((p) => {
-    const n = p.pts.length;
-    return (
-      !REPLACED.has(pointKey(p.pts[0], p.pts[1])) &&
-      !JUNCTION_ARCS.has(
-        `${pointKey(p.pts[0], p.pts[1])}>${pointKey(p.pts[n - 2], p.pts[n - 1])}`,
-      )
+  paths
+    .filter((p) => {
+      const n = p.pts.length;
+      return (
+        !REPLACED.has(pointKey(p.pts[0], p.pts[1])) &&
+        !JUNCTION_ARCS.has(
+          `${pointKey(p.pts[0], p.pts[1])}>${pointKey(p.pts[n - 2], p.pts[n - 1])}`,
+        )
+      );
+    })
+    .flatMap((p) => (FOOT_KINDS.has(p.kind) ? clipToLots(p) : [p]));
+
+/**
+ * Footpaths (bake `osm.footpaths`) stop at a lot's blend edge (their heights come from the land, the lot is graded apart) and
+ * at the restaurant's parking (5 m round it, clear of its gate road).
+ */
+const FOOT_KINDS = new Set(['path', 'footway']);
+const KEEP_OFF: { polygon: number[]; blend: number }[] = [
+  ...LOT_PADS,
+  {
+    polygon: [
+      [PLAZA.x0, PLAZA.z0],
+      [PLAZA.x1, PLAZA.z0],
+      [PLAZA.x1, PLAZA.z1],
+      [PLAZA.x0, PLAZA.z1],
+    ].flatMap(([x, z]) => toWorld(RESTAURANT, x, z)),
+    blend: 5,
+  },
+];
+/** Points along a footpath tested against the lots (m). */
+const FOOT_STEP = 2;
+
+/** Distance from (x, z) to a flat closed polygon, 0 inside. */
+function polygonGap(poly: number[], x: number, z: number): number {
+  let inside = false;
+  let best = Infinity;
+  for (let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2) {
+    const [ax, az, bx, bz] = [poly[j], poly[j + 1], poly[i], poly[i + 1]];
+    if (az > z !== bz > z && x < ax + ((z - az) * (bx - ax)) / (bz - az))
+      inside = !inside;
+    const dx = bx - ax;
+    const dz = bz - az;
+    const t = Math.max(
+      0,
+      Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)),
     );
-  });
+    best = Math.min(best, Math.hypot(x - ax - t * dx, z - az - t * dz));
+  }
+  return inside ? 0 : best;
+}
+
+/** The runs of footpath `p` outside KEEP_OFF (resampled every FOOT_STEP m). */
+function clipToLots(p: PathDef): PathDef[] {
+  const clear = (x: number, z: number) =>
+    KEEP_OFF.every((d) => polygonGap(d.polygon, x, z) > d.blend);
+  const runs: number[][] = [];
+  let run: number[] = [];
+  const end = () => {
+    if (run.length >= 4) runs.push(run);
+    run = [];
+  };
+  for (let i = 0; i + 2 < p.pts.length; i += 2) {
+    const [ax, az, bx, bz] = p.pts.slice(i, i + 4);
+    const steps = Math.max(
+      1,
+      Math.ceil(Math.hypot(bx - ax, bz - az) / FOOT_STEP),
+    );
+    for (let s = i === 0 ? 0 : 1; s <= steps; s++) {
+      const x = ax + ((bx - ax) * s) / steps;
+      const z = az + ((bz - az) * s) / steps;
+      if (clear(x, z)) run.push(x, z);
+      else end();
+    }
+  }
+  end();
+  // Untouched: keep the baked points.
+  return runs.length === 1 &&
+    !p.pts.some((_, i) => i % 2 === 0 && !clear(p.pts[i], p.pts[i + 1]))
+    ? [p]
+    : runs.map((pts) => ({ ...p, pts }));
+}
 
 /**
  * The road that leaves the stage road to the right at the hairpin below the finish (OSM way, first point rounded): the

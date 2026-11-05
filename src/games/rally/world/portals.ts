@@ -267,7 +267,7 @@ export class Portals {
       if (q.found)
         for (const f of this.fills) {
           const outside = Math.max(0, f.from - q.along, q.along - f.to);
-          if (outside > PAD_LAT) continue;
+          if (outside > PAD_LAT || (f.side && f.side * q.lateral < 0)) continue;
           const t = Math.min(
             1,
             Math.max(0, (q.along - f.from) / (f.to - f.from)),

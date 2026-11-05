@@ -15,6 +15,7 @@ import {
   type RoadSurfaceId,
 } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
+import { facadePhotosReady } from '../engine/facade-textures';
 import {
   gravelBase,
   gravelShader,
@@ -30,6 +31,7 @@ import {
 import { barrierMeshJob } from './barrier-mesh';
 import { bridgeMeshJob } from './bridge-mesh';
 import { cutWallMeshJob } from './cut-wall-mesh';
+import { rockCutMeshJob } from './rock-cut-mesh';
 import { roadMarkingsMesh } from './road-markings';
 import { aerialwayMeshJob } from './aerialway-mesh';
 import { powerLineMeshJob } from './power-line-mesh';
@@ -51,6 +53,7 @@ import { waterMeshJob } from './water-mesh';
 import type { World } from './world';
 import { GroundTerrain } from './heightfield';
 import { newPathQuery } from './real-data';
+import { FOOT_WIDTH } from './terrain-gen';
 
 /**
  * Road surface ribbon. Vertices sample the terrain generator (so the ribbon hugs
@@ -729,6 +732,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (rail) group.add(rail);
   const cutWalls = yield* timed('cutWalls', cutWallMeshJob(world));
   if (cutWalls) group.add(cutWalls);
+  const rockCuts = yield* timed('rockCuts', rockCutMeshJob(world));
+  if (rockCuts) group.add(rockCuts);
   const markings = roadMarkingsMesh(world);
   if (markings) group.add(markings);
   const signs = yield* timed('stageSigns', stageSignMeshJob(world));
@@ -739,6 +744,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (bridges) group.add(bridges);
   const buildings = yield* timed('buildings', buildingMeshJob(world));
   if (buildings) group.add(buildings);
+  // Landmark walls may wear a facade scan (kit `drystone`): its photo must be decoded before the texture is drawn.
+  while (world.landmarks.length && !facadePhotosReady) yield;
   for (const landmark of world.landmarks) {
     const built = yield* timed('landmarks', landmark.build(world));
     if (built) group.add(built);
@@ -793,6 +800,8 @@ const onStageSpan = (world: World, along: number): boolean =>
 /** Rings of a junction fillet fan from its corner to its arc. */
 const FILLET_RINGS = 4;
 const PATH_STEP = 3; // m between ribbon rows
+/** A foot way lies on the ground (no levelled bed under it): rows this close, or it sank into a bank's brow between them. */
+const FOOT_STEP = 1;
 const PATH_TILE = 256; // m, one merged mesh per tile
 
 /**
@@ -859,13 +868,14 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   };
   for (const p of paths) {
     // Resample the polyline every PATH_STEP metres.
+    const step = p.width <= FOOT_WIDTH ? FOOT_STEP : PATH_STEP;
     const pts: [number, number, number][] = [];
     let dist = 0;
     for (let k = 0; k + 3 < p.pts.length; k += 2) {
       const ax = p.pts[k];
       const az = p.pts[k + 1];
       const L = Math.hypot(p.pts[k + 2] - ax, p.pts[k + 3] - az);
-      const n = Math.max(1, Math.ceil(L / PATH_STEP));
+      const n = Math.max(1, Math.ceil(L / step));
       for (let i = 0; i < n; i++) {
         const t = i / n;
         pts.push([
@@ -881,12 +891,13 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     if (pts.length < 2) continue;
     // An end that stops short of the stage road (OSM joins the way to the road's raw line; the drawn road is smoothed
     // and can run metres away on a bend, and a slanted way's square end leaves one corner out on the verge) runs on
-    // until both corners of its end are well under the stage ribbon, so no verge shows between them.
+    // until both corners of its end are well under the stage ribbon, so no verge shows between them. A way not joined to the
+    // road (`junction: false`) keeps its ends.
     const under = (x: number, z: number) => {
       world.road.query(x, z, rq);
       return rq.found && rq.distance < rq.halfWidth - 0.3;
     };
-    for (const atEnd of [false, true]) {
+    for (const atEnd of p.junction === false ? [] : [false, true]) {
       const [ex, ez, ed] = atEnd ? pts[pts.length - 1] : pts[0];
       const [px, pz] = atEnd ? pts[pts.length - 2] : pts[1];
       world.road.query(ex, ez, rq);
@@ -981,8 +992,10 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           !rq.found ||
           (rq.distance > rq.halfWidth + 1 &&
             !(world.road.bridges.length && world.road.bridgeAt(rq.along)));
+        // (a foot way lies on the ground: a trail climbing the stage road's cut bank stood up off it as a wall)
         const y =
           free &&
+          p.width > FOOT_WIDTH &&
           ground < prof - 0.15 &&
           (ground > prof - 3 || world.gen.portals.inside(x, z))
             ? prof
@@ -1110,6 +1123,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth - 0.2)
             u = 2 * (1 - (PATH_ACROSS[c === 0 ? 1 : c - 1] + 1) / 2) - u;
         }
+        // A foot way on the gravel shader: u + 2 asks for one trodden earth tread instead of wheel ruts (gravel-road.ts).
+        if (tex === 'road' && p.width <= FOOT_WIDTH) u += 2;
         tile.uv.push(u, pts[r][2] / texLength(tex));
       }
       if (r % 256 === 255) yield;

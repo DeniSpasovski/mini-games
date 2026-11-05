@@ -203,6 +203,10 @@ describe('trees', () => {
     // Black pine: a bare trunk under an umbrella crown (its lowest crown point in the top third).
     const bp = v('black_pine').info;
     expect(bp.crown.c[1] - bp.crown.r[1]).toBeGreaterThan(bp.height * 0.6);
+    // Tall black pine of a closed stand: half again as tall, bare to its top quarter.
+    const tbp = v('tall_black_pine').info;
+    expect(tbp.height).toBeGreaterThan(bp.height * 1.5);
+    expect(tbp.crown.c[1] - tbp.crown.r[1]).toBeGreaterThan(tbp.height * 0.7);
     // Pale-barked birch and plane, white against the oak's brown: at least twice the light (linear).
     const light = (hex: string) =>
       [1, 3, 5].reduce(
@@ -220,6 +224,7 @@ describe('trees', () => {
       'pine_tree',
       'plantation_pine',
       'black_pine',
+      'tall_black_pine',
       'juniper',
       'cypress_tree',
       'hedge_cypress',

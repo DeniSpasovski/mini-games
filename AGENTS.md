@@ -18,7 +18,7 @@
 **Public, source-available repo** (educational three.js project, not commercial): treat every committed file as published.
 
 - **Licences:** code, procedural assets, docs, screenshots = [PolyForm Noncommercial 1.0.0](LICENSE). Baked real-map data
-  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg`)
+  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `canopy.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg`)
   is OpenStreetMap-derived = **ODbL**; a new baked file joins this list (README, `THIRD-PARTY.md`). Third-party models / data keep
   their own licences.
 - **Never commit a third-party file** (model, texture, font, sound, image, dataset) unless its licence allows redistribution of
@@ -99,7 +99,8 @@ into `DETAILS.md`, never up.
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
 - `scripts/props/bake-straw.py` - the rally hay bales' straw tile (`engine/props/straw.webp`) from the CC BY "Hay bales" scan (`sources/rally/hay-bales/`)
 - `scripts/props/bake-simready.py` - the rally SimReady props, one group per run (`service` / `park` / `yard` / `village`, `assets/builders/simready-<group>.data.ts`: tool chest, tyre rack, jack, park kit + power pole, yard props, village street furniture) from CC BY NVIDIA SimReady Assets (`sources/rally/simready/`) and CC0 Poly Haven glTF models (`sources/rally/polyhaven/`; run with Blender: `blender -b --python ... -- sources/rally/simready`)
-- `scripts/rocks/bake-rocks.mjs` - the rally boulders and small rocks (`assets/builders/rock-models.data.ts`, `engine/props/rocks.*.webp`) from the CC0 Poly Haven "Rock Moss Set 01" (`sources/rally/rocks/`)
+- `scripts/rocks/bake-rocks.mjs` - the rally boulders and small rocks (`assets/builders/rock-models.data.ts`, `engine/props/rocks.*.webp`) from the CC0 Poly Haven "Rock Moss Set 01" (`sources/rally/rocks/`);
+  `bake-cut-face.py`: the road-cut rock face tile (`engine/props/cut-face.*.webp`, `RoadDef.rockCuts`) from the CC0 Poly Haven "Cliff Side" scan
 - `scripts/trees/bake-bark.py` - the rally trees' scanned bark tiles and their normal tiles (`trees/bark/*.webp`) from CC0 Poly Haven bark scans + normal maps (`sources/rally/bark/`); prints `BARK_GAIN` for trees/materials.ts
 - `scripts/particles/bake-dust.py` - the rally dust puff atlas (`engine/particles/dust.webp`) from Kenney's CC0 Particle Pack (`sources/rally/kenney/`)
 - `scripts/plants/bake-plants.mjs` - the rally grass / weed / reed card atlases (`engine/plants/*.webp` + `plant-atlas.data.ts`) from CC0 Poly Haven plant
@@ -109,7 +110,8 @@ into `DETAILS.md`, never up.
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
   the DEM), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
-  from a winter + summer Sentinel-2 scene, run after `bake.py`)
+  from a winter + summer Sentinel-2 scene, run after `bake.py`), `canopy.py` (`canopy.json`: canopy share / stand height grids and the
+  real trees from the Meta / WRI canopy height map, run after `leaf_type.py`)
 
 ## Skills - read before these tasks (`.claude/skills/<name>/SKILL.md`)
 

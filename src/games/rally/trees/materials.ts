@@ -400,6 +400,8 @@ const VERTEX_COLLAPSE = /* glsl */ `
 const FRAGMENT_PARS = /* glsl */ `
 const float TREE_SKY_LEAN = 0.5;
 const float TREE_LEAF_FILL = 0.1;
+// Bark is matte and dusty: a third of the standard sky sheen (on a dark trunk the full one outshines its own brown: blue-grey).
+const float TREE_BARK_SHEEN = 0.35;
 #ifdef TREE_SPRITE
 uniform sampler2D tlSprNormal;
 uniform float tlDepthOnly;
@@ -483,7 +485,7 @@ const FRAGMENT_AMBIENT = /* glsl */ `
 		vec3 tAmb = reflectedLight.indirectDiffuse;
 		reflectedLight.indirectDiffuse = mix( vec3( dot( tAmb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.0, 0.94, 0.8 ), tAmb, 0.3 * vTreeAO );
 		// The sky's sheen on rough bark (IBL specular, strong at grazing angles) is hidden by the same canopy.
-		reflectedLight.indirectSpecular *= vTreeAO;
+		reflectedLight.indirectSpecular *= vTreeAO * TREE_BARK_SHEEN;
 	#endif
 `;
 

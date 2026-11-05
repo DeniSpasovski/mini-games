@@ -179,7 +179,8 @@ Per-map settings live in `MapDef.environment`; everything has a default.
     ridge runs on for a kilometre. `world/terrain-light.ts` (8 m texels, baked in slices of the frame's slack after the
     start, faded in) bakes the height a point must reach to see the sun past every hill (a crown or a car over a shaded
     slope still stands in the sun) and dims the ground's sky light by the sky its surroundings leave in view (valleys,
-    the foot of a slope).
+    the foot of a slope; `TERRAIN_SKY` in `engine/world-shading.ts`: `lightsEnd` writes it with the forest floor and the wet
+    shading's terms on every `setWet`, so it holds on every stage).
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
   (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
   fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark (`lightNeed`, from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow). They switch on
@@ -228,6 +229,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   `scripts/ground/bake.py`): grass per season, soil, gravel, rock, leaf litter, stubble under crops. The splat channels blend by
   height (scan brightness), a blurred rotated second tap breaks the tiling, unused layers are not sampled. Leaf litter lies where
   the canopy texture has crowns (`wsCanopyCover`; strength per season, `groundTint.litter`), fresh coloured leaves in autumn.
+  `groundTint.shade` (forest floor, default 0) darkens the soil under the crowns to humus and shuts that share of the sky
+  light (IBL + hemisphere) out of every ground material there (`CANOPY_FLOOR` in `engine/world-shading.ts`; both read
+  `wsFloorCover`, the cover with its edge warped by noise, so a lone tree paints no disc): a wood's floor is lit by sun flecks through the shadow maps, not by the sky (most of a shaded floor's light was the env map).
   The meadow scans carry the old tile's olive hue so each map's `groundTint` keeps its look.
   Terrain chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material (`world/terrain-material.ts`): no relief, one
   tap per layer, no specular environment lookup.
@@ -400,7 +404,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   place where the road widens on the other side (Vodno's crossroad: `maps/vodno/crossroad.ts`).
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
   and extended to meet the stage road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are
-  painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the
+  painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons` (a foot way, <= `FOOT_WIDTH`: worn earth
+  with stone patches and roots, `world/gravel-road.ts`, lying on the ground in 1 m rows); `pathProfiles` overrides the
   height-line smoothing / grade per OSM kind (`PATH_PROFILE`); coarse terrain tiles paint them at least ~a vertex step wide (`splat` `minPathHw`) so
   they stay lines from afar.
   The baker splits an OSM way where it folds back (> 120 deg) or revisits one of its nodes (two ways meeting there);

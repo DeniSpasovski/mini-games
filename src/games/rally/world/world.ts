@@ -329,6 +329,7 @@ export class World implements GroundProvider {
       this.scatter.addFixed(inst);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
+    if (map.realTrees) this.scatter.addRealTrees(map.realTrees);
     for (const inst of this.servicePark?.instances ?? [])
       this.scatter.addFixed(inst);
     const bq = newPathQuery();
@@ -454,7 +455,7 @@ export class World implements GroundProvider {
         this.scatter.addFixed(inst);
     }
     if (map.cityStreets && this.gen.paths) {
-      const near = nearestRoadPoint(this.road);
+      const near = nearestRoadPoint(this.road, 12, map.cityStreets.until);
       this.streetDetail = streetDetail(map.cityStreets, {
         road: this.road,
         net: this.gen.paths,

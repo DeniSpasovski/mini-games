@@ -71,6 +71,8 @@ export interface MapDef {
    * through a suburb, a forest road with the trees set back), easing in and out over `fade` m (default 30) at the ends.
    */
   treeSetback?: { from: number; to: number; dist: number; fade?: number }[];
+  /** Trees placed where they really stand (a canopy height model's crowns, scripts/realmap/canopy.py): world/scatter.ts. */
+  realTrees?: RealTreesDef;
   /**
    * Trees (not bushes) whose low leaves (under 4 m above the stage road) would reach more than this many m past its edge
    * take another pose (variant, rotation, size) that keeps them off: world/scatter.ts `lowOverRoad`.
@@ -404,6 +406,43 @@ export interface LandcoverDef {
    * open data gets wrong (vineyards mapped as orchard or missing). Each becomes a zone of its own with `angle`.
    */
   paint?: { cover: string; angle?: number; poly: number[] }[];
+  /**
+   * The real canopy (scripts/realmap/canopy.py): share of the ground under crowns (0-1) and the stand height (m). Scatter
+   * rules with `canopy` thin and size their trees by it.
+   */
+  canopy?: { cover: RasterDef; height: RasterDef };
+}
+
+/**
+ * A byte grid over the map, run-length encoded like the land cover: the value at (originX + cell i, originZ + cell j)
+ * is byte x `scale`, read bilinear between the samples (world/real-data.ts `Raster`).
+ */
+export interface RasterDef {
+  originX: number;
+  originZ: number;
+  cell: number;
+  cols: number;
+  rows: number;
+  rle: string;
+  scale: number;
+}
+
+/**
+ * Trees where they really stand (world/scatter.ts `addRealTrees`): each keeps the scatter's rules (bounds, buildings,
+ * landmarks, `minRoadDist` / `minPathDist`, `treeSetback`, water) and is sized to its height.
+ */
+export interface RealTreesDef {
+  /** x, z, height (m) per tree. */
+  trees: number[];
+  /** Tree types by the land cover class at the tree, picked by hash (list one twice to weight it); classes left out grow none. */
+  assets: Record<string, string[]>;
+  minRoadDist: number;
+  /** Default 1.5. */
+  minPathDist?: number;
+  /** Bounds of the size (x the type's own mean height) a tree's height is clamped to. */
+  scale: [number, number];
+  tilt?: number;
+  sink?: number;
 }
 
 /** Standing water: closed polygon (world x/z, not repeating the first point). */
@@ -505,6 +544,11 @@ export interface TrenchFill {
   to: number;
   halfWidth: number;
   depth: [number, number];
+  /**
+   * Raise one side only (1 = left of the direction of travel, -1 = right): a spur the ~30 m elevation data smooths
+   * away beside a hill road, so `rockCuts` makes the cut the photos show.
+   */
+  side?: 1 | -1;
 }
 
 /** A stretch of the stage road on a bridge (over a street / rail) or under a structure, by distance along (m). */
@@ -642,6 +686,20 @@ export interface RoadDef {
      * newer stretch of a parkway) instead of coursed stone with a picket railing.
      */
     concreteFrom?: number;
+  };
+  /**
+   * Natural rock cuts (a hill road blasted into the slope): where the land beside the road rises more than `minRise` m
+   * above it, the embankment becomes a steep face (`slope` = rise per m across, at most `maxFace` m high, a deeper cut
+   * lies back as an earth bank above it) from `foot` m beyond the verge, a
+   * layered rock face is laid on it (world/rock-cut-mesh.ts) and its foot is painted with scree. The terrain is the
+   * collider. Off near other roads (their mouths keep the gentle bank) and over `exclude` ranges along the road.
+   */
+  rockCuts?: {
+    minRise: number;
+    slope: number;
+    foot: number;
+    maxFace: number;
+    exclude?: [number, number][];
   };
   /**
    * Where the elevation data has a void beside a sunken stretch (lidar under a wide structure reads the trench
@@ -909,6 +967,14 @@ export interface ScatterRule {
   minPathDist?: number;
   /** Only this far from the EDGE of a canal / drain / river [min, max] (m, max <= 10): willows, reeds. */
   channelDist?: [number, number];
+  /**
+   * Thin and size by the real canopy (`landcover.canopy`; ignored without it): the full density where the canopy share
+   * is `full` or more, none under `min`, in proportion between. `height` = the stand height (m) the rule's `scale`
+   * fits: trees grow by the stand height there / `height` (0.7-1.4x); unset = sizes unchanged. `open` turns it round:
+   * the rule fills the gaps (full density where the share is `min` or less, none from `full` up) - the young trees and
+   * scrub under the canopy model's 3 m floor.
+   */
+  canopy?: { full: number; min: number; height?: number; open?: boolean };
 }
 
 /** A continuous roadside barrier (world/barriers.ts + barrier-mesh.ts). */
@@ -946,6 +1012,8 @@ export interface SidewalkLink {
 export interface CityStreets {
   /** Streets within this distance of the stage road get kerbs, sidewalks, crosswalks and lamps (m). */
   reach: number;
+  /** Only near the stage road's first `until` m (the town it leaves; default: all of it). */
+  until?: number;
   /** Sidewalk width (m). */
   sidewalk?: number;
   /** Lamp spacing along the streets (m, 0 = none). */
@@ -1201,6 +1269,11 @@ export interface GroundTint {
   variety?: number;
   /** Leaf litter under the tree crowns, 0..1 (default by season: spring 0.3, summer 0.45, autumn 1). */
   litter?: number;
+  /**
+   * Forest floor under the crowns, 0..1 (default 0): darker, browner humus soil, and that share of the sky light shut
+   * out (terrain, roads, ground plants; the sun's shadow maps still give the sun flecks).
+   */
+  shade?: number;
 }
 
 /**

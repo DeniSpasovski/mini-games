@@ -5,11 +5,11 @@ README files carry the same information in more detail. Keep this file current w
 
 ## Licence scope
 
-| Material                                                                                                                                                                              | Licence                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Source code, procedural assets, docs, screenshots (everything original)                                                                                                               | [PolyForm Noncommercial 1.0.0](LICENSE)                                 |
-| Baked map data of the real maps (`maps/<id>/`: `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg` renders) | ODbL 1.0 + attribution (derived from OpenStreetMap and other open data) |
-| Third-party models and data listed below                                                                                                                                              | their own licences; not relicensed by this project                      |
+| Material                                                                                                                                                                                             | Licence                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Source code, procedural assets, docs, screenshots (everything original)                                                                                                                              | [PolyForm Noncommercial 1.0.0](LICENSE)                                 |
+| Baked map data of the real maps (`maps/<id>/`: `data.json`, `route.json`, `horizon.json`, `junction*.json`, `canopy.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg` renders) | ODbL 1.0 + attribution (derived from OpenStreetMap and other open data) |
+| Third-party models and data listed below                                                                                                                                                             | their own licences; not relicensed by this project                      |
 
 ## Software
 
@@ -52,6 +52,7 @@ The portal and game-cover `wordmark.svg` files are title text outlined from Arch
 | Building footprints                                      | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                                                                                                             | ODbL, © Microsoft                                                                                                                                  | Ajvatovci               |
 | Roads OSM does not have                                  | [Microsoft ML Road Detections](https://github.com/microsoft/RoadDetections)                                                                                                                                    | ODbL, © Microsoft                                                                                                                                  | Petralica, Ajvatovci    |
 | Land cover                                               | [ESA WorldCover 10 m 2021](https://esa-worldcover.org/)                                                                                                                                                        | CC BY 4.0, © ESA WorldCover project 2021 / contains modified Copernicus Sentinel data (2021)                                                       | all real maps           |
+| Tree positions and canopy height                         | [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/) (Meta and World Resources Institute)                                                                               | CC BY 4.0, imagery © Maxar 2018-2020                                                                                                               | Vodno                   |
 | Leaf type of the woods                                   | [Copernicus Sentinel-2 L2A](https://registry.opendata.aws/sentinel-2-l2a-cogs/)                                                                                                                                | free and open Copernicus data / contains modified Copernicus Sentinel data (2025)                                                                  | Vodno                   |
 | Elevation (30 m)                                         | [Copernicus DEM GLO-30](https://doi.org/10.5069/G9028PQB) via OpenTopography                                                                                                                                   | © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA                                    | Petralica               |
 | Elevation (5 m lidar)                                    | [USGS 3D Elevation Program](https://www.usgs.gov/3d-elevation-program)                                                                                                                                         | US public domain, credit USGS 3DEP                                                                                                                 | Jackie Robinson Parkway |
@@ -118,9 +119,13 @@ CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: 
 
 CC0 scan from Poly Haven, simplified by `scripts/rocks/bake-rocks.mjs`: Rock Moss Set 01 (Kless Gyzen). No credit is required.
 
+The road-cut rock faces (`engine/props/cut-face.*.webp`): CC0 scan from Poly Haven, toned to a light stone by
+`scripts/rocks/bake-cut-face.py`: [Cliff Side](https://polyhaven.com/a/cliff_side) (James Ray Cock, Dario Barresi, Jenelle van
+Heerden). It also skins the Vodno trail start's flat stones. No credit is required.
+
 ### Tree bark (baked into `src/games/rally/trees/bark/`)
 
-CC0 scans from Poly Haven, made grey (with their normal maps) by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva), Bark Willow (Dario Barresi, Dimitrios Savva), Japanese Cedar Bark (Charlotte Baglioni) for cypress and juniper. No credit is required.
+CC0 scans from Poly Haven, made grey (with their normal maps) by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva), Bark Willow (Dario Barresi, Dimitrios Savva), Japanese Cedar Bark (Charlotte Baglioni) for cypress and juniper; the pine bark also skins the Vodno trail start's roots. No credit is required.
 
 ### Grass, weeds and reeds (baked into `src/games/rally/engine/plants/`)
 
@@ -140,7 +145,7 @@ Four smoke sprites from Particle Pack 1.1 by Kenney (kenney.nl, CC0; the copy at
 
 ### Building textures (baked into `src/games/rally/engine/facades/`)
 
-CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.
+CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar), Stone Wall (Charlotte Baglioni, Dario Barresi; made grey for Vodno's dry-stone walls). No credit is required.
 
 ### Kaboom environment light (baked into `src/games/kaboom/assets/hdri/`)
 

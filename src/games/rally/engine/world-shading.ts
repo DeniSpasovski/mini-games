@@ -70,6 +70,8 @@ export const worldUniforms = {
   /** The finer canopy window following the camera (world/canopy-shadows.ts) and its ground mapping. */
   wsCanopyLocal: { value: null as Texture | null },
   wsCanopyLocalMap: { value: new Vector4(0, 0, 0, 0) },
+  /** Forest floor (`GroundTint.shade`, 0 = off): the share of the sky light the crowns shut out over the ground under them. */
+  wsCanopyAO: { value: 0 },
   /** Baked terrain light (world/terrain-light.ts: R the shadow line, G sky in view, B its penumbra), its ground mapping and strengths. */
   wsTerrain: { value: null as Texture | null },
   wsTerrainMap: { value: new Vector4(0, 0, 0, 0) },
@@ -564,6 +566,7 @@ uniform sampler2D wsCanopy;
 uniform vec4 wsCanopyMap;
 uniform sampler2D wsCanopyLocal;
 uniform vec4 wsCanopyLocalMap;
+uniform float wsCanopyAO;
 uniform vec4 wsShadowBox;
 uniform vec3 wsNear;
 uniform vec4 wsFar;
@@ -684,6 +687,34 @@ float wsCanopyCover( vec2 xz ) {
 		if ( lw > 0.0 ) d = mix( d, texture2D( wsCanopyLocal, lu ).g, lw );
 	}
 	return d;
+}
+/** Hash 0..1 of a lattice point (sin-free: the same on every GPU at map-sized coordinates). */
+float wsFloorHash( vec2 p ) {
+	vec3 q = fract( p.xyx * 0.1031 );
+	q += dot( q, q.yzx + 33.33 );
+	return fract( ( q.x + q.y ) * q.z );
+}
+/** Value noise 0..1 on a 1 m lattice (the forest floor's crown edges). */
+float wsFloorNoise( vec2 p ) {
+	vec2 i = floor( p );
+	vec2 f = fract( p );
+	f = f * f * ( 3.0 - 2.0 * f );
+	return mix(
+		mix( wsFloorHash( i ), wsFloorHash( i + vec2( 1.0, 0.0 ) ), f.x ),
+		mix( wsFloorHash( i + vec2( 0.0, 1.0 ) ), wsFloorHash( i + 1.0 ), f.x ),
+		f.y
+	);
+}
+/**
+ * The forest floor's crown cover (\`GroundTint.shade\` maps): \`wsCanopyCover\` looked up ~1.7 m off by a noise warp
+ * (~3 m swirls) and its rim pushed in and out by ~1 m blots, so a lone tree's humus / shade has a ragged edge, not a
+ * disc; a closed stand's inside (cover ~1 all round) is unchanged.
+ */
+float wsFloorCover( vec2 xz ) {
+	vec2 warp = vec2( wsFloorNoise( xz * 0.33 ), wsFloorNoise( xz * 0.33 + 19.1 ) ) - 0.5;
+	float c = wsCanopyCover( xz + warp * 3.4 );
+	float n = wsFloorNoise( xz * 1.1 + 7.3 );
+	return clamp( c + ( n - 0.5 ) * 1.2 * ( 1.0 - c ) * smoothstep( 0.0, 0.25, c ), 0.0, 1.0 );
 }
 `;
 
@@ -910,6 +941,20 @@ const WET_LAMBERT = /* glsl */ `
 	diffuseColor.rgb *= 1.0 - 0.18 * wsWet.x;
 `;
 
+/**
+ * Forest floor (in `lights_fragment_end`, `lightsEnd`): under a closed canopy the crowns hide most of
+ * the sky, so the ground there lives on the sun flecks the shadow maps let through (`GroundTint.shade` via `setGroundTint`, 0 = off).
+ */
+const CANOPY_FLOOR = /* glsl */ `
+#ifdef RALLY_GROUND
+	if ( wsCanopyAO > 0.0 ) {
+		float wsUnder = wsCanopyAO * smoothstep( 0.05, 0.7, wsFloorCover( wsWorldPos( geometryPosition ).xz ) );
+		reflectedLight.indirectDiffuse *= 1.0 - wsUnder;
+		reflectedLight.indirectSpecular *= 1.0 - wsUnder;
+	}
+#endif
+`;
+
 let installed = false;
 let basePhysical = '';
 let baseLambert = '';
@@ -933,7 +978,22 @@ function wetShading(on: boolean): void {
   const chunks = ShaderChunk as Record<string, string>;
   chunks.lights_physical_fragment = (on ? WET_PHYSICAL : '') + basePhysical;
   chunks.lights_lambert_fragment = (on ? WET_LAMBERT : '') + baseLambert;
-  chunks.lights_fragment_end = baseLightsEnd + (on ? PUDDLE_SKY : '');
+  chunks.lights_fragment_end = lightsEnd(on);
+}
+
+/**
+ * Ground: the sky light the terrain round it leaves in view (valleys, the foot of a slope; `setTerrainLight`). A
+ * constant chunk so every rebuild of `lights_fragment_end` (`wetShading`, each `setWet`) keeps it.
+ */
+const TERRAIN_SKY = /* glsl */ `
+#ifdef RALLY_GROUND
+	reflectedLight.indirectDiffuse *= wsTerrainLight( wsWorldPos( geometryPosition ) ).y;
+#endif
+`;
+
+/** three's own `lights_fragment_end` + the ground's sky terms (terrain, then the forest floor) + the wet puddles' sky. */
+function lightsEnd(wet: boolean): string {
+  return baseLightsEnd + TERRAIN_SKY + CANOPY_FLOOR + (wet ? PUDDLE_SKY : '');
 }
 
 function install(): void {
@@ -991,14 +1051,7 @@ function install(): void {
     lights.slice(shadow + SUN_SHADOW.length, lineEnd) +
     FOLIAGE_TERM +
     lights.slice(lineEnd);
-  // Ground: the sky light the terrain round it leaves in view (valleys, the foot of a slope).
-  chunks.lights_fragment_end =
-    chunks.lights_fragment_end +
-    /* glsl */ `
-#ifdef RALLY_GROUND
-	reflectedLight.indirectDiffuse *= wsTerrainLight( wsWorldPos( geometryPosition ) ).y;
-#endif
-`;
+  chunks.lights_fragment_end = lightsEnd(false);
   // Car reflections: the specular env lookup at the material's own `envMapIntensity` (see `carEnv`).
   const ibl = chunks.envmap_physical_pars_fragment;
   const radiance = 'return envMapColor.rgb * envMapIntensity;';

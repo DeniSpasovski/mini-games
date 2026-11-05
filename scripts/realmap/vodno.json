@@ -10,7 +10,8 @@
     [41.9752331, 21.4076597]
   ],
   "osm": {
-    "source": "overpass"
+    "source": "overpass",
+    "footpaths": { "kinds": ["path", "footway"], "corridor": 300 }
   },
   "route": {
     "width": 6.0
@@ -37,6 +38,12 @@
       "broadleaf": "oakwood",
       "split": [0.35, 0.65]
     }
+  },
+  "canopyHeight": {
+    "tile": "120233330",
+    "cache": "sources/maps/vodno/canopy",
+    "minHeight": 3,
+    "woods": ["pine", "mixed", "oakwood", "trees"]
   },
   "canopy": {
     "trees": 8,
