@@ -338,6 +338,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     : null;
   const replayUi = new ReplayUi(root, game, {
     exitLabel: replayParam ? 'Menu' : 'Results',
+    canSave: !replayParam,
     onExit: () => {
       game.exitReplay();
       replayUi.hide();

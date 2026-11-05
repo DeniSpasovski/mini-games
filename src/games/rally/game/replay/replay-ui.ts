@@ -40,7 +40,12 @@ export class ReplayUi {
   constructor(
     private root: HTMLElement,
     private game: RallyGame,
-    private opts: { onExit: () => void; exitLabel: string },
+    private opts: {
+      onExit: () => void;
+      exitLabel: string;
+      /** False for a replay opened from the menu (already saved, renamed in Stage times): no Save button. */
+      canSave: boolean;
+    },
   ) {
     this.el = document.createElement('div');
     this.el.className = 'replay-ui hidden';
@@ -79,6 +84,7 @@ export class ReplayUi {
         <div class="rp-keys"><b>Space</b> play · <b>← →</b> ${SKIP} s · <b>, .</b> frame · <b>[ ]</b> speed · <b>1–7</b> camera · <b>C</b> next camera · <b>H</b> clean feed${videoSupported() ? ' · <b>V</b> video' : ''} · <b>Esc</b> exit</div>
       </div>
       <div class="rp-clean-hint" data-ref="hint">Clean feed · <b>H</b> or tap to show the controls</div>`;
+    if (!opts.canSave) this.el.querySelector('[data-a="name"]')?.remove();
     root.append(this.el);
     this.el
       .querySelectorAll<HTMLElement>('[data-ref]')
