@@ -711,9 +711,11 @@ body {
 .touch-stick {
   --stick: clamp(120px, 26vmin + 30px, 210px);
   position: absolute;
-  /* Rest spot: where the left / right buttons were. */
-  left: calc(max(16px, env(safe-area-inset-left)) + var(--stick) / 2);
-  top: calc(100% - max(16px, env(safe-area-inset-bottom)) - var(--stick) / 2);
+  /* Rest spot: bottom left, with room around it for the thumb to push past the rim (the pedals sit tighter, 16 px).
+     The side safe-area inset is the camera cutout, which sits mid-height in landscape, so it is not added here (it
+     pushed the stick inwards). */
+  left: calc(28px + var(--stick) / 2);
+  top: calc(100% - max(22px, env(safe-area-inset-bottom)) - var(--stick) / 2);
   width: var(--stick);
   height: var(--stick);
   margin: calc(var(--stick) / -2) 0 0 calc(var(--stick) / -2);
