@@ -211,7 +211,7 @@ export function gravelShader(
         // The cars' own tracks are graded, not thresholded: one track is a light print, where several cross it is packed.
         rut = max( rut, clamp( tyres - 0.35 * ( hs - 1.0 ), 0.0, 1.0 ) * smoothstep( 0.05, 0.2, tyres ) );
         rut *= 1.0 - 0.7 * smoothstep( 1.25, 1.7, hs );
-        // Packed: the stones pressed flat under a skin of fines, darker (GR_TRACK_TONE) and flatter (relief below); a third
+        // Packed: the stones pressed flat under a skin of fines, darker (GR_TRACK_TONE), a little flatter (relief below); a third
         // of the fine grain stays, with faint tyre streaks along it.
         float streak = grNoise( vec2( x * 28.0, along / 9.0 ) ) - 0.5;
         float bl = max( dot( b, vec3( 0.2126, 0.7152, 0.0722 ) ), 1e-4 );
@@ -233,9 +233,9 @@ export function gravelShader(
         float macro = texture2D( tMacro, wp * 0.0031 ).r;
         diffuseColor.rgb *= a * mix( 0.78, 1.16, macro );
         // Relief height as the terrain's gravel (scale 0.5 around the mean, x 4), flatter in the ruts.
-        grH = 2.0 * ( hy - 1.0 ) * ( 1.0 - 0.85 * rut ) * ( 1.0 + 0.8 * loose );
+        grH = 2.0 * ( hy - 1.0 ) * ( 1.0 - 0.2 * rut ) * ( 1.0 + 0.8 * loose );
         // The tracks sit a little lower (packed): their edges catch the light.
-        grH -= 0.35 * rut;
+        grH -= 0.2 * rut;
         // Lumps and dips of the road bed (about 1.3 m and 0.45 m across; the car's own bumps are the same order in
         // physics/vehicle.ts surfaceBump), lit by the normal and a little darker in the dips.
         float lump = 1.6 * ( grNoise( wp / 1.3 + 17.0 ) - 0.5 ) + 1.0 * ( grNoise( wp / 0.45 + 5.0 ) - 0.5 );
@@ -257,7 +257,8 @@ export function gravelShader(
     .replace(
       '#include <roughnessmap_fragment>',
       `#include <roughnessmap_fragment>
-      roughnessFactor -= 0.6 * wsWet.x * grRut;`,
+      // Dry, the packed fines are as matte as the loose stones (fully rough, no sheen against a low sun); wet, glossier.
+      roughnessFactor = mix( roughnessFactor, 1.0, grRut ) - 0.6 * wsWet.x * grRut;`,
     )
     .replace(
       '#include <normal_fragment_maps>',
