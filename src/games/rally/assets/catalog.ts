@@ -211,7 +211,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 120, castShadow: true },
       { maxDistance: 480, castShadow: false },
     ],
-    colliders: [{ kind: 'cylinder', r: 0.28, h: 12 }],
+    colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
     tint: 0.08,
   },
   {

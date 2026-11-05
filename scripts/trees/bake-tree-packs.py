@@ -92,6 +92,19 @@ def texture(g, binary, mat, slot):
     return Image.open(io.BytesIO(binary[off:off + bv['byteLength']]))
 
 
+def spent_blossom(im):
+    """Lilac blooms in late April; the rest of the year the panicles are seed heads. Purple pixels -> olive brown, keeping
+    their light and shade."""
+    a = np.asarray(im).astype(np.float32)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    purple = (b > g + 2) & (r > g + 2)
+    lum = 0.3 * r + 0.59 * g + 0.11 * b
+    seed = np.array([112, 96, 60], np.float32) / 150.0
+    for c in range(3):
+        a[..., c] = np.where(purple, np.clip(lum * seed[c], 0, 255), a[..., c])
+    return Image.fromarray(a.astype(np.uint8), 'RGBA')
+
+
 def main():
     files = dict(zip(PACKS, sys.argv[1:4]))
     if len(files) != 3:
@@ -117,8 +130,6 @@ def main():
     for pid, (bark_m, leaf_m, stems) in PACKS.items():
         g, binary = load_glb(files[pid])
         ms = meshes(g, binary)
-        for k, (slot, mat) in enumerate([('color', bark_m), ('color', leaf_m)]):
-            pass
         sizes = SIZES[pid]
         for name, mat, slot, px in [
             ('bark', bark_m, 'color', sizes[0]),
@@ -128,6 +139,8 @@ def main():
         ]:
             im = texture(g, binary, mat, slot)
             im = im.convert('RGBA' if name == 'leaf' else 'RGB').resize((px, px), Image.LANCZOS)
+            if pid == 'lilac' and name == 'leaf':
+                im = spent_blossom(im)
             path = os.path.join(TEX, f'{pid}-{name}.webp')
             im.save(path, 'WEBP', quality=82 if name != 'leaf-n' else 80, method=6, alpha_quality=90)
             print(path, os.path.getsize(path) // 1024, 'KB')
@@ -145,8 +158,15 @@ def main():
                 bark = parts['bark']
                 if origin is None:
                     P = bark[0]
-                    low = P[P[:, 1] < P[:, 1].min() + 0.3]
-                    origin = np.array([low[:, 0].mean(), P[:, 1].min(), low[:, 2].mean()])
+                    y0 = P[:, 1].min()
+                    low = P[P[:, 1] < y0 + 0.3]
+                    c = low[:, [0, 2]].mean(axis=0)
+                    if pid == 'pine':
+                        # A tree's root flares spread to one side: its axis is the trunk's middle 1.5-3 m up.
+                        band = P[(P[:, 1] > y0 + 1.5) & (P[:, 1] < y0 + 3)][:, [0, 2]]
+                        band = band[np.hypot(*(band - np.median(band, axis=0)).T) < 1]
+                        c = (band.min(axis=0) + band.max(axis=0)) / 2
+                    origin = np.array([c[0], y0, c[1]])
                     allp = np.concatenate([parts['bark'][0], parts['leaf'][0]]) - origin
                     height = float(allp[:, 1].max())
                     radius = float(np.hypot(allp[:, 0], allp[:, 2]).max())
