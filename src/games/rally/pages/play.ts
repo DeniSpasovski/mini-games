@@ -47,7 +47,7 @@ import { seasonParam } from '../season';
 import { stageCardImageUrl } from '../tools/stage-card';
 import { ReplayUi } from '../game/replay/replay-ui';
 import { readHeader } from '../game/replay/codec';
-import { formatBytes, nameForm, storageLine } from '../game/replay/manage-ui';
+import { nameForm, storageLine } from '../game/replay/manage-ui';
 import {
   cleanName,
   loadReplay,
@@ -379,7 +379,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   };
   game.onReplayReady = (file, saved) => {
     savedId = saved ? replayId(readHeader(file)) : null;
-    replayNote(saved ? `auto save · ${formatBytes(file.length)}` : '');
+    replayNote(saved ? 'auto save' : '');
     const nb = nameButton();
     if (nb) {
       nb.hidden = !saved;
@@ -513,7 +513,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   game
     .init(setLoading)
     .then(async () => {
-      // F2 panel: the hidden debug exports (also `__rally.replay` in the console). Dev-only like the replays.
+      // F2 panel: the hidden debug exports (also `__rally.replay` in the console). 
       if (REPLAYS_ENABLED) {
         game.telemetry.addAction('Copy replay', () => game.replay.copy());
         game.telemetry.addAction('Copy trace 5 s', () =>

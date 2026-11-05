@@ -124,8 +124,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 
 ## Replays (`game/replay/`)
 
-**Dev-only for now** (`REPLAYS_ENABLED` = not `RELEASE_BUILD`, `store.ts`): the dev server and `npm run build:test` record
-every run; the release build records nothing and has no replay entry point. A run can be watched from the results, from
+**On in every build** (`REPLAYS_ENABLED`, `store.ts`): every run is recorded. A run can be watched from the results, from
 Stage times (▶ on a run with a replay, "Replays on this device" list) or by URL (`?replay=<id>` on the play URL; `replayUrl()`). Research, sizes and options: `sources/rally/REPLAY.md` (local).
 
 - **Recording** (`recorder.ts`): state, not inputs (re-simulating from rounded inputs drifts hundreds of metres in a minute).

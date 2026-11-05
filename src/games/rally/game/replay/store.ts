@@ -4,15 +4,11 @@
  * Nothing is evicted: past `REPLAY_SOFT_LIMIT` the menus ask the player to delete auto saves (`autoDeleteIds`, bests
  * kept by default). Every call fails soft (private mode, quota, blocked): a run is never lost for a replay.
  */
-import { RELEASE_BUILD } from '../../../../shared/release';
 import { readHeader } from './codec';
 import type { ReplayHeader } from './format';
 
-/**
- * Replays are dev-only for now (the dev server and `npm run build:test`): the release build records nothing and shows
- * no replay entry point (results button, Stage times list, `?replay=`, F2 buttons). The repo's one release switch.
- */
-export const REPLAYS_ENABLED = !RELEASE_BUILD;
+/** Replays are on in every build: every run is recorded and watchable (results button, Stage times list, `?replay=`, F2 buttons). */
+export const REPLAYS_ENABLED = true;
 
 const DB = 'rally-replays';
 const VERSION = 1;

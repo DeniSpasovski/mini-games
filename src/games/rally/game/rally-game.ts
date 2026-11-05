@@ -1434,7 +1434,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
    * car must be this page's: a replay of another stage or car opens by loading that stage (pages/play.ts).
    */
   async watchReplay(file?: Uint8Array): Promise<ReplaySession> {
-    if (!REPLAYS_ENABLED) throw new Error('replays are dev-only');
+    if (!REPLAYS_ENABLED) throw new Error('replays are off');
     if (!file && this.replayHeader) this.finishReplay();
     const f = file ?? (await this.currentReplay());
     const session = await ReplaySession.open(f, this.world, this.camera);
