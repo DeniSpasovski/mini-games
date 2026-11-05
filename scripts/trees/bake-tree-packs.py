@@ -6,7 +6,8 @@ The packs are not in the repository (git-ignored sources/).
 
   python scripts/trees/bake-tree-packs.py <pine.glb> <lilac.glb> <bush.glb>
 
-Every variant stands on the origin (trunk foot, y up, metres). Packed mesh (little endian), per part and level:
+Every variant stands on the origin (trunk foot, y up, metres). The pines also keep the pack's own far billboard (its
+crossed cards and their texture, `<pack>-board-<variant>.webp`) as `board`: the level past the three meshes. Packed mesh (little endian), per part and level:
 u32 vertices, f32 lo[3], f32 size[3], f32 uvLo[2], f32 uvSize[2], then per vertex u16 x3 position (quantised in the box), i8 x3
 normal, i8 pad, u16 x2 uv (quantised in the uv box; glTF: origin top left, the bark tiles), then u32 index count, u16 indices.
 """
@@ -123,6 +124,8 @@ def main():
         '  radius: number;',
         '  /** Level of detail 0 (near) .. 2. */',
         '  lods: PackLevel[];',
+        '  /** The far billboard (crossed cards, one texture per variant), packed like the meshes. */',
+        '  board?: string;',
         '}',
         '',
         "export const TREE_PACKS: Record<'pine' | 'lilac' | 'bush', PackModel[]> = {",
@@ -184,13 +187,27 @@ def main():
                 levels.append((pack(*parts['bark'], at), pack(*parts['leaf'], at)))
                 print(pid, stem, 'LOD', lod, 'shift', np.round(box - box0, 2))
                 print(pid, stem, 'LOD', lod, len(parts['bark'][3]) // 3 + len(parts['leaf'][3]) // 3, 'tris')
+                if lod == 0:
+                    whole = np.concatenate([parts['bark'][0], parts['leaf'][0]])
+                    full0 = (whole.min(axis=0) + whole.max(axis=0)) / 2
+            board = None
+            if pid == 'pine' and f'{stem}_Billboard_LOD3_{stem}_Billboard_Mat_0' in ms:
+                # The billboard stands beside the meshes too: moved onto level 0 by the whole tree's box.
+                _, P, N, U, I = ms[f'{stem}_Billboard_LOD3_{stem}_Billboard_Mat_0'][0]
+                c = (P.min(axis=0) + P.max(axis=0)) / 2
+                at = origin + (c - full0) * [1, 0, 1]
+                board = pack(P, N, U, I, at)
+                im = texture(g, binary, f'{stem}_Billboard_Mat', 'color').convert('RGBA').resize((256, 512), Image.LANCZOS)
+                path = os.path.join(TEX, f'{pid}-board-{stems.index(stem)}.webp')
+                im.save(path, 'WEBP', quality=82, method=6, alpha_quality=90)
+                print(pid, stem, 'billboard', len(I) // 3, 'tris', os.path.getsize(path) // 1024, 'KB')
             lines.append(f'    {{ height: {height:.2f}, radius: {radius:.2f}, lods: [')
             for b, lf in levels:
                 lines.append("      { bark: '%s', leaf: '%s' }," % (base64.b64encode(b).decode(), base64.b64encode(lf).decode()))
-            lines.append('    ] },')
+            lines.append('    ]' + (", board: '%s' }," % base64.b64encode(board).decode() if board else ' },'))
         lines.append('  ],')
     lines.append('};')
-    open(OUT, 'w').write('\n'.join(lines) + '\n')
+    open(OUT, 'w', newline='\n').write('\n'.join(lines) + '\n')
     print(OUT, os.path.getsize(OUT) // 1024, 'KB')
 
 

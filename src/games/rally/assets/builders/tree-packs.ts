@@ -23,12 +23,16 @@ import bushBark from './tree-packs/bush-bark.webp';
 import bushBarkN from './tree-packs/bush-bark-n.webp';
 import bushLeaf from './tree-packs/bush-leaf.webp';
 import bushLeafN from './tree-packs/bush-leaf-n.webp';
+import pineBoard0 from './tree-packs/pine-board-0.webp';
+import pineBoard1 from './tree-packs/pine-board-1.webp';
+import pineBoard2 from './tree-packs/pine-board-2.webp';
 
 /**
- * Hero trees and shrubs from three CC BY 4.0 packs by LOLIPOP (credits: THIRD-PARTY.md): Scots pines (4-31 m, a bare
+ * Hero trees and shrubs from three CC BY 4.0 packs by LOLIPOP (credits: THIRD-PARTY.md): Scots pines (13-31 m, a bare
  * trunk under a few needle clumps), lilac and bush shrubs. The models' own triangles, uvs and textures, three levels of
- * detail each, baked by `scripts/trees/bake-tree-packs.py` into `tree-packs.data.ts`. They stand where a place needs the
- * look of a particular tree close to the road (Vodno's trail stand, car park and hairpin); the forest is the generated trees.
+ * detail each (the pines a fourth: the pack's own far billboard), baked by `scripts/trees/bake-tree-packs.py` into
+ * `tree-packs.data.ts`. They stand near the road (Vodno's trail stand, the near wood band, the understorey); the forest
+ * beyond is the generated trees.
  */
 export type PackKind = 'pine' | 'lilac' | 'bush';
 
@@ -109,6 +113,27 @@ function load(url: string, colour: boolean, repeat: boolean): Texture | null {
 
 const materials = new Map<string, MeshStandardMaterial>();
 
+/** The far billboards' textures, per pine variant. */
+const BOARDS = [pineBoard0, pineBoard1, pineBoard2];
+
+/** The far billboard of a pine variant: its own texture, alpha-tested, lit both sides, no wind (too far to see). */
+function boardMaterial(variant: number): MeshStandardMaterial {
+  const key = `pine:board:${variant}`;
+  let m = materials.get(key);
+  if (m) return m;
+  m = new MeshStandardMaterial({
+    color: COLOUR.pine[1],
+    map: load(BOARDS[variant % BOARDS.length], true, false),
+    roughness: 0.9,
+    side: DoubleSide,
+    alphaTest: 0.5,
+  });
+  m.name = `pine board ${variant}`;
+  m.defines = { RALLY_FOLIAGE: THROUGH.pine };
+  materials.set(key, m);
+  return m;
+}
+
 /** The bark or leaf material of a pack: its own textures (leaf cards alpha-tested, lit through the leaves against the sun). */
 export function packMaterial(
   kind: PackKind,
@@ -153,6 +178,15 @@ function pack(kind: PackKind): AssetBuilder {
   return ({ variant, lod }) => {
     const models = TREE_PACKS[kind];
     const m = models[variant % models.length];
+    if (lod >= m.lods.length && m.board)
+      return {
+        parts: [
+          {
+            geometry: decode(m.board),
+            material: boardMaterial(variant % models.length),
+          },
+        ],
+      };
     const level = m.lods[Math.min(lod, m.lods.length - 1)];
     return {
       parts: [

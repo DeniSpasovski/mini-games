@@ -207,9 +207,9 @@ repository).
 
 ### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*.webp`)
 
-Vodno's trail stand, car park and hairpin use a few models of three CC BY 4.0 packs by LOLIPOP (Sketchfab account
-lolipop_1707): Scots pines, lilac and bush shrubs (their own triangles, normals, uvs and textures, three levels of detail,
-the textures shrunk and recompressed; packed by `scripts/trees/bake-tree-packs.py`; the source files are not in the
+Vodno's roadside (pines near the road, lilac and bush understorey) uses a few models of three CC BY 4.0 packs by LOLIPOP
+(Sketchfab account lolipop_1707): Scots pines, lilac and bush shrubs (their own triangles, normals, uvs and textures, three
+levels of detail, the pines also their far billboards; the textures shrunk and recompressed; packed by `scripts/trees/bake-tree-packs.py`; the source files are not in the
 repository).
 
 | Pack                                          | Author                                    | Licence   |

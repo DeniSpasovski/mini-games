@@ -459,6 +459,17 @@ export interface RealTreesDef {
   scale: [number, number];
   tilt?: number;
   sink?: number;
+  /**
+   * Model trees (catalog assets, e.g. `pack_pine`) in place of the generated ones within `dist` m of the road edge, by
+   * the land cover class: the variant whose height (`heights[asset]`, m per variant at scale 1) is nearest the tree's
+   * height x `gain` (the canopy model reads tall conifers low), scaled to it (0.5-1.4x).
+   */
+  near?: {
+    dist: number;
+    assets: Record<string, string[]>;
+    heights: Record<string, number[]>;
+    gain?: number;
+  };
 }
 
 /** Standing water: closed polygon (world x/z, not repeating the first point). */
@@ -1037,6 +1048,36 @@ export interface ScatterRule {
    * the row stops where the slope leaves `minSlope` / `maxSlope`. `alignToGround` / `tilt` are ignored.
    */
   outcrop?: { pieces: [number, number]; step?: number; lean?: number };
+}
+
+/** An OSM feature point (scripts/realmap/features.py): kind, x, z, heading of the way it sits on (rad), OSM node id. */
+export type MapFeaturePoint = [string, number, number, number, number];
+
+/** Road-side features OSM maps (data.json "features", baked by scripts/realmap/features.py; ODbL). */
+export interface MapFeatures {
+  points: MapFeaturePoint[];
+  /** Barrier lines: fence / wall / kerb / guard_rail / retaining_wall / hedge, `pts` flat [x, z, ...], `type` = fence_type / material. */
+  lines: { kind: string; pts: number[]; id: number; type?: string }[];
+}
+
+/**
+ * Derived guard rails: wherever the carved ground falls more than `minDrop` m below the stage road within `within` m
+ * (default 3) of the valley edge (the verge's outer edge), a guard rail runs along that edge. Gaps under `gap` m (14) are bridged, runs under
+ * `minLength` m (16) dropped, ends led in `lead` m (4). Explicit `barriers` rules (hand-placed, hairpin, OSM-mapped
+ * `barrier=guard_rail`) win: no derived run overlaps one on the same side; one that meets it carries it on (its steel).
+ */
+export interface DropRails {
+  minDrop: number;
+  within?: number;
+  gap?: number;
+  minLength?: number;
+  lead?: number;
+  offset?: number;
+  from?: number;
+  to?: number;
+  skipJunctions?: number;
+  /** Weathered rusty steel (default) or galvanised. */
+  rusty?: boolean;
 }
 
 /** An OSM feature point (scripts/realmap/features.py): kind, x, z, heading of the way it sits on (rad), OSM node id. */

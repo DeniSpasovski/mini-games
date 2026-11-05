@@ -204,12 +204,13 @@ export const ASSET_CATALOG: AssetMeta[] = [
     category: 'vegetation',
     fade: true,
     description:
-      'Scots pines (4, 16 and 31 m) of a CC BY pack: a bare trunk under a few needle clumps, three levels of detail. Hero trees at the roadside; solid trunk.',
+      'Scots pines (13, 15 and 31 m) of a CC BY pack: a bare trunk under a few needle clumps, three meshes and the pack billboard far away. Hero trees near the road; solid trunk.',
     variants: 3,
     lods: [
       { maxDistance: 45, castShadow: true },
       { maxDistance: 120, castShadow: true },
       { maxDistance: 480, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
     ],
     colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
     tint: 0.08,
