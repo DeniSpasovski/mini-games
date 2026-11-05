@@ -247,8 +247,11 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
   // --- carcass (both sidewalls) ----------------------------------------------------------------------------------
   // Outer half profile, bead -> shoulder (radius, axial fraction). The bead sits behind the flange, leaves it at the
   // flange's edge, the rim protector rib bulges out just above it, the lettering sits on the widest part.
+  // The first ring closes across the inside of the tyre: a few mm outside the rim barrel (which sits at `bead`), never on
+  // it, or the two fight in depth and the barrel shows stripes between the spokes.
+  const seat = Math.min(bead + 0.004, (bead + lipR - 0.003) / 2);
   const side: { r: number; a: number }[] = [
-    { r: bead, a: lipA - 0.12 },
+    { r: seat, a: lipA - 0.12 },
     { r: lipR - 0.003, a: lipA - 0.03 },
     { r: lipR + 0.002, a: lipA + 0.005 },
     { r: lipR + 0.07 * h, a: lipA + 0.62 * (1 - lipA) },
