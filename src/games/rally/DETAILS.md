@@ -304,6 +304,18 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   is fixed by road distance, never by camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road
   (crossed cards at every distance: blade strips by the road read as bare ground next to them), so nothing swaps or
   fills in as the car drives on.
+- **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from five atlases
+  (`engine/plants/*.webp`, coverage mips) that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models:
+  green / dry / spring grass tufts, the weed margin (dandelion, celandine), nettles (`tall_weeds`); and from CC BY
+  Sketchfab models (Nicholas-3D, credits in `THIRD-PARTY.md` and the About page): reed beds and cattails (`reeds`, variant
+  2 = cattails; `--sheets reeds` rebakes only that sheet). `pack.py` `tone()` pulls the green sheet's pale seed stalks towards the leaf colour and turns the dry sheet's orange to straw; grass cards cut at a lower alpha (`GRASS_CARD_ALPHA`, `materials.ts`). `SHEET_GAIN` brings each sheet into the measured bands (cards
+  and blade strips alike; `cardColor` lifts the green / spring cards to meet the blades; a test checks). Variant 1 of `grass_tuft` / `spring_grass` swaps one tuft card for a narrow
+  margin card and puts dandelions on its blade strips (a small share of the cards' area); keep grass at two variants,
+  it draws as a variant set. A stage loads only the sheets its season's assets use (`plantSheetsReady`, `assetIds`); a
+  sheet that fails to load is logged and drawn as plain blades.
+- **Vineyards** (`engine/vines.ts`): canopy cards painted per season from the trees' lobed leaf sprays (`trees/leaftex.ts`)
+  as canes rising from the cordon, colours in the trees' measured bands (`LEAF`); trunks and cordon arms wear the trees'
+  scanned cedar bark (`vineBarkMaterial`).
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
@@ -614,6 +626,11 @@ ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sou
 - Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).
 - Empty InstancedMeshes are hidden (each still costs a draw setup). A split by camera distance runs before the render
   (the road `DistanceCull` calls `userData.beforeRender`), not in `onBeforeRender`, which needs a visible mesh.
+- Level fades (`world/lod-fade.ts`, catalog `fade`: grass, weeds, crops, vines, people): a level change at a rebuild draws
+  the instance in both buckets for 0.3 s with a per-instance `instFade` (start, role); the fade copy of the material
+  (`lodFadeMaterial`) dithers the two with the trees' 8 x 8 pattern, only while a fade runs (its `discard` costs early
+  depth). One copy casts the shadow; `endFades` drops the outgoing copies when the fades end. The far end of the last
+  level fades too.
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**

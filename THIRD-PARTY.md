@@ -122,6 +122,18 @@ CC0 scan from Poly Haven, simplified by `scripts/rocks/bake-rocks.mjs`: Rock Mos
 
 CC0 scans from Poly Haven, made grey (with their normal maps) by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva), Bark Willow (Dario Barresi, Dimitrios Savva), Japanese Cedar Bark (Charlotte Baglioni) for cypress and juniper. No credit is required.
 
+### Grass, weeds and reeds (baked into `src/games/rally/engine/plants/`)
+
+CC0 plant models from Poly Haven, rendered into card atlases by `scripts/plants/bake-plants.mjs`: Grass Medium 01 (Rob Tuytel, Rico Cilliers), Grass Medium 02 (Rico Cilliers), Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02 (Rob Tuytel, Rico Cilliers). No credit is required.
+
+The reeds sheet (`reeds.webp`) is rendered the same way from two CC BY 4.0 models (the reed plants, and the cattail
+clump of the showcase; the source files are not in the repository).
+
+| Model                                                                                                                                             | Author                                                      | Licence   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------- |
+| ["Reed Plants Pack"](https://sketchfab.com/3d-models/reed-plants-pack-bc77ea5218e44f2dbc23b2a4aef0c898)                                           | [Nicholas-3D](https://sketchfab.com/Nicholas01) (Sketchfab) | CC BY 4.0 |
+| ["Ground Cover Foliage Showcase"](https://sketchfab.com/3d-models/ground-cover-foliage-showcase-ae35b4f7856644f58860b1f0c889848a) (cattails only) | [Nicholas-3D](https://sketchfab.com/Nicholas01) (Sketchfab) | CC BY 4.0 |
+
 ### Dust (baked into `src/games/rally/engine/particles/dust.webp`)
 
 Four smoke sprites from Particle Pack 1.1 by Kenney (kenney.nl, CC0; the copy at github.com/Calinou/kenney-particle-pack), made into one atlas by `scripts/particles/bake-dust.py`. No credit is required.
