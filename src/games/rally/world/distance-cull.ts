@@ -15,7 +15,9 @@ import { Matrix4, Sphere } from 'three';
  * Ilinden, Marino, the A2) drew roads and barriers out to the camera's far plane - beyond the streamed terrain,
  * floating over nothing. Use the terrain view distance (`quality.viewDistance`).
  *
- * Checks run only after the camera has moved `step` metres (a few hundred bounding-sphere tests).
+ * Checks run only after the camera has moved `step` metres (a few hundred bounding-sphere tests). An InstancedMesh
+ * with no instances stays hidden. Objects with a `userData.beforeRender(x, z)` hook (the Ajvatovci start-row fleet's
+ * near / far split) get it called on every update, before the frame renders; it returns true when it changed something.
  */
 export class DistanceCull {
   /** `id` >= 0: an instance of a BatchedMesh (world/static-batch.ts), shown / hidden with `setVisibleAt`. */
@@ -28,6 +30,7 @@ export class DistanceCull {
   }[] = [];
   private lastX = Infinity;
   private lastZ = Infinity;
+  private hooks: ((x: number, z: number) => boolean)[] = [];
 
   constructor(
     root: Object3D,
@@ -38,6 +41,9 @@ export class DistanceCull {
     const s = new Sphere();
     const at = new Matrix4();
     root.traverse((o) => {
+      const hook = o.userData.beforeRender as
+        ((x: number, z: number) => boolean) | undefined;
+      if (hook) this.hooks.push(hook);
       const m = o as Mesh & Partial<InstancedMesh> & Partial<Line>;
       if (!m.isMesh && !m.isLine) return;
       const b = o as Partial<BatchedMesh>;
@@ -80,6 +86,7 @@ export class DistanceCull {
 
   /** Show / hide by horizontal distance from `pos`. */
   update(pos: Vector3, force = false): void {
+    for (const hook of this.hooks) if (hook(pos.x, pos.z)) force = true;
     if (
       !force &&
       Math.hypot(pos.x - this.lastX, pos.z - this.lastZ) < this.step
@@ -90,7 +97,8 @@ export class DistanceCull {
     let hidden = 0;
     for (const it of this.items) {
       const show =
-        Math.hypot(it.x - pos.x, it.z - pos.z) - it.r <= this.maxDistance;
+        Math.hypot(it.x - pos.x, it.z - pos.z) - it.r <= this.maxDistance &&
+        (it.obj as InstancedMesh).count !== 0;
       if (it.id >= 0) (it.obj as BatchedMesh).setVisibleAt(it.id, show);
       else it.obj.visible = show;
       if (!show) hidden++;
