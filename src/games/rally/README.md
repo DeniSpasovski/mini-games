@@ -34,6 +34,8 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 - Five tyres (tarmac and gravel in soft and hard, plus mixed), tyre sizes and class per car, suspension and gearing set-ups, with a live 3D set-up screen.
 - Tyre and brake temperature per stage weather (Ajvatovci a hot June morning, Petralica a cool September afternoon): cold tyres and pads
   grip less, hot discs fade; HUD marks for both.
+- Tyres that look like rally tyres: a tread pattern per compound, printed sidewall lettering and dust that builds up over a run.
+- Replays of every run, saved in the browser: Broadcast, Trackside, chase, bonnet, bumper and Drone cameras, a timeline, speed control and video recording.
 - Stage timer with sectors, time penalties for cutting and knocking over marker posts, top-10 times per stage (stored
   locally).
 - Tool pages: map viewer, car viewer, asset debugger (dev server).
