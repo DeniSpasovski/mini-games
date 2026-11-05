@@ -15,6 +15,9 @@ Reads the `wheelRim` block of the car's model.source.json (all numbers in MODEL 
                vertices all lie inside maxR of the axis (hub, spokes; the brake disc / caliper sit behind minX)
     lathe      closed (r, |x|) profile of a procedural lip + barrel, turned round the axis (`segments` steps): print models
                fuse the rim barrel into the tyre, so the model's own barrel is a jagged tyre wall
+    clipR      optional: cut the spoke face exactly on this circle (m) instead of dropping every triangle that crosses `face.maxR`
+               (that left ragged spoke tips), then sink what is left above the lathe's lip under its front surface, so the
+               spoke ends vanish inside the lip and nothing pokes through it. Use a radius inside the lip (r 0.216 - 0.243)
     tyre       {"minX": .., "minR": .., "maxR": ..}: the model's tyre = triangles whose vertices all lie in that |x| / r range
                (only its width and outer face matter to the converter, so keep the arch liner out of it)
     rim / tyreOut  output STL paths (wheel space: STL z = axle, outer face at z max, metres)
@@ -65,6 +68,10 @@ rv = np.hypot(W[..., 0], W[..., 1]).max(1)
 f = wc['face']
 barrel_wall = (r > f['maxR'] - 0.035) & (nr < -0.3)  # the tyre's inner wall (replaced by the lathe barrel)
 face = (C[:, 2] > f['minX']) & (rv < f['maxR']) & ~barrel_wall
+clip_r = wc.get('clipR')
+if clip_r:
+    # Take every face triangle that reaches into the clip circle; the clip below trims them exactly.
+    face = (C[:, 2] > f['minX']) & (r < clip_r) & ~barrel_wall
 t = wc['tyre']
 rmin = np.hypot(W[..., 0], W[..., 1]).min(1)
 tyre = (W[..., 2].min(1) > t['minX']) & (rmin >= t['minR']) & (rv < t['maxR']) & ~face & ~barrel_wall
@@ -92,7 +99,56 @@ out_r = (mid[:, 0] * L[:, 0] + mid[:, 1] * L[:, 1]) / (mr + 1e-12) * (mr - cen[0
 if (out_r < 0).mean() > 0.5:
     lathe = lathe[:, ::-1]
 
-rim = np.concatenate([W[face], lathe])
+face_tris = W[face]
+if clip_r:
+    def clip_circle(tri, rad, sides=192):
+        """Sutherland-Hodgman: a triangle (3, 3) clipped against the regular `sides`-gon of circumradius `rad`
+        (apothem rad * cos(pi / sides) ~ the circle) -> fan of triangles."""
+        poly = [p for p in tri]
+        ap = rad * np.cos(np.pi / sides)
+        for k in range(sides):
+            a = 2 * np.pi * (k + 0.5) / sides
+            nx, ny = np.cos(a), np.sin(a)
+            d = [p[0] * nx + p[1] * ny - ap for p in poly]
+            if all(x <= 0 for x in d):
+                continue
+            nxt = []
+            for i in range(len(poly)):
+                p, q, dp, dq = poly[i], poly[(i + 1) % len(poly)], d[i], d[(i + 1) % len(poly)]
+                if dp <= 0:
+                    nxt.append(p)
+                if (dp <= 0) != (dq <= 0):
+                    nxt.append(p + (q - p) * (dp / (dp - dq)))
+            poly = nxt
+            if len(poly) < 3:
+                return []
+        return [np.array([poly[0], poly[i], poly[i + 1]]) for i in range(1, len(poly) - 1)]
+
+    rr = np.hypot(face_tris[..., 0], face_tris[..., 1]).max(1)
+    out = []
+    for t, tri in enumerate(face_tris):
+        out.extend(clip_circle(tri, clip_r) if rr[t] > clip_r else [tri])
+    face_tris = np.array(out)
+    # The lathe's front surface z(r) (upper half of the profile, r rising): the spokes are sunk 4 mm under it.
+    pr = np.array(wc['lathe'], float)
+    top = pr[pr[:, 1] >= pr[:, 1].max() - 0.04]
+    # front envelope: the highest |x| of the profile at each radius
+    top = np.array([[rv_, top[top[:, 0] == rv_, 1].max()] for rv_ in np.unique(top[:, 0])])
+    z_front = lambda rad: np.interp(rad, top[:, 0], top[:, 1]) - 0.004
+    rad = np.hypot(face_tris[..., 0], face_tris[..., 1])
+    inner = pr[:, 0].min()
+    clamp = rad >= inner
+    face_tris[..., 2] = np.where(clamp, np.minimum(face_tris[..., 2], z_front(rad)), face_tris[..., 2])
+    # Weld the tip vertices onto a 0.75 mm grid: the clip leaves needle-thin triangles (a whisker 40 mm long and 0.3 mm wide) whose
+    # corners are a hair apart; welding collapses them without cracks.
+    tipv = np.hypot(face_tris[..., 0], face_tris[..., 1]) > 0.195
+    face_tris = np.where(tipv[..., None], np.round(face_tris / 0.00075) * 0.00075, face_tris)
+    # Drop the hair-thin slivers the clip and the sink leave at the spoke tips (they render as bright whiskers).
+    area2 = np.linalg.norm(np.cross(face_tris[:, 1] - face_tris[:, 0], face_tris[:, 2] - face_tris[:, 0]), axis=1)
+    longest = np.max([np.linalg.norm(face_tris[:, i] - face_tris[:, (i + 1) % 3], axis=1) for i in range(3)], axis=0)
+    near_tip = np.hypot(*face_tris.mean(1)[:, :2].T) > 0.19
+    face_tris = face_tris[(area2 / (longest + 1e-12) > 0.00015) | ~near_tip]
+rim = np.concatenate([face_tris, lathe])
 
 
 def write_stl(path, tris):
@@ -110,6 +166,6 @@ def write_stl(path, tris):
 
 write_stl(wc['rim'], rim)
 write_stl(wc['tyreOut'], W[tyre])
-print(f"rim: {face.sum()} face + {len(lathe)} lathe triangles -> {wc['rim']}")
+print(f"rim: {len(face_tris)} face + {len(lathe)} lathe triangles -> {wc['rim']}")
 print(f"tyre: {tyre.sum()} triangles -> {wc['tyreOut']}")
 print(f"bead radius (--barrel): {prof[:, 0].min():.4f}; face z max {rim[..., 2].max():.4f}, tyre z {W[tyre][..., 2].min():.4f} .. {W[tyre][..., 2].max():.4f}")
