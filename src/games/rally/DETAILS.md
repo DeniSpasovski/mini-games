@@ -72,7 +72,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 | Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                               |
 |          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                      |
 |          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B                                                                                                     |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset)                                                                                                     |
 | Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit |
 | Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                        |
 
@@ -148,7 +148,7 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
   line of sight past tree crowns / colliders of the corridor, planned at the finish in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). Broadcast shows big corners from their trackside camera and cycles
   the others between them; no cut under 2.5 s or in the air.
 - **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed
-  0.25-2x, camera picker (a dropdown under 1360 px), Save (name), Clean feed, Record video, Exit (back to results, or the menu for a URL replay).
+  0.25-2x, camera picker (a dropdown under 1360 px), Save (name; it turns to an inactive "Saved" once named, and is not there for a replay opened from the menu: rename it in Stage times), Clean feed, Record video (not in the release build), Exit (back to results, or the menu for a URL replay).
 - **Video** (`video.ts`; dev server and `build:test` only until it is fixed, `videoSupported()`): `MediaRecorder` on the canvas + game audio (mp4 / webm), clean feed, real time; downloads on stop.
 - **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`;
   `trace(s, every)` / `copyTrace()` / `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel
@@ -427,7 +427,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   road (Vodno's concrete wall at the first crossroad, on a pad `lift`ed above the road: `maps/vodno/crossroad.ts`);
   `cutWalls.solid` holds the cut tight (`cutShape`: a thin coping) and gives the face box colliders
   (`world/cut-wall-colliders.ts`), so a car stops at it. `routePoints` takes a
-  sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a stretch.
+  sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a stretch; `MapDef.treeCrownClear` (Vodno: 1.5 m) re-poses any tree (variant, rotation, size) whose low leaves (under 4 m) would reach more than that many metres past the road's edge (`lowOverRoad` in `world/scatter.ts`), so no limb hangs over the road.
 - **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` /
   `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`; Vodno's car parks:
   `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts`, the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`, and the brick hotel behind the side street at the first crossroad (building on its own terrace, forecourt on the road) `hotel.ts`: its own `lot_brick` texture, fixed `street_car` variants 16 / 17). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
