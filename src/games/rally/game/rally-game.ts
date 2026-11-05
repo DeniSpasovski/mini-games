@@ -94,6 +94,7 @@ import { GravelStones } from './gravel-stones';
 import { nearestZones, Rain, RAIN_DROPS, roofZones } from './rain';
 import { LampReflections } from './lamp-reflections';
 import { weatherLook, weatherParam } from '../weather';
+import { TyreDust } from './tyre-dust';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
@@ -268,6 +269,8 @@ export class RallyGame {
   dust!: ParticleSystem;
   /** Ruts / skid marks behind the wheels. */
   tyreMarks!: TyreMarks;
+  /** Dust building up on the tyres over the run. */
+  readonly tyreDust = new TyreDust();
   /** Small dark stones flung from loose surfaces (bounce on the terrain). */
   gravel!: GravelStones;
   /** Big faint dust that hangs over the road for a while (medium / high quality). */
@@ -1014,6 +1017,8 @@ export class RallyGame {
     this.vehicle.reset(spawn.position, spawn.heading);
     this.vehicle.resetTyreTemps();
     this.tyreMarks?.breakStrips();
+    this.tyreDust.reset();
+    this.model.setTyreDust(0, this.tyreDust.color);
     this.rig.snap();
     this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
     this.people.reset((inst, m) => this.streamer.setMatrix(inst, m));
@@ -1719,6 +1724,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     if (!this.paused) {
       this.emitDust(dt);
       this.tyreMarks.update();
+      if (this.tyreDust.update(dt, this.vehicle))
+        this.model.setTyreDust(this.tyreDust.level, this.tyreDust.color);
     }
     this.dust.update(dt);
     this.splash.update(dt, 0.9, -9.8);

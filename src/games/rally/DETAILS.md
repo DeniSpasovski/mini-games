@@ -504,7 +504,8 @@ open it.
 - In game: no set-up HUD; a "hold on!" line at GO for a poor tyre pick; the dash shows the four tyre temperatures
   and a disc mark per wheel (PHYSICS.md "Tyre temperature" / "Brakes"); `F2` shows tyre, set-up, per-wheel grip, tyre and disc temperature.
 
-Rendering: `cars/shared/tyre-mesh.ts` (tread per compound, compound ring), `suspension-mesh.ts` (per
+Rendering: `cars/shared/tyre-mesh.ts` (carcass, tread band, lettering ring), `tyre-tread.ts` (tread pattern per compound:
+normal + groove maps, materials, dust tint), `tyre-sidewall.ts` (wordmark, tyre name, compound band), `suspension-mesh.ts` (per
 `model.suspensionStyle`), `buildWheelSet` in `car-model.ts`.
 Cars whose model has empty wheel wells set `model.cornerSuspension` (`cars/shared/corner-suspension.ts`): a coil-over in the car's
 style plus arms / drive shafts, following the live wheel travel (Zastava, M3, GT2, C4, Lancer; Skoda, Fiesta, 22B show the model's own).

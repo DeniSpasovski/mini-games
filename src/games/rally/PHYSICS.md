@@ -580,7 +580,7 @@ cars short stubby coil-overs with a piggyback reservoir, adjuster knob and helpe
 - [ ] **Asset debugger**: tyre + set-up pickers for `car:<id>` in `pages/asset-debug.ts`; `?susp=` in the car viewer.
 - [x] **Emergent roughness**: gravel and loose gravel `bump` 6 / 10 -> 15 mm (long wavelengths, `surfaceBump`),
       so the road is felt as well as seen; tests green (the 126p wanders further in a straight run and when braking hard on gravel).
-- [ ] **Tyre look in motion**: check the three tread patterns can be told apart at chase-cam distance; mud / wear vertex
-      colours; fewer segments (80) if the triangle count matters on phones.
+- [ ] **Tyre look in motion**: the tread band is displaced geometry plus normal / groove maps (11-13k triangles a tyre); planned: a speed-blur swap (low-poly
+      tyre + motion-blurred tread texture, crossfade ~20-40 km/h, no strobing) and a distance LOD; mud / wear colours.
 - [ ] **Optional extras**: audio layers (tarmac squeal near the limit, gravel-tread hum on asphalt), co-driver style
       lines, tyre / set-up choice in the pause menu.

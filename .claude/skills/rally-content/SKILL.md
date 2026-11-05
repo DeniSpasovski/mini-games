@@ -218,7 +218,8 @@ a player should see credited also go in `CarDef.sources` (label / url / note) - 
 
 ## Tyres, rims and coil-overs
 
-Every tyre comes from `cars/shared/tyre-mesh.ts` (size from `CarPhysicsDef.tyres`, tread per compound, compound ring); a car only
+Every tyre comes from `cars/shared/tyre-mesh.ts` (size from `CarPhysicsDef.tyres`; tread pattern per compound in `tyre-tread.ts`,
+sidewall lettering in `tyre-sidewall.ts`; rally DETAILS.md "Physics and set-up" -> Rendering); a car only
 supplies its rim (`model.wheelModel` GLB rim - rescaled per tyre size - or `model.wheels` for a custom rim + caliper) and flags
 (`tyreDust`). Coil-overs / struts for the setup screen: `cars/shared/suspension-mesh.ts`, pick `model.suspensionStyle`
 (`rally` / `road` / `race`). Verify in the car viewer (`?tyre=tarmac|mixed|gravel`) and on the setup screen (parts bench).

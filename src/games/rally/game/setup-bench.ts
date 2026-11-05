@@ -127,7 +127,7 @@ export class SetupBench {
       this.geometries.push(w.tire, w.rim, w.caliper);
       if (w.disc) this.geometries.push(w.disc);
       const spin = new Group();
-      spin.add(new Mesh(w.tire, wheelMaterials.tire));
+      spin.add(new Mesh(w.tire, wheelMaterials.tire(id)));
       spin.add(new Mesh(w.rim, rimMat));
       spin.add(new Mesh(w.caliper, wheelMaterials.caliper));
       if (w.disc) spin.add(new Mesh(w.disc, wheelMaterials.disc));
