@@ -90,3 +90,14 @@ test('an instance the last rebuild did not see takes its level at once (no fade 
   nextFade(s, 1, 5, 9);
   expect(fadeCopies(s)).toEqual([[1, FADE_SOLID]]);
 });
+
+test('while driving, an instance new to the stream fades in to its level (no pop-in where the last rebuild missed it)', () => {
+  const s = newFadeState();
+  nextFade(s, 1, 10, 0, true);
+  expect(s.start).toBe(START_AT_COMMIT);
+  expect(fadeCopies(s)).toEqual([[1, FADE_IN]]);
+  // Past every level: nothing to fade in.
+  const far = newFadeState();
+  nextFade(far, -1, 10, 0, true);
+  expect(fadeCopies(far)).toEqual([]);
+});

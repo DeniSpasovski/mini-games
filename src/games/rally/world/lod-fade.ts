@@ -6,8 +6,8 @@
  * - The streamer picks each instance's level at every rebuild (`nextFade` here, pure, tested). A change of level
  *   starts a fade of a fixed time (`LOD_FADE_TIME`), not tied to distance, so a car stopping at a threshold never
  *   leaves an instance half faded. A level reached back during a fade reverses it from where it is; a third level
- *   waits for the running fade. An instance coming into the stream (or out of range) takes its level at once; one
- *   crossing the far end of its last level fades in or out (an empty level).
+ *   waits for the running fade. An instance coming into the stream takes its level at once when the stream starts
+ *   (loading) and fades in while driving; one crossing the far end of its last level fades in or out (an empty level).
  * - During a fade the instance is drawn twice, in the bucket of each level, with one per-instance attribute
  *   `instFade` = (start time, role): ONE number per instance per frame (the fade value from the world clock `wsTime`),
  *   nothing derived from a vertex or pixel. Both copies use the same 8 x 8 screen-space ordered dither: the outgoing
@@ -15,8 +15,8 @@
  *   covered by exactly one level and the instance is never see-through. Shadows are not dithered: one copy casts, the
  *   outgoing level until halfway, then the incoming one (`RALLY_LOD_FADE_SHADOW`).
  * - The fade lives in the shared shader chunks (engine/world-shading.ts, materials with `defines.RALLY_LOD_FADE`): a
- *   bucket draws with its material's cached fade copy (`lodFadeMaterial`) only while a fade runs, and drops the
- *   finished outgoing copies when the last fade ends (`InstanceStreamer.endFades`). Nothing is cloned per instance.
+ *   bucket draws with its material's cached fade copy (`lodFadeMaterial`) only while a fade runs, or until the next
+ *   rebuild drops its finished outgoing copies (`InstanceStreamer.endFades`). Nothing is cloned per instance.
  */
 
 /** Fade time (s). */
@@ -59,21 +59,23 @@ export function fadeValue(s: FadeState, now: number): number {
 
 /**
  * Advance an instance's fade for rebuild `job` that wants level `lod` (-1 = none) at time `now`. A rebuild that did not
- * see the instance the time before (it was outside the streamed chunks) takes the level at once.
+ * see the instance the time before (it was outside the streamed chunks) takes the level at once, or with `fadeInFresh`
+ * (the streamer while driving) fades in to it: an instance the last rebuild missed must not pop in.
  */
 export function nextFade(
   s: FadeState,
   lod: number,
   job: number,
   now: number,
+  fadeInFresh = false,
 ): void {
   const fresh = s.seen !== job - 1;
   s.seen = job;
   if (fresh) {
-    s.lod = lod;
+    s.lod = fadeInFresh ? -1 : lod;
     s.from = -1;
     s.fading = false;
-    return;
+    if (!fadeInFresh || lod < 0) return;
   }
   if (s.fading && fadeValue(s, now) < 1) {
     if (lod === s.lod) return;
@@ -105,18 +107,22 @@ export function fadeCopies(s: FadeState): [number, number][] {
   return out;
 }
 
-/** GLSL: the 8 x 8 ordered (Bayer) dither of trees/materials.ts, 0..1, anchored to screen pixels. */
-const DITHER = /* glsl */ `
-float lodFadeDither() {
-	ivec2 p = ivec2( mod( gl_FragCoord.xy, 8.0 ) );
-	int b = 0;
-	int x = p.x;
-	int y = p.y ^ p.x;
-	for ( int i = 0; i < 3; i ++ ) {
-		b = ( b << 2 ) | ( ( ( y >> i ) & 1 ) << 1 ) | ( ( x >> i ) & 1 );
-	}
+/**
+ * GLSL `float bayerDither8()`: the 8 x 8 ordered (Bayer) dither, 0..1, anchored to screen pixels: a fixed tile, no
+ * gradient or direction. Shared by the level fade here and the trees' cross-fade (trees/materials.ts), so both dissolve
+ * with the same tile; guarded, so a shader may include it twice.
+ */
+export const BAYER_DITHER_8 = /* glsl */ `
+#ifndef RALLY_BAYER_DITHER_8
+#define RALLY_BAYER_DITHER_8
+float bayerDither8() {
+	int x = int( mod( gl_FragCoord.x, 8.0 ) );
+	int y = int( mod( gl_FragCoord.y, 8.0 ) );
+	int xy = x ^ y;
+	int b = ( ( xy & 1 ) << 5 ) | ( ( x & 1 ) << 4 ) | ( ( xy & 2 ) << 2 ) | ( ( x & 2 ) << 1 ) | ( ( xy & 4 ) >> 1 ) | ( ( x & 4 ) >> 2 );
 	return ( float( b ) + 0.5 ) / 64.0;
-}`;
+}
+#endif`;
 
 /** Vertex declarations (uv_pars_vertex). */
 export const LOD_FADE_PARS_VERTEX = /* glsl */ `
@@ -147,14 +153,14 @@ export const LOD_FADE_VERTEX = /* glsl */ `
 export const LOD_FADE_PARS_FRAGMENT = /* glsl */ `
 #ifdef RALLY_LOD_FADE
 varying vec2 vLodKeep;
-${DITHER}
+${BAYER_DITHER_8}
 #endif`;
 
 /** Fragment test (after alphatest_fragment). */
 export const LOD_FADE_FRAGMENT = /* glsl */ `
 #ifdef RALLY_LOD_FADE
 	{
-		float lfD = lodFadeDither();
+		float lfD = bayerDither8();
 		if ( lfD < vLodKeep.x || lfD >= vLodKeep.y ) discard;
 	}
 #endif`;

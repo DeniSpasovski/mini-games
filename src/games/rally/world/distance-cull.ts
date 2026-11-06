@@ -15,15 +15,19 @@ import { Matrix4, Sphere } from 'three';
  * Ilinden, Marino, the A2) drew roads and barriers out to the camera's far plane - beyond the streamed terrain,
  * floating over nothing. Use the terrain view distance (`quality.viewDistance`).
  *
- * Checks run only after the camera has moved `step` metres (a few hundred bounding-sphere tests). An InstancedMesh
- * with no instances stays hidden. Objects with a `userData.beforeRender(x, z)` hook (the Ajvatovci start-row fleet's
- * near / far split) get it called on every update, before the frame renders; it returns true when it changed something.
+ * Checks run only after the camera has moved `step` metres (a few hundred bounding-sphere tests). Objects with a
+ * `userData.beforeRender(x, z)` hook (the Ajvatovci start-row fleet's near / far split) get it called on every update,
+ * before the frame renders; it returns true when it changed something. An InstancedMesh under such a hook stays hidden
+ * while it has no instances (the hook's change re-runs the checks); one without a hook is shown whatever its count, as
+ * nothing would re-check it when it is filled later.
  */
 export class DistanceCull {
   /** `id` >= 0: an instance of a BatchedMesh (world/static-batch.ts), shown / hidden with `setVisibleAt`. */
   private items: {
     obj: Object3D;
     id: number;
+    /** An InstancedMesh under a `beforeRender` hook: hidden while empty. */
+    byCount: boolean;
     x: number;
     z: number;
     r: number;
@@ -55,6 +59,7 @@ export class DistanceCull {
           this.items.push({
             obj: o,
             id: i,
+            byCount: false,
             x: s.center.x,
             z: s.center.z,
             r: s.radius,
@@ -71,9 +76,14 @@ export class DistanceCull {
         s.copy(m.geometry.boundingSphere!);
       }
       s.applyMatrix4(m.matrixWorld);
+      let hooked = false;
+      if (m.isInstancedMesh)
+        for (let p: Object3D | null = o; p && !hooked; p = p.parent)
+          hooked = !!p.userData.beforeRender;
       this.items.push({
         obj: o,
         id: -1,
+        byCount: hooked,
         x: s.center.x,
         z: s.center.z,
         r: s.radius,
@@ -98,7 +108,7 @@ export class DistanceCull {
     for (const it of this.items) {
       const show =
         Math.hypot(it.x - pos.x, it.z - pos.z) - it.r <= this.maxDistance &&
-        (it.obj as InstancedMesh).count !== 0;
+        (!it.byCount || (it.obj as InstancedMesh).count !== 0);
       if (it.id >= 0) (it.obj as BatchedMesh).setVisibleAt(it.id, show);
       else it.obj.visible = show;
       if (!show) hidden++;

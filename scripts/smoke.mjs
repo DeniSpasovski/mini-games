@@ -1,15 +1,19 @@
-// Browser smoke test: loads a rally stage (and drives it a few seconds on autopilot), the map viewer and the car viewer
-// in headless Chrome and fails on any console error, uncaught exception, WebGL error or failed same-origin request.
+// Browser smoke test: loads each game's play and tool pages in headless Chrome (a rally stage driven a few seconds on
+// autopilot, the viewers, Hole Island, Kaboom) and fails on any console error, uncaught exception, WebGL error or failed
+// same-origin request.
 //   npm run test:smoke                              -> against a running dev server on http://localhost:3000
 //   npm run test:smoke -- --base http://localhost:3040 --stage jackie --car bimmer_m3
 //   npm run test:smoke -- --dist dist               -> serves a build (`npm run build:test`) on a free port
-// Options: --gpu native|swiftshader (default: swiftshader on CI, the real GPU locally), --drive <s> (autopilot seconds).
-// Every run uses a fresh profile, so it is also a cold-cache load (no HTTP / shader / IndexedDB cache).
+// Options: --gpu native|swiftshader (default: swiftshader on CI, the real GPU locally), --drive <s> (autopilot seconds),
+// --games rally,hole,kaboom (default: all; CI passes the `smoke` output of scripts/ci-affected.mjs).
+// By default every run uses a fresh temp profile, so it is also a cold-cache load (no HTTP / shader / IndexedDB cache).
+// --profile <dir> (or SMOKE_PROFILE=<dir>) reuses a profile folder instead (created if missing, never deleted; disk cache off).
 // CHROME=<path> picks the browser; otherwise the usual Chrome / Chromium install paths are tried.
 import { execSync, spawn } from 'node:child_process';
 import {
   createReadStream,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   rmSync,
   statSync,
@@ -24,13 +28,18 @@ const args = Object.fromEntries(
     .join(' ')
     .split('--')
     .filter(Boolean)
-    .map((a) => a.trim().split(/\s+/)),
+    .map((a) => {
+      const [key, ...value] = a.trim().split(/\s+/);
+      return [key, value.join(' ') || undefined];
+    }),
 );
 const STAGE = args.stage ?? 'ajvatovci';
 const CAR = args.car ?? 'skoda_rally';
 const GPU = args.gpu ?? (process.env.CI ? 'swiftshader' : 'native');
 const DRIVE_S = Number(args.drive ?? 6);
 const PAGE_TIMEOUT_S = GPU === 'swiftshader' ? 600 : 240; // the software GPU loads a map in minutes
+const PROFILE = args.profile ?? process.env.SMOKE_PROFILE;
+const GAMES = (args.games ?? 'rally,hole,kaboom').split(',').filter(Boolean);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -90,6 +99,7 @@ function serveDist(dir) {
     });
     createReadStream(file).pipe(res);
   });
+  cleanups.push(() => server.close());
   return new Promise((r) =>
     server.listen(0, 'localhost', () =>
       r(`http://localhost:${server.address().port}`),
@@ -97,8 +107,19 @@ function serveDist(dir) {
   );
 }
 
+/** Cleanups for Ctrl+C / kill: Chrome, and the build server when this script started one. */
+const cleanups = [];
+for (const sig of ['SIGINT', 'SIGTERM'])
+  process.on(sig, () => {
+    for (const f of cleanups) f();
+    process.exit(130);
+  });
+
 async function launchChrome() {
-  const profile = mkdtempSync(join(tmpdir(), 'smoke-'));
+  const profile = PROFILE
+    ? resolve(PROFILE)
+    : mkdtempSync(join(tmpdir(), 'smoke-'));
+  if (PROFILE) mkdirSync(profile, { recursive: true });
   const port = 9200 + Math.floor(Math.random() * 700);
   const gpu =
     GPU === 'swiftshader'
@@ -115,6 +136,7 @@ async function launchChrome() {
       '--no-default-browser-check',
       '--mute-audio',
       '--autoplay-policy=no-user-gesture-required',
+      ...(PROFILE ? ['--disk-cache-size=1'] : []),
       ...gpu,
       'about:blank',
     ],
@@ -122,6 +144,7 @@ async function launchChrome() {
   );
   const close = () => {
     chrome.kill();
+    if (PROFILE) return; // a reused profile stays
     try {
       rmSync(profile, { recursive: true, force: true, maxRetries: 5 });
     } catch {
@@ -129,6 +152,7 @@ async function launchChrome() {
     }
   };
   process.on('exit', close);
+  cleanups.push(close);
   let ws;
   for (let i = 0; i < 120 && !ws; i++) {
     await sleep(250);
@@ -223,11 +247,14 @@ function watchErrors(c, origin) {
   return errors;
 }
 
+/** Polls `expression` until truthy; a value `{ error }` (a failed load the page reported) ends the wait at once. */
 async function waitFor(c, expression) {
   for (let i = 0; i < PAGE_TIMEOUT_S * 4; i++) {
     await sleep(250);
     try {
-      if (await c.evaluate(expression)) return true;
+      const v = await c.evaluate(expression);
+      if (v?.error) return v.error;
+      if (v) return true;
     } catch {
       // page still loading
     }
@@ -235,11 +262,18 @@ async function waitFor(c, expression) {
   return false;
 }
 
+// Pages without a debug hook: the first canvas with a WebGL2 context (three.js creates WebGL2).
 const glError = (renderer) =>
-  `(() => { const gl = ${renderer}?.getContext(); return gl ? gl.getError() : 0; })()`;
+  renderer
+    ? `(() => { const gl = ${renderer}?.getContext(); return gl ? gl.getError() : 0; })()`
+    : `(() => { for (const cv of document.querySelectorAll('canvas')) { const gl = cv.getContext('webgl2'); if (gl) return gl.getError(); } return 0; })()`;
+// Pages without a debug hook are ready once the document has loaded and shows a canvas.
+const CANVAS_READY =
+  "document.readyState === 'complete' && !!document.querySelector('canvas')";
 
-const PAGES = [
+const ALL_PAGES = [
   {
+    game: 'rally',
     name: `stage ${STAGE}`,
     path: `games/rally/?stage=${STAGE}&car=${CAR}&mute=1&spawn=start`,
     ready: '!!(window.__rally && __rally.loadMs > 0)',
@@ -248,6 +282,7 @@ const PAGES = [
     renderer: '__rally.renderer',
   },
   {
+    game: 'rally',
     name: `map viewer ${STAGE}`,
     path: `games/rally/map-viewer.html?map=${STAGE}&mute=1`,
     ready: '!!window.__mapViewer',
@@ -255,14 +290,72 @@ const PAGES = [
     renderer: '__mapViewer.shell.renderer',
   },
   {
+    game: 'rally',
     name: `car viewer ${CAR}`,
     path: `games/rally/car-viewer.html?car=${CAR}&mute=1`,
+    // a failed model load comes back as { error }: no waiting out the timeout
     ready:
-      '(async () => { const m = window.__carViewer?.model; if (!m) return false; await m.ready; return true; })()',
+      '(async () => { const m = window.__carViewer?.model; if (!m) return false; try { await m.ready; } catch (e) { return { error: `car model: ${e?.stack ?? e}` }; } return true; })()',
     settleS: 3,
     renderer: '__carViewer.shell.renderer',
   },
+  {
+    game: 'rally',
+    name: 'asset debugger',
+    path: 'games/rally/asset-debug.html?mute=1',
+    ready: CANVAS_READY,
+    settleS: 3,
+  },
+  {
+    game: 'hole',
+    name: 'hole play',
+    path: 'games/hole/?mute=1',
+    ready: '!!window.__hole',
+    run: '__hole.advance(2)',
+    settleS: 2,
+    renderer: '__hole.game.renderer',
+  },
+  {
+    game: 'hole',
+    name: 'hole item viewer',
+    path: 'games/hole/item-viewer.html?mute=1',
+    ready: '!!window.__itemViewer',
+    settleS: 2,
+    renderer: '__itemViewer.shell.renderer',
+  },
+  {
+    game: 'hole',
+    name: 'hole map viewer',
+    path: 'games/hole/map-viewer.html?mute=1',
+    ready: '!!window.__mapViewer?.map',
+    settleS: 2,
+    renderer: '__mapViewer.shell.renderer',
+  },
+  {
+    game: 'kaboom',
+    name: 'kaboom play',
+    path: 'games/kaboom/?mute=1',
+    ready: '!!window.__kaboom',
+    run: '__kaboom.advance(2)',
+    settleS: 2,
+    renderer: '__kaboom.game.renderer',
+  },
+  {
+    game: 'kaboom',
+    name: 'kaboom map viewer',
+    path: 'games/kaboom/map-viewer.html?mute=1',
+    ready: CANVAS_READY,
+    settleS: 2,
+  },
+  {
+    game: 'kaboom',
+    name: 'kaboom crew viewer',
+    path: 'games/kaboom/crew-viewer.html?mute=1',
+    ready: '!!window.__crew',
+    settleS: 2,
+  },
 ];
+const PAGES = ALL_PAGES.filter((p) => GAMES.includes(p.game));
 
 const base = (
   args.dist
@@ -292,6 +385,7 @@ for (const page of PAGES) {
   await c.send('Page.navigate', { url: `${base}/${page.path}` });
   const ready = await waitFor(c, page.ready);
   if (!ready) errors.push(`not ready after ${PAGE_TIMEOUT_S} s`);
+  else if (ready !== true) errors.push(ready);
   else {
     if (page.run)
       await c.evaluate(page.run).catch((e) => errors.push(`run: ${e.message}`));
