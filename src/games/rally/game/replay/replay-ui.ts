@@ -13,7 +13,6 @@ import {
   DEFAULT_EXPORT_QUALITY,
   DEFAULT_EXPORT_SIZE,
   EXPORT_QUALITIES,
-  LOSSLESS,
   VideoExport,
   type ExportQuality,
   type ExportStatus,
@@ -25,33 +24,16 @@ import {
   type ExportSize,
 } from './export';
 import { nameForm } from './manage-ui';
-import {
-  PngSequenceExport,
-  losslessSupported,
-  pickSaveFolder,
-} from './png-export';
 import { cleanName, renameReplay, replayId } from './store';
-
-/** The quality choices: the MP4 presets, and Lossless where the browser can write into a folder. */
-const qualities = (): ExportQuality[] => [
-  ...EXPORT_QUALITIES,
-  ...(losslessSupported() ? [LOSSLESS] : []),
-];
 
 /** What each quality gives (sizes: 1080p, rough). */
 function exportNote(q: ExportQuality): string {
-  const tail =
-    'From the camera picked on the bar; drag the handles on the timeline to pick the section.';
-  switch (q.id) {
-    case 'standard':
-      return `${EXPORT_FPS} fps MP4 with sound, smallest file (about 200 MB a minute at 1080p). ${tail}`;
-    case 'high':
-      return `${EXPORT_FPS} fps MP4 with sound, hard to tell from the game (about 400 MB a minute at 1080p). ${tail}`;
-    case 'max':
-      return `${EXPORT_FPS} fps MP4 with sound, for editing or uploading again (about 750 MB a minute at 1080p). ${tail}`;
-    default:
-      return `A folder of ${EXPORT_FPS} fps PNG frames and the sound as WAV, every pixel exact (about 14 GB a minute at 1080p; import it as an image sequence). ${tail}`;
-  }
+  const what = {
+    standard: 'smallest file (about 200 MB a minute at 1080p)',
+    high: 'hard to tell from the game (about 400 MB a minute at 1080p)',
+    max: 'for editing or uploading again (about 750 MB a minute at 1080p)',
+  }[q.id];
+  return `${EXPORT_FPS} fps MP4 with sound, ${what}. From the camera picked on the bar; drag the handles on the timeline to pick the section.`;
 }
 
 const ICON = {
@@ -387,9 +369,9 @@ export class ReplayUi {
       <div class="rp-ex-row"><span class="rp-ex-label">Resolution</span>
         <div class="menu-seg rp-ex-size">${EXPORT_SIZES.map((z) => `<button data-size="${z.id}">${z.label}</button>`).join('')}</div></div>
       <div class="rp-ex-row"><span class="rp-ex-label">Quality</span>
-        <div class="menu-seg rp-ex-quality">${qualities()
-          .map((q) => `<button data-quality="${q.id}">${q.label}</button>`)
-          .join('')}</div></div>
+        <div class="menu-seg rp-ex-quality">${EXPORT_QUALITIES.map(
+          (q) => `<button data-quality="${q.id}">${q.label}</button>`,
+        ).join('')}</div></div>
       <div class="rp-ex-note"></div>
       <div class="rp-ex-progress" hidden><div class="rp-ex-bar"><i></i></div><span class="rp-ex-status"></span></div>
       <div class="rp-ex-actions"><button class="menu-btn small primary" data-x="go">Export</button><button class="menu-btn small" data-x="cancel">Cancel</button></div>`;
@@ -402,7 +384,7 @@ export class ReplayUi {
         this.exp.size = this.exportSize = sz;
         this.drawExport();
       }
-      const qu = qualities().find((q) => q.id === b.dataset.quality);
+      const qu = EXPORT_QUALITIES.find((q) => q.id === b.dataset.quality);
       if (qu && !this.exp.running) {
         this.exp.quality = this.exportQuality = qu;
         this.drawExport();
@@ -496,18 +478,12 @@ export class ReplayUi {
     const quality = x.quality;
     // Where to save first (it needs this click): Chrome / Edge write the file while it renders.
     let file: FileSystemWritableFileStream | null | undefined;
-    let folder: Awaited<ReturnType<typeof pickSaveFolder>> | undefined;
     try {
-      if (quality === LOSSLESS) folder = await pickSaveFolder(name);
-      else file = await pickSaveFile(name);
+      file = await pickSaveFile(name);
     } catch (e) {
       console.warn('replay export: no save dialog', e);
-      if (quality === LOSSLESS) {
-        this.game.hud.message('COULD NOT OPEN THAT FOLDER', 2.5, 'small bad');
-        return;
-      }
     }
-    if (file === null || folder === null) return;
+    if (file === null) return;
     const ac = new AbortController();
     x.running = ac;
     this.el.classList.add('exporting');
@@ -564,16 +540,12 @@ export class ReplayUi {
         to: x.to,
         size: x.size,
         open: async (canvas) => {
-          const w = folder
-            ? new PngSequenceExport(canvas, folder.parent, folder.dir)
-            : !('q' in quality)
-              ? null
-              : await VideoExport.create(
-                  canvas,
-                  x.size,
-                  quality,
-                  file ?? undefined,
-                );
+          const w = await VideoExport.create(
+            canvas,
+            x.size,
+            quality,
+            file ?? undefined,
+          );
           opened = !!w;
           return w;
         },
@@ -589,7 +561,7 @@ export class ReplayUi {
         msg = 'THIS BROWSER CAN NOT ENCODE THAT SIZE';
         bad = true;
       } else {
-        msg = folder ? 'FRAMES AND SOUND SAVED' : 'VIDEO SAVED';
+        msg = 'VIDEO SAVED';
       }
     } catch (e) {
       console.warn('replay export failed', e);

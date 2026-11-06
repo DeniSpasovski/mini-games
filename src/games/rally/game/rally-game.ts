@@ -1562,6 +1562,19 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       lap = now;
     };
     const yieldTask = () => new Promise<void>((res) => setTimeout(res, 0));
+    // Wait for the GPU to finish what it was given (a 1-pixel read back): before the section nothing reads the canvas,
+    // so frames would pile up on the GPU and the first encoded frame would wait for all of them (a long stall at
+    // frame 3 with a progress bar that already showed the run-up done).
+    const gl = this.renderer.getContext();
+    const px = new Uint8Array(4);
+    const gpuSync = () => {
+      const fb = gl.getParameter(
+        gl.FRAMEBUFFER_BINDING,
+      ) as WebGLFramebuffer | null;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    };
     const aborted = () => !!opts.signal?.aborted;
     this.stop();
     this.exporting = true;
@@ -1592,6 +1605,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         i++
       ) {
         this.frame(0);
+        gpuSync();
         const busy =
           this.terrain.pending > 0 || this.streamer.busy || this.trees.busy;
         quiet = busy ? 0 : quiet + 1;
@@ -1608,6 +1622,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       r.playing = true;
       for (let i = 0; i < runUp; i++) {
         this.frame(step);
+        gpuSync();
         if (i % 8 === 7) {
           status({ phase: 'runup', done: (i + 1) / runUp });
           await yieldTask();

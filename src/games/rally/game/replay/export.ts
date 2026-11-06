@@ -26,10 +26,7 @@ export const EXPORT_QUALITIES = [
   { id: 'high', label: 'High', q: 1.15, mbps: 50 },
   { id: 'max', label: 'Maximum', q: 1.45, mbps: 100 },
 ] as const;
-export type Mp4Quality = (typeof EXPORT_QUALITIES)[number];
-/** Lossless: numbered PNG frames + WAV sound in a picked folder (`png-export.ts`), where the browser can write one. */
-export const LOSSLESS = { id: 'lossless', label: 'Lossless' } as const;
-export type ExportQuality = Mp4Quality | typeof LOSSLESS;
+export type ExportQuality = (typeof EXPORT_QUALITIES)[number];
 export const DEFAULT_EXPORT_QUALITY: ExportQuality = EXPORT_QUALITIES[1];
 
 /** Where an export is (`RallyGame.exportReplay` -> the panel's status line). */
@@ -81,7 +78,7 @@ export class VideoExport implements ExportWriter {
   static async create(
     canvas: HTMLCanvasElement,
     size: ExportSize,
-    quality: Mp4Quality,
+    quality: ExportQuality,
     /** A file picked on disk (`pickSaveFile`): written as it renders. Else kept in memory and downloaded at the end. */
     file?: FileSystemWritableFileStream,
   ): Promise<VideoExport | null> {
