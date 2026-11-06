@@ -16,6 +16,7 @@ README files carry the same information in more detail. Keep this file current w
 | Package                                                                         | Licence          | Use                               |
 | ------------------------------------------------------------------------------- | ---------------- | --------------------------------- |
 | [three.js](https://threejs.org/)                                                | MIT              | rendering (runtime)               |
+| Mediabunny                                                                      | MPL-2.0          | replay video export (runtime)     |
 | Rsbuild, Rspack, Rstest, Rslint, TypeScript, Prettier, happy-dom, meshoptimizer | MIT / Apache-2.0 | build and test tooling (dev only) |
 
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts and the CC0 Poly Haven environment light and detail textures (below): its critters, arenas, effects and sounds are original and procedural.

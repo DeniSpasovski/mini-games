@@ -1,17 +1,40 @@
 /**
  * The replay bar (STYLEGUIDE.md "Replay"): a glass transport slab along the bottom - timeline with start / split /
- * finish marks, play / skip, speed, camera, clean feed, video, exit - plus a camera plate top right. Keyboard,
- * pad (focus moves over the buttons; LB / RB camera, X play, Y clean feed) and touch (the timeline scrubs). DOM
- * updates only on change, a few times a second at most.
+ * finish marks, play / skip, speed, camera, clean feed, export (a section as a video file), exit - plus a camera
+ * plate top right. Keyboard, pad (focus moves over the buttons; LB / RB camera, X play, Y clean feed) and touch (the
+ * timeline scrubs). DOM updates only on change, a few times a second at most.
  */
 import './replay.css';
 import type { RallyGame } from '../rally-game';
 import { formatTime } from '../stage';
 import { REPLAY_CAMS, type ReplayCamId } from './replay-cameras';
 import { SPEEDS, type ReplaySession } from './session';
-import { ReplayVideo, videoSupported } from './video';
+import {
+  DEFAULT_EXPORT_QUALITY,
+  DEFAULT_EXPORT_SIZE,
+  EXPORT_QUALITIES,
+  VideoExport,
+  type ExportQuality,
+  type ExportStatus,
+  EXPORT_FPS,
+  EXPORT_SIZES,
+  downloadVideo,
+  exportSupported,
+  pickSaveFile,
+  type ExportSize,
+} from './export';
 import { nameForm } from './manage-ui';
 import { cleanName, renameReplay, replayId } from './store';
+
+/** What each quality gives (sizes: 1080p, rough). */
+function exportNote(q: ExportQuality): string {
+  const what = {
+    standard: 'smallest file (about 200 MB a minute at 1080p)',
+    high: 'hard to tell from the game (about 400 MB a minute at 1080p)',
+    max: 'for editing or uploading again (about 750 MB a minute at 1080p)',
+  }[q.id];
+  return `${EXPORT_FPS} fps MP4 with sound, ${what}. From the camera picked on the bar; drag the handles on the timeline to pick the section.`;
+}
 
 const ICON = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg>',
@@ -19,7 +42,8 @@ const ICON = {
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h3.5v15H7zM13.5 4.5H17v15h-3.5z" fill="currentColor"/></svg>',
   back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6l-6 6 6 6M19 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   fwd: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6l6 6-6 6M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  rec: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>',
+  export:
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
 /** Seconds a skip button / arrow key moves. */
@@ -32,7 +56,18 @@ export class ReplayUi {
   private session?: ReplaySession;
   private raf = 0;
   private lastUi = 0;
-  private video?: ReplayVideo;
+  /** Export panel open: the section (replay s) shown on the timeline; `running` while it renders. */
+  private exp?: {
+    from: number;
+    to: number;
+    size: ExportSize;
+    quality: ExportQuality;
+    pop: HTMLElement;
+    running?: AbortController;
+  };
+  /** Resolution picked last (kept for the next export of this page). */
+  private exportSize: ExportSize = DEFAULT_EXPORT_SIZE;
+  private exportQuality: ExportQuality = DEFAULT_EXPORT_QUALITY;
   private dragging = false;
   private padPrev: boolean[] = [];
   private onKey = (e: KeyboardEvent) => this.key(e);
@@ -54,13 +89,14 @@ export class ReplayUi {
         `<button data-cam="${c.id}" title="${i + 1}">${c.label}</button>`,
     ).join('');
     this.el.innerHTML = `
-      <div class="rp-plate"><span class="rp-tag">Replay</span><span data-ref="cam"></span><span class="rp-recording" data-ref="recording" hidden></span></div>
+      <div class="rp-plate"><span class="rp-tag">Replay</span><span data-ref="cam"></span></div>
       <div class="rp-bar" data-ref="bar">
         <div class="rp-timeline">
           <span class="rp-time" data-ref="time">0:00.00</span>
           <div class="rp-track" data-ref="track" role="slider" tabindex="0" aria-label="Replay position" aria-valuemin="0">
             <div class="rp-rail"><div class="rp-fill" data-ref="fill"></div></div>
             <div data-ref="marks"></div>
+            <div class="rp-sel" data-ref="sel" hidden><i class="rp-sel-h" data-h="from"></i><i class="rp-sel-h" data-h="to"></i></div>
             <div class="rp-head" data-ref="head"></div>
           </div>
           <span class="rp-time total" data-ref="total"></span>
@@ -77,11 +113,11 @@ export class ReplayUi {
           <div class="rp-actions">
             <button class="menu-btn small" data-a="name" data-ref="save" title="Name this replay: a named save is never deleted with the auto saves">Save</button>
             <button class="menu-btn small" data-a="clean">Clean feed</button>
-            ${videoSupported() ? `<button class="menu-btn small rp-video" data-a="video" data-ref="video">${ICON.rec}<span>Record video</span></button>` : ''}
+            ${exportSupported() ? `<button class="menu-btn small rp-export" data-a="export" data-ref="export" title="Save a section of this replay as a video file">${ICON.export}<span>Export</span></button>` : ''}
             <button class="menu-btn small primary" data-a="exit">${opts.exitLabel}</button>
           </div>
         </div>
-        <div class="rp-keys"><b>Space</b> play · <b>← →</b> ${SKIP} s · <b>, .</b> frame · <b>[ ]</b> speed · <b>1–7</b> camera · <b>C</b> next camera · <b>H</b> clean feed${videoSupported() ? ' · <b>V</b> video' : ''} · <b>Esc</b> exit</div>
+        <div class="rp-keys"><b>Space</b> play · <b>← →</b> ${SKIP} s · <b>, .</b> frame · <b>[ ]</b> speed · <b>1–7</b> camera · <b>C</b> next camera · <b>H</b> clean feed${exportSupported() ? ' · <b>V</b> export' : ''} · <b>Esc</b> exit</div>
       </div>
       <div class="rp-clean-hint" data-ref="hint">Clean feed · <b>H</b> or tap to show the controls</div>`;
     if (!opts.canSave) this.el.querySelector('[data-a="name"]')?.remove();
@@ -135,7 +171,7 @@ export class ReplayUi {
   }
 
   hide(): void {
-    if (this.video) void this.stopVideo();
+    this.closeExport();
     this.session = undefined;
     cancelAnimationFrame(this.raf);
     window.removeEventListener('keydown', this.onKey, true);
@@ -207,15 +243,6 @@ export class ReplayUi {
         .querySelectorAll<HTMLElement>('button')
         .forEach((b) => b.classList.toggle('on', b.dataset.speed === speedKey));
     }
-    const rec = this.video
-      ? `● REC ${formatTime(this.video.seconds).replace(/\.\d+$/, '')}`
-      : '';
-    this.set('recording', rec);
-    this.refs.recording.hidden = !rec;
-    if (this.refs.video) this.refs.video.classList.toggle('on', !!this.video);
-    // Recording stops by itself at the end.
-    if (this.video && !s.playing && s.time >= s.duration - 0.01)
-      void this.stopVideo();
   }
 
   private click(e: MouseEvent): void {
@@ -241,8 +268,9 @@ export class ReplayUi {
       case 'clean':
         this.setClean(true);
         break;
-      case 'video':
-        void this.toggleVideo();
+      case 'export':
+        if (this.exp) this.closeExport();
+        else this.openExport();
         break;
       case 'exit':
         this.opts.onExit();
@@ -321,32 +349,230 @@ export class ReplayUi {
     if (!on) this.refs.play.focus({ preventScroll: true });
   }
 
-  private async toggleVideo(): Promise<void> {
-    if (this.video) return this.stopVideo();
-    const s = this.session!;
-    const h = s.track.header;
-    // From the start line, clean, at normal speed.
-    if (s.time >= s.duration - 0.5) s.seek(Math.max(0, s.track.goTime - 1.5));
-    s.playing = true;
-    this.video = new ReplayVideo(
-      this.game.renderer.domElement,
-      this.game.audio.captureStream(),
-      `rally-${h.stage}-${h.car}-${new Date(h.date).toISOString().slice(0, 10)}`,
-    );
-    this.setClean(true);
+  /** Export panel over the bar: the section (handles on the timeline, I / O at the playhead), resolution, Export. */
+  private openExport(): void {
+    const s = this.session;
+    if (!s || this.exp) return;
+    const t = s.track;
+    // Default: from the run-up to GO to a few seconds past the finish (the car braking).
+    const from = Math.max(0, t.goTime - 1.5);
+    const to =
+      t.header.time !== undefined
+        ? Math.min(s.duration, t.finishTime + 3)
+        : s.duration;
+    const pop = document.createElement('div');
+    pop.className = 'rp-export-pop';
+    pop.innerHTML = `
+      <div class="rp-ex-title">Export video</div>
+      <div class="rp-ex-row"><span class="rp-ex-label">Section</span><b class="rp-ex-len" data-x="len"></b>
+        <span class="rp-ex-btns"><button class="menu-btn small" data-x="from" title="I">Start here</button><button class="menu-btn small" data-x="to" title="O">End here</button><button class="menu-btn small" data-x="all">Whole replay</button></span></div>
+      <div class="rp-ex-row"><span class="rp-ex-label">Resolution</span>
+        <div class="menu-seg rp-ex-size">${EXPORT_SIZES.map((z) => `<button data-size="${z.id}">${z.label}</button>`).join('')}</div></div>
+      <div class="rp-ex-row"><span class="rp-ex-label">Quality</span>
+        <div class="menu-seg rp-ex-quality">${EXPORT_QUALITIES.map(
+          (q) => `<button data-quality="${q.id}">${q.label}</button>`,
+        ).join('')}</div></div>
+      <div class="rp-ex-note"></div>
+      <div class="rp-ex-progress" hidden><div class="rp-ex-bar"><i></i></div><span class="rp-ex-status"></span></div>
+      <div class="rp-ex-actions"><button class="menu-btn small primary" data-x="go">Export</button><button class="menu-btn small" data-x="cancel">Cancel</button></div>`;
+    pop.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('button');
+      if (!b || !this.exp) return;
+      e.stopPropagation();
+      const sz = EXPORT_SIZES.find((z) => z.id === b.dataset.size);
+      if (sz && !this.exp.running) {
+        this.exp.size = this.exportSize = sz;
+        this.drawExport();
+      }
+      const qu = EXPORT_QUALITIES.find((q) => q.id === b.dataset.quality);
+      if (qu && !this.exp.running) {
+        this.exp.quality = this.exportQuality = qu;
+        this.drawExport();
+      }
+      switch (b.dataset.x) {
+        case 'from':
+        case 'to':
+          this.setSection(b.dataset.x, s.time);
+          break;
+        case 'all':
+          this.exp.from = 0;
+          this.exp.to = s.duration;
+          this.drawExport();
+          break;
+        case 'go':
+          void this.runExport();
+          break;
+        case 'cancel':
+          this.closeExport();
+          break;
+      }
+    });
+    this.refs.bar.append(pop);
+    this.exp = {
+      from,
+      to,
+      size: this.exportSize,
+      quality: this.exportQuality,
+      pop,
+    };
+    this.refs.sel.hidden = false;
+    this.refs.export?.classList.add('on');
+    this.drawExport();
+    pop
+      .querySelector<HTMLElement>('[data-x="go"]')!
+      .focus({ preventScroll: true });
   }
 
-  private async stopVideo(): Promise<void> {
-    const v = this.video;
-    if (!v) return;
-    this.video = undefined;
-    const bytes = await v.stop();
-    this.setClean(false);
-    this.game.hud.message(
-      `VIDEO SAVED · ${(bytes / 1e6).toFixed(1)} MB`,
-      2.5,
-      'small',
-    );
+  /** Move one end of the section (the other end is kept at least a frame away). */
+  private setSection(end: 'from' | 'to', t: number): void {
+    const x = this.exp;
+    const s = this.session;
+    if (!x || !s || x.running) return;
+    const min = 1 / EXPORT_FPS;
+    if (end === 'from') x.from = Math.max(0, Math.min(t, x.to - min));
+    else x.to = Math.min(s.duration, Math.max(t, x.from + min));
+    this.drawExport();
+  }
+
+  private drawExport(): void {
+    const x = this.exp;
+    const s = this.session;
+    if (!x || !s) return;
+    const d = Math.max(1e-3, s.duration);
+    const sel = this.refs.sel;
+    sel.style.left = `${((100 * x.from) / d).toFixed(3)}%`;
+    sel.style.width = `${((100 * (x.to - x.from)) / d).toFixed(3)}%`;
+    const len = x.to - x.from;
+    x.pop.querySelector('[data-x="len"]')!.textContent =
+      len < 60 ? `${len.toFixed(2)} s` : formatTime(len);
+    x.pop
+      .querySelectorAll<HTMLElement>('[data-size]')
+      .forEach((b) => b.classList.toggle('on', b.dataset.size === x.size.id));
+    x.pop
+      .querySelectorAll<HTMLElement>('[data-quality]')
+      .forEach((b) =>
+        b.classList.toggle('on', b.dataset.quality === x.quality.id),
+      );
+    x.pop.querySelector('.rp-ex-note')!.textContent = exportNote(x.quality);
+  }
+
+  private closeExport(): void {
+    const x = this.exp;
+    if (!x) return;
+    // Rendering: cancel it; the panel closes when it has stopped.
+    if (x.running) return x.running.abort();
+    x.pop.remove();
+    this.exp = undefined;
+    this.refs.sel.hidden = true;
+    this.refs.export?.classList.remove('on');
+    this.el.classList.remove('exporting');
+    this.refs.export?.focus({ preventScroll: true });
+  }
+
+  private async runExport(): Promise<void> {
+    const x = this.exp;
+    const s = this.session;
+    if (!x || !s || x.running) return;
+    const h = s.track.header;
+    const name = `rally-${h.stage}-${h.car}-${new Date(h.date).toISOString().slice(0, 10)}-${x.size.id}`;
+    const quality = x.quality;
+    // Where to save first (it needs this click): Chrome / Edge write the file while it renders.
+    let file: FileSystemWritableFileStream | null | undefined;
+    try {
+      file = await pickSaveFile(name);
+    } catch (e) {
+      console.warn('replay export: no save dialog', e);
+    }
+    if (file === null) return;
+    const ac = new AbortController();
+    x.running = ac;
+    this.el.classList.add('exporting');
+    const prog = x.pop.querySelector<HTMLElement>('.rp-ex-progress')!;
+    const bar = prog.querySelector<HTMLElement>('i')!;
+    const status = prog.querySelector<HTMLElement>('.rp-ex-status')!;
+    prog.hidden = false;
+    const go = x.pop.querySelector<HTMLButtonElement>('[data-x="go"]')!;
+    go.disabled = true;
+    let t0 = 0;
+    const show = (f: number, text: string) => {
+      bar.style.width = `${(f * 100).toFixed(1)}%`;
+      status.textContent = text;
+    };
+    const onStatus = (st: ExportStatus) => {
+      switch (st.phase) {
+        case 'encoder':
+          return show(0, 'Starting the encoder…');
+        case 'stage':
+          return show(
+            0.03,
+            st.left
+              ? `Loading the stage around the camera (${st.left} ground tiles left)…`
+              : 'Loading trees and objects around the camera…',
+          );
+        case 'runup':
+          return show(0.03 + 0.05 * st.done, 'Run-up to the section…');
+        case 'frames': {
+          if (st.done === 1) t0 = performance.now();
+          const f = st.done / st.total;
+          const left =
+            st.done > 1
+              ? ((performance.now() - t0) / 1000) *
+                ((st.total - st.done) / (st.done - 1))
+              : 0;
+          return show(
+            0.08 + 0.87 * f,
+            `Frame ${st.done} / ${st.total}${left > 0.5 ? ` · about ${formatTime(left).replace(/\.\d+$/, '')} left` : ''}`,
+          );
+        }
+        case 'sound':
+          return show(0.95, 'Rendering the sound…');
+        case 'file':
+          return show(0.98, 'Writing the file…');
+      }
+    };
+    onStatus({ phase: 'encoder' });
+    let msg: string;
+    let bad = false;
+    let opened = false;
+    try {
+      const blob = await this.game.exportReplay({
+        from: x.from,
+        to: x.to,
+        size: x.size,
+        open: async (canvas) => {
+          const w = await VideoExport.create(
+            canvas,
+            x.size,
+            quality,
+            file ?? undefined,
+          );
+          opened = !!w;
+          return w;
+        },
+        signal: ac.signal,
+        onStatus,
+      });
+      if (blob) {
+        downloadVideo(blob, name);
+        msg = `VIDEO SAVED · ${(blob.size / 1e6).toFixed(1)} MB`;
+      } else if (ac.signal.aborted) {
+        msg = 'EXPORT CANCELLED';
+      } else if (!opened) {
+        msg = 'THIS BROWSER CAN NOT ENCODE THAT SIZE';
+        bad = true;
+      } else {
+        msg = 'VIDEO SAVED';
+      }
+    } catch (e) {
+      console.warn('replay export failed', e);
+      msg = 'EXPORT FAILED';
+      bad = true;
+    }
+    // A picked file the export did not finish: let go of it (the browser drops the partial write).
+    if (file && (bad || ac.signal.aborted)) await file.abort().catch(() => {});
+    x.running = undefined;
+    this.closeExport();
+    this.game.hud.message(msg, 2.5, bad ? 'small bad' : 'small');
   }
 
   private key(e: KeyboardEvent): void {
@@ -357,6 +583,13 @@ export class ReplayUi {
       e.target instanceof HTMLInputElement
     )
       return;
+    if (this.exp?.running) {
+      // Rendering: the replay is the export's; Esc cancels, nothing else.
+      if (e.code === 'Escape') this.closeExport();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     let used = true;
     switch (e.code) {
       case 'Space':
@@ -399,10 +632,20 @@ export class ReplayUi {
         this.setClean(!s.clean);
         break;
       case 'KeyV':
-        if (videoSupported()) void this.toggleVideo();
+        if (!exportSupported()) used = false;
+        else if (this.exp) this.closeExport();
+        else this.openExport();
+        break;
+      case 'KeyI':
+        if (this.exp) this.setSection('from', s.time);
+        else used = false;
+        break;
+      case 'KeyO':
+        if (this.exp) this.setSection('to', s.time);
+        else used = false;
         break;
       case 'Escape':
-        if (this.video) void this.stopVideo();
+        if (this.exp) this.closeExport();
         else if (s.clean) this.setClean(false);
         else this.opts.onExit();
         break;
@@ -440,7 +683,31 @@ export class ReplayUi {
       const r = track.getBoundingClientRect();
       s.seek(((x - r.left) / Math.max(1, r.width)) * s.duration);
     };
+    // Export section handles: drag one end (the playhead follows it, showing that frame).
+    let handle: 'from' | 'to' | null = null;
+    const timeAt = (x: number) => {
+      const r = track.getBoundingClientRect();
+      return (
+        ((x - r.left) / Math.max(1, r.width)) * (this.session?.duration ?? 0)
+      );
+    };
+    this.refs.sel.addEventListener('pointerdown', (e) => {
+      const h = (e.target as HTMLElement).dataset.h;
+      if ((h !== 'from' && h !== 'to') || this.exp?.running) return;
+      e.stopPropagation();
+      handle = h;
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    });
+    this.refs.sel.addEventListener('pointermove', (e) => {
+      if (!handle) return;
+      this.setSection(handle, timeAt(e.clientX));
+      this.session?.seek(timeAt(e.clientX));
+    });
+    const drop = () => (handle = null);
+    this.refs.sel.addEventListener('pointerup', drop);
+    this.refs.sel.addEventListener('pointercancel', drop);
     track.addEventListener('pointerdown', (e) => {
+      if (this.exp?.running) return;
       this.dragging = true;
       track.setPointerCapture(e.pointerId);
       seekAt(e.clientX);
