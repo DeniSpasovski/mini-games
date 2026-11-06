@@ -121,11 +121,13 @@ import {
 } from './replay/store';
 
 import {
+  formatDelta,
   formatTime,
   isOldRun,
   loadTimes,
   oldRunLabel,
   runConditions,
+  sectorGaps,
   sectorTimes,
   timesVersion,
   type RunRecord,
@@ -1927,37 +1929,26 @@ export function buildOptions(opts: {
 }
 
 /**
- * Sector chips of the run just driven (empty when it kept no splits). Each chip is green / red
- * against the same sector of the best other run in the selected scope (all cars / this car);
- * `setScope` re-colours them when the leaderboard toggle changes.
+ * Sector chips of the run just driven (empty when it kept no splits). Green / red against the same sector of the
+ * reference run the HUD compared with (`refSectors`: this car's best before the run), via `sectorGaps` like the HUD
+ * bar and split chips. No colour without a reference.
  */
 export function buildSectors(
-  board: RunRecord[],
   run: RunRecord,
-): HTMLElement & { setScope: (carOnly: boolean) => void } {
-  const el = div('menu-sectors') as unknown as HTMLElement & {
-    setScope: (carOnly: boolean) => void;
-  };
+  refSectors: readonly number[] | null | undefined,
+): HTMLElement {
+  const el = div('menu-sectors');
   const mine = sectorTimes(run);
-  el.setScope = (carOnly) => {
-    const ref = board.find(
-      (r) =>
-        r !== run &&
-        !isOldRun(r, run.ver ?? 1) &&
-        (!carOnly || r.car === run.car) &&
-        r.splits?.length,
-    );
-    const refSec = ref ? sectorTimes(ref) : [];
-    el.innerHTML = mine
-      .map((t, i) => {
-        const r = refSec[i];
-        const cls =
-          r === undefined ? '' : t <= r ? ' class="good"' : ' class="bad"';
-        return `<div${cls}><span>S${i + 1}</span>${t.toFixed(2)}</div>`;
-      })
-      .join('');
-  };
-  el.setScope(false);
+  const gaps = sectorGaps(mine, refSectors);
+  el.innerHTML = mine
+    .map((t, i) => {
+      const d = gaps[i];
+      const cls =
+        d === undefined ? '' : d <= 0 ? ' class="good"' : ' class="bad"';
+      const gap = d !== undefined ? `<b>${formatDelta(d)}</b>` : '';
+      return `<div${cls}><span>S${i + 1}</span>${t.toFixed(2)}${gap}</div>`;
+    })
+    .join('');
   return el;
 }
 
@@ -1977,7 +1968,6 @@ const MIN_RISE = 50;
 export function buildLeaderboard(
   board: RunRecord[],
   run: RunRecord,
-  onScope?: (carOnly: boolean) => void,
   /** The stage's own hour of day: what runs saved without one were driven at. */
   ownHour?: number,
 ): HTMLElement {
@@ -2043,7 +2033,6 @@ export function buildLeaderboard(
     if (!f) return;
     carOnly = f === 'car';
     render();
-    onScope?.(carOnly);
     // Keep keyboard / gamepad focus on the toggle that was pressed.
     if (document.activeElement === document.body)
       el.querySelector<HTMLElement>(`[data-f="${f}"]`)?.focus();

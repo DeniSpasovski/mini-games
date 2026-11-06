@@ -126,7 +126,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   (`breakable` assets, `slow` in the catalog, `world/breakables.ts`): the car drives over them and they tip over until the stage restarts.
 - **Finish:** the car brakes itself to a stop on the run-off (`finishStopControls()`), so every map needs a run-off. The
   autopilot (`F8`, finish stop) runs per 240 Hz physics step, exactly as in the tests.
-- **Results:** time, delta to the best run, sector chips, **Watch replay** (Replays below), then the stage top 10 (all cars / this car)
+- **Results:** time, delta to the best run, sector chips (green / red against the same previous best as the HUD), **Watch replay** (Replays below), then the stage top 10 (all cars / this car)
   with each run's set-up. Stored per stage in localStorage (`rally.times.<stage>`). `STAGE_TIMES_VERSIONS` + `CAR_TIMES_VERSIONS`
   (`game/stage.ts`): each run stores its stage and car version; on a bump `migrateTimes` keeps the runs, tags them with the version
   they were set on (`RunRecord.ver` / `carVer`) and lists them below the current ones, dimmed (the bumped stage's / car's per-car

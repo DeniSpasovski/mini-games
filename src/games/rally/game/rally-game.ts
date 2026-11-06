@@ -331,6 +331,8 @@ export class RallyGame {
     delta: number | undefined,
     run: RunRecord,
     leaderboard: RunRecord[],
+    /** Sector times of the reference best the HUD compared with (null: first run). */
+    refSectors: number[] | null,
   ) => void;
 
   private acc = 0;
@@ -1373,7 +1375,13 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       }
       this.replayHeader = this.makeReplayHeader(run);
       this.finishedAtFrame = this.recorder.frames;
-      this.onFinish?.(e.time!, e.delta, run, board);
+      this.onFinish?.(
+        e.time!,
+        e.delta,
+        run,
+        board,
+        this.stage.referenceSectorTimes(),
+      );
     }
   }
 
