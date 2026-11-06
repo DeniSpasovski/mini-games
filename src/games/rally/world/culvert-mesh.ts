@@ -26,6 +26,7 @@ import {
   type CulvertEnd,
   type CulvertSite,
 } from './culverts';
+import { culvertWaterMesh } from './culvert-water';
 import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
 
@@ -322,5 +323,8 @@ export function* culvertMeshJob(
   mesh.matrixAutoUpdate = false;
   farShadowCaster(mesh);
   group.add(mesh);
+  // Storm water through the pipes (not drawn while it is dry).
+  const water = culvertWaterMesh(world);
+  if (water) group.add(water);
   return group;
 }
