@@ -146,7 +146,12 @@ import { ReplayRecorder } from './replay/recorder';
 import { ReplaySession, tvCamerasFor } from './replay/session';
 import { REPLAYS_ENABLED, saveReplay } from './replay/store';
 import { ReplayConsole } from './replay/debug-export';
-import { EXPORT_FPS, VideoExport, type ExportSize } from './replay/export';
+import {
+  EXPORT_FPS,
+  type ExportSize,
+  type ExportStatus,
+  type ExportWriter,
+} from './replay/export';
 import { AudioTape, renderAudioTape } from './replay/audio-tape';
 import { paramNumber } from '../../../shared/url-params';
 
@@ -234,9 +239,13 @@ const GLARE =
 /** Road spray on hard ground (lit like the dust). */
 const SPRAY_COLOR = 0xd4d9de;
 /** The replay keeps recording this long after the finish line (s): the car braking to a stop on the run-off. */
-/** Replay export: seconds of run-up before the section, frames held still before it while the streaming catches up. */
+/**
+ * Replay export: seconds of run-up before the section; frames held still before it while the streaming catches up
+ * (until this many quiet frames in a row, at most the cap).
+ */
 const EXPORT_RUN_UP = 1.5;
-const EXPORT_SETTLE_FRAMES = 90;
+const EXPORT_SETTLE_QUIET = 8;
+const EXPORT_SETTLE_MAX = 600;
 const REPLAY_TAIL = 6;
 
 export class RallyGame {
@@ -1515,16 +1524,19 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   private exporting = false;
 
   /**
-   * Export a section (replay seconds `from`-`to`) of the replay being watched as an MP4 (game/replay/export.ts): the
-   * game loop stops and every frame is rendered at a fixed 1 / EXPORT_FPS step at exactly `size`, with the current
-   * camera choice. A short run-up before `from` (not in the file) lets the cameras and dust settle. Resolves with the
-   * file, or null when cancelled or the browser can't encode it.
+   * Export a section (replay seconds `from`-`to`) of the replay being watched (game/replay/export.ts): the game loop
+   * stops and every frame is rendered at a fixed 1 / EXPORT_FPS step at exactly `size`, with the current camera choice,
+   * into the writer `open` makes for the canvas. Before the section the replay holds still until the ground, objects
+   * and trees around the camera are loaded, then a short run-up (not in the file) lets the cameras and dust settle.
+   * `onStatus` reports each step. Resolves with the writer's file, or null (cancelled, nothing to encode with, or the
+   * writer saved it itself).
    */
   async exportReplay(opts: {
     from: number;
     to: number;
     size: ExportSize;
-    onProgress?: (done: number) => void;
+    open: (canvas: HTMLCanvasElement) => Promise<ExportWriter | null>;
+    onStatus?: (s: ExportStatus) => void;
     signal?: AbortSignal;
   }): Promise<Blob | null> {
     const r = this.watching;
@@ -1540,7 +1552,17 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       scale: this.renderScale,
       auto: this.autoScale,
     };
+    const status = opts.onStatus ?? (() => {});
+    const t0 = performance.now();
+    const times: string[] = [];
+    let lap = t0;
+    const mark = (what: string) => {
+      const now = performance.now();
+      times.push(`${what} ${((now - lap) / 1000).toFixed(1)} s`);
+      lap = now;
+    };
     const yieldTask = () => new Promise<void>((res) => setTimeout(res, 0));
+    const aborted = () => !!opts.signal?.aborted;
     this.stop();
     this.exporting = true;
     this.autoScale = false;
@@ -1548,25 +1570,54 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     fixRenderSize(this.renderer, { w: opts.size.w, h: opts.size.h });
     // Silent from here: the run-up's calls go to a tape that is thrown away.
     this.audio.setTape(new AudioTape());
-    let out: VideoExport | null = null;
+    let out: ExportWriter | null = null;
     try {
-      out = await VideoExport.create(this.renderer.domElement, opts.size);
-      if (!out) return null;
-      // Run-up: from a whole number of frames before the section, held still while the ground and trees stream in.
+      status({ phase: 'encoder' });
+      await yieldTask();
+      out = await opts.open(this.renderer.domElement);
+      mark('encoder');
+      if (!out || aborted()) {
+        await out?.cancel();
+        return null;
+      }
+      // Hold still before the section until the streaming has caught up (a few quiet frames in a row).
       const runUp = Math.round(Math.min(from, EXPORT_RUN_UP) * EXPORT_FPS);
       r.speed = 1;
       r.playing = false;
       r.seek(from - runUp * step);
-      for (let i = 0; i < EXPORT_SETTLE_FRAMES; i++) {
+      let quiet = 0;
+      for (
+        let i = 0;
+        i < EXPORT_SETTLE_MAX && quiet < EXPORT_SETTLE_QUIET;
+        i++
+      ) {
         this.frame(0);
-        if (i % 8 === 7) await yieldTask();
+        const busy =
+          this.terrain.pending > 0 || this.streamer.busy || this.trees.busy;
+        quiet = busy ? 0 : quiet + 1;
+        if (i % 4 === 3) {
+          status({ phase: 'stage', left: this.terrain.pending });
+          await yieldTask();
+          if (aborted()) {
+            await out.cancel();
+            return null;
+          }
+        }
       }
+      mark('loading');
       r.playing = true;
-      for (let i = 0; i < runUp; i++) this.frame(step);
+      for (let i = 0; i < runUp; i++) {
+        this.frame(step);
+        if (i % 8 === 7) {
+          status({ phase: 'runup', done: (i + 1) / runUp });
+          await yieldTask();
+        }
+      }
+      mark('run-up');
       const tape = new AudioTape();
       this.audio.setTape(tape);
       for (let i = 0; i < total; i++) {
-        if (opts.signal?.aborted) {
+        if (aborted()) {
           await out.cancel();
           return null;
         }
@@ -1575,17 +1626,28 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         tape.next();
         // Straight after the render: the canvas is cleared once the page composites it.
         await out.frame(i);
-        opts.onProgress?.((i + 1) / total);
+        status({ phase: 'frames', done: i + 1, total });
         if (i % 4 === 3) await yieldTask();
       }
+      mark(`${total} frames`);
       this.audio.setTape(undefined);
+      status({ phase: 'sound' });
+      await yieldTask();
       const sound = await renderAudioTape(
         tape,
         this.car,
         this.soundWeather,
         EXPORT_FPS,
       );
-      return await out.finish(sound);
+      mark('sound');
+      status({ phase: 'file' });
+      await yieldTask();
+      const file = await out.finish(sound);
+      mark('file');
+      console.info(
+        `replay export ${opts.size.w}x${opts.size.h}, ${total} frames in ${((performance.now() - t0) / 1000).toFixed(1)} s: ${times.join(', ')}`,
+      );
+      return file;
     } catch (e) {
       await out?.cancel().catch(() => {});
       throw e;

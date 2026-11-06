@@ -10,15 +10,33 @@ import { formatTime } from '../stage';
 import { REPLAY_CAMS, type ReplayCamId } from './replay-cameras';
 import { SPEEDS, type ReplaySession } from './session';
 import {
+  DEFAULT_EXPORT_QUALITY,
   DEFAULT_EXPORT_SIZE,
+  EXPORT_QUALITIES,
+  LOSSLESS,
+  VideoExport,
+  type ExportQuality,
+  type ExportStatus,
   EXPORT_FPS,
   EXPORT_SIZES,
   downloadVideo,
   exportSupported,
+  pickSaveFile,
   type ExportSize,
 } from './export';
 import { nameForm } from './manage-ui';
+import {
+  PngSequenceExport,
+  losslessSupported,
+  pickSaveFolder,
+} from './png-export';
 import { cleanName, renameReplay, replayId } from './store';
+
+/** The quality choices: the MP4 presets, and Lossless where the browser can write into a folder. */
+const qualities = (): ExportQuality[] => [
+  ...EXPORT_QUALITIES,
+  ...(losslessSupported() ? [LOSSLESS] : []),
+];
 
 const ICON = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg>',
@@ -45,11 +63,13 @@ export class ReplayUi {
     from: number;
     to: number;
     size: ExportSize;
+    quality: ExportQuality;
     pop: HTMLElement;
     running?: AbortController;
   };
   /** Resolution picked last (kept for the next export of this page). */
   private exportSize: ExportSize = DEFAULT_EXPORT_SIZE;
+  private exportQuality: ExportQuality = DEFAULT_EXPORT_QUALITY;
   private dragging = false;
   private padPrev: boolean[] = [];
   private onKey = (e: KeyboardEvent) => this.key(e);
@@ -350,7 +370,11 @@ export class ReplayUi {
         <span class="rp-ex-btns"><button data-x="from" title="I">Start here</button><button data-x="to" title="O">End here</button><button data-x="all">Whole replay</button></span></div>
       <div class="rp-ex-row"><span class="rp-ex-label">Resolution</span>
         <div class="menu-seg rp-ex-size">${EXPORT_SIZES.map((z) => `<button data-size="${z.id}">${z.label}</button>`).join('')}</div></div>
-      <div class="rp-ex-note">${EXPORT_FPS} fps MP4 with sound, from the camera picked on the bar. Drag the handles on the timeline to pick the section.</div>
+      <div class="rp-ex-row"><span class="rp-ex-label">Quality</span>
+        <div class="menu-seg rp-ex-quality">${qualities()
+          .map((q) => `<button data-quality="${q.id}">${q.label}</button>`)
+          .join('')}</div></div>
+      <div class="rp-ex-note"></div>
       <div class="rp-ex-progress" hidden><div class="rp-ex-bar"><i></i></div><span class="rp-ex-status"></span></div>
       <div class="rp-ex-actions"><button class="primary" data-x="go">Export</button><button data-x="cancel">Cancel</button></div>`;
     pop.addEventListener('click', (e) => {
@@ -360,6 +384,11 @@ export class ReplayUi {
       const sz = EXPORT_SIZES.find((z) => z.id === b.dataset.size);
       if (sz && !this.exp.running) {
         this.exp.size = this.exportSize = sz;
+        this.drawExport();
+      }
+      const qu = qualities().find((q) => q.id === b.dataset.quality);
+      if (qu && !this.exp.running) {
+        this.exp.quality = this.exportQuality = qu;
         this.drawExport();
       }
       switch (b.dataset.x) {
@@ -381,7 +410,13 @@ export class ReplayUi {
       }
     });
     this.refs.bar.append(pop);
-    this.exp = { from, to, size: this.exportSize, pop };
+    this.exp = {
+      from,
+      to,
+      size: this.exportSize,
+      quality: this.exportQuality,
+      pop,
+    };
     this.refs.sel.hidden = false;
     this.refs.export?.classList.add('on');
     this.drawExport();
@@ -415,6 +450,15 @@ export class ReplayUi {
     x.pop
       .querySelectorAll<HTMLElement>('[data-size]')
       .forEach((b) => b.classList.toggle('on', b.dataset.size === x.size.id));
+    x.pop
+      .querySelectorAll<HTMLElement>('[data-quality]')
+      .forEach((b) =>
+        b.classList.toggle('on', b.dataset.quality === x.quality.id),
+      );
+    x.pop.querySelector('.rp-ex-note')!.textContent =
+      x.quality === LOSSLESS
+        ? `A folder of ${EXPORT_FPS} fps PNG frames and the sound as WAV, nothing compressed away (large: import it as an image sequence). From the camera picked on the bar; drag the handles on the timeline to pick the section.`
+        : `${EXPORT_FPS} fps MP4 with sound, from the camera picked on the bar. Drag the handles on the timeline to pick the section.`;
   }
 
   private closeExport(): void {
@@ -434,6 +478,23 @@ export class ReplayUi {
     const x = this.exp;
     const s = this.session;
     if (!x || !s || x.running) return;
+    const h = s.track.header;
+    const name = `rally-${h.stage}-${h.car}-${new Date(h.date).toISOString().slice(0, 10)}-${x.size.id}`;
+    const quality = x.quality;
+    // Where to save first (it needs this click): Chrome / Edge write the file while it renders.
+    let file: FileSystemWritableFileStream | null | undefined;
+    let folder: Awaited<ReturnType<typeof pickSaveFolder>> | undefined;
+    try {
+      if (quality === LOSSLESS) folder = await pickSaveFolder(name);
+      else file = await pickSaveFile(name);
+    } catch (e) {
+      console.warn('replay export: no save dialog', e);
+      if (quality === LOSSLESS) {
+        this.game.hud.message('COULD NOT OPEN THAT FOLDER', 2.5, 'small bad');
+        return;
+      }
+    }
+    if (file === null || folder === null) return;
     const ac = new AbortController();
     x.running = ac;
     this.el.classList.add('exporting');
@@ -443,45 +504,90 @@ export class ReplayUi {
     prog.hidden = false;
     const go = x.pop.querySelector<HTMLButtonElement>('[data-x="go"]')!;
     go.disabled = true;
-    const frames = Math.round((x.to - x.from) * EXPORT_FPS);
-    const t0 = performance.now();
-    status.textContent = 'Starting…';
-    let msg = '';
+    let t0 = 0;
+    const show = (f: number, text: string) => {
+      bar.style.width = `${(f * 100).toFixed(1)}%`;
+      status.textContent = text;
+    };
+    const onStatus = (st: ExportStatus) => {
+      switch (st.phase) {
+        case 'encoder':
+          return show(0, 'Starting the encoder…');
+        case 'stage':
+          return show(
+            0.03,
+            st.left
+              ? `Loading the stage around the camera (${st.left} ground tiles left)…`
+              : 'Loading trees and objects around the camera…',
+          );
+        case 'runup':
+          return show(0.03 + 0.05 * st.done, 'Run-up to the section…');
+        case 'frames': {
+          if (st.done === 1) t0 = performance.now();
+          const f = st.done / st.total;
+          const left =
+            st.done > 1
+              ? ((performance.now() - t0) / 1000) *
+                ((st.total - st.done) / (st.done - 1))
+              : 0;
+          return show(
+            0.08 + 0.87 * f,
+            `Frame ${st.done} / ${st.total}${left > 0.5 ? ` · about ${formatTime(left).replace(/\.\d+$/, '')} left` : ''}`,
+          );
+        }
+        case 'sound':
+          return show(0.95, 'Rendering the sound…');
+        case 'file':
+          return show(0.98, 'Writing the file…');
+      }
+    };
+    onStatus({ phase: 'encoder' });
+    let msg: string;
     let bad = false;
+    let opened = false;
     try {
-      const h = s.track.header;
       const blob = await this.game.exportReplay({
         from: x.from,
         to: x.to,
         size: x.size,
-        signal: ac.signal,
-        onProgress: (f) => {
-          bar.style.width = `${(f * 100).toFixed(1)}%`;
-          const left = ((performance.now() - t0) / 1000) * (1 / f - 1);
-          status.textContent =
-            f < 1
-              ? `Frame ${Math.round(f * frames)} / ${frames} · about ${formatTime(left).replace(/\.\d+$/, '')} left`
-              : 'Sound and file…';
+        open: async (canvas) => {
+          const w = folder
+            ? new PngSequenceExport(canvas, folder.parent, folder.dir)
+            : !('q' in quality)
+              ? null
+              : await VideoExport.create(
+                  canvas,
+                  x.size,
+                  quality,
+                  file ?? undefined,
+                );
+          opened = !!w;
+          return w;
         },
+        signal: ac.signal,
+        onStatus,
       });
       if (blob) {
-        downloadVideo(
-          blob,
-          `rally-${h.stage}-${h.car}-${new Date(h.date).toISOString().slice(0, 10)}-${x.size.id}`,
-        );
+        downloadVideo(blob, name);
         msg = `VIDEO SAVED · ${(blob.size / 1e6).toFixed(1)} MB`;
-      } else if (!ac.signal.aborted) {
+      } else if (ac.signal.aborted) {
+        msg = 'EXPORT CANCELLED';
+      } else if (!opened) {
         msg = 'THIS BROWSER CAN NOT ENCODE THAT SIZE';
         bad = true;
+      } else {
+        msg = folder ? 'FRAMES AND SOUND SAVED' : 'VIDEO SAVED';
       }
     } catch (e) {
       console.warn('replay export failed', e);
       msg = 'EXPORT FAILED';
       bad = true;
     }
+    // A picked file the export did not finish: let go of it (the browser drops the partial write).
+    if (file && (bad || ac.signal.aborted)) await file.abort().catch(() => {});
     x.running = undefined;
     this.closeExport();
-    if (msg) this.game.hud.message(msg, 2.5, bad ? 'small bad' : 'small');
+    this.game.hud.message(msg, 2.5, bad ? 'small bad' : 'small');
   }
 
   private key(e: KeyboardEvent): void {

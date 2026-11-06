@@ -162,10 +162,13 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
   the others between them; no cut under 2.5 s or in the air.
 - **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed 0.25-2x, camera picker (a dropdown
   under 1360 px), Save (name; an inactive "Saved" once named, absent for a replay opened from the menu: rename it in Stage times), Clean feed, Export, Exit (back to results, or the menu for a URL replay).
-- **Export** (`export.ts`, `audio-tape.ts`, `RallyGame.exportReplay`): a section (amber handles on the timeline, `I` / `O` at the playhead) at
-  720p / 1080p / 1440p / 4K, 60 fps, rendered offline frame by frame at exactly that size, so no frame is dropped on a slow machine. MP4: WebCodecs H.264
-  (else HEVC / VP9 / AV1), muxed by Mediabunny (loaded on the first export). The sound is the same synth on an OfflineAudioContext fed what each frame
-  told the live one. A run-up before the section (not in the file) lets the ground, trees and cameras settle.
+- **Export** (`export.ts`, `png-export.ts`, `audio-tape.ts`, `RallyGame.exportReplay`): a section (amber handles on the timeline, `I` / `O` at the
+  playhead) at 720p / 1080p / 1440p / 4K, 60 fps, rendered offline frame by frame at exactly that size, so no frame is dropped on a slow machine.
+  Quality Standard / High / Maximum = MP4: WebCodecs H.264 (else HEVC / VP9 / AV1) at a fixed quantizer (else a constant bitrate of 25 / 50 / 100 Mbps
+  at 1080p, scaled by pixels), muxed by Mediabunny (loaded on the first export). Lossless (where the browser can write into a folder: Chrome / Edge) =
+  numbered PNG frames + a 24-bit WAV in a picked folder. Chrome / Edge ask where to save first and write while it renders; elsewhere the MP4 downloads at
+  the end. The sound is the same synth on an OfflineAudioContext fed what each frame told the live one. Before the section (not in the file) the camera
+  holds until the ground tiles and trees around it have loaded, then a 1.5 s run-up; the panel shows each step and the time left.
 - **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`; `trace(s, every)` / `copyTrace()` /
   `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel load / slip / forces) as TSV (the F2 panel has buttons); `load` of
   another stage / car reloads into it.
