@@ -35,7 +35,7 @@ Send the developer this, adapted to what they already said:
 | Ask for                                                                                                    | Used for                                                                          |
 | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | OSM area screenshot                                                                                        | what is imported, the landmark list                                               |
-| Google route screenshot (satellite, route line, start and finish markers)                                  | route check; `trace_route.py` where OSM lacks the road                            |
+| Stage route screenshot (satellite, route line, start and finish markers)                                   | route check; `trace_route.py` where OSM lacks the road                            |
 | Satellite close-ups of the start and the finish                                                            | start area, service park, gantry spot                                             |
 | Pictures from street level or a dash cam: start, finish, every surface change, bridge, hairpin, wall, rail | `road.sections`, barriers, bridges, rails                                         |
 | Photos or links of landmarks (church, tower, cross, lodge)                                                 | procedural landmark shapes: reference only, nothing traced from them              |
