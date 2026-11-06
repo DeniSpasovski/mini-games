@@ -814,6 +814,11 @@ html.touch .menu-btn.big kbd {
 .menu-sectors .bad {
   color: var(--ui-penalty);
 }
+.menu-sectors b {
+  margin-left: 6px;
+  font-size: 0.8em;
+  font-weight: 600;
+}
 .menu-sectors span {
   margin-right: 6px;
   color: var(--ui-accent);

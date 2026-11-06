@@ -437,8 +437,9 @@ character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are
 
 `tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`): a new map goes there too, with its own
 `stage-<map>.test.ts` (`tests/rally/stage-playtests.test.ts` fails without one). Cars under test (`cars-under-test.ts`): every car by default and on pushes to
-main; on a PR the five representative cars plus the cars it changed (`RALLY_CARS`, from `scripts/ci-affected.mjs`; `RALLY_CARS=all` runs every car,
-`RALLY_CARS=fiesta` adds one). The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or dusty-tarmac stage,
+main; on a PR one car per drive type (Fabia, Zastava, M3 GT2) plus the cars it changed (`RALLY_CARS`, from `scripts/ci-affected.mjs`; `RALLY_CARS=all` runs
+every car, `RALLY_CARS=fiesta` adds one). On a PR the worst-pick hills run only for changed cars (every map) and map roads (representative cars):
+`RALLY_HILL_CARS` / `RALLY_HILL_MAPS`. The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or dusty-tarmac stage,
 driven only over `hillSpots` (a few of each stage's steepest hills and tightest hairpin climbs, from a 50 km/h rolling start, flat out but lifting off for
 bends; the autopilot only steers), never at rally pace: a wrong tyre flies off there by physics. Ajvatovci has its own margin test: Mixed ahead of Tarmac and
 Gravel by > 1.5 % (limit driver).
