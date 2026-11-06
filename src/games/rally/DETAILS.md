@@ -408,10 +408,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   Rock bands: a scatter rule with `outcrop` (asset `rock_outcrop`, two CC0 Poly Haven rock-face scans, `scripts/rocks/bake-outcrops.mjs`)
   grows a row of pieces along the contour from each point (`world/outcrops.ts`): faces down the slope, leant back, open backs
   buried, the row ends where the slope eases under `minSlope` or at the chunk edge (Vodno: the steep spurs).
-- **Hero trees** (`pack_pine` / `pack_lilac` / `pack_bush`, `assets/builders/tree-packs.ts`): CC BY pack models near the road,
-  the generated forest beyond; past the third mesh the pines draw the pack's own billboard (to 1.5 km). `realTrees.near` swaps the real trees within `dist` m for a pack model of the nearest height;
-  a scatter rule can name a pack asset like any other (Vodno: the near wood band, the verge pines, the understorey).
-  `forestEdge()` (`maps/shared/forest-edge.ts`) adds the shrub belt and young trees of a wood along the road (every map).
+- **Forest edges**: `forestEdge()` (`maps/shared/forest-edge.ts`) adds the shrub belt and young trees of a wood along the road (every map).
   Size ladder: `.claude/reference/trees/Placement.md`.
 - **Piles** (`maps/shared/piles.ts`): sand / crushed-stone / spread heaps for road closures, depots and sites - shape, scanned
   material (kit keys `sand` / `aggregate`, spill `sandSpill` / `stoneSpill`), weeds, colliders; a landmark builds them into its bucket.

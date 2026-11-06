@@ -29,7 +29,6 @@ import { BUILDING_PAD, HOTEL_PAD } from './landmarks/hotel';
 import { LOWER_NODE } from './landmarks/sites';
 import { BLOCK_PADS } from './landmarks/start-blocks';
 import { TRAIL_PATH } from './landmarks/trail-lot';
-import { packHeight } from '../../assets/builders/tree-packs';
 import {
   CROSSROAD_BANK,
   laneExtra,
@@ -117,35 +116,19 @@ const canopyOf = (cover: string): ScatterRule['canopy'] => ({
 /** The gaps of the woods: full where the canopy share is under 1/8, none from a half up. */
 const GAPS: ScatterRule['canopy'] = { full: 0.5, min: 0.125, open: true };
 
-/**
- * A wood rule split into the road-distance bands (WOOD_BANDS). `hero`: in the nearest band that share of its trees are
- * that model tree instead (the packs' Scots pines at the roadside: the owner's photos), at `scale`.
- */
+/** A wood rule split into the road-distance bands (WOOD_BANDS), thinned by the real canopy of its cover. */
 function banded(
   cover: [string],
   rule: Omit<ScatterRule, 'cover' | 'maxRoadDist'>,
-  hero?: { asset: string; share: number; scale: [number, number] },
 ): ScatterRule[] {
-  return WOOD_BANDS.flatMap(([from, to, share], i) => {
-    const band: ScatterRule = {
-      ...rule,
-      cover,
-      canopy: canopyOf(cover[0]),
-      density: rule.density * share,
-      minRoadDist: Math.max(rule.minRoadDist ?? 0, from),
-      maxRoadDist: to,
-    };
-    if (!hero || i > 0) return [band];
-    return [
-      { ...band, density: band.density * (1 - hero.share) },
-      {
-        ...band,
-        asset: hero.asset,
-        density: band.density * hero.share,
-        scale: hero.scale,
-      },
-    ];
-  });
+  return WOOD_BANDS.map(([from, to, share]) => ({
+    ...rule,
+    cover,
+    canopy: canopyOf(cover[0]),
+    density: rule.density * share,
+    minRoadDist: Math.max(rule.minRoadDist ?? 0, from),
+    maxRoadDist: to,
+  }));
 }
 
 // ---- Ground layer and rock bands (used by `landcover.needles` and the end of `scatter`) ----
@@ -373,14 +356,6 @@ export const vodnoMap: MapDef = {
     scale: [0.45, 1.5],
     tilt: 3,
     sink: 0.15,
-    // Near the road the pines are the pack's Scots pine models (bare trunk, a few needle clumps: the owner's photos), each
-    // the model nearest its height (the canopy model reads these pines ~0.6x low).
-    near: {
-      dist: 30,
-      assets: { pine: ['pack_pine'], mixed: ['pack_pine'] },
-      heights: { pack_pine: [0, 1, 2].map((v) => packHeight('pine', v)) },
-      gain: 1.5,
-    },
   },
   scatter: [
     // The woods of the north face (leaf type from winter / summer satellite scenes, scripts/realmap/leaf_type.py): low
@@ -388,20 +363,15 @@ export const vodnoMap: MapDef = {
     // blocks and terrace strips across the slope, mixed stands between. The road verges are mostly broadleaf.
     //
     // Pine stands: dense, dark conifers, Austrian black pine among them, the odd oak.
-    ...banded(
-      ['pine'],
-      {
-        asset: 'plantation_pine',
-        density: 7,
-        minRoadDist: 3.5,
-        maxSlope: 0.8,
-        scale: [0.8, 1.2],
-        tilt: 2,
-        sink: 0.3,
-      },
-      // (the models: 13, 15 and 31 m; a stand of young and old pines)
-      { asset: 'pack_pine', share: 0.6, scale: [0.5, 0.75] },
-    ),
+    ...banded(['pine'], {
+      asset: 'plantation_pine',
+      density: 7,
+      minRoadDist: 3.5,
+      maxSlope: 0.8,
+      scale: [0.8, 1.2],
+      tilt: 2,
+      sink: 0.3,
+    }),
     ...banded(['pine'], {
       asset: 'black_pine',
       density: 2.5,
@@ -411,34 +381,30 @@ export const vodnoMap: MapDef = {
       tilt: 2,
       sink: 0.3,
     }),
-    // A few more pines at the verge, where the car passes close enough to see the needles: the pack's Scots pines (a bare
-    // trunk under a few needle clumps, the owner's photos), not full cones.
+    // A few more pines at the verge, where the car passes close enough to see the needles: tall black pines (a bare
+    // trunk under a small open crown, the owner's photos), not full cones.
     {
-      asset: 'pack_pine',
+      asset: 'tall_black_pine',
       cover: ['pine', 'mixed'],
       canopy: canopyOf('pine'),
       density: 2,
       minRoadDist: 3.5,
       maxRoadDist: 40,
       maxSlope: 0.8,
-      scale: [0.5, 0.75],
+      scale: [0.85, 1.1],
       tilt: 2,
       sink: 0.3,
     },
     // Mixed stands: half pine, half oak / hornbeam.
-    ...banded(
-      ['mixed'],
-      {
-        asset: 'plantation_pine',
-        density: 3.5,
-        minRoadDist: 3.5,
-        maxSlope: 0.8,
-        scale: [0.8, 1.2],
-        tilt: 2,
-        sink: 0.3,
-      },
-      { asset: 'pack_pine', share: 0.6, scale: [0.5, 0.75] },
-    ),
+    ...banded(['mixed'], {
+      asset: 'plantation_pine',
+      density: 3.5,
+      minRoadDist: 3.5,
+      maxSlope: 0.8,
+      scale: [0.8, 1.2],
+      tilt: 2,
+      sink: 0.3,
+    }),
     ...banded(['mixed'], {
       asset: 'black_pine',
       density: 1.5,

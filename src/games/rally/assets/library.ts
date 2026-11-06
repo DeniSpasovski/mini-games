@@ -18,7 +18,6 @@ import {
   villageSign,
 } from './builders/props';
 import { buildingFlat, housePitched, houseStone } from './builders/buildings';
-import { packBush, packLilac, packPine } from './builders/tree-packs';
 import {
   bench,
   crate,
@@ -224,9 +223,6 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   fern_autumn: fernAutumn,
   rock_outcrop: rockOutcrop,
   tall_weeds: tallWeeds,
-  pack_pine: packPine,
-  pack_lilac: packLilac,
-  pack_bush: packBush,
   power_pylon: powerPylon,
   power_pole: powerPole,
   catenary_mast: catenaryMast,

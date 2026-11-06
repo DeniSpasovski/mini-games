@@ -101,7 +101,7 @@ Example: `maps/ajvatovci/` (`map.ts`, baked `data.json`, task list `TODO.md`, so
    `terrain.talus` / `terrain.streamBeds` and scatter `minSlope` give steep ground its bare rock, scree and crags and the
    streams their pebble beds, scatter `outcrop` (asset `rock_outcrop`) rock bands along the contour (rally DETAILS "Natural
    ground"); `landcover.needles` = pine-needle floor per cover, `fern` / `fern_autumn` (`season`) under shaded crowns;
-   `forestEdge()` for the shrub belt along a wood: "Hero trees".
+   `forestEdge()` for the shrub belt along a wood: "Forest edges".
    `buildings.worldcover: true` generates houses on WorldCover built-up ground where no footprint data set covers
    the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon;
    `msRoads: { country, clearance, minLength }` adds roads OSM lacks from Microsoft ML Road Detections (ODbL,

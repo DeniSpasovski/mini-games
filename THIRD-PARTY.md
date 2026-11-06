@@ -205,19 +205,6 @@ repository).
 | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
 | ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
 
-### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*.webp`)
-
-Vodno's roadside (pines near the road, lilac and bush understorey) uses a few models of three CC BY 4.0 packs by LOLIPOP
-(Sketchfab account lolipop_1707): Scots pines, lilac and bush shrubs (their own triangles, normals, uvs and textures, three
-levels of detail, the pines also their far billboards; the textures shrunk and recompressed; packed by `scripts/trees/bake-tree-packs.py`; the source files are not in the
-repository).
-
-| Pack                                                                                                                                                      | Author                                    | Licence   |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | --------- |
-| ["Pine trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/pine-trees-pack-lowpoly-game-ready-lods-e1e9c07b8e2e445c943fec660beefba2) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
-| ["Lilac bush pack (12 vars, LODs, game ready)"](https://sketchfab.com/3d-models/lilac-bush-pack-12-vars-lods-game-ready-10312697ec994fc99355cb94f1963a2e) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
-| ["Bush models pack (gameready, LODs)"](https://sketchfab.com/3d-models/bush-models-pack-gameready-lods-f2d9ffd3e6a94cf0b9464ccd66a4c2f8)                  | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
-
 ### Straw texture (`src/games/rally/engine/props/straw.webp`)
 
 The hay bales wear a tile cut from the photo texture of a CC BY 4.0 scan (one bale side, made to repeat and levelled by

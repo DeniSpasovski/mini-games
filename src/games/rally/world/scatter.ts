@@ -259,8 +259,7 @@ export class ScatterField {
   /**
    * The trees where they really stand (`MapDef.realTrees`): the tree type from the land cover at each, sized to its
    * height; skipped where the scatter grows nothing (bounds, buildings, landmarks, water, the road and path margins, the
-   * stage's tree setback). Within `near.dist` of the road a model tree (`near.assets`) stands in for the generated one;
-   * the far forest still counts the generated type. Returns how many were placed.
+   * stage's tree setback). Returns how many were placed.
    */
   addRealTrees(def: RealTreesDef): number {
     const lc = this.ctx.landcover;
@@ -291,37 +290,6 @@ export class ScatterField {
         continue;
       if (this.nearPath(x, z, minPath)) continue;
       const tiltA = u(4) * Math.PI * 2;
-      // Close to the road a model tree may stand in for the generated one (`near`): the model whose own height is
-      // nearest the tree's (a young pine is a young pine's model, not a shrunk old one), turned by the hash.
-      const near = def.near;
-      const heroes =
-        near && rd < near.dist && cover !== undefined
-          ? near.assets[cover]
-          : undefined;
-      const hero = heroes?.[Math.floor(u(5) * heroes.length)];
-      const heights = hero === undefined ? undefined : near!.heights[hero];
-      if (hero !== undefined && heights?.length) {
-        const want = t[i + 2] * (near!.gain ?? 1);
-        let variant = 0;
-        for (let v = 1; v < heights.length; v++)
-          if (
-            Math.abs(Math.log(want / heights[v])) <
-            Math.abs(Math.log(want / heights[variant]))
-          )
-            variant = v;
-        const scale = Math.min(1.4, Math.max(0.5, want / heights[variant]));
-        this.addFixed({
-          asset: hero,
-          variant,
-          x,
-          y: this.hf.height(x, z) - (def.sink ?? 0) * scale,
-          z,
-          rotY: u(6) * Math.PI * 2,
-          scale,
-          tiltX: Math.cos(tiltA) * tiltM,
-          tiltZ: Math.sin(tiltA) * tiltM,
-        });
-      }
       const scale = Math.min(
         def.scale[1],
         Math.max(def.scale[0], t[i + 2] / typeHeight(asset)),
@@ -337,7 +305,7 @@ export class ScatterField {
         tiltX: Math.cos(tiltA) * tiltM,
         tiltZ: Math.sin(tiltA) * tiltM,
       };
-      if (!heights?.length) this.addFixed(inst);
+      this.addFixed(inst);
       const k = key(Math.floor(x / REAL_CELL), Math.floor(z / REAL_CELL));
       let cell = this.realCells.get(k);
       if (!cell) this.realCells.set(k, (cell = new Map()));

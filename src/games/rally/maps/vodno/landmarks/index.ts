@@ -19,6 +19,7 @@ import {
   SREDNO,
   wallColliders,
   SREDNO_BUS,
+  TRAIL,
   VIDIKOVEC,
 } from './car-parks';
 import { gazebo } from './park';
@@ -446,16 +447,22 @@ export const carParksLandmark = landmark({
     ...parkPlants(VIDIKOVEC),
   ],
   surfaceAt: (x, z) =>
-    onLot(SREDNO, x, z) || onLot(SREDNO_BUS, x, z) || onLot(VIDIKOVEC, x, z)
+    onLot(SREDNO, x, z) ||
+    onLot(SREDNO_BUS, x, z) ||
+    onLot(VIDIKOVEC, x, z) ||
+    onLot(TRAIL, x, z)
       ? 'tarmac'
       : undefined,
   groundOverride: (ground) =>
-    slabHeight([SREDNO, SREDNO_BUS, VIDIKOVEC], (x, z) => ground.height(x, z)),
+    slabHeight([SREDNO, SREDNO_BUS, VIDIKOVEC, TRAIL], (x, z) =>
+      ground.height(x, z),
+    ),
   build: (at, ground) => {
     for (const [lot, tile] of [
       [SREDNO, 'sredno-lot'],
       [SREDNO_BUS, 'sredno-bus-lot'],
       [VIDIKOVEC, 'vidikovec-lot'],
+      [TRAIL, 'trail-lot-slab'],
     ] as const) {
       const l = at(lot.site, tile);
       buildLot(l, lot, ground);
@@ -466,6 +473,11 @@ export const carParksLandmark = landmark({
         return ground(wx, wz) - base;
       };
       if (lot === SREDNO_BUS) continue;
+      // The hikers' lot: bay lines only (its walls, lamps and sign: trail-lot.ts).
+      if (lot === TRAIL) {
+        drawMarkings(l, lot, gy);
+        continue;
+      }
       drawParkGround(l, lot, gy);
       drawMarkings(l, lot, gy);
       for (const piece of parkPieces(lot)) drawPiece(l, piece, gy);
@@ -628,10 +640,10 @@ export const trailLotLandmark = landmark({
   replaces: (b) => TRAIL_LOT_REPLACES.has(b.id),
   colliders: trailLotColliders,
   plants: [
-    // Scots pines of the pack (the owner's photo: ~20-25 m, straight, close together), a few oaks among them, over a low
+    // Tall black pines (the owner's photo: ~20-25 m, straight, close together), a few oaks among them, over a low
     // hornbeam / oak understorey.
     ...TRAIL_PINES.map(([x, z, scale, variant]) => ({
-      asset: 'pack_pine',
+      asset: 'tall_black_pine',
       variant,
       site: AT_WORLD,
       x,

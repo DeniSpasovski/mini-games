@@ -459,17 +459,6 @@ export interface RealTreesDef {
   scale: [number, number];
   tilt?: number;
   sink?: number;
-  /**
-   * Model trees (catalog assets, e.g. `pack_pine`) in place of the generated ones within `dist` m of the road edge, by
-   * the land cover class: the variant whose height (`heights[asset]`, m per variant at scale 1) is nearest the tree's
-   * height x `gain` (the canopy model reads tall conifers low), scaled to it (0.5-1.4x).
-   */
-  near?: {
-    dist: number;
-    assets: Record<string, string[]>;
-    heights: Record<string, number[]>;
-    gain?: number;
-  };
 }
 
 /** Standing water: closed polygon (world x/z, not repeating the first point). */

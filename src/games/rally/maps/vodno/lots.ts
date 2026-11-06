@@ -13,6 +13,7 @@ import {
   SLAB,
   SREDNO,
   SREDNO_BUS,
+  TRAIL,
   VIDIKOVEC,
 } from './landmarks/car-parks';
 
@@ -25,6 +26,8 @@ import {
  */
 const GRADED_MARGIN = 2.5;
 const PAD_LIFT = -(SLAB + 0.1);
+/** The trail lot's fall from the road to its far end (m): a gentle slant, not the land's 6.5 m. */
+const TRAIL_FALL = 3;
 /** Stage road points along the Vidikovec lot (its pad takes their heights). */
 const VIDIKOVEC_FRONTAGE = [
   1500.2, -557.2, 1535, -574.6, 1553, -580.7, 1570.4, -584.9, 1591.3, -584.5,
@@ -90,24 +93,31 @@ export const LOT_PADS: PadDef[] = [
     lift: PAD_LIFT,
   },
   {
-    // The hikers' car park below the big hairpin (OSM way 37998024, landmarks/trail-lot.ts): a gravel lot falling with the
-    // land (6.5 m along it, its far end on the ground); its aisle is dropped.
+    // The hikers' car park below the big hairpin (landmarks/car-parks.ts `TRAIL`): a gentle fall under its asphalt
+    // (3 m down along it; the land falls 6.5 m, its far end stands on a graded bank), the land's own cover round it; its aisle is dropped.
     name: 'trail_lot',
-    polygon: [2087.5, -221, 2119, -240.2, 2126.5, -227.5, 2088.5, -203.5],
+    polygon: lotPolygon(TRAIL, GRADED_MARGIN),
     blend: 5,
     frontage: [2083.3, -224, 2084, -204],
-    surface: 'gravel',
-    ramp: { from: [2089, -212], to: [2121, -232], lift: [0, -6.5] },
+    ramp: {
+      from: [2089, -212],
+      to: [2121, -232],
+      lift: [PAD_LIFT, PAD_LIFT - TRAIL_FALL],
+    },
   },
   {
     // Beyond it the earth path down to the picnic shelter and the hiking trail east: one walkable slope instead of the
-    // land's 3.5 m step at the lot's end.
+    // land's step at the lot's end.
     name: 'trail_start',
     polygon: [2119, -240.2, 2126.5, -227.5, 2150, -238, 2148, -254, 2122, -254],
     blend: 4,
     frontage: [2083.3, -224, 2084, -204],
     surface: 'dirt',
-    ramp: { from: [2124, -232], to: [2142, -246], lift: [-6.6, -9.5] },
+    ramp: {
+      from: [2124, -232],
+      to: [2142, -246],
+      lift: [PAD_LIFT - TRAIL_FALL + SLAB, -9.5],
+    },
   },
 ];
 

@@ -1,7 +1,6 @@
 import type { StaticCollider } from '../../../physics/types';
 import {
   LOT_ASPHALT,
-  placeAt,
   turnedBoxCollider,
   type Local,
   type V2,
@@ -111,6 +110,30 @@ export const VIDIKOVEC: Lot = {
   wallDepth: 3.4,
   wallThick: 1.5,
   stairsAt: 0.2,
+};
+
+/**
+ * The hikers' car park below the big hairpin (OSM way 37998024; its stone walls, lamps and shelter: trail-lot.ts): an
+ * asphalt strip falling gently from the road (3 m along it, the land 6.5 m: the pad in ../lots.ts), kerbed,
+ * a row of bays along its north side.
+ */
+const TRAIL_SITE: Site = { x: 2086.4, z: -210.9, yaw: 0 };
+export const TRAIL: Lot = {
+  site: TRAIL_SITE,
+  centre: [
+    [2086.4, -210.9],
+    [2104, -221.6],
+    [2121.4, -232.2],
+  ].map(([x, z]): V2 => [x - TRAIL_SITE.x, z - TRAIL_SITE.z]),
+  hw: 4.9,
+  bays: {
+    depth: 4.8,
+    pitch: 2.5,
+    from: 0.22,
+    to: 0.92,
+    both: false,
+    straight: true,
+  },
 };
 
 /** Thickness of the slab above the levelled ground (m): the terrain pad lies this far under the lot's top. */
@@ -290,6 +313,8 @@ function computeShape(lot: Lot, grow: number): LotShape {
   const lotSide = votes >= 0 ? 1 : -1;
   const clamp = (p: V2): V2 => {
     const h = hit(p);
+    // (no listed road near: nothing to keep clear of)
+    if (!Number.isFinite(h.d)) return p;
     // (a point across the road is brought back whatever its distance: a straight band that meets the road at an angle
     // runs far across it, and its end then follows the road)
     if (lotSide * h.lat >= ROAD_CLEAR) return p;
@@ -607,25 +632,6 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       push(at(k), at(k + 1), tx / tl, tz / tl, mouth, true);
   }
 
-  const piece = (
-    key: 'concrete' | 'rubble' | 'paint',
-    mid: V2,
-    yaw: number,
-    x0: number,
-    y0: number,
-    z0: number,
-    x1: number,
-    y1: number,
-    z1: number,
-    color: string,
-  ): void =>
-    l.box(
-      key,
-      [x0, y0, z0],
-      [x1, y1, z1],
-      color,
-      placeAt(mid[0], 0, mid[1], yaw),
-    );
   /**
    * The rock wall of a walled lot: one continuous ribbon along each run of its outline (the long edges - the road side is
    * open, the outer edge opens where the stairs go down - and the end caps), its faces and top sloping with the ground
@@ -683,19 +689,46 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       const b: V2 = [e.b[0] + e.nx * 0.15, e.b[1] + e.nz * 0.15];
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
       if (len < 0.01) continue;
+      // Its top and foot slope with the slab (no level blocks stepping down a sloped lot): the faces run a few cm
+      // past both ends so neighbouring pieces close at a corner.
+      const ux = (b[0] - a[0]) / len;
+      const uz = (b[1] - a[1]) / len;
+      const a0: V2 = [a[0] - ux * 0.03, a[1] - uz * 0.03];
+      const b0: V2 = [b[0] + ux * 0.03, b[1] + uz * 0.03];
       const ya = y(a);
       const yb = y(b);
-      piece(
+      const depth = lot.wallDepth ?? 1.4;
+      const off = (q: V2, o: number): V2 => [q[0] + e.nx * o, q[1] + e.nz * o];
+      const [ai, bi, ao, bo] = [
+        off(a0, -0.15),
+        off(b0, -0.15),
+        off(a0, 0.15),
+        off(b0, 0.15),
+      ];
+      const top = (q: V2, h: number): V3 => [q[0], h + 0.14, q[1]];
+      const low = (q: V2, h: number): V3 => [q[0], h - depth, q[1]];
+      const uvAlong = (q: V3): V2 => [q[0] * ux + q[2] * uz, q[1]];
+      const KERB = '#d2d0ca';
+      l.fan(
         'concrete',
-        [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
-        -Math.atan2(b[1] - a[1], b[0] - a[0]),
-        -len / 2 - 0.03,
-        Math.min(ya, yb) - (lot.wallDepth ?? 1.4),
-        -0.15,
-        len / 2 + 0.03,
-        Math.max(ya, yb) + 0.14,
-        0.15,
-        '#d2d0ca',
+        [top(ai, ya), top(bi, yb), top(bo, yb), top(ao, ya)],
+        KERB,
+        [0, 1, 0],
+        (q) => [q[0], q[2]],
+      );
+      l.fan(
+        'concrete',
+        [top(ao, ya), top(bo, yb), low(bo, yb), low(ao, ya)],
+        KERB,
+        [e.nx, 0, e.nz],
+        uvAlong,
+      );
+      l.fan(
+        'concrete',
+        [top(ai, ya), top(bi, yb), low(bi, yb), low(ai, ya)],
+        KERB,
+        [-e.nx, 0, -e.nz],
+        uvAlong,
       );
     }
 

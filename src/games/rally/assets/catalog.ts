@@ -179,53 +179,6 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 140, castShadow: false }],
   },
   {
-    id: 'pack_pine',
-    name: 'Scots pine (pack)',
-    category: 'vegetation',
-    fade: true,
-    description:
-      'Scots pines (13, 15 and 31 m) of a CC BY pack: a bare trunk under a few needle clumps, three meshes and the pack billboard far away. Hero trees near the road; solid trunk.',
-    variants: 3,
-    lods: [
-      { maxDistance: 45, castShadow: true },
-      { maxDistance: 120, castShadow: true },
-      { maxDistance: 480, castShadow: false },
-      { maxDistance: 1500, castShadow: false },
-    ],
-    colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
-    tint: 0.08,
-  },
-  {
-    id: 'pack_lilac',
-    name: 'Lilac (pack)',
-    category: 'vegetation',
-    fade: true,
-    description:
-      'Lilac shrubs and a small tree (2-7 m) of a CC BY pack: the understorey of a car park or a roadside. Drive-through.',
-    variants: 3,
-    lods: [
-      { maxDistance: 40, castShadow: true },
-      { maxDistance: 100, castShadow: false },
-      { maxDistance: 300, castShadow: false },
-    ],
-    tint: 0.1,
-  },
-  {
-    id: 'pack_bush',
-    name: 'Bush (pack)',
-    category: 'vegetation',
-    fade: true,
-    description:
-      'Bushes of 1-1.6 m of a CC BY pack, three levels of detail. Drive-through.',
-    variants: 3,
-    lods: [
-      { maxDistance: 35, castShadow: false },
-      { maxDistance: 90, castShadow: false },
-      { maxDistance: 240, castShadow: false },
-    ],
-    tint: 0.1,
-  },
-  {
     id: 'fern',
     name: 'Fern',
     category: 'vegetation',
