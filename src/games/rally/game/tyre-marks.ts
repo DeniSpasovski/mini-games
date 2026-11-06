@@ -283,6 +283,7 @@ export class TyreMarks {
     this.pos.fill(0);
     this.next.fill(0);
     this.along.fill(0);
+    this.heat.fill(0);
     this.last.fill(null);
     for (let k = 0; k < COPIES; k++) {
       this.dirty[k].length = 0;
