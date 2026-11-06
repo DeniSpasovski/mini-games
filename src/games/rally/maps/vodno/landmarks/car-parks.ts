@@ -774,12 +774,12 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       p[1] + (q[1] - p[1]) * t,
     ];
     // A fine grid (~0.5 m: the verge's bumps must not poke through), each point on the ground plus a lift easing from
-    // the slab's top to 5 cm at the road.
+    // the slab's top to 8 cm at the road (over the verge's grit, which the terrain draws a few cm proud).
     const M = 20;
     const N = 8;
     const pt = (u: number, v: number): V3 => {
       const p = lerp(lerp(a, b, u / M), lerp(a2, b2, u / M), v / N);
-      return [p[0], y(p, SLAB + (0.05 - SLAB) * (v / N)), p[1]];
+      return [p[0], y(p, SLAB + (0.08 - SLAB) * (v / N)), p[1]];
     };
     for (let u = 0; u < M; u++)
       for (let v = 0; v < N; v++) {
@@ -790,6 +790,38 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
           (q[1][0] - q[0][0]) * (q[2][2] - q[0][2]);
         if (up1 < 0) q.reverse();
         l.fan('asphalt', q, LOT_ASPHALT, up, (c) => [c[0], c[2]]);
+      }
+    // Its two flared sides: a skirt of asphalt down into the ground, so the land beside never shows a gap or cuts over it.
+    const [cx, , cz] = pt(M / 2, N / 2);
+    for (const u of [0, M])
+      for (let v = 0; v < N; v++) {
+        const t0 = pt(u, v);
+        const t1 = pt(u, v + 1);
+        const foot = (t: V3): V3 => [t[0], y([t[0], t[2]], -0.3), t[2]];
+        let nx = -(t1[2] - t0[2]);
+        let nz = t1[0] - t0[0];
+        const nl = Math.hypot(nx, nz) || 1;
+        nx /= nl;
+        nz /= nl;
+        if ((t0[0] - cx) * nx + (t0[2] - cz) * nz < 0) {
+          nx = -nx;
+          nz = -nz;
+        }
+        const q = [t0, t1, foot(t1), foot(t0)];
+        // (wound to face out, away from the apron's middle: its face normal (t1 - t0) x (foot - t0) along n)
+        const f1 = q[2];
+        const ax = t1[0] - t0[0];
+        const ay = t1[1] - t0[1];
+        const az = t1[2] - t0[2];
+        const bx = f1[0] - t0[0];
+        const by = f1[1] - t0[1];
+        const bz = f1[2] - t0[2];
+        if ((ay * bz - az * by) * nx + (ax * by - ay * bx) * nz < 0)
+          q.reverse();
+        l.fan('asphalt', q, LOT_ASPHALT, [nx, 0, nz], (c) => [
+          c[0] * nz - c[2] * nx,
+          c[1],
+        ]);
       }
     return true;
   }

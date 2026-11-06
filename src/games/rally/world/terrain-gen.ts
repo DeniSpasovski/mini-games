@@ -2431,6 +2431,9 @@ export class TerrainGenerator {
         if (pq.found)
           ditch *= smoothstep(0, 2.5, Math.max(0, pq.distance - pq.halfWidth));
       }
+      // So does a graded lot's entrance (a pad reaching the verge): no trough between the road and the lot.
+      if (ditch > 0.002 && this.pads && this.pads.apply(x, z, -1e4) !== -1e4)
+        ditch = 0;
       h -= ditch;
     }
     return h;

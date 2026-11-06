@@ -433,6 +433,7 @@ describe('vodno car parks', () => {
       'sredno_lot',
       'sredno_bus_lot',
       'trail_lot',
+      'trail_mouth',
       'trail_start',
     ]);
   });

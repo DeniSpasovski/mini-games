@@ -106,6 +106,21 @@ export const LOT_PADS: PadDef[] = [
     },
   },
   {
+    // Its mouth (car-parks.ts `buildMouth`): the verge between the road's edge and the lot's end graded to one even slope,
+    // from the road's level up to the slab's, so the apron lies flat on it.
+    name: 'trail_mouth',
+    polygon: [
+      2086.6, -204, 2094.6, -207.6, 2091, -213.4, 2087.8, -219.8, 2086.6, -223,
+    ],
+    blend: 3,
+    frontage: [2083.3, -224, 2084, -204],
+    ramp: {
+      from: [2086.9, -213.4],
+      to: [2090.5, -213.4],
+      lift: [-0.03, PAD_LIFT],
+    },
+  },
+  {
     // Beyond it the earth path down to the picnic shelter and the hiking trail east: one walkable slope instead of the
     // land's step at the lot's end.
     name: 'trail_start',
