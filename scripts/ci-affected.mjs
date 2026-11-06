@@ -1,12 +1,16 @@
 // CI: which integration tests does this change affect?
-//   node scripts/ci-affected.mjs <base-ref>   -> prints one line per game: <game>=<test files, space separated>
-//   plus rally_cars=<car ids changed under src/games/rally/cars/, comma separated> (`all` without a diff): the rally
-//   per-car playtests drive those on top of their representative cars (integration-tests/rally/cars-under-test.ts),
-//   and smoke=<games, comma separated> for the browser smoke job (empty = skip; see `smokeGames`).
+//   node scripts/ci-affected.mjs <base-ref>   -> prints one line per game: <game>=<test files, space separated>,
+//   rally_cars=<car ids> (the rally drives run these on top of REPRESENTATIVE_CARS, integration-tests/rally/cars-under-test.ts),
+//   rally_hill_cars=<car ids> + rally_hill_maps=<map ids> (the worst-tyre hill test of car-matrix.test.ts: those cars on
+//   every map, those maps with the representative cars), each `all` or a comma list, and smoke=<games> for the browser
+//   smoke job (empty = skip; see `smokeGames`).
 // A test is affected when a changed file is in its import closure (relative imports and `new URL('./x', import.meta.url)`
 // workers, incl. json / data / asset files). Files that can change every test (package files, test / ts config,
 // workflows, this script) run everything; src/shared counts only through the closure.
-// Without a base ref (push to main, manual run) or when the diff fails, everything runs.
+// Rally drive tests (a rally playtest that reaches world/world.ts: stage-<map>, car-matrix, tyres, gearing, replay) import
+// the whole World, so scenery (scatter, trees, culverts, road wear, buildings, colliders beside the road) would run them:
+// they run only for the inputs of a drive, one line each below (`DRIVE_*`, `MAP_ROAD`, `CAR`); main runs them all.
+// Without a base ref (push to main, manual run) or when the diff fails, everything runs with every car.
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -35,6 +39,31 @@ export const RUN_ALL = [
   /^tests\/rstest\.setup\.ts$/,
   /^integration-tests\/tsconfig\.json$/,
 ];
+/** Every drive with every car, every hill. */
+export const DRIVE_EVERYTHING = [
+  /^src\/games\/rally\/physics\//, // the car model every drive runs on
+  /^src\/games\/rally\/game\/autopilot\.ts$/, // the driver of every drive
+];
+/** The drive tests that reach it, representative cars, every map's hills: shared road / terrain code and the harness. */
+export const DRIVE_SHARED = [
+  /^src\/games\/rally\/world\/(world|road|heightfield|terrain-gen)\.ts$/, // ground sampling + spawn, road line, height grid, road carved into the terrain
+  /^src\/games\/rally\/world\/(real-data|lakes)\.ts$/, // real elevation samplers; lakes carve the ground
+  /^src\/games\/rally\/world\/(junctions|twin-decks|portals|plazas|under-bridges|pads|parkway-lanes)\.ts$/, // decks, slabs, plazas, pads: heights the car drives on
+  /^src\/games\/rally\/maps\/shared\/(types|real-map)\.ts$/, // road surface per stretch (roadSurfaceAt), real-map route / elevation helpers
+  /^src\/games\/rally\/maps\/shared\/(climate|day-temperature)\.ts$/, // stage climate: the tyre / brake temperatures of a drive
+  /^src\/shared\/(noise|rng)\.ts$/, // the procedural terrain heights (test map)
+  /^integration-tests\/rally\/[^/]+\.ts$/, // the tests and their harness (stage-harness, handling-harness, cars-under-test)
+];
+/** The replay recorder / re-simulation (replay.test.ts only, through its closure; no hill effect). */
+const DRIVE_CODE = [/^src\/games\/rally\/game\/replay\//];
+/**
+ * A map's road: its definition, stages (tyre, climate) and baked road / elevation data; its landmarks, buildings, service
+ * park, horizon and menu info are scenery. Runs the drive tests that import that map's `map.ts` themselves.
+ */
+export const MAP_ROAD =
+  /^src\/games\/rally\/maps\/([^/]+)\/(map\.ts|stages\.ts|data\.json|route\.json|junction[^/]*\.json)$/;
+/** A car's own folder (physics + model): that car joins the drives and every map's hills. cars/shared = model code. */
+const CAR = /^src\/games\/rally\/cars\/([^/]+)\//;
 // Docs (markdown, licence, screenshots) never reach the browser.
 const DOCS = [/\.md$/i, /^LICENSE$/, /(^|\/)screenshots\//];
 
@@ -92,19 +121,79 @@ export const smokeGames = (changed) => {
   );
 };
 
+const rel = (f) => relative(root, f).split(sep).join('/');
+const any = (list, f) => list.some((re) => re.test(f));
+const WORLD = join(root, 'src/games/rally/world/world.ts');
+
+/** Car ids (folder with `_`: cars/skoda-rally -> skoda_rally) whose own folder changed, docs left out. */
+const changedCars = (changed) => [
+  ...new Set(
+    changed
+      .filter((f) => !any(DOCS, f))
+      .map((f) => f.match(CAR)?.[1])
+      .filter((d) => d && d !== 'shared')
+      .map((d) => d.replace(/-/g, '_')),
+  ),
+];
+
+/** Does a change run this rally drive test (`test`: absolute path, `files`: its closure)? */
+const drives = (test, files, changed) => {
+  const src = readFileSync(test, 'utf8');
+  // The maps it drives: the `maps/<id>/map` modules the test file imports itself.
+  const maps = new Set(
+    [...src.matchAll(/maps\/([^/'"]+)\/map['"]/g)].map((m) => m[1]),
+  );
+  // The cars it drives: the cars under test / every car, else the ids it names (tyres: the Fabia only).
+  const everyCar =
+    files.has(join(root, 'integration-tests/rally/cars-under-test.ts')) ||
+    /ALL_CARS\.(filter|map)\(/.test(src);
+  return changed.some((f) => {
+    if (any(DOCS, f)) return false;
+    const road = f.match(MAP_ROAD);
+    if (road) return maps.has(road[1]);
+    const car = changedCars([f])[0];
+    if (car) return everyCar || src.includes(`'${car}'`);
+    return (
+      files.has(join(root, f)) &&
+      (any(DRIVE_EVERYTHING, f) || any(DRIVE_SHARED, f) || any(DRIVE_CODE, f))
+    );
+  });
+};
+
 /** Integration test files per game (repo-relative) for a list of changed files; null = everything. */
 export const affectedTests = (changed) => {
-  const all = !changed || changed.some((f) => RUN_ALL.some((re) => re.test(f)));
+  const all = !changed || changed.some((f) => any(RUN_ALL, f));
   const changedAbs = new Set((changed ?? []).map((f) => join(root, f)));
   return Object.fromEntries(
     GAMES.map((g) => [
       g,
       walk(join(root, 'integration-tests', g))
         .filter((f) => f.endsWith('.test.ts'))
-        .filter((t) => all || [...closure(t)].some((f) => changedAbs.has(f)))
-        .map((t) => relative(root, t).split(sep).join('/')),
+        .filter((t) => {
+          if (all) return true;
+          const files = closure(t);
+          return g === 'rally' && files.has(WORLD)
+            ? drives(t, files, changed)
+            : [...files].some((f) => changedAbs.has(f));
+        })
+        .map(rel),
     ]),
   );
+};
+
+/**
+ * The rally drives' cars and the worst-tyre hill test's scope (`all` or ids): physics / autopilot or no diff = all; a
+ * changed car = that car (on every map's hills); a changed map road = that map's hills with the representative cars;
+ * shared road / terrain code, the harness or a run-everything file = every map's hills with the representative cars.
+ */
+export const rallyCars = (changed) => {
+  if (!changed || changed.some((f) => any(DRIVE_EVERYTHING, f)))
+    return { cars: 'all', hillCars: 'all', hillMaps: 'all' };
+  const cars = changedCars(changed);
+  const hillMaps = changed.some((f) => any(RUN_ALL, f) || any(DRIVE_SHARED, f))
+    ? 'all'
+    : [...new Set(changed.map((f) => f.match(MAP_ROAD)?.[1]).filter(Boolean))];
+  return { cars, hillCars: cars, hillMaps };
 };
 
 const main = () => {
@@ -126,14 +215,11 @@ const main = () => {
   for (const [g, hit] of Object.entries(affectedTests(changed)))
     console.log(`${g}=${hit.join(' ')}`);
 
-  // A car's folder is its id with dashes (cars/skoda-rally -> skoda_rally); shared car code changes no single car.
-  const cars = new Set(
-    (changed ?? [])
-      .map((f) => f.match(/^src\/games\/rally\/cars\/([^/]+)\//)?.[1])
-      .filter((d) => d && d !== 'shared')
-      .map((d) => d.replace(/-/g, '_')),
-  );
-  console.log(`rally_cars=${changed ? [...cars].join(',') : 'all'}`);
+  const r = rallyCars(changed);
+  const list = (v) => (v === 'all' ? v : v.join(','));
+  console.log(`rally_cars=${list(r.cars)}`);
+  console.log(`rally_hill_cars=${list(r.hillCars)}`);
+  console.log(`rally_hill_maps=${list(r.hillMaps)}`);
   console.log(`smoke=${smokeGames(changed).join(',')}`);
 };
 

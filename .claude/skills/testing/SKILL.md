@@ -44,9 +44,13 @@ output of `scripts/ci-affected.mjs`).
 
 Integration jobs are selective: `scripts/ci-affected.mjs` (job `changes`) runs only the test files whose import closure contains a
 changed file (relative imports and `new URL()` workers, incl. imported assets such as `*.webp` and `*.data.ts`); a game with
-none is skipped. Package / test / ts config, workflows or that script run all; pushes to `main` run all; docs run none. Rally per-car playtests (`stage-<map>`, `car-matrix` worst pick) drive
-the five representative cars plus the cars a PR changed (`rally_cars` output -> `RALLY_CARS`, `cars-under-test.ts`); pushes to
-`main` and local runs drive every car. A playtest file per map lets the maps run side by side (rstest runs files in parallel). Run the matching script before pushing; after touching physics or a map also
+none is skipped. Package / test / ts config, workflows or that script run all; pushes to `main` run all; docs run none.
+Rally drive tests (those reaching `World`: `stage-<map>`, `car-matrix`, `tyres`, `gearing`, `replay`) ignore scenery: they run only
+for physics / autopilot, a car folder, shared road / terrain code, the harness or the road files of a map they import (lists with
+reasons in the script header). On a PR they drive one car per drive type (`REPRESENTATIVE_CARS`: Fabia, Zastava, M3 GT2) plus the
+changed cars (`rally_cars` -> `RALLY_CARS`); physics / autopilot = every car. The `car-matrix` worst-tyre hills run only for the
+changed cars (every map) and map roads (representative cars): `rally_hill_cars` / `rally_hill_maps` -> `RALLY_HILL_*`. Pushes to
+`main` and local runs drive every car everywhere. A playtest file per map lets the maps run side by side (rstest runs files in parallel). Run the matching script before pushing; after touching physics or a map also
 run `npm run test:integration:rally`.
 
 ## Gotchas
