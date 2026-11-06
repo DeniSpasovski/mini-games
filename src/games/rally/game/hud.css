@@ -479,7 +479,6 @@ body {
   max-height: none;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   padding: 24px 80px 24px 32px;
   border-radius: 0;
   box-shadow: none;
@@ -487,6 +486,36 @@ body {
 }
 .overlay.pause .menu-options {
   min-width: 0;
+}
+/* Centre the content, but let it scroll from its top when it is taller than the screen: plain
+   justify-content:center would push the top of a tall options list out of reach. */
+.overlay.pause .box > :first-child {
+  margin-top: auto;
+}
+.overlay.pause .box > :last-child {
+  margin-bottom: auto;
+}
+/* Short landscape phones: tighter pause menu and options so more fits before it scrolls. */
+@media (max-height: 559px) {
+  .overlay.pause .box {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .overlay.pause h2 {
+    margin-bottom: 8px;
+    font-size: 28px;
+  }
+  .overlay.pause .menu-options {
+    gap: 6px;
+  }
+  .overlay.pause .menu-opt {
+    gap: 3px;
+    font-size: 13px;
+  }
+  .overlay.pause .menu-seg button {
+    padding: 4px 6px;
+    font-size: 15px;
+  }
 }
 .overlay button:not(.menu-btn, .menu-seg button),
 .overlay select,
