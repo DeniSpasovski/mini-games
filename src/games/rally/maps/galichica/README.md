@@ -23,9 +23,6 @@ juniper low down, flowering yellow broom on the road cuttings, beech forest on t
 pasture with dwarf juniper on the top. Only the pass road and the roads round the stage ends are imported; side tracks
 meeting the stage road are closed with barriers on each stage.
 
-Concrete culverts with headwalls carry the water under the road where the elevation data says a gully or fold crosses it
-(estimated from the drainage of the elevation data, `culverts.json`: OpenStreetMap maps none on this road).
-
 ```bash
 npm run dev     # /games/rally/?stage=galichica_west&mute=1
                 # /games/rally/map-viewer.html?map=galichica&stage=prespa_ohrid

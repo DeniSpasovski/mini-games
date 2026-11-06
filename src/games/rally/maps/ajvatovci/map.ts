@@ -1,6 +1,5 @@
 import { buildingsFromData, routePoints, routeSpans } from '../shared/real-map';
 import type {
-  CulvertsDef,
   HeightmapDef,
   HorizonDef,
   LandcoverDef,
@@ -8,7 +7,6 @@ import type {
   PathDef,
   ScatterRule,
 } from '../shared/types';
-import culverts from './culverts.json';
 import data from './data.json';
 import horizon from './horizon.json';
 import { ajvatovciInfo as info } from './info';
@@ -73,8 +71,6 @@ export const ajvatovciMap: MapDef = {
   powerLines: data.powerLines as number[][],
   // The Tabanovci - Gevgelija main line (electrified) through Ilinden station + sidings, the freight line north.
   railways: data.railways,
-  // Culverts where the elevation data says water crosses the road (scripts/realmap/culverts.py).
-  culverts: culverts as CulvertsDef,
   // The industrial street at the start: hand-modelled lots replace the placeholder boxes there.
   // The hilltop: the church of St. Peter and St. Paul + bell tower at the finish, the playground court.
   // Ilinden railway station west of the start: building, platforms, crossing.

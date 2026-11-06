@@ -5,7 +5,6 @@ import {
   routePoints,
 } from '../shared/real-map';
 import type {
-  CulvertsDef,
   HeightmapDef,
   HorizonDef,
   LakeDef,
@@ -14,7 +13,6 @@ import type {
   PathDef,
   ScatterRule,
 } from '../shared/types';
-import culverts from './culverts.json';
 import data from './data.json';
 import horizon from './horizon.json';
 import { galichicaInfo as info } from './info';
@@ -92,8 +90,6 @@ export const galichicaMap: MapDef = {
   // Tracks over lumpy karst and steep woods: a longer height window than the default track (25 m) keeps them smooth.
   pathProfiles: { track: [45, 0.18], unclassified: [70, 0.12] },
   lakes: data.lakes as LakeDef[],
-  // Culverts where the elevation data says water crosses the road (scripts/realmap/culverts.py).
-  culverts: culverts as CulvertsDef,
   road: {
     width: 5.6,
     shoulder: 0.8,
