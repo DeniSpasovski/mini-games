@@ -525,6 +525,10 @@ open it.
 Rendering: `cars/shared/tyre-mesh.ts` (carcass, tread band, lettering ring), `tyre-tread.ts` (tread pattern per compound:
 normal + groove maps, materials, dust tint), `tyre-sidewall.ts` (wordmark, tyre name, compound band), `suspension-mesh.ts` (per
 `model.suspensionStyle`), `buildWheelSet` in `car-model.ts`.
+Tyre detail levels (`tyre-lod.ts`, `CarModel.setTyreLod` from the game loop): the full displaced tread at rest, below 20 km/h and
+within 9 m of the camera; a ~3k-triangle tyre with the same normal map further away (no lettering past 25 m); above 20-40 km/h
+(dithered crossfade) the same low tyre with the tread smeared along the rolling direction (no strobing). Replays scale the speed by
+the playback rate (paused = full detail). Never called (car viewer, showroom, setup bench) = full detail.
 Cars whose model has empty wheel wells set `model.cornerSuspension` (`cars/shared/corner-suspension.ts`): a coil-over in the car's
 style plus arms / drive shafts, following the live wheel travel (Zastava, M3, GT2, C4, Lancer; Skoda, Fiesta, 22B show the model's own).
 A wheel GLB rim with `COLOR_0` vertex colours (two-tone, Porsche 930) gets its own `vertexColors` material (`rimColored` in
