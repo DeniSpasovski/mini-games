@@ -1565,8 +1565,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     };
     const yieldTask = () => new Promise<void>((res) => setTimeout(res, 0));
     // Wait for the GPU to finish what it was given (a 1-pixel read back): before the section nothing reads the canvas,
-    // so frames would pile up on the GPU and the first encoded frame would wait for all of them (a long stall at
-    // frame 3 with a progress bar that already showed the run-up done).
+    // so the run-up piles up on the GPU and the first encoded frame would wait for all of it.
     const gl = this.renderer.getContext();
     const px = new Uint8Array(4);
     const gpuSync = () => {
@@ -1607,7 +1606,6 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         i++
       ) {
         this.frame(0);
-        gpuSync();
         const busy =
           this.terrain.pending > 0 || this.streamer.busy || this.trees.busy;
         quiet = busy ? 0 : quiet + 1;
@@ -1624,12 +1622,13 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       r.playing = true;
       for (let i = 0; i < runUp; i++) {
         this.frame(step);
-        gpuSync();
         if (i % 8 === 7) {
           status({ phase: 'runup', done: (i + 1) / runUp });
           await yieldTask();
         }
       }
+      // Once, before the section: let the GPU finish the run-up it was given, so frame 1 doesn't wait for it.
+      gpuSync();
       mark('run-up');
       const tape = new AudioTape();
       this.audio.setTape(tape);
