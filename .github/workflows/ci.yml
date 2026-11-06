@@ -17,8 +17,9 @@ permissions:
 # (scripts/smoke.mjs: each affected game's pages in headless Chrome on the dev server, SwiftShader GPU;
 # skipped when no game is affected, e.g. docs only).
 # Integration tests are slow, so `changes` (scripts/ci-affected.mjs) picks the test files whose import closure
-# contains a changed file; a game with none is skipped (a skipped job counts as passed for required checks).
-# Pushes to main run every integration test.
+# contains a changed file (rally drives: only physics, autopilot, car, road / terrain changes; the representative cars
+# plus the changed ones); a game with none is skipped (a skipped job counts as passed for required checks).
+# Pushes to main run every integration test with every car.
 jobs:
   changes:
     name: pick integration tests
@@ -29,6 +30,8 @@ jobs:
       hole: ${{ steps.pick.outputs.hole }}
       kaboom: ${{ steps.pick.outputs.kaboom }}
       rally_cars: ${{ steps.pick.outputs.rally_cars }}
+      rally_hill_cars: ${{ steps.pick.outputs.rally_hill_cars }}
+      rally_hill_maps: ${{ steps.pick.outputs.rally_hill_maps }}
       smoke: ${{ steps.pick.outputs.smoke }}
     steps:
       - uses: actions/checkout@v7
@@ -72,6 +75,8 @@ jobs:
       - run: npx rstest ${{ needs.changes.outputs.rally }}
         env:
           RALLY_CARS: ${{ needs.changes.outputs.rally_cars }}
+          RALLY_HILL_CARS: ${{ needs.changes.outputs.rally_hill_cars }}
+          RALLY_HILL_MAPS: ${{ needs.changes.outputs.rally_hill_maps }}
 
   hole:
     name: hole tests

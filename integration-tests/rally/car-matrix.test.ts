@@ -16,7 +16,7 @@ import type { TyreId } from '../../src/games/rally/physics/tyres';
 import type { SetupId } from '../../src/games/rally/physics/types';
 import { PHYSICS_HZ, Vehicle } from '../../src/games/rally/physics/vehicle';
 import { World } from '../../src/games/rally/world/world';
-import { carsUnderTest } from './cars-under-test';
+import { carsUnderTest, hillMaps } from './cars-under-test';
 import { launch } from './handling-harness';
 
 /**
@@ -195,12 +195,17 @@ function drive(
   };
 }
 
-describe.each(carsUnderTest().map((c) => c.id))('%s', (carId) => {
+// The cars and maps whose hills are driven (`hillMaps`): on a PR only the changed cars and map roads.
+const MAP_IDS = STAGES.map((m) => m.id);
+const HILLS = carsUnderTest()
+  .map((c) => [c.id, hillMaps(c.id, MAP_IDS)] as const)
+  .filter(([, maps]) => maps.length > 0);
+describe.each(HILLS)('%s', (carId, maps) => {
   // The worst pick, with its matching set-up: tarmac tyres on a gravel stage, gravel tyres on a tarmac or dusty-tarmac
   // (mixed) stage. At rally pace it flies off by physics; flat out (lifting off for bends) it must go over every hill with
   // at most one reset (a player presses R after a stall, as on the recommended pick; the Porsche 911 needs one in the 10 m
   // hairpin at 8045 m on Petralica, where a wheel spins).
-  test.each(STAGES.map((m) => m.id))(
+  test.each(maps)(
     '%s: the worst pick gets over the steepest hills',
     (mapId) => {
       const rec = STAGES.find((m) => m.id === mapId)!.stages[0].tyre;
