@@ -32,14 +32,15 @@ Send the developer this, adapted to what they already said:
 > 3. **Pictures** (each one is used, see below): start and finish close-ups, Street View frames, landmark photos.
 > 4. **Anything that must be in or out**, who took the pictures (yours or from the web), and an elevation file if you have a better one.
 
-| Ask for                                                                                          | Used for                                                             |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| OSM area screenshot                                                                              | what is imported, the landmark list                                  |
-| Google route screenshot (satellite, route line, start and finish markers)                        | route check; `trace_route.py` where OSM lacks the road               |
-| Satellite close-ups of the start and the finish                                                  | start area, service park, gantry spot                                |
-| Street View or dash-cam frames: start, finish, every surface change, bridge, hairpin, wall, rail | `road.sections`, barriers, bridges, rails                            |
-| Photos or links of landmarks (church, tower, cross, lodge)                                       | procedural landmark shapes: reference only, nothing traced from them |
-| Optional: GeoTIFF / OpenTopography DEM (US: USGS 3DEP lidar is built in)                         | `dem.file`; only if better than the free Terrarium tiles             |
+| Ask for                                                                                          | Used for                                                                          |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| OSM area screenshot                                                                              | what is imported, the landmark list                                               |
+| Google route screenshot (satellite, route line, start and finish markers)                        | route check; `trace_route.py` where OSM lacks the road                            |
+| Satellite close-ups of the start and the finish                                                  | start area, service park, gantry spot                                             |
+| Street View or dash-cam frames: start, finish, every surface change, bridge, hairpin, wall, rail | `road.sections`, barriers, bridges, rails                                         |
+| Photos or links of landmarks (church, tower, cross, lodge)                                       | procedural landmark shapes: reference only, nothing traced from them              |
+| Road-cut rock, drops, car parks, trail starts, culverts or drains by the road, guard rails       | rock cuts, fill banks, rails, lots, culverts: what is real, not guessed from data |
+| Optional: GeoTIFF / OpenTopography DEM (US: USGS 3DEP lidar is built in)                         | `dem.file`; only if better than the free Terrarium tiles                          |
 
 No OSM or Google link, only a name? Ask for the links; stop if there are none. Ask again whenever OSM misses a road, the surface
 change is unknown, or the baked route differs from Google's.
@@ -82,14 +83,24 @@ Folder `src/games/rally/maps/<id>/` (copy `maps/test/` or the closest example): 
 - credits: `MapDef.sources` / `credits: data.meta.sources`, README table, `THIRD-PARTY.md`.
 
 Every other road meeting the stage road is joined and closed with barriers (junction rule), real data first: check the DEM and OSM
-against the pictures before hand-tuning anything.
+against the pictures before hand-tuning anything. Set `country` (`'mk'` / `'us'`) so fans wave the right flag.
+
+## 4b. Real-data passes, then the detail pass
+
+Once the road is accepted, add what the satellite data knows, in this order (rally-maps "Real-world maps" step 2 lists the commands):
+`leaf_type.py` (woods by leaf type), `canopy.py` (real trees and heights), `horizon.py` / `rivers.py`, `culverts.py` (an estimate from
+the elevation data; for now only Vodno keeps them). Check the route is unchanged after each run. Then the detail pass one topic at a
+time, each compared with the developer's pictures before the next: rock cuts and fill banks, rails, forest edge and floor, foot
+paths, car parks and landmarks. Rally-maps "Detail pass and review (lessons from Vodno)" has the traps: ask for a Street View of the
+spot instead of trusting the data, keep shared-engine and foliage changes out of the map PR, and never thin the forest to fix limbs
+over the road. Landmarks we draw are "ai-generated" in README and credits.
 
 ## 5. Verify, and ask for eyes
 
 - `npm run test -- tests/rally/world.test.ts`, `release.test.ts`, `side-roads`, `water`, `junctions`; then `npx rstest integration-tests/rally/stage-<id>.test.ts`.
 - Map viewer `/games/rally/map-viewer.html?map=<id>&stage=<id>` (a click shows lat / lon and Google Maps / Street View links: use them to
   compare with the developer's pictures), drive `/games/rally/?stage=<id>&spawn=<m>&mute=1`.
-- Send the developer review shots and camera links; ask for a Street View of anything that looks wrong. Review shots go to
+- Send the developer review shots and camera links (or one console line per spot, rally-maps "Owner review of many spots"); ask for a Street View of anything that looks wrong. Cloud rendering is slow: wait for the LOADING text to go before a shot. Review shots go to
   `sources/maps/<id>/review/`, never `src/games/rally/screenshots/`.
 - Do not bake the stage card unless asked (rally-maps "Verify" 6).
 
