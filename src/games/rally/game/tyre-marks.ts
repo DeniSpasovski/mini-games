@@ -74,6 +74,8 @@ export class TyreMarks {
   /** One geometry per GPU copy (shared CPU arrays and index), the quads each still has to upload, the one drawn. */
   private geos: BufferGeometry[] = [];
   private dirty: number[][] = [];
+  /** Copies whose whole position buffer goes up on their next turn (after `clear`). */
+  private cleared: boolean[] = new Array(COPIES).fill(false);
   private current = 0;
   private material: MeshBasicMaterial;
   /** Compound the texture and widths are for; tread band width (m) and imprint tile length (m) per wheel. */
@@ -167,8 +169,14 @@ export class TyreMarks {
     const pa = g.getAttribute('position') as BufferAttribute;
     const ca = g.getAttribute('color') as BufferAttribute;
     const ua = g.getAttribute('uv') as BufferAttribute;
+    // Cleared: all positions go up (no update range = the whole buffer), so none of the old quads draw.
+    const full = this.cleared[this.current];
+    if (full) {
+      this.cleared[this.current] = false;
+      pa.clearUpdateRanges();
+    }
     for (const q of quads) {
-      pa.addUpdateRange(q * 12, 12);
+      if (!full) pa.addUpdateRange(q * 12, 12);
       ca.addUpdateRange(q * 16, 16);
       ua.addUpdateRange(q * 8, 8);
     }
@@ -267,6 +275,21 @@ export class TyreMarks {
     this.last.fill(null);
   }
 
+  /**
+   * Remove every mark (a replay opening or seeking back redraws them): all quads collapse to a point (positions 0, as
+   * at the start), the strips break, and each GPU copy uploads its whole position buffer on its next turn.
+   */
+  clear(): void {
+    this.pos.fill(0);
+    this.next.fill(0);
+    this.along.fill(0);
+    this.last.fill(null);
+    for (let k = 0; k < COPIES; k++) {
+      this.dirty[k].length = 0;
+      this.cleared[k] = true;
+    }
+  }
+
   private writeQuad(
     wheel: number,
     from: Vector3,
@@ -313,7 +336,16 @@ export class TyreMarks {
     }
     const u0 = kind / KINDS;
     const u1 = (kind + 1) / KINDS;
-    this.uv.set([u0, v0, u1, v0, u0, v1, u1, v1], q * 8);
+    const U = this.uv;
+    const t = q * 8;
+    U[t] = u0;
+    U[t + 1] = v0;
+    U[t + 2] = u1;
+    U[t + 3] = v0;
+    U[t + 4] = u0;
+    U[t + 5] = v1;
+    U[t + 6] = u1;
+    U[t + 7] = v1;
     for (const d of this.dirty) d.push(q);
   }
 
@@ -357,12 +389,14 @@ export function marksTexture(tyre: TyreId | null): CanvasTexture {
   // Plain carcass (no compound): all rubber.
   const rubberAt = (b: number, phase: number) =>
     tyre ? treadRubber(tyre, b, phase) : true;
-  // Share of the pitch that is rubber at b (circumferential grooves = 0): the rubber band's lines.
-  const coverage = (b: number) => {
+  // Share of the pitch that is rubber at each column's b (circumferential grooves = 0): the rubber band's lines.
+  const coverage = new Float64Array(TILE_W);
+  for (let x = 0; x < TILE_W; x++) {
+    const b = ((x + 0.5) / TILE_W) * 2 - 1;
     let n = 0;
     for (let k = 0; k < 32; k++) if (rubberAt(b, k / 32)) n++;
-    return n / 32;
-  };
+    coverage[x] = n / 32;
+  }
   const put = (x: number, y: number, v: number, a: number) => {
     const i = (y * W + x) * 4;
     const g = Math.round(255 * Math.min(1, Math.max(0, v)));
@@ -399,7 +433,7 @@ export function marksTexture(tyre: TyreId | null): CanvasTexture {
       // 2: rubber - dark band, light lines at the circumferential grooves, soft edges.
       const b = u * 2 - 1;
       const soft = Math.min(1, (1 - Math.abs(b)) / 0.18);
-      const cov = coverage(b);
+      const cov = coverage[x];
       put(
         TILE_W * 2 + x,
         y,

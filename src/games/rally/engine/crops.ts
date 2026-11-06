@@ -24,6 +24,7 @@ import {
 import { Rng } from '../../../shared/rng';
 import { CROP_MODELS } from '../assets/builders/crop-models.data';
 import { coverageMips } from '../trees/materials';
+import { setAlphaToCoverage } from './materials';
 import { groundLitCard } from './world-shading';
 
 /**
@@ -285,11 +286,10 @@ export function cropCardMaterial(card: CropCard): MeshStandardMaterial {
 /** Alpha-to-coverage on the cards when the renderer has MSAA (like the grass cards). */
 export function setCropAntialias(on: boolean): void {
   cardA2C = on;
-  for (const [k, m] of materials)
-    if (k.startsWith('card:') && m.alphaToCoverage !== on) {
-      m.alphaToCoverage = on;
-      m.needsUpdate = true;
-    }
+  setAlphaToCoverage(
+    [...materials].filter(([k]) => k.startsWith('card:')).map(([, m]) => m),
+    on,
+  );
 }
 
 // --- card bake --------------------------------------------------------------------------------------------------

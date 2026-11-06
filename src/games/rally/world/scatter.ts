@@ -504,6 +504,7 @@ export class ScatterField {
           // (variant, rotation, size) from the same hash: the one of REPOSE_TRIES that keeps them furthest off.
           if (solid && this.ctx.treeCrownClear !== undefined && q.found) {
             const allow = this.ctx.treeCrownClear;
+            this.toRoad.state = 0;
             let over = this.lowOverRoad(inst, q, rd);
             const tries = over > allow ? REPOSE_TRIES : 0;
             for (let k = 1; k <= tries && over > 0; k++) {
@@ -534,6 +535,11 @@ export class ScatterField {
 
   private bq = newRoadQuery();
   /**
+   * The direction towards the road from the tree being posed (`lowOverRoad`): the same for every pose, so measured
+   * once per tree. state 0 = not yet, 1 = (x, z), -1 = no direction (on the centreline).
+   */
+  private toRoad = { state: 0, x: 0, z: 0 };
+  /**
    * How far (m) a placed tree's low leaves (under LOW_CLEAR above the road) reach past the stage road's edge: its
    * variant's leaf points posed (rotation, scale) and projected towards the road, plus the leaf sprites' reach.
    */
@@ -543,17 +549,23 @@ export class ScatterField {
     if (rd > variantInfo(inst.tree!.species, inst.variant).radius * k)
       return -Infinity;
     // Towards the road: down the gradient of the distance to its centreline.
-    const e = 0.5;
-    const dx =
-      this.road.query(inst.x + e, inst.z, this.bq).distance -
-      this.road.query(inst.x - e, inst.z, this.bq).distance;
-    const dz =
-      this.road.query(inst.x, inst.z + e, this.bq).distance -
-      this.road.query(inst.x, inst.z - e, this.bq).distance;
-    const len = Math.hypot(dx, dz);
-    if (len < 1e-6) return -Infinity;
-    const nx = -dx / len;
-    const nz = -dz / len;
+    const dir = this.toRoad;
+    if (dir.state === 0) {
+      const e = 0.5;
+      const dx =
+        this.road.query(inst.x + e, inst.z, this.bq).distance -
+        this.road.query(inst.x - e, inst.z, this.bq).distance;
+      const dz =
+        this.road.query(inst.x, inst.z + e, this.bq).distance -
+        this.road.query(inst.x, inst.z - e, this.bq).distance;
+      const len = Math.hypot(dx, dz);
+      dir.state = len < 1e-6 ? -1 : 1;
+      dir.x = -dx / len;
+      dir.z = -dz / len;
+    }
+    if (dir.state < 0) return -Infinity;
+    const nx = dir.x;
+    const nz = dir.z;
     const c = Math.cos(inst.rotY);
     const s = Math.sin(inst.rotY);
     const lowY = (q.height + LOW_CLEAR - inst.y) / k;

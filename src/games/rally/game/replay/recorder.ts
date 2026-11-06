@@ -38,7 +38,10 @@ export interface StageClock {
   wrongWay: boolean;
 }
 
-/** Longest recording (s): a free drive left running stops recording here (the trace keeps going). */
+/**
+ * Longest recording (s). Past it the run has no replay (not saved, not watchable): a free drive left running stops
+ * recording here (the trace keeps going), and a stage run that takes longer is not kept.
+ */
 export const MAX_SECONDS = 30 * 60;
 /** Physics steps kept in the trace ring (s). */
 export const TRACE_SECONDS = 20;
@@ -100,6 +103,8 @@ export class ReplayRecorder {
   private teleport = true;
   /** Set when the run is over or the recording is full. */
   stopped = false;
+  /** The run went past `MAX_SECONDS`: the recording is cut, so it makes no replay. */
+  full = false;
   private trace: Float64Array;
   private traceSteps: number;
   private traceHead = 0;
@@ -127,6 +132,7 @@ export class ReplayRecorder {
     this.steps = 0;
     this.teleport = true;
     this.stopped = false;
+    this.full = false;
   }
 
   /** The car was moved by the game (reset to road, cut): the next frame starts a new segment. */
@@ -142,10 +148,12 @@ export class ReplayRecorder {
     if (this.stopped || s % this.stride !== 0) return;
     if (this.frames * this.stride >= MAX_SECONDS * this.hz) {
       this.stopped = true;
+      this.full = true;
       return;
     }
     if ((this.frames + 1) * ROW > this.rows.length) {
-      const grown = new Float64Array(this.rows.length * 2);
+      const cap = Math.ceil((MAX_SECONDS * this.hz) / this.stride) * ROW;
+      const grown = new Float64Array(Math.min(this.rows.length * 2, cap));
       grown.set(this.rows);
       this.rows = grown;
     }

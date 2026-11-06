@@ -18,9 +18,8 @@ scripts only in your scratchpad.
 
 ## How
 
-1. Capture in headless Chrome over CDP, never in the app's browser pane (it slows the user's machine). Use the local helper
-   `sources/tools/perf-plan/cdp.mjs` (`launch()` -> `send`, `evaluate`; it takes the GPU bench lock) when present, else a
-   small CDP script in your scratchpad. Same view for both servers: only the origin of the link changes.
+1. Capture in headless Chrome over CDP, never in the app's browser pane (it slows the orchestrator's machine). Use a small CDP script
+   in your scratchpad. Same view for both servers: only the origin of the link changes.
 2. Wait until the page is ready, then 3-4 s more for streaming (trees, scatter, LODs):
    map viewer `!!window.__mapViewer`; car viewer `await __carViewer.model.ready`; game `__rally.loadMs > 0`.
    Capture with `Page.captureScreenshot` at 1600x900. Save as `sources/<maps|cars>/<id>/review/<name>-after.jpg` /
