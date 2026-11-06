@@ -99,6 +99,7 @@ import { TyreDust } from './tyre-dust';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
+import { PAD_STEER_LABELS } from './pad-steering';
 import {
   BLOOM_MIX,
   OBJECT_DISTANCE,
@@ -843,6 +844,7 @@ export class RallyGame {
     this.vehicle.tractionControl = s.traction;
     this.vehicle.abs = s.abs;
     this.rig.mode = s.camera;
+    this.input.pad.set(s.padSteering);
     // Object draw distance (options): the streamer re-buckets on its next update.
     const lodScale =
       this.opts.quality.lodScale * OBJECT_DISTANCE[s.objectDistance];
@@ -1778,6 +1780,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         speed: lon,
         slipAngle: slip,
         maxSteer: (v.def.maxSteerDeg * Math.PI) / 180,
+        frontTravel: v.frontTravel(),
+        frontPeakAngle: v.frontPeakAngle(),
       });
       v.controls.throttle = c.throttle;
       v.controls.brake = c.brake;
@@ -2033,7 +2037,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ? 'free drive'
         : `${Math.max(0, Math.min(st.finish, progress) - st.start).toFixed(0)} / ${(st.finish - st.start).toFixed(0)} m`,
     );
-    this.telemetry.update(dt, v);
+    const pad = this.input.pad;
+    this.telemetry.update(
+      dt,
+      v,
+      this.input.device === 'gamepad' ||
+        (this.input.device === 'touch' && this.input.touchStick !== null)
+        ? `pad ${PAD_STEER_LABELS[pad.mode]}  stick ${this.input.stickX.toFixed(2).padStart(5)}  lock ${pad.limit.toFixed(2)}`
+        : '',
+    );
 
     const tFx = performance.now();
     if (this.autoScale) this.adaptScale(performance.now());

@@ -23,7 +23,27 @@ Driver aids: traction / stability control (`T`, `Vehicle.tractionAssist`: trims 
 combined slip 1.15 on driven rear tyres, 2.0 on driven front tyres - `TC_REAR_SLIP` / `TC_FRONT_SLIP`), ABS (`B`, `Vehicle.absPass`: per wheel, eases the
 foot brake off past 1.3x the surface's peak slip ratio above ~11 km/h, so the fronts keep steering; the handbrake is
 untouched; `physics.noAbs` = not fitted, the Zastava and the Fiat 126p), auto reverse, keyboard steering ramp + speed limit
-(`keyboardSteerLimit` in `game/input.ts`, close to the steering that gives peak grip).
+(`keyboardSteerLimit` in `game/input.ts`, close to the steering that gives peak grip) and pad / touch stick steering
+modes (below).
+
+## Steering input (`game/input.ts`, `game/pad-steering.ts`)
+
+Input only: the physics and autopilot never see it, so it bumps no times versions. Keyboard and the touch arrows ramp to
+`keyboardSteerLimit` (counter-steer into a slide may go past it). A gamepad stick, and the touch stick, go through
+`PadSteering` (Options -> Pad steering):
+
+| Mode               | What it does                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Direct             | old mapping: stick^1.4 straight to the wheels, full lock at any speed (fronts slide at speed)                 |
+| Smooth             | winds on in 0.2 s, back in 0.12 s; full stick = `keyboardSteerLimit`; counter-steer allowance                 |
+| Build-up (default) | winds on in 0.3 s; full stick starts at 0.6x the keyboard lock and grows to 1.2x over 1 s held past 70 %      |
+| Grip assist        | aims the fronts at their peak slip angle from the front axle's travel; caster-like self-steer counters slides |
+
+Full stick held 3 s, Skoda on tarmac at 100 km/h: Direct 0.92 g and scrubs to 75 km/h; Smooth 1.12 g, Build-up 1.09 g,
+Grip assist 1.23 g, all holding ~98 km/h.
+
+Tuning: `PAD_STEER_TUNING` in `game/pad-steering.ts`; `F2` shows mode, stick and lock. Touch: the stick floats (rests bottom left, centres under a thumb landing anywhere in the
+left 40 % of the screen); Options -> Touch steering switches back to the arrows.
 
 ## Tuning guide
 
