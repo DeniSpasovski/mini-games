@@ -9,10 +9,6 @@ Rule for everything here: **arcade, not a sim**. Differences must be big enough 
 menu, and a "wrong" choice must still finish every stage. No tyre wear or pressure; tyre temperature is one number per
 tyre ("Tyre temperature").
 
-"Reference numbers" were first measured on 2026-10-04 with the shipped cars (Skoda Rally at the R5 torque of 402 Nm, Bimmer M3
-on street tyres); the brake, handling and stage-time tables below were redone on 2026-10-10 with real brakes, tyre grades
-and the stage climates.
-
 Conventions: body frame +Z forward, +Y up, **+X left**; steer input +1 = right; positive wheel steer angle = left;
 240 Hz fixed step (`PHYSICS_HZ`).
 
@@ -67,8 +63,7 @@ with no unsprung mass) - keep `bump` wavelengths long.
 adds hydrodynamic drag `0.5 * rho * Cd * A * v^2` per tyre (A = tyre width x depth) and on the submerged body (width /
 length / plan area x depth by direction, applied at the submerged centre so the nose dips on entry); water at the air
 intake (45 % of the body height above the underside) cuts engine power to 20 %; the bed is `mud`. No buoyancy.
-`vehicle.waterDepth` / `engineWater` are exposed for effects. Skoda Rally, 6 s full throttle: dry 117 km/h, 0.2 m water
-22 km/h, 0.6 m 10 km/h; 83 km/h into 0.5 m water -> 11 km/h after 2 s. Tests: `tests/rally/water-physics.test.ts`.
+`vehicle.waterDepth` / `engineWater` are exposed for effects (test: `tests/rally/water-physics.test.ts`).
 
 ## Grip layers (tyres + suspension)
 
@@ -202,51 +197,26 @@ speeds, top speed). Every size stays within 4 % of `wheelRadius` (a staggered re
 when both axles run one size); the autopilot plans with the lower axle. 4WD cars keep one radius on both axles (the centre
 coupling compares wheel spin; tested).
 
-| Car / compound                | Front      | Rear       | Rolling radius F / R |
-| ----------------------------- | ---------- | ---------- | -------------------- |
-| Skoda Rally - gravel, mixed   | 205/65 R15 | =          | 0.321 m              |
-| Skoda Rally - tarmac          | 235/40 R18 | =          | 0.320 m              |
-| Zastava 101 - tarmac          | 165/70 R13 | =          | 0.284 m              |
-| Zastava 101 - mixed           | 145/80 R13 | =          | 0.285 m              |
-| Zastava 101 - gravel          | 155/80 R13 | =          | 0.293 m              |
-| Bimmer M3 - tarmac, mixed     | 245/40 R18 | 265/40 R18 | 0.330 / 0.338 m      |
-| Bimmer M3 - gravel            | 205/65 R16 | =          | 0.340 m              |
-| Bimmer GT2 - tarmac           | 300/34 R18 | 310/41 R18 | 0.334 / 0.359 m      |
-| Bimmer GT2 - mixed            | 245/42 R18 | 265/48 R18 | 0.335 / 0.359 m      |
-| Bimmer GT2 - gravel           | 235/50 R17 | 235/60 R17 | 0.337 / 0.361 m      |
-| Fiesta - tarmac, mixed        | 235/40 R18 | =          | 0.325 m              |
-| Fiesta - gravel               | 215/65 R15 | =          | 0.333 m              |
-| Citroen C4 - tarmac, mixed    | 235/45 R18 | =          | 0.336 m              |
-| Citroen C4 - gravel           | 215/65 R15 | =          | 0.332 m              |
-| Lancer EVO VI - tarmac, mixed | 235/40 R18 | =          | 0.316 m              |
-| Lancer EVO VI - gravel        | 205/60 R15 | =          | 0.307 m              |
-| Subaru 22B - tarmac, mixed    | 235/40 R17 | =          | 0.310 m              |
-| Subaru 22B - gravel           | 215/55 R16 | =          | 0.322 m              |
-
-The Zastava gets the period 13" steel sizes (wider 165/70 on tarmac, taller 155/80 on gravel); the M3 the V8 (E92) road
-M3's staggered 18s; the GT2 its slicks (30/66-18 front, 31/71-18 rear = width cm / overall diameter cm - rim), keeping the
-taller rear on the rally compounds but one width on gravel (a wide tyre ploughs on loose ground). The GT2's final drive
-went up x 1.076 with the taller rear (no published ratios: its gear speeds stay). The M3
-keeps the game's close-ratio box: the E92's 6-speed (4.055 ... 0.872, 3.846 final) spun it on loose gravel at full
-throttle even with TC.
+Sizes per car and compound: `cars/<car>/<car>.ts` `physics.tyres`. The Zastava gets the period 13" steel sizes (wider 165/70 on tarmac, taller 155/80 on
+gravel); the M3 the E92 road M3's staggered 18s; the GT2 its slicks (30/66-18 front, 31/71-18 rear = width cm / overall diameter cm - rim), keeping the taller
+rear on the rally compounds but one width on gravel (a wide tyre ploughs on loose ground), with its final drive raised x 1.076 to match the taller rear (no
+published ratios: its gear speeds stay). The M3 keeps the game's close-ratio box: the E92's 6-speed spun it on loose gravel at full throttle even with TC.
 
 Size factors (`sizeFactors`, reference 205/65 R15 = 1; `w` = width / 0.205, `h` = sidewall height / 0.133 m):
 
-| Factor                       | Formula                                    | Zastava 145/80 | Skoda Rally 235/40 | Bimmer M3 245/40 | 205/65 (Skoda / M3 gravel) |
-| ---------------------------- | ------------------------------------------ | -------------- | ------------------ | ---------------- | -------------------------- |
-| mu on hard ground            | `w ^ 0.3`                                  | 0.90           | 1.04               |
-| mu on loose ground           | `w < 1 ? w ^ 0.12 : 1 - 0.22 * (w - 1)`    | 0.96           | 0.97               |
-| blend hard -> loose          | by `surface.loose` (0 tarmac ... 1 gravel) |                |                    |                  |                            |
-| response (peak slip / angle) | `h ^ 0.3` (low profile = sharper)          | 0.96           | 0.90               |
-| slide (forgiveness)          | `h ^ 0.1`                                  | 0.99           | 0.97               |
-| rolling on loose             | `1 + 0.3 * max(0, w - 1)` x `loose`        | 1.00           | 1.04               |
+| Factor                       | Formula                                    |
+| ---------------------------- | ------------------------------------------ |
+| mu on hard ground            | `w ^ 0.3`                                  |
+| mu on loose ground           | `w < 1 ? w ^ 0.12 : 1 - 0.22 * (w - 1)`    |
+| blend hard -> loose          | by `surface.loose` (0 tarmac ... 1 gravel) |
+| response (peak slip / angle) | `h ^ 0.3` (low profile = sharper)          |
+| slide (forgiveness)          | `h ^ 0.1`                                  |
+| rolling on loose             | `1 + 0.3 * max(0, w - 1)` x `loose`        |
 
-So the Zastava's thin tyres lose grip everywhere (least on loose ground); the M3's 245/40 street tyres are a little wider and
-lower than the Skoda Rally's tarmac tyre, but their road-tyre grade (0.82) puts it below the rally car on tarmac, and on gravel
-both run the reference 205/65 size. The M3's wider 265 rear gains on hard ground but loses on loose ground, so it doesn't replace the rear bias a 450 Nm RWD car needs
-(`axle.grip` 1.3; 1.15 made it spin under full throttle on loose ground; guarded by `car-setup.test.ts` "straight-line launch"). Axle
-grip is surface-independent, so the M3's front trim (1.10) also lifts it on gravel: much above ~1.14 the road-tyre M3 out-corners
-the Fabia there (`car-setup.test.ts` "own best tyres").
+Thin tyres lose grip everywhere (least on loose ground); a wider tyre gains on hard ground but loses on loose ground, so it does not replace the rear bias a
+powerful RWD car needs (the M3's `axle.grip` 1.3: a lower value spun it under full throttle on loose ground; guarded by `car-setup.test.ts` "straight-line
+launch"). Axle grip is surface-independent, so the M3's front trim (1.10) also lifts it on gravel: much above ~1.14 the road-tyre M3 out-corners the Fabia
+there (`car-setup.test.ts` "own best tyres").
 
 ### Suspension set-ups (`physics/car-setup.ts`)
 
@@ -278,21 +248,13 @@ compliance c = clamp01( 0.5 * (2.6 - f_avg) + 0.5 * (travel - 0.14) / 0.12 )   0
 
 ```
 match = (c - 0.5) * 2                                   -1 stiff ... +1 soft
-mu       *= 1 + 0.12 * match * rough - 0.06 * match * (1 - rough)   rough 0.12 (was 0.08 - review 2026-10-03)
+mu       *= 1 + 0.12 * match * rough - 0.06 * match * (1 - rough)
 response *= 1 + 0.08 * match * (1 - rough)              soft set-ups are a bit lazier on smooth tarmac
 ```
 
-| Car (character)             | Preset | f (Hz) | Spring front / rear (kN/m) | Travel | c    | Range       | Ride height |
-| --------------------------- | ------ | ------ | -------------------------- | ------ | ---- | ----------- | ----------- |
-| **Skoda Rally** (rally car) | Soft   | 1.61   | 34 / 29 (base)             | 260 mm | 0.99 | full        | +30 mm      |
-|                             | Medium | 2.1    | 59 / 48                    | 200 mm | 0.50 | 0.0 - 0.99  | standard    |
-|                             | Stiff  | 2.7    | 98 / 79                    | 150 mm | 0.0  |             | -20 mm      |
-| **Zastava** (road car)      | Soft   | 1.53   | 23 / 17 (base)             | 220 mm | 0.87 | soft half   | +15 mm      |
-|                             | Medium | 1.76   | 32 / 21                    | 200 mm | 0.67 | 0.49 - 0.87 | standard    |
-|                             | Stiff  | 1.95   | 39 / 26                    | 180 mm | 0.49 |             | -10 mm      |
-| **Bimmer M3** (race car)    | Soft   | 1.95   | 47 / 42                    | 170 mm | 0.45 | stiff half  | +35 mm      |
-|                             | Medium | 2.24   | 62 / 55                    | 160 mm | 0.26 | 0.04 - 0.45 | +15 mm      |
-|                             | Stiff  | 2.52   | 78 / 70 (base)             | 140 mm | 0.04 |             | standard    |
+Each car spans its own part of the compliance range (`c`, 0 = stiff tarmac ... 1 = soft gravel): the Skoda Rally the full range (Soft c 0.99 ... Stiff 0.0),
+the Zastava the soft half (0.87 ... 0.49), the Bimmer M3 the stiff half (0.45 ... 0.04); spring rates, travel and ride height per preset are in each car's
+`physics.setups`.
 
 **Ride height per preset** (`SetupPreset.ride`, `deriveSetups` point `ride`; `applySetup` -> `CarPhysicsDef.rideHeight`):
 softer presets lift the body (gravel kit: more clearance, higher centre of mass, more roll), stiffer ones lower it. The
@@ -316,17 +278,10 @@ fixed (setup screen: one "Standard" box, "no configuration available"). Medium i
 the redline) is the setup screen's number and matches the sim within 2 km/h; the box chart shows each gear's redline speed
 capped at that top speed, both for the fitted tyre (a taller tyre gears longer; the table: the default size). A map can recommend a gearing (`MapDef.gearing`, missing = medium): Jackie and Ajvatovci recommend `long`.
 
-| Car         | Short          | Medium (own)           | Long           |
-| ----------- | -------------- | ---------------------- | -------------- |
-| Skoda Rally | 5.2 - 146 km/h | 4.6 - 165 km/h         | 3.7 - 206 km/h |
-| Bimmer M3   | 4.8 - 224 km/h | 4.2 - 256 km/h         | 3.8 - 282 km/h |
-| Zastava     | -              | 4.4 - 160 km/h (fixed) | -              |
-
-Measured (limit driver with the speed cap lifted, `Autopilot.maxSpeed` 70 m/s): the Skoda Rally on long reaches 205 km/h on
-Jackie and is 5 % faster there (165.6 vs 174.6 s); on the test map and Petralica the gearing is worth < 0.5 %. **Short
-barely pulls harder** (Skoda Rally 0-100 4.60 vs 4.65 s): the engines have broad torque curves and close-ratio boxes, so the
-engine stays in its power band either way - final drive mostly trades top speed. If short should matter, it needs a
-peakier engine or slower shifts (open question). The stage tests' autopilot stays capped at 151 km/h (`maxSpeed` 42).
+Short / Long trade top speed against pull (the setup screen shows the numbers). Long matters only on stages with long fast sections (Jackie: ~5 % faster); on
+the test map and Petralica it is worth < 0.5 %. **Short barely pulls harder**: the engines have broad torque curves and close-ratio boxes, so the engine stays
+in its power band either way and the final drive mostly trades top speed; if short should matter, it needs a peakier engine or slower shifts (open question).
+The stage tests' autopilot stays capped at 151 km/h (`maxSpeed` 42).
 
 ### Autopilot and grip (`game/autopilot.ts`)
 
@@ -377,10 +332,9 @@ pages and the reference tests above are unchanged).
 | Gravel Hard | 58-98 °C  |
 | Gravel Soft | 46-86 °C  |
 
-Feel targets (`tests/rally/tyre-temp.test.ts`, Skoda Rally, tarmac tyre, 20 °C): a 60 km/h circle reaches the window in
-~14 s, a donut overheats it in ~6.5 s and 60 km/h straight cools it back in ~10 s; cold vs warm lateral g 0.81 vs 0.95.
-On a stage the careful autopilot warms its home tyre into the window in ~30 s. Gravel runs cool and tarmac hot, so a
-tarmac tyre on gravel also stays cold, and a gravel tyre on tarmac overheats sooner.
+Feel targets (`tests/rally/tyre-temp.test.ts`, Skoda Rally, tarmac tyre, 20 °C): a 60 km/h circle brings the tyre into its window in about 14 s, a donut
+overheats it in seconds and a straight cools it back; cold grip is clearly below warm. On a stage the careful autopilot warms its home tyre into the window in
+~30 s. Gravel runs cool and tarmac hot, so a tarmac tyre on gravel also stays cold, and a gravel tyre on tarmac overheats sooner.
 
 HUD: four tyres in the dash, white (cold) -> green (window) -> yellow -> red (`game/tyre-gauge.ts`), air / track
 temperature under them; `F2` shows temperature and grip factor per wheel.
@@ -414,8 +368,7 @@ with the mixed and gravel families (`Vehicle.setTyre`, `brakeKit`). The brake ac
 - **Heat** (only with a climate, `Vehicle.brakeTempPass`): the braking work (torque x wheel speed) x 0.94 goes into the
   disc, c(T) of cast iron; it loses heat to the air (`h = 8 + k v^0.8` on the faces and vanes: vented x2, ducted GT2 x5, drum
   x0.38), radiation and water. Discs start 80 K over the air (the liaison to the start line); wet pads give 30 % less.
-  One 100-0 stop warms a Skoda front disc ~50 K (gravel kit ~75), a Zastava front ~130; ten 150-60 km/h stops 30 s
-  apart take the Skoda to ~470 C, the Zastava past 950 C (pads at the floor); a 600 C disc is under 300 C after ~4 min at 100 km/h.
+  Ten 150-60 km/h stops 30 s apart fade a road car's pads to their floor (the Zastava) but not the rally cars' (`tests/rally/brakes.test.ts`).
 - **Autopilot:** plans its braking with `Vehicle.brakeDecel` (the brakes' pull now, so fade slows it down early).
 - **Not modelled:** brake fluid / caliper limits, pad wear, disc glow (an optional visual), a brake-bias control.
 
@@ -431,99 +384,44 @@ Research behind it (About > Physics > Brakes, `BRAKE_RESEARCH` in `game/menu.ts`
 
 ## Reference numbers
 
-Full brake, ABS on (`brake-sweep` style probe, flat ground, warm tyres, medium set-up), home tyres, 100-0 km/h in metres
-(`tests/rally/abs.test.ts` guards ABS: fronts stay unlocked and steering under full brake):
-
-| Car           | Tarmac tyre on tarmac | Gravel tyre on gravel | Front share of the brake torque |
-| ------------- | --------------------- | --------------------- | ------------------------------- |
-| Skoda Rally   | 31.1                  | 43.6                  | 75 % (gravel kit 72 %)          |
-| Bimmer M3     | 32.2                  | 40.4                  | 64 %                            |
-| Bimmer GT2    | 24.0                  | 37.3                  | 52 %                            |
-| Subaru 22B    | 38.0                  | 44.1                  | 75 %                            |
-| Fiesta WRC    | 31.1                  | 43.9                  | 75 % (72 %)                     |
-| Citroen C4    | 30.5                  | 43.8                  | 75 % (72 %)                     |
-| Lancer EVO VI | 31.5                  | 43.4                  | 75 % (72 %)                     |
-| Zastava 101   | 51.7 (no ABS)         | 54.1 (no ABS)         | 75 %                            |
-
-At part pedal (60 %) no wheel locks and the distances match. Compare with ABS off in the harness via
-`Cfg.patch: (v) => { v.abs = false; }` (`straight().full.firstLock` is `-` with ABS on). First stop of a stage (cold tyres, discs
-80 K over the air): longer than these warm numbers, mostly the cold tyre, not the pads.
-
-Peak lateral g at 60 km/h on flat ground (ramp steer, matching set-up; `integration-tests/rally/handling.test.ts` has the full
-set), and the balance: the rear axle's grip use when the front is at its limit (100 % = neutral), Tarmac Soft on tarmac /
-Gravel Soft on gravel:
-
-| Car         | Tarmac Soft on tarmac | Mixed on tarmac | Gravel Soft on gravel | Balance tarmac / gravel |
-| ----------- | --------------------- | --------------- | --------------------- | ----------------------- |
-| Skoda Rally | **1.25**              | 1.00            | **0.83**              | 80 % / 89 %             |
-| Zastava 101 | **0.81**              | 0.67            | **0.72**              | 85 % / 90 %             |
-| Bimmer M3   | **1.16**              | 1.00            | **0.87**              | 73 % / 76 %             |
-| Bimmer GT2  | **1.70**              | 1.26            | **0.86**              | 64 % / 64 %             |
-| Subaru 22B  | **1.23**              | 1.03            | **0.82**              | 89 % / 91 %             |
-| Fiesta WRC  | **1.24**              | 1.03            | **0.82**              | 80 % / 87 %             |
-| Citroen C4  | **1.27**              | 1.05            | **0.83**              | 85 % / 89 %             |
-| Lancer EVO  | **1.24**              | 1.03            | **0.82**              | 82 % / 88 %             |
-
-The home tyre family is the best on every surface for every car (`tyres.test.ts`). Whole-car handling per car (balance,
-braking, keyboard, ride): `integration-tests/rally/handling.test.ts` (`HANDLING_OUT=out.json` writes every number).
+The numbers come from the tests, not from this file: braking distances, lateral g and balance per car (`integration-tests/rally/handling.test.ts`;
+`HANDLING_OUT=out.json` writes every number; `tests/rally/abs.test.ts` guards ABS: the fronts stay unlocked and steering under full brake) and stage times per
+tyre and car (`integration-tests/rally/tyres.test.ts`, `car-matrix.test.ts`, each stage's `stage-<map>.test.ts`). At part pedal (60 %) no wheel locks. The
+first stop of a stage (cold tyres, discs 80 K over the air) is longer than a warm one, mostly because of the cold tyre, not the pads. The home tyre family is
+the best on every surface for every car (`tyres.test.ts`).
 
 ### Stage times
 
-Autopilot with the stage climate on (`car-matrix.test.ts` runs the same drive), 2026-10-11. Skoda Rally, every tyre with its matching
-set-up, careful / limit driver (`useExtraGrip`); s, recommended in bold:
-
-| Map (recommended)    | Tarmac Soft       | Tarmac Hard   | Mixed             | Gravel Hard   | Gravel Soft       |
-| -------------------- | ----------------- | ------------- | ----------------- | ------------- | ----------------- |
-| `test` (gravel)      | 83.6 / 83.6       | 86.1 / 86.1   | 70.1 / 70.1       | 67.9 / 66.9   | **67.8 / 66.5**   |
-| `petralica` (gravel) | 465.5 / 443.5     | 476.0 / 455.4 | 415.1 / 397.9     | 407.4 / 394.4 | **407.1 / 395.8** |
-| `jackie` (tarmac)    | **201.6 / 188.9** | 201.6 / 189.0 | 201.6 / 191.2     | 202.0 / 198.0 | 202.0 / 199.6     |
-| `ajvatovci` (mixed)  | 161.4 / 155.7     | 161.6 / 157.5 | **160.6 / 150.9** | 160.7 / 155.7 | 160.8 / 157.9     |
-
-Every car, careful driver, recommended pick / worst pick over the whole stage (measured once; `car-matrix.test.ts` now drives
-only the recommended pick over a stage; worst = tarmac tyres on a gravel stage, gravel tyres on a tarmac or dusty one):
-
-| Map (recommended)    | Skoda Rally   | Bimmer M3     | Bimmer GT2    | Subaru 22B    | Fiesta WRC    | Citroen C4    | Lancer EVO    | Zastava 101   |
-| -------------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
-| `test` (gravel)      | 67.8 / 83.6   | 68.1 / 88.1   | 66.8 / 83.5   | 68.4 / 81.8   | 66.8 / 83.4   | 67.2 / 83.4   | 67.4 / 83.5   | 77.4 / 96.2   |
-| `petralica` (gravel) | 407.1 / 465.5 | 409.3 / 499.3 | 398.2 / 460.2 | 410.6 / 461.6 | 399.7 / 467.5 | 402.3 / 461.1 | 404.0 / 463.5 | 503.2 / 620.4 |
-| `jackie` (tarmac)    | 201.6 / 202.0 | 200.9 / 201.3 | 197.9 / 198.4 | 202.2 / 202.5 | 199.8 / 200.2 | 200.3 / 200.7 | 200.9 / 201.4 | 225.3 / 262.2 |
-| `ajvatovci` (mixed)  | 160.6 / 160.8 | 161.1 / 161.0 | 154.2 / 155.1 | 162.0 / 162.1 | 156.9 / 157.2 | 158.6 / 158.7 | 159.2 / 159.4 | 195.7 / 204.0 |
-
-Reading it: the recommended tyre is the fastest, or within about 0.5 %, for every car on every stage; the soft and hard
-compound of a family are within 2 % (Gravel Hard ties Soft on Petralica). The wrong tyre on gravel costs the most (tarmac
-tyres +20-25 % on the test map and Petralica, the road-tyre M3 +22 % on Petralica); on tarmac the careful driver barely
-sees it (it is capped at 151 km/h), the limit driver does (gravel tyres +5 % on Jackie, Mixed ahead by 3 % on Ajvatovci),
-and the Zastava loses most (+16 % on gravel tyres on Jackie). Ajvatovci's 27 °C does not make a hard compound win. Car
-character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are close, the Zastava is slowest everywhere
-(power, not grip).
+Autopilot with the stage climate on, every tyre with its matching set-up, careful / limit driver (`useExtraGrip`); `car-matrix.test.ts` drives only the
+recommended pick over a stage. The recommended tyre is the fastest, or within about 0.5 %, for every car on every stage; the soft and hard compound of a
+family are within 2 % (Gravel Hard ties Soft on Petralica). The wrong tyre on gravel costs the most (tarmac tyres +20-25 % on the test map and Petralica, the
+road-tyre M3 +22 % on Petralica); on tarmac the careful driver barely sees it (it is capped at 151 km/h), the limit driver does (gravel tyres +5 % on Jackie,
+Mixed ahead by 3 % on Ajvatovci), and the Zastava loses most (+16 % on gravel tyres on Jackie). Ajvatovci's 27 °C does not make a hard compound win. Car
+character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are close, the Zastava is slowest everywhere (power, not grip).
 
 ## Tests
 
-| File                                         | What it holds                                                                                                                                                                                                                            |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/rally/vehicle.test.ts`                | per-car bands (0-100, braking, top speed), lateral g ranks per surface - no tyre fitted (raw surfaces)                                                                                                                                   |
-| `integration-tests/rally/stage-*.test.ts`    | one file per map (`stage-harness.ts`): every car under test finishes every stage on the recommended pick (climate on), upright, tyres < 150 °C, discs < 1300 °C, home tyre warm, stops after the line                                    |
-| `integration-tests/rally/tyres.test.ts`      | tyre data complete; the home family is best on its surface, mixed never best / worst; careful + limit driver per stage with the stage climate (the recommended tyre is within 0.5 % of the fastest)                                      |
-| `tests/rally/tyre-types.test.ts`             | five tyres in three families, hard vs soft windows, tyre grade (road < rally < slick, loose ground keeps 40 %), M3 mass                                                                                                                  |
-| `tests/rally/car-setup.test.ts`              | sizes fit `wheelRadius` per axle; presets: damping, ride height per preset (body, wheels), compliance range per car; width effects; car vs car lateral g; straight launch on loose ground (every car reaches 100 km/h pointing straight) |
-| `integration-tests/rally/car-matrix.test.ts` | the worst pick gets over steep hills flat out (cars under test); cars rank by character; set-up alone is worth time                                                                                                                      |
-| `tests/rally/tyre-mesh.test.ts`              | tyre geometry: budget, size, tread depth order, rim switch (rendering, but sized from the physics data)                                                                                                                                  |
-| `tests/rally/suspension-mesh.test.ts`        | coil-over geometry: length by travel, coils / wire by rate, one style per car                                                                                                                                                            |
-| `tests/rally/water-physics.test.ts`          | dry / shallow / deep acceleration per car                                                                                                                                                                                                |
-| `tests/rally/abs.test.ts`                    | ABS keeps the front wheels unlocked and steering under full brake (tarmac, gravel); a car without ABS ignores the setting                                                                                                                |
-| `tests/rally/hull-fit.test.ts`               | every car's collision hull follows its model: underside per zone (front overhang, between axles, rear overhang) and the nose / tail ends; prints the profile                                                                             |
-| `integration-tests/rally/gearing.test.ts`    | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim, Skoda Rally on long reaches 200 km/h on Jackie                                                                 |
-| `tests/rally/tyre-temp.test.ts`              | tyre temperature: grip curves per compound, HUD colours, climate per stage, cold vs warm grip, warm-up, a donut overheats and cools down, gravel heats less, reset keeps temperatures                                                    |
-| `tests/rally/brakes.test.ts`                 | brakes: torque from size + clamp, disc mass, pad windows per class, heat per stop, ten-stop fade (road yes, rally no), cooling, water, torque = force x radius, cold / faded brakes pull less                                            |
-| `integration-tests/rally/handling.test.ts`   | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
+| File                                                                   | What it holds                                                                                                                                                                                              |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/rally/vehicle.test.ts`                                          | per-car bands (0-100, braking, top speed), lateral g ranks per surface, no tyre fitted (raw surfaces)                                                                                                      |
+| `integration-tests/rally/stage-*.test.ts`                              | one file per map (`stage-harness.ts`): every car under test finishes every stage on the recommended pick, upright, tyres and discs in range                                                                |
+| `integration-tests/rally/tyres.test.ts`                                | tyre data complete; the home family is best on its surface, mixed never best / worst; the recommended tyre is within 0.5 % of the fastest                                                                  |
+| `tests/rally/tyre-types.test.ts`                                       | tyres in three families, hard vs soft windows, tyre grade (road < rally < slick, loose ground keeps 40 %), M3 mass                                                                                         |
+| `tests/rally/car-setup.test.ts`                                        | sizes fit `wheelRadius`; presets: damping, ride height, compliance range per car; width effects; straight launch on loose ground                                                                           |
+| `integration-tests/rally/car-matrix.test.ts`                           | the worst pick gets over steep hills flat out; cars rank by character; set-up alone is worth time                                                                                                          |
+| `tests/rally/tyre-mesh.test.ts`, `suspension-mesh.test.ts`             | tyre and coil-over geometry (budget, size, tread depth order, rim switch; length by travel, one style per car)                                                                                             |
+| `tests/rally/water-physics.test.ts`, `abs.test.ts`, `hull-fit.test.ts` | water acceleration per car; ABS keeps the fronts steering (a car without ABS ignores the setting); every car's hull follows its model                                                                      |
+| `integration-tests/rally/gearing.test.ts`                              | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim                                                                                   |
+| `tests/rally/tyre-temp.test.ts`, `brakes.test.ts`                      | tyre temperature (grip curves, climate per stage, warm-up, donut, reset) and brakes (torque, pad windows, heat, fade, cooling, water)                                                                      |
+| `integration-tests/rally/handling.test.ts`                             | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): steer ramps and steps, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts |
 
-`tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`) - add a
-new map there, and give it a `stage-<map>.test.ts` (`tests/rally/stage-playtests.test.ts` fails without one). Cars under test
-(`cars-under-test.ts`): every car by default and on pushes to main; on a PR the five representative cars plus the cars it
-changed (`RALLY_CARS`, from `scripts/ci-affected.mjs`). `RALLY_CARS=all` runs every car, `RALLY_CARS=fiesta` adds one. The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or
-dusty-tarmac stage; it is only driven over `hillSpots` (a few of each stage's steepest hills and tightest hairpin climbs,
-from a 50 km/h rolling start, flat out but lifting off for bends - 20 km/h in the tightest hairpin; the autopilot only
-steers), never at rally pace: a wrong tyre flies off there by physics. Ajvatovci has its own margin test: Mixed ahead of Tarmac and Gravel by > 1.5 % (limit driver).
+`tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`): a new map goes there too, with its own
+`stage-<map>.test.ts` (`tests/rally/stage-playtests.test.ts` fails without one). Cars under test (`cars-under-test.ts`): every car by default and on pushes to
+main; on a PR the five representative cars plus the cars it changed (`RALLY_CARS`, from `scripts/ci-affected.mjs`; `RALLY_CARS=all` runs every car,
+`RALLY_CARS=fiesta` adds one). The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or dusty-tarmac stage,
+driven only over `hillSpots` (a few of each stage's steepest hills and tightest hairpin climbs, from a 50 km/h rolling start, flat out but lifting off for
+bends; the autopilot only steers), never at rally pace: a wrong tyre flies off there by physics. Ajvatovci has its own margin test: Mixed ahead of Tarmac and
+Gravel by > 1.5 % (limit driver).
 
 ## Research notes
 
@@ -578,8 +476,6 @@ cars short stubby coil-overs with a piggyback reservoir, adjuster knob and helpe
       `buildCoilover` so the chosen set-up's spring colour shows through the open arches in game (`CarModel` option
       `{ setup }` + `setSetup`, spring length from the live compression). Bimmer / Zastava stay without (closed wells / none).
 - [ ] **Asset debugger**: tyre + set-up pickers for `car:<id>` in `pages/asset-debug.ts`; `?susp=` in the car viewer.
-- [x] **Emergent roughness**: gravel and loose gravel `bump` 6 / 10 -> 15 mm (long wavelengths, `surfaceBump`),
-      so the road is felt as well as seen; tests green (the 126p wanders further in a straight run and when braking hard on gravel).
 - [ ] **Tyre look in motion**: the tread band is displaced geometry plus normal / groove maps (11-13k triangles a tyre); planned: a speed-blur swap (low-poly
       tyre + motion-blurred tread texture, crossfade ~20-40 km/h, no strobing) and a distance LOD; mud / wear colours.
 - [ ] **Optional extras**: audio layers (tarmac squeal near the limit, gravel-tread hum on asphalt), co-driver style

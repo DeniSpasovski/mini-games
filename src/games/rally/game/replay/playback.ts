@@ -5,8 +5,10 @@
  * linear; gear, surface and flags: the nearer frame. Never interpolates across a `F_TELEPORT` frame (reset, cut).
  */
 import { Quaternion, Vector3 } from 'three';
+import { LOW_SPEED_LAT, LOW_SPEED_LONG } from '../../physics/tire';
 import type { Vehicle } from '../../physics/vehicle';
 import type { DecodedReplay } from './codec';
+import { sectorGaps, sectorsOf } from '../stage';
 import {
   F_ABS_ACTIVE,
   F_ABS_ON,
@@ -241,6 +243,7 @@ export class ReplayTrack {
       w.absFactor = fl & F_ABS_ACTIVE ? 0.5 : 1;
       if (!w.contact) {
         w.contactSpeed = w.slideSpeed = 0;
+        w.slipAngle = w.slipRatio = 0;
         continue;
       }
       contacts++;
@@ -257,6 +260,10 @@ export class ReplayTrack {
       const vy = _vp.dot(_side);
       w.contactSpeed = Math.hypot(vx, vy);
       w.slideSpeed = Math.hypot(w.omega * w.radius - vx, vy);
+      // Slip as physics/tire.ts computeTire has it (tyre marks read the angle: scuffs vs rolling prints).
+      w.slipRatio =
+        (w.omega * w.radius - vx) / Math.max(Math.abs(vx), LOW_SPEED_LONG);
+      w.slipAngle = Math.atan2(vy, Math.max(Math.abs(vx), LOW_SPEED_LAT));
     }
     this.airTime = contacts ? 0 : this.airTime + Math.abs(dt);
     v.airTime = this.airTime;
@@ -332,18 +339,10 @@ export class ReplayClock {
   }
 
   sectorTimes(): number[] {
-    const cum = [
-      ...this.splitTimes,
-      ...(this.finishTime !== null ? [this.finishTime] : []),
-    ];
-    return cum.map((t, i) => t - (i ? cum[i - 1] : 0));
+    return sectorsOf(this.splitTimes, this.finishTime);
   }
 
-  sectorDelta(i: number): number | undefined {
-    const ref = this.track.header.refSectors;
-    const mine = this.sectorTimes();
-    return ref && i < mine.length && i < ref.length
-      ? mine[i] - ref[i]
-      : undefined;
+  sectorDeltas(): (number | undefined)[] {
+    return sectorGaps(this.sectorTimes(), this.track.header.refSectors);
   }
 }

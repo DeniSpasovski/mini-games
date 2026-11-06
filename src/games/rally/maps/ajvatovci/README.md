@@ -11,6 +11,8 @@ narrow tarmac with a loose gravel film, in spring colours. Map id `ajvatovci`, s
 | ![Farmland road](screenshots/farmland-road.jpg) | ![Hill road](screenshots/hill-road.jpg) |
 | the farmland road (vineyards, power lines)      | switchbacks up Ajvatovci Hill           |
 
+![The farmland road at night](screenshots/night.jpg)
+
 The first ~500 m, the **start street**, is hand-modelled: lots with real window and door openings, yards, fences,
 kerbs, sidewalks, power poles and about 100 parked vehicles (`start-row/`); the car bounces off its kerbs and stops at fences. At the finish, the hilltop
 church of St. Peter and St. Paul with its bell tower, and the village playground court on the way up, are hand-modelled

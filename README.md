@@ -20,21 +20,20 @@ for a level, feel free to suggest it!
 |                                                                                               |                                                                                               |
 | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | ![Rally, Ajvatovci start street](src/games/rally/maps/ajvatovci/screenshots/start-street.jpg) | ![Rally, Jackie Robinson Parkway](src/games/rally/maps/jackie/screenshots/parkway-bridge.jpg) |
+| ![Rally, Ajvatovci at night](src/games/rally/maps/ajvatovci/screenshots/night.jpg)            | ![Rally, Jackie Robinson Parkway at night](src/games/rally/maps/jackie/screenshots/night.jpg) |
 | ![Hole Island, City Island](src/games/hole/screenshots/city-late.jpg)                         | ![Hole Island, Toy Emporium](src/games/hole/screenshots/toy-late.jpg)                         |
 | ![3, 2, 1 Kabooom, the Quarry arena](src/games/kaboom/screenshots/quarry.jpg)                 | ![3, 2, 1 Kabooom, Sea Deck](src/games/kaboom/screenshots/sea.jpg)                            |
 
 ## What is in here
 
-- **three.js** scenes, instancing / LOD / streaming terrain, procedural assets, seeded generators, pooled GPU particles.
-- A **vehicle physics** model (raycast suspension, combined-slip tyres with temperature, drivetrain, ABS), generated
-  by an AI coding agent under my supervision and then fine-tuned against public data and research papers. It runs in
-  plain node, so it is covered by regression and autopilot tests.
-- A **real-world map baker** (Python) that turns open data into playable stages.
-- A **car import pipeline** (Python + node scripts) that turns shared 3D models into compressed game cars with livery
-  atlases and a boxy fallback body.
-- **Bots** in Hole Island and Kabooom; touch, keyboard and gamepad controls (menus included) in every game.
-- Small tool pages (map, car, crew and item viewers, asset debugger, balance charts, bench) used while building the games.
-- An installable, offline-capable portal (PWA), one self-contained build per game.
+- **three.js** scenes: instancing / LOD / streaming terrain, procedural assets, seeded generators, pooled GPU particles.
+- A **vehicle physics** model (raycast suspension, combined-slip tyres with temperature, drivetrain, ABS), written by an AI
+  coding agent under my supervision and tuned against public data and research papers; it runs in plain node, so
+  regression and autopilot tests cover it.
+- Python + node pipelines: a **real-world map baker** (open data into playable stages) and a **car import** pipeline
+  (shared 3D models into compressed game cars with livery atlases and a boxy fallback body).
+- **Bots**, touch / keyboard / gamepad controls (menus included) in every game, tool pages (map, car, crew and item viewers,
+  asset debugger, balance charts, bench), an installable offline-capable portal (PWA), one self-contained build per game.
 - Bundled with [Rsbuild](https://rsbuild.rs/), tested with Rstest on GitHub Actions, written in TypeScript.
 
 ## Contributors

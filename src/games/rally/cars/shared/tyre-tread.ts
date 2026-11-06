@@ -265,11 +265,20 @@ export interface Tread {
   height: Float32Array;
 }
 
-function inside(pts: Pt[], x: number, y: number): boolean {
+/** Point in polygon: the polygon is points a..b-1 of the flat (x, y) array p. */
+function inside(
+  p: Float64Array,
+  a: number,
+  b: number,
+  x: number,
+  y: number,
+): boolean {
   let c = false;
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    const [xi, yi] = pts[i];
-    const [xj, yj] = pts[j];
+  for (let i = a, j = b - 1; i < b; j = i++) {
+    const xi = p[i * 2];
+    const yi = p[i * 2 + 1];
+    const xj = p[j * 2];
+    const yj = p[j * 2 + 1];
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)
       c = !c;
   }
@@ -278,52 +287,96 @@ function inside(pts: Pt[], x: number, y: number): boolean {
 
 const SS = 3; // supersamples per pixel and axis
 
+/**
+ * Last shape drawn wins: the shapes are tested top down, only those whose bounding box (wrapped a pitch either way)
+ * spans the sample row, each against its box across first. Flat typed arrays, nothing allocated per sample (millions
+ * of samples a compound; the setup screen rasterises every compound at once).
+ */
 function rasterise(d: TreadDef): Tread {
   const cols = TW + PAD * 2;
   const rows = Math.round((d.pitch / BW) * TW);
   const height = new Float32Array(cols * rows).fill(1);
   const px = BW / TW;
   const py = d.pitch / rows;
-  // Last shape drawn wins: test them top down, each against its bounding box first (a full point-in-polygon test of
-  // every shape for every sample took ~1 s a compound, a stall when a car first shows a tyre).
-  const shapes = d.shapes
-    .map((s) => {
-      const xs = s.pts.map((p) => p[0]);
-      const ys = s.pts.map((p) => p[1]);
-      return {
-        ...s,
-        x0: Math.min(...xs),
-        x1: Math.max(...xs),
-        y0: Math.min(...ys),
-        y1: Math.max(...ys),
-      };
-    })
-    .reverse();
-  for (let j = 0; j < rows; j++)
-    for (let i = 0; i < TW; i++) {
-      let sum = 0;
-      for (let sy = 0; sy < SS; sy++)
+  const pitch = d.pitch;
+  const n = d.shapes.length;
+  // Per shape (top down): bounding box x0, x1, y0, y1, height, and its points' range in `pts`.
+  const x0 = new Float64Array(n);
+  const x1 = new Float64Array(n);
+  const y0 = new Float64Array(n);
+  const y1 = new Float64Array(n);
+  const sh = new Float64Array(n);
+  const from = new Int32Array(n + 1);
+  let total = 0;
+  for (const s of d.shapes) total += s.pts.length;
+  const pts = new Float64Array(total * 2);
+  for (let k = 0, o = 0; k < n; k++) {
+    const s = d.shapes[n - 1 - k];
+    from[k] = o;
+    let ax = Infinity;
+    let bx = -Infinity;
+    let ay = Infinity;
+    let by = -Infinity;
+    for (const p of s.pts) {
+      pts[o * 2] = p[0];
+      pts[o * 2 + 1] = p[1];
+      o++;
+      ax = Math.min(ax, p[0]);
+      bx = Math.max(bx, p[0]);
+      ay = Math.min(ay, p[1]);
+      by = Math.max(by, p[1]);
+    }
+    x0[k] = ax;
+    x1[k] = bx;
+    y0[k] = ay;
+    y1[k] = by;
+    sh[k] = s.h;
+  }
+  from[n] = total;
+  const rowShapes = new Int32Array(n);
+  // One pixel row's sample sums (in the same order as summing one pixel at a time).
+  const acc = new Float64Array(TW);
+  for (let j = 0; j < rows; j++) {
+    for (let sy = 0; sy < SS; sy++) {
+      const y = (j + (sy + 0.5) / SS) * py;
+      const ya = y - pitch;
+      const yb = y + pitch;
+      // The shapes this sample row can hit (in drawing order, top down).
+      let m = 0;
+      for (let k = 0; k < n; k++)
+        if (
+          (y >= y0[k] && y <= y1[k]) ||
+          (ya >= y0[k] && ya <= y1[k]) ||
+          (yb >= y0[k] && yb <= y1[k])
+        )
+          rowShapes[m++] = k;
+      for (let i = 0; i < TW; i++) {
+        let sum = sy === 0 ? 0 : acc[i];
         for (let sx = 0; sx < SS; sx++) {
           const x = (i + (sx + 0.5) / SS) * px;
-          const y = (j + (sy + 0.5) / SS) * py;
           let h = d.base;
-          for (const s of shapes) {
-            if (x < s.x0 || x > s.x1) continue;
-            let hit = false;
-            for (const yy of [y, y - d.pitch, y + d.pitch])
-              if (yy >= s.y0 && yy <= s.y1 && inside(s.pts, x, yy)) {
-                hit = true;
-                break;
-              }
-            if (hit) {
-              h = s.h;
+          for (let q = 0; q < m; q++) {
+            const k = rowShapes[q];
+            if (x < x0[k] || x > x1[k]) continue;
+            const a = from[k];
+            const b = from[k + 1];
+            if (
+              (y >= y0[k] && y <= y1[k] && inside(pts, a, b, x, y)) ||
+              (ya >= y0[k] && ya <= y1[k] && inside(pts, a, b, x, ya)) ||
+              (yb >= y0[k] && yb <= y1[k] && inside(pts, a, b, x, yb))
+            ) {
+              h = sh[k];
               break;
             }
           }
           sum += h;
         }
-      height[j * cols + PAD + i] = sum / (SS * SS);
+        acc[i] = sum;
+      }
     }
+    for (let i = 0; i < TW; i++)
+      height[j * cols + PAD + i] = acc[i] / (SS * SS);
+  }
   return { depth: d.depth, pitch: d.pitch / 1000, cols, rows, height };
 }
 
@@ -504,9 +557,14 @@ export interface DustyTyre {
 
 /**
  * Dust on the rubber: the base colour blended towards the dust colour and rougher (the groove shading still darkens
- * the voids), the lettering fading under it. No shader changes: only colours, so no extra programs.
+ * the voids), the lettering fading under it. No shader changes: only colours, so no extra programs. `baked`: how much
+ * brighter the tyre's vertex colours already are from baked dust (tyre-mesh.ts `BAKED_DUST_GAIN`, old road cars); the
+ * dust colour is divided by it so the two do not stack.
  */
-export function dustyTyre(c: TyreId | null): DustyTyre {
+export function dustyTyre(
+  c: TyreId | null,
+  baked?: readonly [number, number, number],
+): DustyTyre {
   const base = tyreMaterial(c);
   const [rubberBase, letterBase] = Array.isArray(base)
     ? (base as MeshStandardMaterial[])
@@ -516,10 +574,18 @@ export function dustyTyre(c: TyreId | null): DustyTyre {
   const clean = rubberColor();
   const roughness = rubberBase.roughness;
   const white = new Color(1, 1, 1);
+  const target = new Color();
   return {
     materials: letters ? [rubber, letters] : rubber,
     set(level, color) {
-      rubber.color.copy(clean).lerp(color, level);
+      if (baked)
+        target.setRGB(
+          color.r / baked[0],
+          color.g / baked[1],
+          color.b / baked[2],
+        );
+      else target.copy(color);
+      rubber.color.copy(clean).lerp(target, level);
       rubber.roughness = roughness + (1 - roughness) * level;
       letters?.color.copy(white).lerp(color, level * 0.6);
     },

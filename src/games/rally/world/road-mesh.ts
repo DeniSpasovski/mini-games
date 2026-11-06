@@ -173,9 +173,10 @@ const DIRT_WHEEL_LEN = 26;
 /**
  * Where the stage road changes between baked asphalt and gravel, a layer of the gravel texture (same UVs as the gravel
  * ribbon, so it carries on without a seam) over the last metres of asphalt: patchy, densest at the change and
- * fading out, furthest along the wheel paths, like the gravel and dust cars drag onto the tarmac.
+ * fading out, furthest along the wheel paths, like the gravel and dust cars drag onto the tarmac. It carries the
+ * ribbon's wheel tracks too (`grX` from the same driven `line`, interpolated as `Road.at`).
  */
-function surfaceFadeMesh(world: World): Mesh | null {
+function surfaceFadeMesh(world: World, line: Float32Array): Mesh | null {
   const road = world.map.road;
   const changes: { at: number; dir: 1 | -1 }[] = [];
   for (const sec of road.sections ?? []) {
@@ -195,8 +196,10 @@ function surfaceFadeMesh(world: World): Mesh | null {
   const nor: number[] = [];
   const uv: number[] = [];
   const dw: number[] = [];
+  const grX: number[] = [];
   const idx: number[] = [];
   const STEP = 0.5;
+  const samples = world.road.samples;
   for (const { at, dir } of changes) {
     const rows = Math.ceil((DIRT_WHEEL_LEN + 1) / STEP) + 1;
     const base = pos.length / 3;
@@ -206,6 +209,10 @@ function surfaceFadeMesh(world: World): Mesh | null {
       const d = at + dir * t;
       const s = world.road.at(d);
       const onBridge = !!world.road.bridgeAt(d);
+      // The driven line at s (Road.at's interpolation).
+      const lf = (s.dist / world.road.length) * (samples.length - 1);
+      const li = Math.min(samples.length - 2, Math.floor(lf));
+      const ln = line[li] + (line[li + 1] - line[li]) * (lf - li);
       for (const a of ACROSS) {
         const lat = a * s.halfWidth;
         const x = s.x + s.tz * lat;
@@ -215,6 +222,7 @@ function surfaceFadeMesh(world: World): Mesh | null {
         hf.normal(x, z, nTmp);
         nor.push(nTmp.x, nTmp.y, nTmp.z);
         uv.push(1 - (a + 1.04) / 2.08, d / texLength('road'));
+        grX.push(lat - ln, s.halfWidth - Math.abs(lat), ln);
         // wheel paths at about a third of the width either side of the centre
         const wheel = Math.max(0, 1 - Math.abs(Math.abs(a) - 0.45) / 0.3);
         const len = DIRT_LEN + (DIRT_WHEEL_LEN - DIRT_LEN) * wheel;
@@ -238,6 +246,7 @@ function surfaceFadeMesh(world: World): Mesh | null {
   g.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
   g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
   g.setAttribute('dw', new BufferAttribute(new Float32Array(dw), 1));
+  g.setAttribute('grX', new BufferAttribute(new Float32Array(grX), 3));
   g.setIndex(idx);
   g.computeBoundingSphere();
   const m = new MeshStandardMaterial({
@@ -248,7 +257,12 @@ function surfaceFadeMesh(world: World): Mesh | null {
     polygonOffsetFactor: -4,
     polygonOffsetUnits: -8,
   });
-  m.defines = { ...GRAVEL_DEFINES, RALLY_WET: 0.15, RALLY_PUDDLES: 1 };
+  m.defines = {
+    ...GRAVEL_DEFINES,
+    GR_TRACKS: 1,
+    RALLY_WET: 0.15,
+    RALLY_PUDDLES: 1,
+  };
   m.onBeforeCompile = (shader, renderer) => {
     Material.prototype.onBeforeCompile.call(m, shader, renderer);
     shader.vertexShader = shader.vertexShader
@@ -851,7 +865,7 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     group.add(mesh);
     yield;
   }
-  const dirt = surfaceFadeMesh(world);
+  const dirt = surfaceFadeMesh(world, line);
   if (dirt) group.add(dirt);
   const paths = yield* timed('paths', pathMeshesJob(world));
   if (paths) group.add(paths);

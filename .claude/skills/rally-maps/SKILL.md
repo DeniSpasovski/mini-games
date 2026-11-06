@@ -70,7 +70,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
 3. Look: `/games/rally/map-viewer.html?map=<id>&stage=<id>` (one stage of the map, default the first; oblique overview, `grid=1` chunk grid, `splat=1` surfaces,
    click terrain -> "Drive from here").
 4. Drive: `/games/rally/?stage=<id>&spawn=<metres along the stage>&mute=1` to test a section directly.
-5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Sound while testing").
+5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Conventions", `isMutedByUrl`).
 6. **Stage card** (every stage, stage select; a stage without one is built live in the menu, dev warning): NEVER re-bake on your own - only when the user asks. Then
    `/games/rally/?bakecard=<stage id>&season=all&mute=1` (or `?bakecards=1&season=all`; `season=` one of spring / summer / autumn
    bakes just that picture, none = the map's own season; one `<stage id>-<season>.jpg` per season in `environment.groundTints`) on `npm run dev:noreload` (launch config `portal-dev-noreload`;

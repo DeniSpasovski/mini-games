@@ -72,30 +72,36 @@ const FRAG = /* glsl */ `
   uniform float uToonTex;
   uniform float uBlink;
   #define TM(k) texelFetch(uToonMarks, ivec2(k, i), 0)
+  // One return, every value set on both paths: D3D's compiler warns (X4000) on an early return in an inlined function.
   float toonDist(int i, vec3 p, out float along, out float axis) {
     vec4 t0 = TM(0);
     vec4 t1 = TM(1);
+    float d = 0.0;
+    along = 0.0;
+    axis = 0.0;
     if (t0.w > 0.5) {
       vec3 a = t0.xyz;
       vec3 ba = TM(2).xyz - a;
       float t = clamp(dot(p - a, ba) / dot(ba, ba), 0.0, 1.0);
       along = p.x + p.z;
       axis = dot(p - a, ba) / length(ba);
-      return length(p - a - ba * t) - mix(t1.x, t1.y, t);
+      d = length(p - a - ba * t) - mix(t1.x, t1.y, t);
+    } else {
+      mat3 m = mat3(TM(3).xyz, TM(4).xyz, TM(5).xyz);
+      vec3 q = m * (p - t0.xyz);
+      along = q.x;
+      axis = q.x;
+      vec3 r = t1.xyz;
+      d = (length(q / r) - 1.0) * min(r.x, min(r.y, r.z));
+      vec3 r2 = TM(10).xyz;
+      if (r2.x > 0.0) {
+        vec3 q2 = m * (p - TM(9).xyz);
+        d = max(d, -(length(q2 / r2) - 1.0) * min(r2.x, min(r2.y, r2.z)));
+      }
+      vec4 cut = TM(7);
+      d = max(d, dot(q, cut.xyz) - cut.w - t1.w * uBlink);
     }
-    mat3 m = mat3(TM(3).xyz, TM(4).xyz, TM(5).xyz);
-    vec3 q = m * (p - t0.xyz);
-    along = q.x;
-    axis = q.x;
-    vec3 r = t1.xyz;
-    float d = (length(q / r) - 1.0) * min(r.x, min(r.y, r.z));
-    vec3 r2 = TM(10).xyz;
-    if (r2.x > 0.0) {
-      vec3 q2 = m * (p - TM(9).xyz);
-      d = max(d, -(length(q2 / r2) - 1.0) * min(r2.x, min(r2.y, r2.z)));
-    }
-    vec4 cut = TM(7);
-    return max(d, dot(q, cut.xyz) - cut.w - t1.w * uBlink);
+    return d;
   }
   vec3 toonColor(vec3 p, float w) {
     vec3 col = uToonBase;

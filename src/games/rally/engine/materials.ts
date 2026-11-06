@@ -155,16 +155,24 @@ let foliageA2C = false;
  */
 export function setFoliageAntialias(on: boolean): void {
   foliageA2C = on;
-  for (const id of FOLIAGE) {
-    const m = cache.get(id);
-    for (const x of m
-      ? [
-          m,
-          variantMats.get(m),
-          fadeMats.get(m),
-          fadeMats.get(variantMats.get(m)!),
-        ]
-      : [])
+  setAlphaToCoverage(
+    FOLIAGE.map((id) => cache.get(id)),
+    on,
+  );
+}
+
+/**
+ * Alpha-to-coverage on card materials and their variant-set / level-fade copies (`variantMaterial`, `lodFadeMaterial`):
+ * a fade copy must match its plain material (grass, vines, crops).
+ */
+export function setAlphaToCoverage(
+  bases: Iterable<Material | undefined>,
+  on: boolean,
+): void {
+  for (const m of bases) {
+    if (!m) continue;
+    const v = variantMats.get(m);
+    for (const x of [m, v, fadeMats.get(m), v && fadeMats.get(v)])
       if (x && x.alphaToCoverage !== on) {
         x.alphaToCoverage = on;
         x.needsUpdate = true;

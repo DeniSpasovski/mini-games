@@ -21,6 +21,7 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from 'three';
 import { addWorldUniforms } from '../engine/world-shading';
+import { BAYER_DITHER_8 } from '../world/lod-fade';
 import {
   ALPHA_TEST,
   primeSpriteAtlas,
@@ -423,14 +424,7 @@ vec3 treeDebugColor( vec2 dbg ) {
 	if ( dbg.x >= 3.5 ) return mix( vec3( 1.0, 0.0, 1.0 ), vec3( 1.0 ), dbg.y );
 	return dbg.x < 0.5 ? vec3( 0.1, 0.8, 0.1 ) : dbg.x < 1.5 ? vec3( 0.95, 0.55, 0.05 ) : vec3( 0.15, 0.35, 0.95 );
 }
-/** 8x8 ordered (Bayer) dither, 0..1, anchored to screen pixels: a fixed tile, no gradient or direction. */
-float treeDither() {
-	int x = int( mod( gl_FragCoord.x, 8.0 ) );
-	int y = int( mod( gl_FragCoord.y, 8.0 ) );
-	int xy = x ^ y;
-	int b = ( ( xy & 1 ) << 5 ) | ( ( x & 1 ) << 4 ) | ( ( xy & 2 ) << 2 ) | ( ( x & 2 ) << 1 ) | ( ( xy & 4 ) >> 1 ) | ( ( x & 4 ) >> 2 );
-	return ( float( b ) + 0.5 ) / 64.0;
-}
+${BAYER_DITHER_8}
 vec3 treeHue( vec3 c, float turn ) {
 	const mat3 toYIQ = mat3( 0.299, 0.596, 0.211, 0.587, -0.274, -0.523, 0.114, -0.322, 0.312 );
 	const mat3 toRGB = mat3( 1.0, 1.0, 1.0, 0.956, -0.272, -1.106, 0.621, -0.647, 1.703 );
@@ -442,7 +436,7 @@ vec3 treeHue( vec3 c, float turn ) {
 `;
 
 const FRAGMENT_DITHER = /* glsl */ `
-	float tD = treeDither();
+	float tD = bayerDither8();
 	if ( tD < vTreeKeep.x || tD >= vTreeKeep.y ) discard;
 `;
 

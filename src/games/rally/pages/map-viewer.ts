@@ -461,7 +461,7 @@ void loadMap(state.map).then(async (map) => {
       ),
     })),
     (id) => {
-      // Camera / focus params belong to the old map: the new one opens on its default overview.
+      // Camera, focus, season and time belong to the old map: the new one opens on its overview in its own season.
       Object.assign(state, {
         map: id,
         stage: DEFAULTS.stage,
@@ -471,6 +471,8 @@ void loadMap(state.map).then(async (map) => {
         along: DEFAULTS.along,
         zoom: DEFAULTS.zoom,
         building: DEFAULTS.building,
+        season: DEFAULTS.season,
+        tod: DEFAULTS.tod,
       });
       sync(true);
       location.reload();

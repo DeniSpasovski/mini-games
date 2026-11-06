@@ -52,6 +52,20 @@ export const GRAVEL_DEFINES = {
   GR_TRACK_TONE: '0.8',
 };
 
+/**
+ * The tyre tracks' per-track hashes (GR_TRACKS: ten tracks, three each): `fract( sin( i * a + b ) * c )`, which the
+ * shader worked out per pixel, once here in the GPU's 32-bit steps (fused multiply-add; matches the compiled loop's
+ * values to 4 decimals).
+ */
+const TYRE_HASH = Array.from({ length: 10 }, (_, i) => {
+  const f = Math.fround;
+  const h = (a: number, b: number, c: number): string => {
+    const x = f(f(Math.sin(f(i * f(a) + f(b)))) * f(c));
+    return (x - Math.floor(x)).toFixed(6);
+  };
+  return `vec3( ${h(12.9898, 1.3, 43758.5453)}, ${h(78.233, 4.1, 24634.6345)}, ${h(39.425, 7.7, 13758.937)} )`;
+}).join(', ');
+
 /** Parameters of a gravel road material (as matte as the terrain, which is 0.96). */
 export function gravelBase(): MeshStandardMaterialParameters {
   return { map: WHITE, roughness: 0.96, metalness: 0 };
@@ -105,6 +119,8 @@ export function gravelShader(
       varying vec2 vGWP;
       #ifdef GR_TRACKS
       varying vec3 vGrX;
+      // Per tyre track pair: three fixed hashes (TYRE_HASH).
+      const vec3 GR_TYRE_H[ 10 ] = vec3[ 10 ]( ${TYRE_HASH} );
       #endif
       float grHash( vec2 p ) { p = fract( p * vec2( 123.34, 456.21 ) ); p += dot( p, p + 45.32 ); return fract( p.x * p.y ); }
       float grNoise( vec2 p ) {
@@ -219,9 +235,9 @@ export function gravelShader(
             float spread = 0.25 + 2.0 * bend;
             for ( int i = 0; i < 10; i++ ) {
               float fi = float( i );
-              float h1 = fract( sin( fi * 12.9898 + 1.3 ) * 43758.5453 );
-              float h2 = fract( sin( fi * 78.233 + 4.1 ) * 24634.6345 );
-              float h3 = fract( sin( fi * 39.425 + 7.7 ) * 13758.937 );
+              float h1 = GR_TYRE_H[ i ].x;
+              float h2 = GR_TYRE_H[ i ].y;
+              float h3 = GR_TYRE_H[ i ].z;
               float off = outS * spread * ( mix( -0.45, 1.0, h1 ) + 0.5 * ( grNoise( vec2( along / ( 7.0 + 9.0 * h2 ), fi * 3.7 + 0.5 ) ) - 0.5 ) );
               float xi = x - off;
               float hp = 0.72 + 0.08 * h3;
