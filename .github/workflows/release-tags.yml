@@ -1,6 +1,6 @@
-name: Create release tags
+name: Create releases for tags
 
-# One-off: tags every past game release and creates its GitHub Release.
+# One-off: makes sure every past game release is tagged and creates its GitHub Release.
 # Run it once from the Actions tab, then delete this file and release-backfill.tsv.
 on:
   workflow_dispatch:
@@ -23,12 +23,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           while IFS=$'\t' read -r tag commit title notes; do
             [ -z "$tag" ] && continue
-            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null || git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
-              echo "skip $tag (exists)"; continue
-            fi
             sha=$(git rev-parse "$commit^{commit}")
-            git tag -a "$tag" "$sha" -m "$title"
-            git push origin "refs/tags/$tag"
+            if ! git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+              git tag -a "$tag" "$sha" -m "$title"
+              git push origin "refs/tags/$tag"
+            fi
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "skip $tag (release exists)"; continue
+            fi
             latest=false
             [ "$tag" = "rally-v0.33.23" ] && latest=true
             gh release create "$tag" --verify-tag --title "$title" --notes "$(printf '%b' "$notes")" --latest="$latest"
