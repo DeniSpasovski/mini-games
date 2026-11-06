@@ -675,6 +675,33 @@ export function sectorTimes(run: Pick<RunRecord, 'time' | 'splits'>): number[] {
   return cum.map((t, i) => t - (i ? cum[i - 1] : 0));
 }
 
+/**
+ * The fastest time of each sector among the other current-version runs on the results board (`carOnly`: this car's
+ * runs only), the reference the results chips compare with. Runs without splits count for nothing; a sector nobody
+ * else drove has no entry.
+ */
+export function bestSectorTimes(
+  board: readonly RunRecord[],
+  run: RunRecord,
+  carOnly: boolean,
+): (number | undefined)[] {
+  const best: (number | undefined)[] = [];
+  for (const r of board) {
+    if (
+      r === run ||
+      isOldRun(r, run.ver ?? 1) ||
+      (carOnly && r.car !== run.car) ||
+      !r.splits?.length
+    )
+      continue;
+    sectorTimes(r).forEach((t, i) => {
+      const b = best[i];
+      if (b === undefined || t < b) best[i] = t;
+    });
+  }
+  return best;
+}
+
 export function formatDelta(d: number): string {
   return `${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(2)}`;
 }
