@@ -38,6 +38,10 @@ const COPIES = 3;
  *   3 scuff: sliding sideways on a hard surface - fainter, fine striations along the slide, soft edges.
  */
 const KINDS = 4;
+/** Distance (m) over which a mark builds up to its full darkness / fades out again, and the length (m) of its patchy swells. */
+const RAMP_IN = 2;
+const RAMP_OUT = 3;
+const PATCH_SCALE = 1.7;
 const TILE_W = 64;
 const TILE_H = 128;
 /** Tread pitches per tile along the mark (the imprint repeats at the real pitch length). */
@@ -59,6 +63,8 @@ export class TyreMarks {
   private last: (Vector3 | null)[];
   private lastAlpha: number[];
   private lastWidth: number[];
+  /** Built-up darkness per wheel (0..1): rises while the tyre keeps sliding, falls once it stops. */
+  private heat: number[];
   /** Distance along each wheel's strip (texture v). */
   private along: number[];
   private colour = new Color();
@@ -68,6 +74,8 @@ export class TyreMarks {
   /** One geometry per GPU copy (shared CPU arrays and index), the quads each still has to upload, the one drawn. */
   private geos: BufferGeometry[] = [];
   private dirty: number[][] = [];
+  /** Copies whose whole position buffer goes up on their next turn (after `clear`). */
+  private cleared: boolean[] = new Array(COPIES).fill(false);
   private current = 0;
   private material: MeshBasicMaterial;
   /** Compound the texture and widths are for; tread band width (m) and imprint tile length (m) per wheel. */
@@ -122,6 +130,7 @@ export class TyreMarks {
     this.last = new Array(wheels).fill(null);
     this.lastAlpha = new Array(wheels).fill(0);
     this.lastWidth = new Array(wheels).fill(0);
+    this.heat = new Array(wheels).fill(0);
     this.along = new Array(wheels).fill(0);
     this.fit();
   }
@@ -160,8 +169,14 @@ export class TyreMarks {
     const pa = g.getAttribute('position') as BufferAttribute;
     const ca = g.getAttribute('color') as BufferAttribute;
     const ua = g.getAttribute('uv') as BufferAttribute;
+    // Cleared: all positions go up (no update range = the whole buffer), so none of the old quads draw.
+    const full = this.cleared[this.current];
+    if (full) {
+      this.cleared[this.current] = false;
+      pa.clearUpdateRanges();
+    }
     for (const q of quads) {
-      pa.addUpdateRange(q * 12, 12);
+      if (!full) pa.addUpdateRange(q * 12, 12);
       ca.addUpdateRange(q * 16, 16);
       ua.addUpdateRange(q * 8, 8);
     }
@@ -179,30 +194,40 @@ export class TyreMarks {
       const w = v.wheels[i];
       const s = w.surface;
       const loose = s.loose > 0.3;
-      // Loose: ruts whenever rolling, darker with slide. Hard: rubber only while sliding.
-      const slide = Math.min(1, Math.max(0, (w.slideSpeed - 1.2) / 6));
-      const alpha = !w.contact
+      // Loose: ruts whenever rolling, darker with slide. Hard: rubber only while sliding, darker the harder it slides
+      // (slip speed, no cap at the first scrub) and the more load the tyre carries.
+      const slide = smooth((w.slideSpeed - 1.2) / 11);
+      const loadN = Math.min(
+        1,
+        Math.max(0, w.load / (w.nominalLoad * 1.6 || 1)),
+      );
+      const target = !w.contact
         ? 0
         : loose
-          ? Math.min(0.62, s.loose * (0.22 + 0.4 * slide))
-          : slide * 0.6;
-      if (alpha < 0.02 || speed < 0.5) {
+          ? Math.min(0.62, s.loose * (0.22 + 0.4 * slide)) * (0.6 + 0.4 * loadN)
+          : slide * (0.3 + 0.7 * loadN) * 0.9;
+      if (speed < 0.5 || (target < 0.02 && this.heat[i] < 0.02)) {
         this.last[i] = null;
+        this.heat[i] = 0;
         continue;
       }
-      // Sideways the patch sweeps across: the mark widens with the slip angle.
+      // Sideways the patch sweeps across: the mark widens with the slip angle, and with load (a light tyre scrubs a
+      // narrower strip).
       const beta = Math.min(Math.PI / 2, Math.abs(w.slipAngle));
       const width =
-        this.tread[i] * Math.cos(beta) * (loose ? RUT_SPREAD : 1) +
-        PATCH_LENGTH * Math.sin(beta);
+        (this.tread[i] * Math.cos(beta) * (loose ? RUT_SPREAD : 1) +
+          PATCH_LENGTH * Math.sin(beta)) *
+        (0.8 + 0.2 * loadN);
       const p = this.a
         .copy(w.contactPoint)
         .addScaledVector(w.contactNormal, LIFT);
       const prev = this.last[i];
       if (!prev) {
+        // A new strip starts invisible and darkens along its first metres.
         this.last[i] = p.clone();
-        this.lastAlpha[i] = alpha;
+        this.lastAlpha[i] = 0;
         this.lastWidth[i] = width;
+        this.heat[i] = 0;
         continue;
       }
       const d = p.distanceTo(prev);
@@ -213,6 +238,11 @@ export class TyreMarks {
       }
       // Longer segments at speed (more track per buffer), short ones when slow / sliding.
       if (d < Math.max(0.3, speed * 0.045)) continue;
+      // Build up / fade out over distance, with patchy swells along the mark (grip and surface vary).
+      const rate = target > this.heat[i] ? d / RAMP_IN : d / RAMP_OUT;
+      this.heat[i] += (target - this.heat[i]) * Math.min(1, rate);
+      const patch = 0.7 + 0.3 * noise1(this.along[i] / PATCH_SCALE + i * 31.7);
+      const alpha = this.heat[i] * patch;
       // Kind (atlas tile): imprint while rolling, smeared while sliding / spinning; on hard ground rubber along the
       // tyre (spin, lock) or a scuff when it slides sideways.
       const kind = loose ? (slide > 0.3 ? 1 : 0) : beta > 0.3 ? 3 : 2;
@@ -243,6 +273,22 @@ export class TyreMarks {
   /** Break every strip (after a reset / respawn). */
   breakStrips(): void {
     this.last.fill(null);
+  }
+
+  /**
+   * Remove every mark (a replay opening or seeking back redraws them): all quads collapse to a point (positions 0, as
+   * at the start), the strips break, and each GPU copy uploads its whole position buffer on its next turn.
+   */
+  clear(): void {
+    this.pos.fill(0);
+    this.next.fill(0);
+    this.along.fill(0);
+    this.heat.fill(0);
+    this.last.fill(null);
+    for (let k = 0; k < COPIES; k++) {
+      this.dirty[k].length = 0;
+      this.cleared[k] = true;
+    }
   }
 
   private writeQuad(
@@ -291,7 +337,16 @@ export class TyreMarks {
     }
     const u0 = kind / KINDS;
     const u1 = (kind + 1) / KINDS;
-    this.uv.set([u0, v0, u1, v0, u0, v1, u1, v1], q * 8);
+    const U = this.uv;
+    const t = q * 8;
+    U[t] = u0;
+    U[t + 1] = v0;
+    U[t + 2] = u1;
+    U[t + 3] = v0;
+    U[t + 4] = u0;
+    U[t + 5] = v1;
+    U[t + 6] = u1;
+    U[t + 7] = v1;
     for (const d of this.dirty) d.push(q);
   }
 
@@ -300,6 +355,19 @@ export class TyreMarks {
     this.material.map?.dispose();
     this.material.dispose();
   }
+}
+
+/** Smoothstep of x clamped to 0..1. */
+function smooth(x: number): number {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
+
+/** Smooth 1D value noise in 0..1. */
+function noise1(x: number): number {
+  const i = Math.floor(x);
+  const f = smooth(x - i);
+  return hash(i, 0.5) * (1 - f) + hash(i + 1, 0.5) * f;
 }
 
 /** Cheap hash noise in 0..1. */
@@ -322,12 +390,14 @@ export function marksTexture(tyre: TyreId | null): CanvasTexture {
   // Plain carcass (no compound): all rubber.
   const rubberAt = (b: number, phase: number) =>
     tyre ? treadRubber(tyre, b, phase) : true;
-  // Share of the pitch that is rubber at b (circumferential grooves = 0): the rubber band's lines.
-  const coverage = (b: number) => {
+  // Share of the pitch that is rubber at each column's b (circumferential grooves = 0): the rubber band's lines.
+  const coverage = new Float64Array(TILE_W);
+  for (let x = 0; x < TILE_W; x++) {
+    const b = ((x + 0.5) / TILE_W) * 2 - 1;
     let n = 0;
     for (let k = 0; k < 32; k++) if (rubberAt(b, k / 32)) n++;
-    return n / 32;
-  };
+    coverage[x] = n / 32;
+  }
   const put = (x: number, y: number, v: number, a: number) => {
     const i = (y * W + x) * 4;
     const g = Math.round(255 * Math.min(1, Math.max(0, v)));
@@ -364,7 +434,7 @@ export function marksTexture(tyre: TyreId | null): CanvasTexture {
       // 2: rubber - dark band, light lines at the circumferential grooves, soft edges.
       const b = u * 2 - 1;
       const soft = Math.min(1, (1 - Math.abs(b)) / 0.18);
-      const cov = coverage(b);
+      const cov = coverage[x];
       put(
         TILE_W * 2 + x,
         y,

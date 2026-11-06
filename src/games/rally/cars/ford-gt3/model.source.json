@@ -106,6 +106,38 @@
         "material": "trim"
       },
       {
+        "$comment": "diffuser outer end plates (the flat carbono plates at |x| 0.82, tilted 18 deg up): satin carbon - their outer face mirrored the bright sky in the clear-coated carbon and read white from behind",
+        "mat": "carbono",
+        "x": [-0.93, -0.76],
+        "y": [0.12, 0.47],
+        "z": [-2.33, -1.7],
+        "facing": {
+          "|x|": [0.85, 1]
+        },
+        "material": "carbonmatte"
+      },
+      {
+        "mat": "carbono",
+        "x": [0.76, 0.93],
+        "y": [0.12, 0.47],
+        "z": [-2.33, -1.7],
+        "facing": {
+          "|x|": [0.85, 1]
+        },
+        "material": "carbonmatte"
+      },
+      {
+        "$comment": "diffuser top deck (flat, facing up at model y 0.39): satin for the same reason",
+        "mat": "carbono",
+        "x": [-0.93, 0.93],
+        "y": [0.4, 0.52],
+        "z": [-2.45, -1.95],
+        "facing": {
+          "y": [0.85, 1]
+        },
+        "material": "carbonmatte"
+      },
+      {
         "mat": "carbono",
         "material": "carbon"
       },
@@ -242,6 +274,7 @@
       "interior",
       "logo",
       "carbon",
+      "carbonmatte",
       "mirror",
       "cage",
       "lamphousing",

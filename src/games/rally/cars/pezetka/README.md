@@ -4,18 +4,16 @@ A Polish-built Fiat 126p ("Maluch", pronounced "pe-zet-ka") from a **CC BY Sketc
 livery, so it is mapped to game parts by material. In game it is **Fiat 126p**: RWD, 600 kg, a 652 cc two-cylinder behind the
 rear axle, 4-speed, **no ABS and no traction control**.
 
-- **Kept from the model:** the whole body and cockpit shell (flat colours), the bumpers with their own weathered texture, the
-  head lamps with their own reflector sheet, the amber indicators, the two-colour tail lamps (faceted lens) and the steel rim (de-cambered,
-  centred on the hub).
+- **Kept from the model:** the body and cockpit shell (flat colours), the bumpers with their weathered texture, the head lamps
+  with their reflector sheet, the amber indicators, the two-colour tail lamps and the steel rim (de-cambered, centred on the hub).
 - **Dropped:** tyres, the plates, the front badge and the "126p" lettering.
 - **Shrunk:** the source is 27 MB (35 textures); the game uses flat paint, so only the bumper and head lamp sheets ship (512 px,
-  256 colours). Body 100k triangles, kept at the model's own detail; `normalSmooth` in `model.source.json` irons out the
+  256 colours). The body keeps the model's own detail (100k triangles); `normalSmooth` in `model.source.json` irons out the
   ripples that the model's hand-smoothed normals hide.
 - **Paint (ours):** one flat period blue-grey, other seeds recolour it.
-- **Interior (second model):** the body model's cockpit is only a flat lid at sill height with the seat backs poking
-  through, so the dash, steering column and wheel, gear lever, seats, seat rails, rear bench and floor come from
-  "fiat 126p" by subishi, with their own textures. Same wheelbase; it is narrowed 5% and lowered to sit under our
-  windscreen (`srcParts.from` in `model.source.json`). The black door cards and kick panels are ours (the doors are one-sided skins).
+- **Interior (second model):** the body model's cockpit is a flat lid at sill height, so the dash, steering wheel, gear lever,
+  seats, rear bench and floor come from "fiat 126p" by subishi (own textures), fitted under our windscreen (`srcParts.from` in
+  `model.source.json`); the door cards and kick panels are ours.
 
 ![Front three-quarter](screenshots/front-34.jpg)
 
@@ -58,6 +56,4 @@ Power, torque, mass and size follow the published 652 cc figures; gearing, grip 
 | Specification                      | [Fiat 126, Wikipedia](https://en.wikipedia.org/wiki/Fiat_126)                                                                                            | reference only |
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
-itself is not in the repository (`sources/` is git-ignored); only the converted `pezetka.glb`, `pezetka_wheel.glb`,
-`pezetka_metal.png`, `pezetka_lamps.png` and the interior sheets (`pezetka_seats.png`, `pezetka_dash.png`, `pezetka_chrome.png`,
-`pezetka_floor.png`) ship.
+is not in the repository (`sources/` is git-ignored); only the converted `pezetka*.glb` and `pezetka_*.png` files ship.

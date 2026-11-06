@@ -20,26 +20,19 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
 `debug/viewer-shell.ts` (panel, renderer with the game's lights, orbit camera, stats); look: `debug/viewer-shell.css`
 (`STYLEGUIDE.md` -> Tool pages).
 
-- **Every page**: `H` or the "Panel · H" plate hides the panel, `F3` stats, Help = key table; sections remember open /
-  closed. "Copy camera link" -> `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1` (`clean=1` hides every plate). Weather
-  (`weather=`, reloads) and Time of day (`tod=`, live; the page's own hour sits in its nearest slot):
-  `ViewerShell.addWeatherAndTime`. A "Loading <map / car / asset>" plate while it builds (`showViewerLoading`).
-- **Map viewer** (`pages/map-viewer.ts`): Map (map, stage, season, weather, time; all but the time reload), Camera (top
-  down, oblique, start line, link), Layers (scatter, tree debug - also `F6` -, road centreline, stage route + markers,
-  chunk grid, splat, wireframe, fog), Picked point (click the terrain: position, height, slope, surface, cover; real
-  maps: lat / lon, satellite and Street View links; "Drive from here"), Buildings (real maps; `building=<id>`), Stats,
-  Credits, Scene, Help.
-  `along=<m>&zoom=<f>` flies to a spot on the stage road.
-- **Car viewer** (`pages/car-viewer.ts`): Cars (All / AWD / FWD / RWD chips as the car menu, class per row), Car (livery
-  `seed`, `paint` + livery colour, `tyre`, door plate `num` / `rally`), Camera (`view` presets; an axle camera or a link
-  clears them), Pose (`steer`, `susp`, `spin`, `turntable`), Scene (weather, time, `backdrop` studio / road with its
-  `season` and `trees`, sun), Lights (`beam`, `lamps`), Wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` /
-  `brakes` / `body`, axle camera `wcam`), Debug (`wire`, `hull`, `fallback`), Specs (numbers, torque / power chart,
-  test-drive links, model credit), Sound (`debug/sound-debug.ts`), Help. Console: `__carViewer`.
-- **Asset debugger** (`pages/asset-debug.ts`): Assets, Options (only what the picked kind uses: props seed / variant /
-  LOD / instances / gap / wire / bounds / colliders; trees seed / variant / instances / season / leaves; cars livery seed;
-  textures repeat; turntable for all; hidden ones keep their URL value), Info, Camera, Scene (the car viewer's without the
-  backdrop), Help. `F6` tree debug views.
+- **Every page**: `H` or the "Panel · H" plate hides the panel, `F3` stats, Help = key table; sections remember open / closed. "Copy camera link" ->
+  `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1` (`clean=1` hides every plate). Weather (`weather=`, reloads) and Time of day (`tod=`, live; the page's own hour
+  sits in its nearest slot): `ViewerShell.addWeatherAndTime`. A "Loading <map / car / asset>" plate shows while it builds (`showViewerLoading`).
+- **Map viewer** (`pages/map-viewer.ts`): a map and stage in a season, weather and time; camera presets (top down, oblique, start line, link); layers
+  (scatter, tree debug `F6`, road centreline, stage route + markers, chunk grid, splat, wireframe, fog); click the terrain for a picked point (position,
+  height, slope, surface, cover; real maps: lat / lon, satellite and Street View links; "Drive from here"); buildings (`building=<id>`); `along=<m>&zoom=<f>`
+  flies to a spot on the stage road.
+- **Car viewer** (`pages/car-viewer.ts`): the cars (All / AWD / FWD / RWD chips), livery `seed`, `paint`, `tyre`, door plate `num` / `rally`, camera presets
+  or an axle camera, pose (`steer`, `susp`, `spin`, `turntable`), scene (weather, time, `backdrop` studio / road with its `season` and `trees`, sun), lights
+  (`beam`, `lamps`), wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` / `brakes` / `body`, axle camera `wcam`), debug (`wire`, `hull`, `fallback`),
+  specs (numbers, torque / power chart, test-drive links, model credit) and sound (`debug/sound-debug.ts`). Console: `__carViewer`.
+- **Asset debugger** (`pages/asset-debug.ts`): the assets plus the options of the picked kind only (props seed / variant / LOD / instances / gap / wire /
+  bounds / colliders; trees seed / variant / instances / season / leaves; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
 
 **URL parameters** (any of the play ones skips the menu):
 
@@ -72,7 +65,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 | Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                               |
 |          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                      |
 |          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B                                                                                                     |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset)                                                   |
 | Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit |
 | Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                        |
 
@@ -89,21 +82,39 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   cars with `physics.noTractionControl` / `noAbs`), car number (door plates), start camera. Saved in localStorage (`game/settings.ts`).
 - **Auto quality**: with no `?quality`, saved choice or earlier measurement, the first Select car / stage screen measures the menu's median
   frame time for 2.5 s (`Showroom.measureFrameTime`) and saves a preset under its own key (`engine/quality.ts`); a manual choice always wins. High (picked or measured) also sets object distance Far and Display HDR.
-- **Menu music** (main menu only, none in the race): `game/menu-music.ts` loops `sources/music/*.mp3` (git-ignored, copied on build; only files present at build time play and are credited, so a CI checkout / Pages deploy is silent, no errors) (tracks + credits listed
-  there), starts on the first click / key (autoplay rule), shows "now playing" bottom right, pauses with the tab. Main-menu
-  Options slider `musicVolume` (0 = off, 100% plays at half of full volume); `?mute=1` silences it. Add a track = file + `MENU_TRACKS` row (+ `THIRD-PARTY.md`).
+- **Menu music** (main menu only): `game/menu-music.ts` loops `sources/music/*.mp3` (git-ignored, copied on build; only files present at
+  build time play and are credited, so a CI / Pages build is silent), starts on the first click / key, shows "now playing" bottom
+  right and pauses with the tab. Options slider `musicVolume` (0 = off); `?mute=1` silences it. Add a track = file + `MENU_TRACKS` row
+  (+ `THIRD-PARTY.md`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu (a page reload: the loading box goes up
   first, `leaveTo` in pages/play.ts, or the frozen stage stays on screen until the menu paints).
 - **Stage times** (welcome menu): stage list on the left (↑↓), the selected stage's saved runs over its map view in a card docked beside the list (`.menu-times-card`); current versions first, older ones dimmed below.
-- **About:** every external source per map (`MapDef.sources` + its stages' `StageDef.sources`) and car (`CarDef.sources`), menu music credits, plus `version` from `game.json`.
-- Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
-- Last picked stage, car and livery are remembered (`rally.settings`, saved on Start); a car that is hidden in the build or unknown falls back to the default car and livery 1.
-- Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
-- Car select (screens >= 800 px wide): the description / stats / livery sit in a card docked beside the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage; Stage times uses the same placement). The showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card; its **Details** tab (`MainMenu.minimizer`, class `min` on the card, shared with Select stage) minimizes the card to its description (the Stage times card has no tab). Narrower screens (< 800 px) lay the same card over the map above the buttons.
-- Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage), with a **Season** dropdown (spring / summer / autumn, above the time) and the **Month** it is driven in in front. Left / right (or the pad) step the time; the list cards keep the route, tags and best time.
-- Time of day (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night 01:00 (dropdown order) - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00") and a stage can move a slot (`StageDef.slotHours`: Vodno's early morning is 08:00); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), a stage without `timeOfDay` shows no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`StageDef.temps`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
-- Season (`season.ts`): spring / summer / autumn, the one the stage opens in (`StageDef.season`, else the map's `environment.season`, default summer; `stageSeason`) or `?season=`; the stage screen's pick is mirrored into the URL (`season=`, none = the stage's own) and shown on every stage including the test map. It sets the tree leaf colours (`trees/seasons.ts`), the ground (`environment.groundTints`, below) and the stage's air / road temperatures (`StageDef.temps`, "Temperatures" below). The stage card lists the **Month** the stage is driven in that season (`environment.months`, default April / July / October: e.g. Ajvatovci spring April, Jackie spring May).
-- Season ground: `environment.groundTint` is the map's own season (`environment.season`, the card's `season`; a stage can open in another, e.g. Galichica West in autumn, East in spring); `environment.groundTints` has the other seasons' tint (fresh green / young crops in spring, dry olive / stubble in autumn). `mapInSeason` (`maps/shared/season-map.ts`) returns the map with that season's tint as `groundTint` and `season` set, and `RallyGame` builds its `World` from it, so terrain, horizon and sky colours follow. The stage card (select stage) has one picture per season, every one `<stage id>-<season>.jpg` (`cardImageName`; the card's `season` is the map's own), the other seasons listed with their hash + floor colour in the card's `seasons`; the dropdown swaps the picture (`Showroom.setSeason`), only the shown season is fetched. A map without `groundTints` shows one picture for every season.
+- **About:** every external source per map (`MapDef.sources` + its stages' `StageDef.sources`) and car (`CarDef.sources`), menu music
+  credits, plus `version` from `game.json`.
+- **Select car**: a "Loading model" spinner (`Showroom.loadCue`) while the GLB downloads; an All / AWD / RWD / FWD filter row
+  (`driveGroup` from `drivetrain.frontSplit`, not remembered). On screens >= 800 px the description / stats / livery sit in a card
+  docked beside the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage and Stage times); the showroom car keeps its
+  place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind it. The card's **Details** tab (`MainMenu.minimizer`) minimizes it
+  to its description; narrower screens lay it over the map above the buttons. The last picked stage, car and livery are remembered
+  (`rally.settings`, saved on Start); a car that is hidden in the build or unknown falls back to the default car and livery 1.
+- **Select stage**: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build
+  details), the recommended set-up and the **Season** / **Time of day** dropdowns (with the **Month** it is driven in) sit in the same
+  card (phones: under the selected stage); left / right (or the pad) step the time; the list cards keep the route, tags and best time.
+- **Time of day** (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night
+  01:00, each a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage keeps its own default
+  hour on its nearest slot (Jackie opens on "Early morning · 08:00"); `StageDef.slotHours` moves a slot (Vodno's early morning is
+  08:00). A pick applies to every stage until changed, is not remembered and is mirrored into the URL (`tod=`); a stage without
+  `timeOfDay` shows no dropdown. The card shows the clock time and the air / road temperature at that hour (`StageDef.temps`, see
+  PHYSICS.md). Times are saved per stage, not per time of day.
+- **Season** (`season.ts`): spring / summer / autumn, the stage's own (`StageDef.season`, else `environment.season`, default summer;
+  `stageSeason`) or `?season=` (the stage screen mirrors the pick into the URL; every stage has it). It sets the tree leaf colours
+  (`trees/seasons.ts`), the ground and the air / road temperatures (`StageDef.temps`, "Temperatures" below). The card lists the
+  **Month** the stage is driven in (`environment.months`, default April / July / October).
+- **Season ground**: `environment.groundTint` is the map's own season; `environment.groundTints` has the other seasons' tints (fresh
+  green / young crops in spring, dry olive / stubble in autumn). `mapInSeason` (`maps/shared/season-map.ts`) returns the map in that
+  season and `RallyGame` builds its `World` from it, so terrain, horizon and sky follow. The stage card has one picture per season
+  (`<stage id>-<season>.jpg`, `cardImageName`; the other seasons' hash + floor colour in the card's `seasons`); the dropdown swaps
+  it (`Showroom.setSeason`) and only the shown season is fetched. A map without `groundTints` shows one picture for every season.
 
 **On a stage** (`game/stage.ts`):
 
@@ -115,45 +126,48 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   (`breakable` assets, `slow` in the catalog, `world/breakables.ts`): the car drives over them and they tip over until the stage restarts.
 - **Finish:** the car brakes itself to a stop on the run-off (`finishStopControls()`), so every map needs a run-off. The
   autopilot (`F8`, finish stop) runs per 240 Hz physics step, exactly as in the tests.
-- **Results:** time, delta to the best run, sector chips, **Watch replay** (Replays below), then the stage top 10 (all cars / this car) with each run's set-up.
-  Stored per stage in localStorage (`rally.times.<stage>`). `STAGE_TIMES_VERSIONS` + `CAR_TIMES_VERSIONS` (`game/stage.ts`): each run stores its stage and car version. On a bump
-  `migrateTimes` keeps the runs, tags them with the version they were set on (`RunRecord.ver` / `carVer`) and lists them below all
-  current runs, dimmed, behind a divider; the bumped stage's / car's per-car bests move into the leaderboard as old runs. Times saved before per-stage / per-car versions show as `v0`. Each run also stores `season` + `hour`; runs without them show Summer and the stage's own time of day (`runConditions`). Stage road change = bump that stage (a map's road change bumps every stage on it); a car's
-  handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Agents bump
-  them as part of the change (AGENTS.md).
+- **Results:** time, delta to the best run, sector chips, **Watch replay** (Replays below), then the stage top 10 (all cars / this car)
+  with each run's set-up. Stored per stage in localStorage (`rally.times.<stage>`). `STAGE_TIMES_VERSIONS` + `CAR_TIMES_VERSIONS`
+  (`game/stage.ts`): each run stores its stage and car version; on a bump `migrateTimes` keeps the runs, tags them with the version
+  they were set on (`RunRecord.ver` / `carVer`) and lists them below the current ones, dimmed (the bumped stage's / car's per-car
+  bests move into the leaderboard as old runs; times from before versions show as `v0`). Each run also stores `season` + `hour`
+  (older runs show Summer and the stage's own time of day: `runConditions`). A stage's road change bumps that stage (a map's road
+  change bumps every stage on it), a car's handling change bumps that car, a shared physics change every car; livery / model fixes
+  never. Bumps are made when the owner says we are making a build (`AGENTS.md`).
 
 ## Replays (`game/replay/`)
 
-**Dev-only for now** (`REPLAYS_ENABLED` = not `RELEASE_BUILD`, `store.ts`): the dev server and `npm run build:test` record
-every run; the release build records nothing and has no replay entry point. A run can be watched from the results, from
-Stage times (▶ on a run with a replay, "Replays on this device" list) or by URL (`?replay=<id>` on the play URL; `replayUrl()`). Research, sizes and options: `sources/rally/REPLAY.md` (local).
+**On in every build** (`REPLAYS_ENABLED`, `store.ts`): every run is recorded. A run can be watched from the results, from
+Stage times (▶ on a run with a replay, "Replays on this device" list) or by URL (`?replay=<id>` on the play URL; `replayUrl()`).
 
-- **Recording** (`recorder.ts`): state, not inputs (re-simulating from rounded inputs drifts hundreds of metres in a minute).
-  `RallyGame.frame` calls `recorder.step` after each physics step; every 4th step (60 Hz) it stores pose, per-wheel omega /
-  temperatures and car channels (rpm, gear, pedals, steer, impact, flags, stage clock, progress; `format.ts`). Zero physics
-  changes: `Vehicle.probeGround()` is the old first half of `suspensionPass`, split out so playback can re-run the wheel rays.
-- **File** (`codec.ts`, DOM-free): `RRP` + format byte + JSON header (stage, car, set-up, conditions, versions, splits) + body:
-  columns quantised (`WHEEL_QUANT` / `CAR_QUANT`, pos 1 mm), delta-coded, zigzag varints, gzip. ~200-260 B/s = 18-90 KB a
-  stage; over `REPLAY_BUDGET` (100 KB) the rate halves (max 30 Hz). Bump `REPLAY_FORMAT` on a layout change (old files are refused).
-- **Storage** (`store.ts`): IndexedDB `rally-replays` (`meta` + `data`); every finished ranked run is an **auto save**, nothing
-  is evicted (`navigator.storage.persist()` asked on the first save). **Save replay** (results, replay bar) or **Name** (Stage
-  times) makes a **named save** (`meta.name`, `cleanName`). Stage times lists named saves first, then the newest auto saves,
-  each with rename and delete (asks once), over a storage line with **Delete auto saves** (all stages; named saves never,
-  personal bests kept unless unticked: `autoDeleteIds`). From `REPLAY_SOFT_LIMIT` (1000) replays the line becomes a notice
-  (also on the results) with size and the browser quota; saving never stops. Failures are silent: never a lost time.
-- **Playback** (`playback.ts`, `session.ts`): no physics; `ReplayTrack.apply` poses the real `Vehicle` (Catmull-Rom position,
-  slerp, velocities from the frames, `probeGround`, derived wheel slide / roll speeds), so model, dust, tyre marks, sound and
-  HUD run as in a drive. `ReplayClock` feeds the HUD the recorded clock and sector colours.
-- **Cameras** (`replay-cameras.ts`, `tv-cameras.ts`): Broadcast (auto director), Trackside, Chase, Far, Bonnet, Bumper, Drone.
-  Trackside cameras (`tv` in code): one outside every big corner (> 0.6 rad over 40 m) plus fillers on long straights, placed by terrain
-  line of sight past tree crowns / colliders of the corridor, planned at the finish in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). Broadcast shows big corners from their trackside camera and cycles
+- **Recording** (`recorder.ts`): state, not inputs (re-simulating from rounded inputs drifts hundreds of metres in a minute). `RallyGame.frame` calls
+  `recorder.step` after each physics step; every 4th step (60 Hz) it stores pose, per-wheel omega / temperatures and car channels (rpm, gear, pedals, steer,
+  impact, flags, stage clock, progress; `format.ts`). No physics changes: `Vehicle.probeGround()` is the old first half of `suspensionPass`, split out so
+  playback can re-run the wheel rays. The finished run records on for `REPLAY_TAIL` (the run-off), then is encoded; a restart or leaving the page in that tail
+  saves it at once (`flushReplay`). **Limit:** `MAX_SECONDS` (30 min) of recording; a longer run (or free drive) has no replay: not saved, Watch replay says not available.
+- **File** (`codec.ts`, DOM-free): `RRP` + format byte + JSON header (stage, car, set-up, conditions, versions, splits) + quantised, delta-coded,
+  zigzag-varint, gzipped columns (`WHEEL_QUANT` / `CAR_QUANT`, pos 1 mm); ~200-260 B/s. Over `REPLAY_BUDGET` (100 KB) the rate halves (max 30 Hz). Bump
+  `REPLAY_FORMAT` on a layout change (old files are refused).
+- **Storage** (`store.ts`): IndexedDB `rally-replays` (`meta` + `data`); every finished ranked run is an **auto save** and nothing is evicted
+  (`navigator.storage.persist()` is asked on the first save). **Save replay** (results, replay bar) or **Name** (Stage times) makes a **named save**
+  (`meta.name`, `cleanName`). Stage times lists named saves first, then the newest auto saves, each with rename and delete, over a storage line with **Delete
+  auto saves** (all stages; named saves never, personal bests kept unless unticked: `autoDeleteIds`). From `REPLAY_SOFT_LIMIT` (1000) replays the line becomes
+  a notice with size and quota; saving never stops. Failures are silent: never a lost time.
+- **Playback** (`playback.ts`, `session.ts`): no physics; `ReplayTrack.apply` poses the real `Vehicle` (Catmull-Rom position, slerp, velocities from the
+  frames, `probeGround`, derived wheel slide / roll speeds and slip), so model, dust, tyre marks, sound and HUD run as in a drive, on replay time; opening a replay or seeking back clears the marks and tyre dust, which it redraws. `ReplayClock` feeds the HUD the
+  recorded clock and sector colours.
+- **Cameras** (`replay-cameras.ts`, `tv-cameras.ts`): Broadcast (auto director), Trackside, Chase, Far, Bonnet, Bumper, Drone. Trackside cameras: one outside
+  every big corner (> 0.6 rad over 40 m) plus fillers on long straights, placed by terrain line of sight past tree crowns / colliders, planned at the finish
+  in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). Broadcast shows big corners from their trackside camera and cycles
   the others between them; no cut under 2.5 s or in the air.
-- **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed
-  0.25-2x, camera picker (a dropdown under 1360 px), Save (name), Clean feed, Record video, Exit (back to results, or the menu for a URL replay).
-- **Video** (`video.ts`): `MediaRecorder` on the canvas + game audio (mp4 / webm), clean feed, real time; downloads on stop.
-- **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`;
-  `trace(s, every)` / `copyTrace()` / `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel
-  load / slip / forces) as TSV. The F2 panel has the same as buttons. `load` of another stage / car reloads into it.
+- **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed 0.25-2x, camera picker (a dropdown
+  under 1360 px), Save (name; an inactive "Saved" once named, absent for a replay opened from the menu: rename it in Stage times), Clean feed, Record video
+  (not in the release build), Exit (back to results, or the menu for a URL replay).
+- **Video** (`video.ts`; dev server and `build:test` only until it is fixed, `videoSupported()`): `MediaRecorder` on the canvas + game audio (mp4 / webm),
+  clean feed, real time; downloads on stop.
+- **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`; `trace(s, every)` / `copyTrace()` /
+  `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel load / slip / forces) as TSV (the F2 panel has buttons); `load` of
+  another stage / car reloads into it.
 
 ## UI style
 
@@ -182,18 +196,19 @@ Per-map settings live in `MapDef.environment`; everything has a default.
     slope still stands in the sun) and dims the ground's sky light by the sky its surroundings leave in view (valleys,
     the foot of a slope).
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
-  (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
-  fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark (`lightNeed`, from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow). They switch on
-  (`CarModel.setLamps(level)`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` (strength, colour and beam shape per car: `CarDef.headlights`) adds a low-beam spot (one per lamp in rain / fog), a wide
-  spill spot and two soft beam cones; dust, spray and haze glow inside the beam (`ParticleSystem.setHeadlight`). Shadows: one low
-  beam and the moon cast them on high quality only. Rain / fog by day (`lightNeed` under `BEAM_MIN_NEED`, `rally-game.ts`): lights
-  on, lamps glow near full (`WEATHER_LAMPS`, tail lamps a day running light), only the two unshadowed low beams; no spill, cones,
-  street lamps or pools (they read as smears in daylight). Head lamps (`part-materials.ts` `headLamp`) are nearly dark with the lights
-  off and get a halo in the beam colour when on (`LampHalos` `front`); the beam starts at the model's own lamps
-  (`CarModel.onHeadlamps` -> `Headlights.moveTo`), and its cones fade when seen from in front (glare, not a lit wall). No map has a night stage yet. Road side (`engine/night-glow.ts`, shared `ws*` uniforms): marker-post reflectors and chevron boards
-  light up in the car's beam (`retro`), street lamp lenses glow with `lightNeed` and `world/lamp-pools.ts` lays a soft light pool under
-  each lamp, draped over the ground (a flat disc sinks into the verge and flickers). High quality adds bloom (`engine/post-fx.ts`, threshold far above the lit ground, so lenses and reflectors are
-  emissive well over it). Not done: high / low beam key.
+  (dim, blue, `moonAt`), the sky a dark dome with a town glow, moon and stars (`NightSky`), fog dark, tone mapping AgX at a fixed
+  exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark
+  (`lightNeed` from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow):
+  `CarModel.setLamps(level)` and `game/headlights.ts` (`CarDef.headlights`: strength, colour and beam shape per car) add a low-beam
+  spot (one per lamp in rain / fog), a wide spill spot and two soft beam cones; dust, spray and haze glow inside the beam
+  (`ParticleSystem.setHeadlight`). Only one low beam and the moon cast shadows, on high quality. In rain / fog by day (`lightNeed`
+  under `BEAM_MIN_NEED`, `rally-game.ts`) the lamps glow near full (`WEATHER_LAMPS`) with only the two unshadowed low beams (no spill,
+  cones, street lamps or pools: they read as smears in daylight). Head lamps (`part-materials.ts` `headLamp`) are nearly dark with the
+  lights off and get a halo in the beam colour when on (`LampHalos`); the beam starts at the model's own lamps (`CarModel.onHeadlamps`
+  -> `Headlights.moveTo`) and its cones fade when seen from in front. Road side (`engine/night-glow.ts`, shared `ws*` uniforms):
+  marker-post reflectors and chevron boards light up in the car's beam (`retro`), street lamp lenses glow with `lightNeed` and
+  `world/lamp-pools.ts` lays a soft pool under each lamp, draped over the ground. High quality adds bloom (`engine/post-fx.ts`;
+  lenses and reflectors are emissive well over its threshold). There is no high / low beam key.
 - **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, default off, `BLOOM_MIX` in `game/settings.ts`) and
   **Ambient occlusion** (default off). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
   estimate of the finished picture, so with it off the image is unchanged. AO: GTAO from the depth at half resolution.
@@ -224,48 +239,32 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   `groundTint.variety` adds deeper-green / yellow-green meadow patches to the tinted grass (spring).
   Levelled gardens / park strips: `terrain.lawns` (flat world polygons) paints the terrain itself pure grass (splat) and wet
   (`world/ground-moisture.ts`, lush green) - do not lay a green decal over terrain.
-- **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
-  Terrain ground = Poly Haven scans in one texture array (`engine/ground-textures.ts`, tiles in `engine/ground/`,
-  `scripts/ground/bake.py`): grass per season, soil, gravel, rock, leaf litter, stubble under crops. The splat channels blend by
-  height (scan brightness), a blurred rotated second tap breaks the tiling, unused layers are not sampled. Leaf litter lies where
-  the canopy texture has crowns (`wsCanopyCover`; strength per season, `groundTint.litter`), fresh coloured leaves in autumn.
-  The meadow scans carry the old tile's olive hue so each map's `groundTint` keeps its look.
-  Terrain chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material (`world/terrain-material.ts`): no relief, one
-  tap per layer, no specular environment lookup.
-- **Effects:** dust, haze and water splash (`game/dust.ts`; sprites fade into the ground or water under them, `floor`), gravel
-  spray as tumbling stones (`game/gravel-stones.ts`), splash off wheels in water (`rally-game.ts` `emitSplash`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
-  brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
-  white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`). With the lights off a lamp
-  is dark (no glow, by day too); with the lights on it moves to its `LampNight` glow (`part-materials.ts` `lamp()`): red lamps keep it low and in pure red, because AgX turns a bright red
-  salmon pink (ACES, by day, keeps pure red up to ~1.2); a lamp's glow map holds the LED parts at full red and the lens body dimmer.
-  A lamp piece on the centre line (the third brake light) is split off at load (`lamp-islands.ts`) and lights with the brake only,
-  halo included (`SOLID_CENTRE` sheets glow by the sheet's own red, so a speckled strip has no holes); `gltf.bootLamps` does the
-  same for the boot-lid half of a split tail lamp, which is also its white reversing lamp (Bimmer GT2); `lamp()` `idleGlow` does
-  it inside one glow map (22B: pale red body = running lamp, strong reds = brake).
-  A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
-  additive quad) plus a camera-facing corona per lit lens (sized to the lens, faded side-on and hidden on the far side, so a side
-  view still reads lit). At night `game/headlights.ts` `TailLight` adds two dim red spots under the model's own tail lamps
-  (`CarModel.onTaillamps`; every quality level, none on a rain / fog day where they cannot light) and
-  `ParticleSystem.setTaillight` tints the dust behind them; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
-  How a tail lamp is lit: the lens glows red and a small hot spot (the bulb / LED
-  seen through it) is driven past red and turns pale; the halo behind is tight by day in rain / fog and soft at night,
-  scaled per car by `gltf.tailHalo`. Sheet lamps (`srcPart`) light the sheet's pale-pink bulb pixels (`idleGlow`: running = spots +
-  a dim lens); `tailc` lamps get one hot spot (`chamberGlow`); the Zastava lamps have night levels and a halo. A wet road shows each
-  lit lamp as a streak (`game/lamp-reflections.ts`, a `map` with alpha; tail lamps follow the brake).
-  Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights half on) with `lamps=off|on|brake|reverse` (off = every lamp dark, on = the running lamps as the hour has them), `beam=0` hides
-  the headlight beam, `quality=high` adds the bloom.
+- **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA. Terrain ground = Poly Haven scans in one
+  texture array (`engine/ground-textures.ts`, tiles in `engine/ground/`, `scripts/ground/bake.py`): grass per season, soil, gravel, rock, leaf litter, stubble
+  under crops. The splat channels blend by height (scan brightness), a blurred rotated second tap breaks the tiling and unused layers are not sampled. Leaf
+  litter lies where the canopy texture has crowns (`wsCanopyCover`; `groundTint.litter`), with fresh coloured leaves in autumn; the meadow scans carry the old
+  tile's olive hue so each map's `groundTint` keeps its look. Chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material
+  (`world/terrain-material.ts`): no relief, one tap per layer, no specular environment lookup.
+- **Effects:** dust, haze and water splash (`game/dust.ts`; sprites fade into the ground or water under them, `floor`), gravel spray as tumbling stones
+  (`game/gravel-stones.ts`), splash off wheels in water (`rally-game.ts` `emitSplash`), tyre marks (`game/tyre-marks.ts`) and a contact shadow under the car.
+- **Car lamps** (`CarModel.setBrake(level, reversing)`, `part-materials.ts` `lamp()`, `cars/shared/lamp-halo.ts`): with the lights off a lamp is dark (by day
+  too); on, it moves to its `LampNight` glow and gets a soft halo plus a camera-facing corona per lit lens. Brake and reversing lamps follow the pedal and
+  gear R (in R the throttle key is the brake pedal). Red glows stay low and pure red because AgX turns a bright red salmon pink. Special cases: a centre-line
+  piece (the third brake light) is split off at load (`lamp-islands.ts`) and lights with the brake only; `gltf.bootLamps` does the same for a boot-lid half
+  (Bimmer GT2); `lamp()` `idleGlow` / `chamberGlow` and `gltf.tailHalo` cover sheet lamps and lamps with one glow map. At night `game/headlights.ts`
+  `TailLight` adds two dim red spots under the model's own tail lamps (`CarModel.onTaillamps`; none on a rain / fog day) that follow the brake and tint the
+  dust behind (`ParticleSystem.setTaillight`); a wet road shows each lit lamp as a streak (`game/lamp-reflections.ts`). Check lamps in the car viewer: `tod=1`
+  (night; `tod=17.5` = evening) with `lamps=off|on|brake|reverse`, `beam=0` hides the beam, `quality=high` adds the bloom.
 
 ## Maps
 
-Maps and stages: a **map** is the world (terrain, roads, land cover, scatter, buildings, environment: `maps/<id>/map.ts`); a
-**stage** (`StageDef`, the map's `stages`, `maps/<id>/stages.ts`) is the event on it: name, tyre / gearing, `reverse` (driven
-against the road's direction), `timing` (start / finish / splits), `closures` (barrier rows at side-road mouths, `stageMargin`
-= only along the stage), `cornerFans`, event `props`. Players only see stages; times (`rally.times.<stage>`), release flags
-(`STAGES_LIST`), URLs (`?stage=<id>`; an old `?map=<id>` link is rewritten to it) and cards (`maps/<map>/preview/<stage>.json` + one `<stage>-<season>.jpg` per season)
-are keyed by stage id. Every map from before the split has one stage with the old map id, so stored times kept their keys
-(`tests/rally/times-migration.test.ts`, `stage-identity.test.ts`). The world never depends on the stage: `World(map, stage)`
-keeps `road` (geometry) and adds `stageRoad` (the road, or its `reversed()` view) for timing, spawn, signs, fans, closures
-and the autopilot.
+Maps and stages: a **map** is the world (terrain, roads, land cover, scatter, buildings, environment: `maps/<id>/map.ts`); a **stage** (`StageDef`, the map's
+`stages`, `maps/<id>/stages.ts`) is the event on it: name, tyre / gearing, `reverse` (driven against the road's direction), `timing` (start / finish /
+splits), `closures` (barrier rows at side-road mouths, `stageMargin` = only along the stage), `cornerFans`, event `props`. Players only see stages; times
+(`rally.times.<stage>`), release flags (`STAGES_LIST`), URLs (`?stage=<id>`; an old `?map=<id>` link is rewritten) and cards
+(`maps/<map>/preview/<stage>.json` + one `<stage>-<season>.jpg` per season) are keyed by stage id; every map from before the split has one stage with the old
+map id, so stored times kept their keys. The world never depends on the stage: `World(map, stage)` keeps `road` (geometry) and adds `stageRoad` (the road, or
+its `reversed()` view) for timing, spawn, signs, fans, closures and the autopilot.
 
 | map id      | name            | notes                                                                                                                                                          |
 | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -293,114 +292,108 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (`world/terrain-gen.ts`, `real-data.ts`). Grass moisture: greener in hollows and along water, straw on ridges and steep
   slopes - a baked map texture (`world/ground-moisture.ts`, `World.moisture`) + the slope in the terrain shader;
   `groundTint.moisture` sets the strength (0 = off).
-- **Field crops** (`landcover.fields.crops`, Ajvatovci): each field parcel's palette entry names the crop standing on it per
-  season, and scatter rules with `crop` grow only there (`TerrainGenerator.cropAt`, not within 0.8 m of a parcel edge).
-  Wheat is green and short in spring, ripe in summer and gone in autumn (stubble tint): 1 m card patches to 90 m, at
-  least 2 m clear of the stage road. Corn (assets `corn`, `corn_row`, dry versions; no stage grows it yet): rows 0.75 m
-  apart along the strips (`rows.fields`), plant cards near the roads, 3 m row cards further in. The models are
-  two CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`; the
-  cards are rendered from them once per page (`engine/crops.ts` `bakeCropCards`), 4 variants each with their own mix of
-  plant heights (stacked in one texture; the asset variant picks one) so the field tops are uneven. Near detail
-  is fixed by road distance, never by camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road
-  (crossed cards at every distance: blade strips by the road read as bare ground next to them), so nothing swaps or
-  fills in as the car drives on.
-- **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
-  WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
-  everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
-  off-centre and non-square (`horizon` `extent` in the bake config: Vodno reaches 50 km north over the valley, 16 km south behind
-  the ridge). Catalog assets in `props` named in `FAR_LANDMARKS` (the Vodno cross and mast) are also drawn there with their last
-  LOD, so they stay on the skyline beyond the scatter's view distance. Its woods are shaded per pixel (`LAND_DETAIL`: noisy
-  edges, tone patches, crown speckle, rock on steep ground) in the stage's crown colour (`setForest`, `canopyTone`); inside
-  the map they come from the far forest's canopy map, so they match the map's own forests.
-  A far river (`HorizonDef.rivers`, bake config `rivers`: `scripts/realmap/rivers.py` after horizon.py) is a centreline + width from
-  the WorldCover water pixels, drawn as one flat ribbon over the finest grid (`riverGeometry`; Vodno: the Vardar, one draw).
-  `skyline` (`SkylineBuilding`: extruded footprint, one wall / glass band per floor, flat roof) adds the city's tall buildings beyond
-  the baked area (Vodno: Cevahir Sky City, the MRT tower; one draw, `skylineGeometry`).
+- **Field crops** (`landcover.fields.crops`, Ajvatovci): each field parcel's palette entry names the crop standing on it per season, and scatter rules with
+  `crop` grow only there (`TerrainGenerator.cropAt`, not within 0.8 m of a parcel edge). Wheat is green and short in spring, ripe in summer and gone in autumn
+  (stubble tint): 1 m card patches to 90 m, at least 2 m clear of the stage road. Corn (`corn`, `corn_row`; no stage grows it yet) grows in rows 0.75 m apart
+  along the strips (`rows.fields`). Both are CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`;
+  `bakeCropCards` (`engine/crops.ts`) renders the cards once per page, 4 variants each with its own mix of plant heights so the field tops are uneven. Near
+  detail is chosen by road distance, never camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road and is crossed cards at
+  every distance, so nothing swaps or fills in as the car drives on.
+- **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from five atlases (`engine/plants/*.webp`, coverage mips)
+  that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models (green / dry / spring grass tufts, the weed margin, nettles `tall_weeds`) and
+  CC BY Sketchfab models by Nicholas-3D (reed beds and cattails `reeds`; `--sheets reeds` rebakes only that sheet; credits in `THIRD-PARTY.md` and About).
+  `SHEET_GAIN` brings each sheet into the measured colour bands (cards and blade strips alike; a test checks) and `GRASS_CARD_ALPHA` sets the card cut. Keep
+  grass at two variants (it draws as a variant set). A stage loads only the sheets its season's assets use (`plantSheetsReady`, `assetIds`); a sheet that
+  fails to load is logged and drawn as plain blades.
+- **Vineyards** (`engine/vines.ts`): canopy cards painted per season from the trees' lobed leaf sprays (`trees/leaftex.ts`)
+  as canes rising from the cordon, colours in the trees' measured bands (`LEAF`); trunks and cordon arms wear the trees'
+  scanned cedar bark (`vineBarkMaterial`).
+- **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium / WorldCover, no roads or buildings), baked
+  by `scripts/realmap/horizon.py` into `<map>/horizon.json` and drawn behind everything with its own far plane (`world/horizon.ts`; cut away inside the
+  streamed terrain). A grid may be off-centre and non-square (`horizon` `extent` in the bake config: Vodno reaches 50 km north, 16 km south). Catalog assets
+  named in `FAR_LANDMARKS` (the Vodno cross and mast) are also drawn there with their last LOD. Its woods are shaded per pixel (`LAND_DETAIL`) in the stage's
+  crown colour (`setForest`, `canopyTone`) and match the map's own forests through the far forest's canopy map. A far river (`HorizonDef.rivers`,
+  `scripts/realmap/rivers.py` after horizon.py) is one flat ribbon over the finest grid (`riverGeometry`; Vodno: the Vardar). `skyline` (`SkylineBuilding`)
+  adds the city's tall buildings beyond the baked area (Vodno; one draw, `skylineGeometry`).
 - **Cable cars** (`aerialways`): a gondola line from a polyline - pylons on its vertices (`pylonsAtVertices`) or evenly spaced (taller
   where the slope asks), two ropes in a sag parabola, cabins running the loop (`world/aerialway.ts` pure layout + `cabinPose`, test;
   `aerialway-mesh.ts` one instanced mesh moved when drawn; asset `gondola_pylon`).
-- **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape (always a chain: posts ~5 m apart, a `tape_span` tied from each to the next, tilted to the slope; a blocked post splits the run and a post left alone is dropped, `world/tape.ts`; the roadside `tape_post` rules and service-park lots use the same),
-  spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 1-2 photographers, flags; marshals at every side-road mouth, 5 photographers each at start and finish (people are capped on purpose: `DEFAULT_FANS`, `SHOOTERS`, `END_PHOTOGRAPHERS` in corner-fans.ts)
-  (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
-- **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`, the SimReady scans in `simready.ts` (tool chest, tyre rack and stillage, jack, axle stands with a pail, flood light, extinguisher, wheelbarrow, hand truck, ladder, bin; the Poly Haven table and chairs, generator and jerrycans in the same bake; an extinguisher in every bay; yard props: Ajvatovci `start-row/yard-props.ts`, Jackie industrial scatter rules);
-  per map `maps/<id>/service-park.ts`; tests `service-park`, `parc-ferme`): team bays on levelled gravel lots - truck / van, team cars on
-  ground sheets, tents, props, crew and guests - plus tape, a crowd (seated or flag-waving fans, photographers, visitors) and a start
-  control. Team trucks, vans and the catering van are the background models in team paint plus side stripes.
-  - **Lot** (`ServiceLot` in `maps/shared/types.ts`): a rectangle levelled by a `terrain.pads` entry (`servicePad` in
-    `maps/shared/service-lot.ts`; its `apron` levels the strip to the road, `level` fixes a flat field). `cars` = team cars wanted
-    (a works bay holds two), `semis` = team lorries (`service_semi`, the baked lorry model) across the gravel behind one row of bays,
-    `links` = dirt links across the verge (`linkPad`: gravel ramp up to the road, 5 m wide; tape, crowd and press keep off them).
-  - People per lot: `mechanics` [min, max] makes a lean lot (the cars with just that many mechanics each, no crew / drivers / guests /
-    aisle visitors), `crowd` and `press` set the spectators and photographers along the edge, `showWithin` draws everything on the
-    lot (and its park cars) only within that many metres of the camera (`ScatterInstance.showWithin`, checked by `InstanceStreamer`
-    and `ParkCars`).
-  - **Ajvatovci**: the start lot is lean (4 cars, 2-3 mechanics each, 20 spectators, 5 photographers, none at the start line itself); the
-    west park (field beside the factory road, 6 cars, 5 lorries behind the bays, 3 links) is a full paddock with a crowd of 40, drawn
-    only within 90 m (seen when driving back in free drive).
-  - **Parc fermé** (`ferme`): a row of team cars, noses to the tape, on a lay-by behind the start (`ServiceLot.bays` per lot): Test 4,
-    Galichica West 6, Galichica East / Prespa-Ohrid 5. Each car has its crew and, on a lot 12.5 m deep (`TENT_DEPTH`), its team tent
-    and tool chest. On a street (The Jackie 5 + 5, Vodno 6 on its side street) the lot lies over the road (`paved`, no pad) and
-    `parallel` parks the cars nose to tail along the kerb with a 3 x 6 m tent behind each.
-  - **Recovery truck** (`ServiceLot.tow`): `service_tow` (dump cab + roll-back deck, `build/truck-backs.ts`, one colour) and a marshal in
-    a 9.5 m stretch at the lot's far end; make the lot that much longer (Test, Galichica West, Jackie east street, Vodno).
+- **Corner fans** (stage `cornerFans`; `world/corner-fans.ts`, `World.cornerFans`): small groups on the inside of tight corners along the whole stage: red /
+  white tape (always a chain of posts ~5 m apart with a `tape_span` tied between them, tilted to the slope; a blocked post splits the run and a lone post is
+  dropped, `world/tape.ts`; the roadside `tape_post` rules and service-park lots use the same), spectators (some waving their map's own hand flag,
+  `MapDef.country`, or a plain colour flag, never another country's) + visitors, a marshal, 1-2 photographers, flags; marshals at every side-road mouth, 5
+  photographers each at start and finish (people are capped on purpose: `DEFAULT_FANS`, `SHOOTERS`, `END_PHOTOGRAPHERS`). People animate
+  (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred; hand flags wave in the
+  `people_flag` shader.
+- **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; per map `maps/<id>/service-park.ts`; tests `service-park`,
+  `parc-ferme`): team bays on levelled gravel lots with a truck / van, team cars on ground sheets, tents, props, crew and guests, plus tape, a crowd and a
+  start control. Assets: `assets/builders/service.ts` + `teams.ts`; the props are NVIDIA SimReady scans and Poly Haven models baked together (`simready.ts`:
+  tool chest, tyre racks, jack, axle stands, flood light, extinguisher, wheelbarrow, hand truck, ladder, bin, table and chairs, generator, jerrycans); team
+  trucks, vans and the catering van are the background models in team paint plus side stripes.
+  - **Lot** (`ServiceLot` in `maps/shared/types.ts`): a rectangle levelled by a `terrain.pads` entry (`servicePad` in `maps/shared/service-lot.ts`; `apron`
+    levels the strip to the road, `level` fixes a flat field). `cars` = team cars wanted (a works bay holds two), `semis` = team lorries (`service_semi`)
+    behind one row of bays, `links` = dirt links across the verge (`linkPad`: a gravel ramp up to the road, 5 m wide; tape, crowd and press keep off them).
+    `mechanics` [min, max] makes a lean lot (no crew / drivers / guests / aisle visitors), `crowd` and `press` set the spectators and photographers along the
+    edge, `showWithin` draws the lot and its park cars only within that many metres of the camera (`ScatterInstance.showWithin`).
+  - **Parc fermé** (`ferme`): a row of team cars, noses to the tape, on a lay-by behind the start (`ServiceLot.bays`), each with its crew and, on a lot 12.5 m
+    deep (`TENT_DEPTH`), its team tent and tool chest. On a street (Jackie, Vodno) the lot lies over the road (`paved`, no pad) and `parallel` parks the cars
+    nose to tail along the kerb with a 3 x 6 m tent behind each.
+  - **Recovery truck** (`ServiceLot.tow`): `service_tow` (dump cab + roll-back deck, `build/truck-backs.ts`) and a marshal in a 9.5 m stretch at the lot's far
+    end; make the lot that much longer.
 - **Park cars**: `team_car` only places the car and its collider. The car is a real released model at low quality
   (`world/park-car-mesh.ts` `ParkCars`, owned by `InstanceStreamer`, `streamer.ready`): `public/models/cars/<id>_park.glb`
   (`scripts/car-model/park-lods.mjs`: body LODs of about 7.5k / 2.3k / 1.1k triangles, three rims) in the team's livery (car's own
   painter, one texture per car and team), two draw calls per car; a raised car stands on axle stands (`tyre_stack` beside it). Models
   load near the park and are freed far away (`parkCarsPlan`). Tests `park-cars`, `car-glb-meshopt`.
-- **People** (`assets/builders/people.ts`; credits THIRD-PARTY.md): close up (LOD 0 ~7k body + ~6-15k clothes, LOD 1 the same on the 2.5k mid mesh)
-  a person is one of two CC BY base bodies (`engine/people-base.data.ts`, baked by `scripts/people/extract-base.py` + `skin-map.py` +
-  `bake-base.mjs`, sources in `sources/people/base/`), posed on the CPU per variant (`people-body.ts`: 13 bones, A-pose baked in, `widen` for
-  build) with a painted face (`engine/people-skin-material.ts`, tinted to the skin tone). Everything worn is cut from that body:
-  `people-tailor.ts` (scalar fields clip the body, offset, relax, crease, seal, unwrap onto the fabric atlas cells of
-  `engine/people-fabrics.ts`; `split` / `splitIn` cut exact bands, hoops, checks, tape, pads), `people-wear.ts` (`dress`: tops, trousers, skirts,
-  coverall, hi-vis vest, gloves; team shirt patterns), `people-hair.ts` (scalp cut from the head + curtains, buns, ponytails, hats),
-  `people-shoes.ts` (lofts on the foot bones; the base legs end at the ankle). Each person gets a hairstyle from `pickHair` (people.ts) by
-  gender, length, age; `Outfit.topKind` / `legKind` / `pattern` / `hairStyle` / `shoeKind` override the defaults. LOD 2 / 3 stay code-built
-  (`farJointedFigure` / `farCrowdFigure` at 60-220 m, `farSilhouette` at 220-520 m). The two detailed levels are `lazy` (`LodSpec.lazy`, tens of ms per person): they are built in
-  workers (`people-worker.ts`, `people-pool.ts`: geometry only, each part tagged with its material's look, `withLooks` in people.ts), not
-  per variant at load. The load builds what the spawn view needs (`world/people-warm.ts`, started with the load) and one warm variant per
-  material (`AssetMeta.warm`; a test checks no other variant adds a shader); while driving `InstanceStreamer` (`prefetch`) asks for the
-  levels ahead of the car, nearest to being needed first (`world/build-queue.ts`), and draws the next cheaper LOD until one is there. Built levels are capped (`LAZY_BUDGET`, 48 MB): idle ones the car left ~600 m behind are dropped, least recently used first (`evictions`, `InstanceStreamer.evict`) and built again if needed.
-  Roles: `spectator` (24 standing + 18 sitting / squatting + 12 flag wavers), `mechanic`, `crew`, `driver`, `marshal`, `photographer`,
-  `visitor` (12 personas: ages, sizes, skirts, kids); test `people`. A new look = a field in `Outfit`, a new pose = `POSES`.
+- **People** (`assets/builders/people.ts`; credits `THIRD-PARTY.md`): close up (LOD 0; LOD 1 on the mid mesh) a person is one of two CC BY base bodies
+  (`engine/people-base.data.ts`, baked by `scripts/people/extract-base.py` + `skin-map.py` + `bake-base.mjs`), posed on the CPU per variant (`people-body.ts`:
+  13 bones, `widen` for build) with a painted face (`engine/people-skin-material.ts`). Everything worn is cut from that body: `people-tailor.ts` (scalar
+  fields clip, offset and relax the body and unwrap it onto the fabric atlas cells of `engine/people-fabrics.ts`; `split` / `splitIn` cut exact bands, checks,
+  tape, pads), `people-wear.ts` (`dress`: tops, trousers, skirts, coverall, hi-vis vest, gloves, team shirt patterns), `people-hair.ts` (scalp cut from the
+  head, hats) and `people-shoes.ts`. `pickHair` picks a hairstyle by gender, length and age; `Outfit` fields override the defaults. LOD 2 / 3 stay code-built
+  (`farJointedFigure`, `farCrowdFigure`, `farSilhouette`). Roles: `spectator`, `mechanic`, `crew`, `driver`, `marshal`, `photographer`, `visitor` (12
+  personas). A new look = a field in `Outfit`, a new pose = `POSES`; test `people`.
+  - The two detailed levels are `lazy` (`LodSpec.lazy`, tens of ms per person) and built in workers (`people-worker.ts`, `people-pool.ts`: geometry only, each
+    part tagged with its material's look), not per variant at load. The load builds what the spawn view needs (`world/people-warm.ts`) and one warm variant
+    per material (`AssetMeta.warm`; a test checks no other variant adds a shader); while driving `InstanceStreamer` (`prefetch`) asks for the levels ahead of
+    the car, nearest first (`world/build-queue.ts`), and draws the next cheaper LOD until one is there. Built levels are capped (`LAZY_BUDGET`, 48 MB): idle
+    ones the car left ~600 m behind are dropped, least recently used first (`InstanceStreamer.evict`), and rebuilt if needed.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
   puts them on the outside of every tight bend of a mountain road (Galichica). `rusty: true` = weathered brown steel (Vodno).
 - **Scatter area** (`MapDef.scatterBounds`): narrows where trees / bushes / rocks are generated (any side of `bounds`) - for land no
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
-- **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, `road_tarmac` (light neutral grey asphalt from the Poly Haven Asphalt 04 scan, CC0, with hairline cracks and faint tyre / oil marks: Ajvatovci, Galichica, Petralica; the scan goes in `sources/textures/asphalt_04/`, listed in `PHOTOS` in `scripts/asphalt/bake.mjs`), `road_tarmac_kerbed` (the same without edge grit: Ajvatovci's kerbed start street up to the canal bridge), `road_tarmac_lines` (the
-  same with white edge and centre lines), `road_tarmac_plain` (the same surface without lines: Vodno's crossroad, where the road
-  paint lies over it), `road_parkway`, the city asphalts (`road_city`, `road_street`, `road_street4`, `junction_asphalt`).
-  The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp`, made by
-  `scripts/asphalt/bake.mjs` (tiles drawn by `gen.js` in headless Chromium; the output is committed, rerun after changing
-  `gen.js`). High loads the 1024 px set, Medium / Low their own 512 px set. `engine/road-surface.ts` loads them (the play page
-  preloads the map's sets), `getRoadMaterial` puts them on the road: colour + normal map with the roughness packed in its alpha
-  (one sampler) + a tone shader (blotches and streaks that never repeat; Vodno's tiles also get pale repair patches there, more of
-  them higher up the road). A new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN` (same `len` as `texLength`, a test checks),
-  a rebake.
-  The gravel road (`road`) is not baked: it is the terrain's own gravel layer in world space (`world/gravel-road.ts`: the same
-  taps, brightness variation and relief rule as `world/terrain-material.ts`, so road and verge are one surface), with two
-  narrow wheel tracks (about 0.5 m each, 1.6 m apart; smoother, darker, tyre streaks) and an edge that thins out into the verge (dithered, the ribbon is opaque and drawn before the terrain so the terrain under it is not shaded twice). The gravel tile is darker and browner than the scan (`GRAVEL_LUM` / `GRAVEL_TINT` in `scripts/ground/bake.py`, mean sRGB 121 101 77; the scan's own is 147 128 107; `GROUND_MEAN.gravel` follows). Look at it next to the verge
-  in the map viewer (`along=300&zoom=0.2`) after changing the gravel tile or either shader. The road bed also has lumps and dips (1.3 m and 0.45 m, normal and a little shade) in the same order as the car's own bumps (`surfaceBump`, gravel 15 mm).
+- **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`; the tarmacs `road_tarmac` (Poly Haven Asphalt 04 scan, CC0, with hairline
+  cracks and faint tyre / oil marks: Ajvatovci, Galichica, Petralica; the scan goes in `sources/textures/asphalt_04/`, listed in `PHOTOS` in
+  `scripts/asphalt/bake.mjs`), `road_tarmac_kerbed` (no edge grit: Ajvatovci's kerbed start street), `road_tarmac_lines` (white edge and centre lines) and
+  `road_tarmac_plain` (no lines: Vodno's crossroad, where the road paint lies over it); `road_parkway` and the city asphalts (`road_city`, `road_street`,
+  `road_street4`, `junction_asphalt`).
+  - The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp` from `scripts/asphalt/bake.mjs` (tiles drawn by
+    `gen.js` in headless Chromium; the output is committed, rerun after changing `gen.js`). High loads the 1024 px set, Medium / Low their own 512 px set.
+    `engine/road-surface.ts` loads them (the play page preloads the map's sets) and `getRoadMaterial` puts them on the road: colour + a normal map with the
+    roughness packed in its alpha + a tone shader (blotches and streaks that never repeat; Vodno's tiles get pale repair patches, more of them higher up). A
+    new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN` (same `len` as `texLength`; a test checks) and a rebake.
+  - The gravel road (`road`) is not baked: it is the terrain's own gravel layer in world space (`world/gravel-road.ts`: the same taps, brightness variation
+    and relief rule as `world/terrain-material.ts`, so road and verge are one surface) with two wheel tracks along the line cars drive (`drivenLine` in
+    `world/road-mesh.ts`), the loose gravel pushed aside (a ridge between the tracks, a berm along each edge), water standing in the tracks when wet, and an
+    edge that thins out into the verge (dithered; the ribbon is opaque and drawn before the terrain, so the terrain under it is not shaded twice). The gravel
+    tile is darker and browner than the scan (`GRAVEL_LUM` / `GRAVEL_TINT` in `scripts/ground/bake.py`; `GROUND_MEAN.gravel` follows): compare it with the
+    verge in the map viewer (`along=300&zoom=0.2`) after changing the tile or either shader. The road bed has lumps and dips in the same order as the car's
+    own bumps (`surfaceBump`, gravel 15 mm).
 - **Road paint** (`RoadDef.markings`): lane lines (solid or dashed) and left / straight arrows as thin meshes over the road
   (`world/road-markings.ts`: `roadPaint` is the pure geometry, `roadMarkingsMesh` the meshes; textures `road_paint`,
   `road_arrow_left`, `road_arrow_straight`). Positions are measured from the road's left or right edge, so a lane keeps its
   place where the road widens on the other side (Vodno's crossroad: `maps/vodno/crossroad.ts`).
-- **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
-  and extended to meet the stage road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are
-  painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the
-  height-line smoothing / grade per OSM kind (`PATH_PROFILE`); coarse terrain tiles paint them at least ~a vertex step wide (`splat` `minPathHw`) so
-  they stay lines from afar.
-  The baker splits an OSM way where it folds back (> 120 deg) or revisits one of its nodes (two ways meeting there);
-  a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths (plain tarmac
-  side roads and city streets, not on a plaza) get rounded corners (`junctionFillets`, drawn with the street ribbons in
-  `road-mesh.ts`): every surface there (stage road edge, side road, a pad over the corners) blends into one world-aligned
-  asphalt, the stage road's own surface laid flat (`JUNCTION_ASPHALT` in `junctions.ts`: `road_tarmac_junction`, Vodno's
-  `road_tarmac_plain_junction`; square tile, no wheel paths, edges or lines, sampled by world XZ in the road shader, weight
-  in the mesh's `jw` attribute; `junctionMouths`), within 6 m, or 2 m where painted lines end at the mouth (Vodno's edge
-  lines, a street's centre line), with the dusty edge band running round each curve. On `cityStreets` maps the sidewalk
-  turns round each corner onto the stage road edge, its kerb dropping flush there (`mouthCorners`, `StreetDetail.returns`).
+- **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits and extended to meet the stage
+  road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are painted into the splat (`splat` `minPathHw` keeps them lines
+  from afar) and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the height-line smoothing / grade per OSM kind
+  (`PATH_PROFILE`). The baker splits an OSM way where it folds back (> 120 deg) or revisits one of its nodes; a ground way under 15 m anchored at both ends is
+  one straight ramp (`SHORT_JOINT`).
+  - Paved mouths (plain tarmac side roads and city streets, not on a plaza) get rounded corners (`junctionFillets`, drawn with the street ribbons in
+    `road-mesh.ts`): every surface there blends into one world-aligned asphalt (`JUNCTION_ASPHALT` in `junctions.ts`: `road_tarmac_junction`, Vodno's
+    `road_tarmac_plain_junction`; a square tile with no wheel paths, edges or lines, sampled by world XZ, weight in the mesh's `jw` attribute;
+    `junctionMouths`) within 6 m, or 2 m where painted lines end at the mouth, with the dusty edge band running round each curve. On `cityStreets` maps the
+    sidewalk turns round each corner onto the stage road edge, its kerb dropping flush there (`mouthCorners`, `StreetDetail.returns`).
 - **Water:** canals / drains / rivers (`paths` surface `water`) and `lakes`, with real banks and water physics
   (`world/lakes.ts`, `water-mesh.ts`). `Lakes.query` reads only the outline edges near the point (a 16 m grid per outline): exact `sd` within
   `LAKE_REACH` of the shore, `-LAKE_REACH` further inside (every user stops at `LAKE_SHELF`); test `lakes-index`.
@@ -411,15 +404,16 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   instance scale in the shader; tiles in `engine/facades/`, `scripts/facades/bake.py`); on Galichica / Petralica the share of rubble-stone houses
   grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
-- **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace:
-  `PadDef.level`); the road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch of the stage
-  road (Vodno's concrete wall at the first crossroad, on a pad `lift`ed above the road: `maps/vodno/crossroad.ts`);
-  `cutWalls.solid` holds the cut tight (`cutShape`: a thin coping) and gives the face box colliders
-  (`world/cut-wall-colliders.ts`), so a car stops at it. `routePoints` takes a
-  sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a stretch.
-- **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` /
-  `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`; Vodno's car parks:
-  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts`, the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`, and the brick hotel behind the side street at the first crossroad (building on its own terrace, forecourt on the road) `hotel.ts`: its own `lot_brick` texture, fixed `street_car` variants 16 / 17). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
+- **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace: `PadDef.level`); the
+  road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch (Vodno's concrete wall at the first crossroad:
+  `maps/vodno/crossroad.ts`); `cutWalls.solid` holds the cut tight (a thin coping) and gives the face box colliders (`world/cut-wall-colliders.ts`), so a car
+  stops at it. `routePoints` takes a sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a
+  stretch; `MapDef.treeCrownClear` (Vodno: 1.5 m) re-poses any tree whose low leaves (under 4 m) would reach that far past the road's edge (`lowOverRoad` in
+  `world/scatter.ts`), so no limb hangs over the road.
+- **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` / `groundOverride` (`world/landmarks.ts`,
+  `pads.ts`; Ajvatovci `start-row`, `hilltop`, `station`; Vodno's car parks, gate, start-street flats and wall, and the brick hotel behind the side street at
+  the first crossroad: `maps/vodno/landmarks/`, `start-blocks.ts`, `start-wall.ts`, `hotel.ts`). A `PathDef.bare` street gets no kerbs / sidewalks / lamps
+  inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
   `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`). Plaza queries look
@@ -455,38 +449,28 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   baked by `scripts/car-model/side-profile.mjs`): the boxy side outline extruded to the body width with its glass and lamps
   tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
-- The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are
-  10 cars of a CC BY pack with their own triangles and textures (`street-car-models.ts`, data in `street-cars.data.ts`,
-  atlas `street-car-atlas.jpg` + `street-car-mask.png`; baked by `scripts/car-model/street-pack-extract.py` +
-  `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model (~6-7k triangles; interior
-  triangles culled), LOD 1 ~2k, LOD 2 ~1k (meshopt, round wheels). One shared material (`streetCarMaterial`): the atlas, with the
-  paint (per-vertex `color`) multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the taxi sign,
-  light bar and lettering are a second `vehicle` part up to LOD 1. Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick;
-  10-12 = the white hatch, dark sedan and white minivan a map places). The car LODs set `separateVariants` (no merged variant set: every instance would run the
-  vertex shader over all 10 models). Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
-- Pack 7's five vans and trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) are baked the same
-  way into the same atlas and dress the service park (`builders/service.ts`: team paint through the tint mask, stripes and awnings a
-  second `vehicle` part up to LOD 1, `PACK_VEHICLE_LODS`) and the Ajvatovci start-row lots. Both lists are baked again after every
-  atlas change. `tests/rally/service-vehicles.test.ts` holds their triangle budgets.
-- The two fire engines (`fire_truck` = the US engine of Jackie's junctions, `fire_truck_mk` = the Macedonian engine at a start control;
-  junction dressing (street mouths 5 m or wider) and `addStartControl` pick by `MapDef.country`; both stand level with the slope under
-  their wheels) are two CC BY models with their own livery and one atlas each
-  (`fire-truck-models.ts`, data `fire-trucks.data.ts`, `fire-truck-us.jpg` / `fire-truck-mk.jpg`, so a map loads only its engine's
-  image): `street-pack-extract.py` + `bake-fire-truck-textures.py` + `bake-fire-trucks.mjs` (scale, turn and LOD budgets are its
-  `MODELS`; mesh helpers shared with the street cars in `street-bake-lib.mjs`). LOD 0 keeps the shapes (US ~22k triangles, hidden
-  ones culled; MK ~11k), LOD 1 ~4k, LOD 2 ~2-3.5k (meshopt with `Prune`, LOD 2 reduced from LOD 1). No paint tint, no add-ons.
-- The Ajvatovci yards' cars and vans (`MODEL` in `maps/ajvatovci/start-row/build/vehicles.ts`) are these models: a few per kind taken
-  in turn, scaled to the layout's footprint, drawn per instance colour through the atlas tint mask in three distance tiers
-  (`CAR_LOD_RANGE`: full / ~2k / ~1k triangles, then the two-box stand-in). The trucks are the baked models below.
-- The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
-  (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` and
-  the trailer's chassis under a code-built tank (`tanker`), the `cab` (back wall closed by the baker, the tractor's step column and side skirt kept behind the front wheel) under a code-built body
-  (`box`, or `cab-tow` / `cab-reefer`) and a `dump` truck whose back is swapped (tipper, flatbed, van body, tank, `tow`,
-  `reefer`; backs in `truck-backs.ts`). Box-truck places go to these in turn (`RIGID_CYCLE`). Models keep their origin under the middle of
-  the 17.5 m footprint (`centre: 0`). The models keep their own triangles (welded, never simplified) and
-  textures; the code adds nothing to lamps or grilles. `cab` / `paint` parts take the placement's cab / body colour through a tint
-  mask (`truckMaps`: the light neutral panels of the texture, so grille, lamps and stripes keep their look); the `tyre` model is the
-  template for the axles the builders add. Textures + masks come from `scripts/car-model/bake-truck-textures.py` (run it after
+- The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are 10 cars of a CC BY pack with
+  their own triangles and textures (`street-car-models.ts`, data `street-cars.data.ts`, atlas `street-car-atlas.jpg` + `street-car-mask.png`; baked by
+  `scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model, LOD 1 / 2
+  meshopt reductions (budgets: `tests/rally/street-car.test.ts`). One shared material (`streetCarMaterial`): the atlas, with the paint (per-vertex `color`)
+  multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the taxi sign, light bar and lettering are a second `vehicle` part
+  up to LOD 1. Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick; 10-12 = the white hatch, dark sedan and white minivan a map places); the LODs
+  set `separateVariants` (no merged variant set: every instance would run the vertex shader over all 10 models).
+- Pack 7's five vans and trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) are baked the same way into the same atlas
+  and dress the service park (`builders/service.ts`: team paint through the tint mask, stripes and awnings a second `vehicle` part up to LOD 1,
+  `PACK_VEHICLE_LODS`) and the Ajvatovci start-row lots; both lists are baked again after every atlas change (budgets:
+  `tests/rally/service-vehicles.test.ts`).
+- The two fire engines (`fire_truck` = the US engine of Jackie's junctions, `fire_truck_mk` = the Macedonian engine at a start control; `MapDef.country`
+  picks) are two CC BY models with their own livery and one atlas each (`fire-truck-models.ts`, `fire-trucks.data.ts`, `fire-truck-us.jpg` /
+  `fire-truck-mk.jpg`, so a map loads only its engine's image): `street-pack-extract.py` + `bake-fire-truck-textures.py` + `bake-fire-trucks.mjs` (scale, turn
+  and LOD budgets are its `MODELS`; mesh helpers shared with the street cars in `street-bake-lib.mjs`). No paint tint, no add-ons.
+- The Ajvatovci yards' cars and vans (`MODEL` in `maps/ajvatovci/start-row/build/vehicles.ts`) are these models (a few per kind taken in turn, scaled to the
+  footprint, drawn per instance colour through the tint mask in three distance tiers `CAR_LOD_RANGE`, then a two-box stand-in). Their trucks
+  (`truck-models.ts`) are baked from two CC BY models by `scripts/car-model/bake-trucks.mjs` (data `truck-models.data.ts`): `tractor` + `trailer`, a `tanker`
+  (tractor and trailer chassis under a code-built tank), a `cab` under a code-built body (`box`, `cab-tow`, `cab-reefer`) and a `dump` truck whose back is
+  swapped (tipper, flatbed, van body, tank, `tow`, `reefer`; `truck-backs.ts`); box-truck places go to these in turn (`RIGID_CYCLE`). The models keep their
+  own triangles (welded, never simplified) and textures, the code adds nothing to lamps or grilles; `cab` / `paint` parts take the placement's colour through
+  a tint mask (`truckMaps`) and the `tyre` model is the template for the axles. Textures + masks: `scripts/car-model/bake-truck-textures.py` (run after
   `street-pack-extract.py --images`, then `bake-trucks.mjs`); the hub-cap emblem is blanked there.
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
@@ -573,17 +557,14 @@ pages/        entry points listed in game.json; debug/ = tool page shell
 
 ## Performance rules (keep these)
 
-A forest stage on high costs ~5 ms of CPU and ~6-7 ms of GPU a frame. The CPU side is mostly draw submission (three.js +
-ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sources/rally/PERFORMANCE.md` (local).
+On a forest stage the CPU side of a frame is mostly draw submission (three.js + ANGLE), the GPU side mostly trees.
 
 **Measuring**
 
-- Compare old / new in the same page, interleaved (switch at runtime), on the median and p99. Runs minutes apart, other
-  benches or a background tab swing a result 2-3x.
-- Judge slow frames with vsync on. Uncapped, a CPU frame shorter than the GPU frame shows up as 20-40 ms back-pressure
-  spikes.
-- Tools: `__rally.benchmark(n)` / `__rallyProbe()` on `npm run dev:noreload`; the CDP benches in `sources/tools/perf-plan/`
-  (slow frames by section, garbage, GL uploads, GPU ms by pass, same-page A/B).
+- Compare old / new in the same page, interleaved (switch at runtime), on the median and p99: runs minutes apart, other benches or a background tab swing a
+  result 2-3x.
+- Judge slow frames with vsync on: uncapped, a CPU frame shorter than the GPU frame shows up as 20-40 ms back-pressure spikes.
+- Tools: `__rally.benchmark(n)` / `__rallyProbe()` on `npm run dev:noreload`.
 
 **Frame pacing**
 
@@ -613,7 +594,14 @@ ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sou
   `envMapIntensity`, never replaces it.
 - Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).
 - Empty InstancedMeshes are hidden (each still costs a draw setup). A split by camera distance runs before the render
-  (the road `DistanceCull` calls `userData.beforeRender`), not in `onBeforeRender`, which needs a visible mesh.
+  (the road `DistanceCull` calls `userData.beforeRender`), not in `onBeforeRender`, which needs a visible mesh; the
+  cull hides an empty InstancedMesh only under such a hook (nothing else would show it again once filled).
+- Level fades (`world/lod-fade.ts`, catalog `fade`: grass, weeds, crops, vines, people): a level change at a rebuild draws
+  the instance in both buckets for 0.3 s with a per-instance `instFade` (start, role); the fade copy of the material
+  (`lodFadeMaterial`) dithers the two with the trees' 8 x 8 pattern, only while a fade runs (its `discard` costs early
+  depth). One copy casts the shadow; when the fades end, a bucket without outgoing copies draws plain again (`endFades`), one
+  with them keeps the fade material (the copies collapsed) until the next rebuild drops them. The far end of the last
+  level fades too, and while driving an instance new to the stream fades in.
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**

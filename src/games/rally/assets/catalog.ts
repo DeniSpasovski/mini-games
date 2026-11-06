@@ -79,6 +79,11 @@ export interface AssetMeta {
    * swaps as the car drives on); the rest start at LOD 1.
    */
   nearRoad?: number;
+  /**
+   * Streamed instances dither from one level to the next and in / out at the end of the last level instead of popping
+   * (world/lod-fade.ts): the plants and the people, the many small things whose pops show.
+   */
+  fade?: boolean;
 }
 
 /** Standing fans (variants 0-23); 24-41 sit or squat (SPECTATOR_SEATED_FROM..). */
@@ -155,8 +160,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'reeds',
     name: 'Reeds',
     category: 'vegetation',
+    fade: true,
     description:
-      'Tall golden reed cards for canal / drain banks (no collision, detail layer only).',
+      'Reeds for canal / drain banks, one variant cattails: cards baked from CC BY reed and cattail models (no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 140, castShadow: false }],
   },
@@ -164,8 +170,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'tall_weeds',
     name: 'Tall weeds',
     category: 'vegetation',
+    fade: true,
     description:
-      'Tall dry weeds / thistles for field margins and ditches (no collision, detail layer only).',
+      'Nettle stands, green and dried, for field margins and ditches: cards of the scanned nettle (no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 120, castShadow: false }],
   },
@@ -173,8 +180,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'grass_tuft',
     name: 'Grass tuft',
     category: 'vegetation',
+    fade: true,
     description:
-      'Blade strips up close, alpha-tested crossed cards further out. Detail layer, only drawn close to the camera.',
+      'Blade strips up close, crossed cards of scanned grass further out; variant 1 has a weed margin card (dandelion, celandine). Detail layer.',
     variants: 2,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
@@ -185,8 +193,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'dry_grass',
     name: 'Dry grass',
     category: 'vegetation',
+    fade: true,
     description:
-      'Golden summer grass cards (detail layer). Same construction as grass_tuft.',
+      'Golden summer grass: the scans in their dry colour (detail layer). Same construction as grass_tuft.',
     variants: 2,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
@@ -197,8 +206,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'spring_grass',
     name: 'Spring grass',
     category: 'vegetation',
+    fade: true,
     description:
-      'Fresh bright green grass cards (detail layer) for maps with a green ground tint. Same construction as grass_tuft.',
+      'Fresh spring grass (detail layer) for maps with a green ground tint; variant 1 has a flowering dandelion margin card. Same construction as grass_tuft.',
     variants: 2,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
@@ -210,6 +220,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'wheat',
     name: 'Wheat (ripe)',
     category: 'vegetation',
+    fade: true,
     description:
       'Ripe wheat: 1 m card patches baked from the CC BY model. Detail layer on wheat parcels, denser along the roads.',
     variants: 4,
@@ -220,6 +231,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'green_wheat',
     name: 'Wheat (spring)',
     category: 'vegetation',
+    fade: true,
     description:
       'Young green wheat: the wheat model recoloured green, shorter (set by the map rule). Detail layer.',
     variants: 4,
@@ -230,6 +242,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'wheat_block',
     name: 'Wheat field block',
     category: 'vegetation',
+    fade: true,
     description:
       'A 3 x 2 m block of ripe wheat as one instance: the card patch repeated along strips both ways. Fields away from the road.',
     variants: 4,
@@ -239,6 +252,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'green_wheat_block',
     name: 'Wheat field block (spring)',
     category: 'vegetation',
+    fade: true,
     description: 'A 3 x 2 m block of young green wheat as one instance.',
     variants: 4,
     lods: WHEAT_LODS,
@@ -247,6 +261,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'corn',
     name: 'Corn plant',
     category: 'vegetation',
+    fade: true,
     description:
       'Corn plant (CC BY model, cobs in husks) as a baked crossed card. Planted rows along the roads, detail layer.',
     variants: 4,
@@ -256,6 +271,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'dry_corn',
     name: 'Corn plant (dry)',
     category: 'vegetation',
+    fade: true,
     description:
       'Autumn corn: the corn model recoloured straw-tan. Planted rows, detail layer.',
     variants: 4,
@@ -265,6 +281,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'corn_row',
     name: 'Corn row',
     category: 'vegetation',
+    fade: true,
     description:
       'A 3 m stretch of a corn row as one baked card: the fields away from the roads (the plants stand along them).',
     variants: 4,
@@ -274,6 +291,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'dry_corn_row',
     name: 'Corn row (dry)',
     category: 'vegetation',
+    fade: true,
     description: 'A 3 m stretch of an autumn corn row as one baked card.',
     variants: 4,
     lods: CORN_LODS,
@@ -282,6 +300,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'vine_row',
     name: 'Vineyard row',
     category: 'vegetation',
+    fade: true,
     description:
       'A 6 m stretch of a vineyard row (post, wires, five trunks on the cordon, a leaf hedge with grapes). Planted rows.',
     variants: 2,
@@ -291,6 +310,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'vine_row_spring',
     name: 'Vineyard row (spring)',
     category: 'vegetation',
+    fade: true,
     description: 'The vineyard row in April: young shoots along the cordon.',
     variants: 2,
     lods: VINE_LODS,
@@ -299,6 +319,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'vine_row_autumn',
     name: 'Vineyard row (autumn)',
     category: 'vegetation',
+    fade: true,
     description: 'The vineyard row in October: yellow and rust leaves, picked.',
     variants: 2,
     lods: VINE_LODS,
@@ -367,6 +388,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants:
       SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT + SPECTATOR_FLAG_COUNT,
     lods: PEOPLE_LODS,
+    fade: true,
     // The hand flag has its own material.
     warm: [0, SPECTATOR_FLAG_FROM],
   },
@@ -378,6 +400,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Service-park mechanic in team overalls. Variant % 12 = team (builders/teams.ts), variant / 12 = pose (crouch at a wheel, bent over the nose, kneel).',
     variants: 36,
     lods: PEOPLE_LODS,
+    fade: true,
   },
   {
     id: 'crew',
@@ -387,6 +410,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Team member in a team shirt. Variant % 12 = team, variant / 12 = pose (carrying a tyre, engineer with a laptop, manager with crossed arms).',
     variants: 36,
     lods: PEOPLE_LODS,
+    fade: true,
   },
   {
     id: 'driver',
@@ -396,6 +420,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Driver / co-driver in a race suit. Variant % 12 = team, variant / 12 = pose (helmet in hand, arms crossed).',
     variants: 24,
     lods: PEOPLE_LODS,
+    fade: true,
   },
   {
     id: 'marshal',
@@ -405,6 +430,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Stage marshal / official in a hi-vis tabard with reflective bands (variant % 6 = tabard colour; variants 0-11: variant % 4 = pose stand, pointing, hands in pockets, phone; 12-23: yellow flag, green sign on a pole, radio, arms crossed).',
     variants: 24,
     lods: PEOPLE_LODS,
+    fade: true,
   },
   {
     id: 'photographer',
@@ -414,6 +440,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Press photographer / camera operator in a coloured bib. Variant % 6 = pose (long lens raised, low shot, kneeling, shoulder video camera, tripod, camera lowered), variant / 6 % 4 = bib colour.',
     variants: 24,
     lods: PEOPLE_LODS,
+    fade: true,
   },
   {
     id: 'visitor',
@@ -423,6 +450,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Casual person visiting: variant % 4 = pose (walking, drinking, on the phone, standing), variant / 4 = persona (man, woman, child, older man / woman, dress, teen, tourist, coat, big man, small child, fan).',
     variants: 48,
     lods: PEOPLE_LODS,
+    fade: true,
   },
   {
     id: 'tape_post',

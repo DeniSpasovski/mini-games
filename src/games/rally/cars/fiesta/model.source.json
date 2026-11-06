@@ -30,7 +30,26 @@
       "front": [0, 5.65],
       "rear": [2.2, 5.65],
       "bottom": [0, 7.45]
-    }
+    },
+    "chartBoxes": [
+      {
+        "$comment": "rear bumper ledge beside the ducts (|x| < 0.7, y 0.53 - 0.64, faces up and back): its triangles split between the rear chart's light-blue line and the white top chart (light-blue shards) - all of it reads the rear chart, one straight line",
+        "chart": "rear",
+        "minNy": -0.2,
+        "x": [0, 0.7],
+        "y": [0.53, 0.64],
+        "z": [-2.2, -1.8]
+      },
+      {
+        "$comment": "the two aero blades in front of each rear wheel (|x| 0.8 - 0.95, y 0.22 / 0.48, z -0.85 .. -0.42): their tops faced up onto the top chart's white -> the side chart, the livery round them",
+        "chart": "side",
+        "maxNy": 1.01,
+        "minNy": 0.2,
+        "x": [0.78, 1.0],
+        "y": [0.18, 0.78],
+        "z": [-1.2, -0.4]
+      }
+    ]
   },
   "gltf": {
     "$comment": "material / node -> part; first matching rule wins. Wheels, discs, calipers, light-glow polygons, tail lamp trays, plate, spare wheel and dash display bits are dropped (the game builds its own wheels / brakes).",
@@ -132,6 +151,87 @@
         "material": "interior"
       },
       {
+        "$comment": "rear ducts: the fins' upper faces (normals up and forward, seen from above) carbon too",
+        "mat": "WCCARBODY",
+        "x": [0.63, 0.89],
+        "y": [0.15, 0.6],
+        "z": [-1.87, -1.5],
+        "facing": { "y": [0.3, 1], "z": [0, 1] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts (right): the fins' upper faces",
+        "mat": "WCCARBODY",
+        "x": [-0.89, -0.63],
+        "y": [0.15, 0.6],
+        "z": [-1.87, -1.5],
+        "facing": { "y": [0.3, 1], "z": [0, 1] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts behind the rear wheels (left): the louvre fins (normals down and back) are carbon like the real car's, not livery",
+        "mat": "WCCARBODY",
+        "x": [0.63, 0.89],
+        "y": [0.15, 0.65],
+        "z": [-1.87, -1.5],
+        "facing": { "y": [-1, -0.2], "z": [-1, -0.5] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts (right): louvre fins",
+        "mat": "WCCARBODY",
+        "x": [-0.89, -0.63],
+        "y": [0.15, 0.65],
+        "z": [-1.87, -1.5],
+        "facing": { "y": [-1, -0.2], "z": [-1, -0.5] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts (left): the side walls between the fins",
+        "mat": "WCCARBODY",
+        "x": [0.63, 0.89],
+        "y": [0.15, 0.65],
+        "z": [-1.87, -1.5],
+        "facing": { "|x|": [0.9, 1], "z": [-0.25, 0.25] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear ducts (right): side walls",
+        "mat": "WCCARBODY",
+        "x": [-0.89, -0.63],
+        "y": [0.15, 0.65],
+        "z": [-1.87, -1.5],
+        "facing": { "|x|": [0.9, 1], "z": [-0.25, 0.25] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "front wheel wells: the inner walls (strut towers, |x| 0.5 - 0.62, facing sideways into the arch) are carbon too, not livery",
+        "mat": "WCCARBODY",
+        "arch": {
+          "axles": [1.262],
+          "y": 0.194,
+          "r": [0.2, 0.48],
+          "toward": -0.2,
+          "|x|": [0.5, 0.62],
+          "dy": -0.15
+        },
+        "facing": { "|x|": [0.6, 1] },
+        "material": "carbon"
+      },
+      {
+        "$comment": "wheel wells: the faces round each axle that point at the hub (the bumper's wall in front of the front tyre, the arch liners) are carbon, not livery - the front wall faced back into the well and took the side charts' blue. Source coords (hub y 0.194, z 1.262 / -1.218)",
+        "mat": "WCCARBODY",
+        "arch": {
+          "axles": [1.262, -1.218],
+          "y": 0.194,
+          "r": [0.28, 0.5],
+          "toward": 0.6,
+          "|x|": [0.6, 1.05],
+          "dy": -0.15
+        },
+        "material": "carbon"
+      },
+      {
         "$comment": "rear wing: upper blade (560 triangles) blue, lower blade (408) green; end plates follow below",
         "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
         "whole": true,
@@ -146,6 +246,14 @@
         "islandTris": [340, 440],
         "x": [-0.75, 0.75],
         "y": [0.9, 1.08],
+        "material": "winggreen"
+      },
+      {
+        "$comment": "the left low end plate comes in pieces: besides its 364-triangle island, four flat panels (4 - 8 triangles) on its inner side - green like the right plate (one 401-triangle island), not livery white",
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [3, 10],
+        "x": [-0.75, -0.55],
         "material": "winggreen"
       },
       {
@@ -437,6 +545,112 @@
         "material": "trim"
       },
       {
+        "$comment": "front splitter: the bolted lip plate below the bumper (front view, model coords, full width up to its top edge): unpainted black like the real car's splitter",
+        "node": "bumper_fr_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.97, 0.0],
+            [0.97, 0.0],
+            [0.97, 0.162],
+            [-0.97, 0.162]
+          ],
+          "depth": [1.4, 2.2]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "front splitter: its top deck behind the lip and the strut feet, between the end blocks (front view, cut at y 0.196 just under the end blocks' top)",
+        "node": "bumper_fr_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.74, 0.155],
+            [0.74, 0.155],
+            [0.74, 0.196],
+            [-0.74, 0.196]
+          ],
+          "depth": [1.4, 2.2]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "front splitter: the raised end blocks at both corners in front of the wheels (front view step from x 0.735 to 0.795, top y 0.212), side faces included",
+        "node": "bumper_fr_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.735, 0.161],
+            [0.97, 0.161],
+            [0.97, 0.212],
+            [0.795, 0.212]
+          ],
+          "depth": [1.4, 2.2],
+          "mirror": true
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "front splitter: the body's fender corner behind each end block, cut at the block's top (side view, both sides)",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [1.5, 0.0],
+            [1.8, 0.0],
+            [1.8, 0.212],
+            [1.5, 0.212]
+          ],
+          "depth": [0.55, 1.0]
+        },
+        "material": "trim"
+      },
+      {
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [1.5, 0.0],
+            [1.8, 0.0],
+            [1.8, 0.212],
+            [1.5, 0.212]
+          ],
+          "depth": [-1.0, -0.55]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "undertray: the body's floor pan and the low walls of the bays below the side-skirt line (front view, cut at y 0.18 like the skirt): black, not livery - its up-facing faces took the top chart's white and showed through the gap between bumper and front arch",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-1.0, -0.1],
+            [1.0, -0.1],
+            [1.0, 0.18],
+            [-1.0, 0.18]
+          ],
+          "depth": [-2.2, 2.2]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "front splitter: the two support struts between splitter and bumper (front view)",
+        "node": "bumper_fr_WCCARBODY_0",
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.428, 0.155],
+            [0.46, 0.155],
+            [0.46, 0.302],
+            [0.428, 0.302]
+          ],
+          "depth": [1.86, 1.96],
+          "mirror": true
+        },
+        "material": "trim"
+      },
+      {
         "$comment": "black behind the main grille opening (hexagon, exact outline cut, front view, model coords): the engine bay shows through it",
         "mat": "WCCARBODY",
         "region": {
@@ -469,7 +683,7 @@
         "material": "trim"
       },
       {
-        "$comment": "rear valance (diffuser fins + bumper below y 0.28): black like the real car's diffuser",
+        "$comment": "rear valance (diffuser fins + bumper below y 0.28): carbon like the real car's diffuser",
         "mat": "WCCARBODY",
         "region": {
           "view": "rear",
@@ -481,7 +695,24 @@
           ],
           "depth": [-2.1, -1.5]
         },
-        "material": "trim"
+        "material": "carbon"
+      },
+      {
+        "$comment": "rear diffuser: its fins and top plate reach y 0.335 and the curved end plates to y 0.315; carbon up to the bumper face above them",
+        "node": "bumper_WCCARBODY_0",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [-0.8, 0.27],
+            [0.8, 0.27],
+            [0.8, 0.315],
+            [0.7, 0.338],
+            [-0.7, 0.338],
+            [-0.8, 0.315]
+          ],
+          "depth": [-2.1, -1.6]
+        },
+        "material": "carbon"
       },
       {
         "mat": "WCCARBODY",

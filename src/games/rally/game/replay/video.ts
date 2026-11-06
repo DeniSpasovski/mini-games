@@ -4,6 +4,8 @@
  * browser records it (Chrome 126+), else WebM (VP9 / VP8). Real time: a slow frame on the machine is a held frame in
  * the video (an offline fixed-step render is listed in sources/rally/REPLAY.md for later).
  */
+import { RELEASE_BUILD } from '../../../../shared/release';
+
 const TYPES = [
   'video/mp4;codecs=avc1.640028,mp4a.40.2',
   'video/mp4;codecs=avc1',
@@ -15,8 +17,10 @@ const TYPES = [
 /** Video bitrate (bits/s): plenty for 1080p60 of a forest stage. */
 const BITRATE = 16_000_000;
 
+/** Recording is not in the release build for now (it is being fixed): no button, no key. */
 export function videoSupported(): boolean {
   return (
+    !RELEASE_BUILD &&
     typeof MediaRecorder !== 'undefined' &&
     typeof HTMLCanvasElement !== 'undefined' &&
     'captureStream' in HTMLCanvasElement.prototype &&

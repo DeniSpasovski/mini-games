@@ -27,6 +27,7 @@ export type PartName =
   | 'gloss'
   | 'mesh'
   | 'carbon'
+  | 'carbonmatte'
   | 'wingblue'
   | 'winggreen'
   | 'glass'
@@ -294,17 +295,27 @@ function canvas(
   h: number,
   draw: (g: CanvasRenderingContext2D) => void,
   color = true,
+  /** Read back on the CPU (lamp sheets: hot spots here, lamp-halo.ts): keep the canvas there. */
+  read = false,
 ): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  draw(c.getContext('2d')!);
+  draw(c.getContext('2d', read ? { willReadFrequently: true } : undefined)!);
   const t = new CanvasTexture(c);
   if (color) t.colorSpace = SRGBColorSpace;
   t.flipY = false; // glTF UV convention: v down
   t.anisotropy = 8;
   return t;
 }
+
+/** A lamp's canvas (map / glow maps): read back by `chamberGlow`, `srcPart` and lamp-halo.ts. */
+const lampSheet = (
+  w: number,
+  h: number,
+  draw: (g: CanvasRenderingContext2D) => void,
+  color = true,
+): CanvasTexture => canvas(w, h, draw, color, true);
 
 /**
  * A lit lamp is not one flat colour: the bulb (or LED) behind a red lens makes a hot spot, the lens round it glows less. Reshapes
@@ -507,7 +518,7 @@ function srcPart(name: string): Material {
     return new MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6 });
   const blank = (fill: string) =>
     tiling(
-      canvas(SRC_SIZE, SRC_SIZE, (g) => {
+      lampSheet(SRC_SIZE, SRC_SIZE, (g) => {
         g.fillStyle = fill;
         g.fillRect(0, 0, SRC_SIZE, SRC_SIZE);
       }),
@@ -689,6 +700,21 @@ function srcPart(name: string): Material {
   return m;
 }
 
+/** 2 x 2 twill carbon weave, ~5 mm tows (tiling, box-projected UVs in metres). */
+function carbonWeave(): CanvasTexture {
+  return tiling(
+    canvas(16, 16, (g) => {
+      g.fillStyle = '#17181b';
+      g.fillRect(0, 0, 16, 16);
+      g.fillStyle = '#2b2d32';
+      for (let j = 0; j < 4; j++)
+        for (let i = 0; i < 4; i++)
+          if ((i + j) % 4 < 2) g.fillRect(i * 4, j * 4, 4, 4);
+    }),
+    0.02,
+  );
+}
+
 /** Tiling texture for metre UVs: `tile` = size of one canvas repeat in metres. */
 function tiling(t: CanvasTexture, tile: number): CanvasTexture {
   t.wrapS = t.wrapT = RepeatWrapping;
@@ -820,7 +846,7 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
 
   /** Each module's LED emitter (canvas px), filled in while the map is drawn. */
   const leds: [number, number][] = [];
-  const map = canvas(W, H, (g) => {
+  const map = lampSheet(W, H, (g) => {
     g.fillStyle = '#050607';
     g.fillRect(0, 0, W, H);
     modules.forEach((m, k) => {
@@ -895,7 +921,7 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.fill();
   });
   // Lights on: the low-beam LEDs blaze, their reflector modules light round them, the light guide glows.
-  const glow = canvas(W, H, (g) => {
+  const glow = lampSheet(W, H, (g) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
     modules.forEach((m, k) => {
@@ -1068,7 +1094,7 @@ function tailMaps(): {
     });
   };
 
-  const map = canvas(W, H, (g) => {
+  const map = lampSheet(W, H, (g) => {
     g.fillStyle = '#1a0a0c'; // housing rim
     g.fillRect(0, 0, W, H);
     g.save();
@@ -1162,7 +1188,7 @@ function tailMaps(): {
   });
   // Emissive (x idle 0.5 / brake 1.1 by day, LENS_NIGHT in the dark; the map is sRGB, so '#b0' is ~43 % linear): the LED ring at
   // full red = the tail light, the red lens at ~43 %. Pure red only: a lighter ring washes out to salmon. The clear indicator section stays dark.
-  const glow = canvas(W, H, (g) => {
+  const glow = lampSheet(W, H, (g) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
     g.save();
@@ -1180,7 +1206,7 @@ function tailMaps(): {
     gap(g);
     g.restore();
   });
-  const reverseGlow = canvas(W, H, (g) => {
+  const reverseGlow = lampSheet(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
     reverseRect(g);
@@ -1216,7 +1242,7 @@ function tailCMaps(): {
     g.closePath();
     g.fill();
   };
-  const map = canvas(W, H, (g) => {
+  const map = lampSheet(W, H, (g) => {
     const bg = g.createLinearGradient(0, 0, W, 0);
     bg.addColorStop(0, '#d01a20');
     bg.addColorStop(1, '#ac1218');
@@ -1231,9 +1257,9 @@ function tailCMaps(): {
   };
   // One bulb chamber above the white box: a hot spot, the lens round it dimmer; the running light is the spot alone.
   const spots: [number, number, number][] = [[0.5, 0.4, 0.17]];
-  const glow = chamberGlow(canvas(W, H, lit), spots, 0.62);
-  const idleGlow = chamberGlow(canvas(W, H, lit), spots, 0.48);
-  const reverseGlow = canvas(W, H, (g) => {
+  const glow = chamberGlow(lampSheet(W, H, lit), spots, 0.62);
+  const idleGlow = chamberGlow(lampSheet(W, H, lit), spots, 0.48);
+  const reverseGlow = lampSheet(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
     box(g, '#ffffff');
@@ -1434,7 +1460,7 @@ function lampClearMaps(): {
     g.lineJoin = 'round';
     g.stroke();
   };
-  const map = canvas(W, H, (g) => {
+  const map = lampSheet(W, H, (g) => {
     // Deep red lens: lighter in the middle, darker towards the rim.
     const lens = g.createLinearGradient(0, 0, 0, H);
     lens.addColorStop(0, '#58070d');
@@ -1488,7 +1514,7 @@ function lampClearMaps(): {
     g.setLineDash([]);
   });
   // The red lens body lights dimly behind the tubes (running / brake light); the smoked pocket and the strip stay dark.
-  const glow = canvas(W, H, (g) => {
+  const glow = lampSheet(W, H, (g) => {
     g.fillStyle = '#9a0c10';
     g.fillRect(0, 0, W, H);
     pocket(g, 0.026);
@@ -1500,7 +1526,7 @@ function lampClearMaps(): {
     g.stroke();
     strip(g, 26);
   });
-  const reverseGlow = canvas(W, H, (g) => {
+  const reverseGlow = lampSheet(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
     g.strokeStyle = '#4e4e4e';
@@ -1547,8 +1573,8 @@ function lampRedMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.restore();
   };
   return {
-    map: canvas(W, H, (g) => draw(g, false)),
-    glow: canvas(W, H, (g) => draw(g, true)),
+    map: lampSheet(W, H, (g) => draw(g, false)),
+    glow: lampSheet(W, H, (g) => draw(g, true)),
   };
 }
 
@@ -1633,7 +1659,7 @@ function tailC4Maps(): {
         (REV.v1 - REV.v0) * H,
       );
   };
-  const map = canvas(W, H, (g) =>
+  const map = lampSheet(W, H, (g) =>
     draw(g, {
       base: '#b9141b',
       dark: '#1b0507',
@@ -1646,7 +1672,7 @@ function tailC4Maps(): {
   // Lit with SMALL_LAMP_NIGHT: the whole lens body glows dark red, the light-guide stripes and dots at full red (a lighter dot
   // would wash out to pink), the white reversing lens stays dark. A lit light guide glows almost evenly: its stripes stay
   // close in level (a strong light / dark stripe flickers into moire seen side-on).
-  const glow = canvas(W, H, (g) =>
+  const glow = lampSheet(W, H, (g) =>
     draw(g, {
       base: '#b00c10',
       dark: '#000',
@@ -1656,7 +1682,7 @@ function tailC4Maps(): {
       white: '#160204',
     }),
   );
-  const reverseGlow = canvas(W, H, (g) => {
+  const reverseGlow = lampSheet(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
     g.fillStyle = '#fff';
@@ -1772,7 +1798,7 @@ function twinLampMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.arc(0, 0, R * 0.84, 0, Math.PI * 2);
     g.stroke();
   };
-  const map = canvas(W, H, (g) => {
+  const map = lampSheet(W, H, (g) => {
     const bg = g.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#5a6068');
     bg.addColorStop(0.5, '#262a30');
@@ -1824,7 +1850,7 @@ function twinLampMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.fillRect(0, 0, W, 0.3 * H);
   });
   // Lights on: both ring lights, and the low-beam projector in the outer bowl (the inner one is the high beam: dark).
-  const glow = canvas(W, H, (g) => {
+  const glow = lampSheet(W, H, (g) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
     for (const b of TWIN.bowls) atBowl(g, b, () => ring(g));
@@ -2009,22 +2035,21 @@ const BUILDERS: Record<PartName, () => Material> = {
   /** Clear-coated carbon: 2 x 2 twill weave, ~5 mm tows. */
   carbon: () =>
     new MeshPhysicalMaterial({
-      map: tiling(
-        canvas(16, 16, (g) => {
-          g.fillStyle = '#17181b';
-          g.fillRect(0, 0, 16, 16);
-          g.fillStyle = '#2b2d32';
-          for (let j = 0; j < 4; j++)
-            for (let i = 0; i < 4; i++)
-              if ((i + j) % 4 < 2) g.fillRect(i * 4, j * 4, 4, 4);
-        }),
-        0.02,
-      ),
+      map: carbonWeave(),
       roughness: 0.5,
       metalness: 0.1,
       clearcoat: 0.35,
       clearcoatRoughness: 0.3,
       envMapIntensity: 0.6,
+    }),
+  /** Unlacquered (satin) carbon, same weave: big flat aero plates that face the sky (Ford GT3 diffuser end plates), where
+   * the clear-coated one mirrors the bright sky and reads white. */
+  carbonmatte: () =>
+    new MeshStandardMaterial({
+      map: carbonWeave(),
+      roughness: 0.8,
+      metalness: 0.1,
+      envMapIntensity: 0.5,
     }),
   /** Dark tinted glazing (opaque: imported bodies have no interior). */
   glass: () =>
@@ -2359,14 +2384,14 @@ const BUILDERS: Record<PartName, () => Material> = {
         roughness: 0.55,
         metalness: 0,
         emissive: 0xffffff,
-        emissiveMap: canvas(2, 2, (g) => {
+        emissiveMap: lampSheet(2, 2, (g) => {
           g.fillStyle = '#000';
           g.fillRect(0, 0, 2, 2);
         }),
         emissiveIntensity: 0,
       }),
       2.2,
-      canvas(2, 2, (g) => {
+      lampSheet(2, 2, (g) => {
         g.fillStyle = '#fff';
         g.fillRect(0, 0, 2, 2);
       }),

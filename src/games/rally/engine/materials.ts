@@ -1,4 +1,5 @@
 import {
+  Color,
   DoubleSide,
   Material,
   MeshDepthMaterial,
@@ -9,10 +10,10 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { getTexture } from './textures';
-import { grassSheet } from './grass';
+import { plantSheet, cardColor } from './grass';
 import { addNightGlow } from './night-glow';
 import { houseMaterial } from './house-walls';
-import { groundLitCard } from './world-shading';
+import { groundLitCard, worldUniforms } from './world-shading';
 import { imageTexture } from './image-texture';
 import rockColorUrl from './props/rocks.color.webp';
 import rockNormalUrl from './props/rocks.normal.webp';
@@ -26,6 +27,8 @@ export type MaterialId =
   | 'foliage_card'
   | 'foliage_card_dry'
   | 'foliage_card_spring'
+  | 'foliage_card_weeds'
+  | 'foliage_card_reeds'
   | 'grass_blade'
   | 'rock'
   | 'hay'
@@ -115,6 +118,10 @@ uniform float uFlagTime;`,
   return m;
 }
 
+/** Grass cards cut lower than the other cards: the scans' thin blades keep their body at a distance (the tufts
+ * stay a meadow, not a few stalks over bare ground). */
+const GRASS_CARD_ALPHA = 0.35;
+
 /**
  * Wind sway (`RALLY_WIND`, metres of sway per m² of height) and leaf translucency (`RALLY_FOLIAGE`) for the
  * world shading (engine/world-shading.ts): grass / reed cards bend at their tips. Trees sway in their own shader
@@ -126,6 +133,8 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card',
   'foliage_card_dry',
   'foliage_card_spring',
+  'foliage_card_weeds',
+  'foliage_card_reeds',
 ];
 let foliageA2C = false;
 
@@ -136,9 +145,24 @@ let foliageA2C = false;
  */
 export function setFoliageAntialias(on: boolean): void {
   foliageA2C = on;
-  for (const id of FOLIAGE) {
-    const m = cache.get(id);
-    for (const x of m ? [m, variantMats.get(m)] : [])
+  setAlphaToCoverage(
+    FOLIAGE.map((id) => cache.get(id)),
+    on,
+  );
+}
+
+/**
+ * Alpha-to-coverage on card materials and their variant-set / level-fade copies (`variantMaterial`, `lodFadeMaterial`):
+ * a fade copy must match its plain material (grass, vines, crops).
+ */
+export function setAlphaToCoverage(
+  bases: Iterable<Material | undefined>,
+  on: boolean,
+): void {
+  for (const m of bases) {
+    if (!m) continue;
+    const v = variantMats.get(m);
+    for (const x of [m, v, fadeMats.get(m), v && fadeMats.get(v)])
       if (x && x.alphaToCoverage !== on) {
         x.alphaToCoverage = on;
         x.needsUpdate = true;
@@ -153,8 +177,9 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: grassSheet('green'),
-        alphaTest: 0.5,
+        map: plantSheet('grass-green'),
+        color: new Color(...cardColor('grass-green')),
+        alphaTest: GRASS_CARD_ALPHA,
         side: DoubleSide,
         roughness: 1,
       });
@@ -162,8 +187,9 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card_dry':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: grassSheet('dry'),
-        alphaTest: 0.5,
+        map: plantSheet('grass-dry'),
+        color: new Color(...cardColor('grass-dry')),
+        alphaTest: GRASS_CARD_ALPHA,
         side: DoubleSide,
         roughness: 1,
       });
@@ -171,7 +197,30 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card_spring':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: grassSheet('spring'),
+        map: plantSheet('grass-spring'),
+        color: new Color(...cardColor('grass-spring')),
+        alphaTest: GRASS_CARD_ALPHA,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    case 'foliage_card_weeds':
+      // Nettles and weeds (engine/plants/weeds.webp).
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet('weeds'),
+        color: new Color(...cardColor('weeds')),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    case 'foliage_card_reeds':
+      // Reed beds and cattails (engine/plants/reeds.webp).
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet('reeds'),
+        color: new Color(...cardColor('reeds')),
         alphaTest: 0.5,
         side: DoubleSide,
         roughness: 1,
@@ -345,6 +394,53 @@ export function variantMaterial(base: Material): Material {
   };
   m.customProgramCacheKey = () => `${baseKey}|variants`;
   variantMats.set(base, m);
+  return m;
+}
+
+const fadeMats = new Map<Material, Material>();
+const fadeDepth = new Map<string, MeshDepthMaterial>();
+
+/**
+ * `base` with the dithered level fade (world/lod-fade.ts `RALLY_LOD_FADE`), cached. The instance streamer draws a bucket
+ * with it only while one of its instances fades: the dither's `discard` would cost every other draw of the shared
+ * material its early depth test. Its own `onBeforeCompile` (or the world-shading default) runs first.
+ */
+export function lodFadeMaterial(base: Material): Material {
+  let m = fadeMats.get(base);
+  if (m) return m;
+  m = base.clone();
+  // (copy() resets a standard material's defines.)
+  m.defines = { ...base.defines, RALLY_LOD_FADE: '' };
+  const baseHook = Object.prototype.hasOwnProperty.call(base, 'onBeforeCompile')
+    ? base.onBeforeCompile
+    : Material.prototype.onBeforeCompile;
+  m.onBeforeCompile = (shader, renderer: WebGLRenderer) =>
+    baseHook.call(base, shader, renderer);
+  m.customProgramCacheKey = () => `${base.customProgramCacheKey()}|fade`;
+  m.name = `${base.name}|fade`;
+  fadeMats.set(base, m);
+  return m;
+}
+
+/**
+ * Shadow pass of a fading bucket (`customDepthMaterial`; three copies map / alphaTest onto it): one copy casts, the
+ * outgoing level until halfway, then the incoming one (`RALLY_LOD_FADE_SHADOW`), never both. `variants` = a variant set.
+ */
+export function lodFadeDepthMaterial(
+  base: Material,
+  variants: boolean,
+): MeshDepthMaterial {
+  const key = `${base.uuid}|${variants}`;
+  let m = fadeDepth.get(key);
+  if (m) return m;
+  m = new MeshDepthMaterial();
+  m.defines = { RALLY_LOD_FADE: '', RALLY_LOD_FADE_SHADOW: '' };
+  m.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, worldUniforms);
+    if (variants) injectVariants(shader);
+  };
+  m.customProgramCacheKey = () => `depth|fade${variants ? '|variants' : ''}`;
+  fadeDepth.set(key, m);
   return m;
 }
 

@@ -227,6 +227,20 @@ function rubber(base: number, dust: number): [number, number, number] {
   ];
 }
 
+/** Carcass rubber and its dust on `dust` tyres: 0.55..1 (noise, which averages 0.5). */
+const CARCASS_RUBBER = 0.016;
+const CARCASS_DUST_MEAN = 0.775;
+/**
+ * How much brighter (per channel, on average) the baked dust leaves a `dust` tyre's carcass than a clean one. The
+ * per-car road dust (`dustyTyre`) divides its colour by it: the vertex colours multiply the material colour, so the
+ * carcass then lands on the dust colour like a clean tyre's does, not up to twice it (near white).
+ */
+export const BAKED_DUST_GAIN: readonly [number, number, number] = (() => {
+  const dusty = rubber(CARCASS_RUBBER, CARCASS_DUST_MEAN);
+  const clean = rubber(CARCASS_RUBBER, 0);
+  return [dusty[0] / clean[0], dusty[1] / clean[1], dusty[2] / clean[2]];
+})();
+
 export function buildTyre(o: TyreOptions): BufferGeometry {
   const R = o.radius;
   const hw = o.size.width / 2;
@@ -281,7 +295,10 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
     carcassProf,
     (i, k) => ({
       r: carcassProf[k].r,
-      c: rubber(0.016, o.dust ? 0.55 + 0.45 * noise(carcassT[i], k) : 0),
+      c: rubber(
+        CARCASS_RUBBER,
+        o.dust ? 0.55 + 0.45 * noise(carcassT[i], k) : 0,
+      ),
     }),
     true,
     true,

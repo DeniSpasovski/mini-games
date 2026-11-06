@@ -420,17 +420,24 @@ html.touch .rp-keys {
   box-shadow: inset 3px 0 0 var(--ui-accent);
 }
 
-/* Results: the watch button carries the saved replay's size. */
+/* Results: the watch button carries a small note ("auto save"), centred on the capitals. */
 .res-replay small {
   display: inline-block;
   max-width: 11em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: -1px;
+  vertical-align: 4px;
   margin-left: 10px;
   font: 600 12px/1 var(--ui-font-body);
   letter-spacing: 0;
   text-transform: none;
   color: var(--ui-text-off);
+}
+
+/* Save is done: "Saved", inactive. */
+.rp-actions .menu-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none;
 }

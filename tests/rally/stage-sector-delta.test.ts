@@ -23,3 +23,16 @@ describe('sector delta', () => {
     expect(timer.sectorDelta(0)).toBeUndefined();
   });
 });
+
+describe('sector delta, reference with fewer sectors', () => {
+  test('a sector the reference does not have has no delta', () => {
+    const timer = new StageTimer(new World(testMap), 'test.sectordelta3');
+    // A best stored before the stage got a second split: one split + finish.
+    timer.reference = { total: 100, splits: [40] };
+    timer.splitTimes = [38, 70, 95];
+    expect(timer.sectorDelta(0)).toBeCloseTo(-2, 5);
+    expect(timer.sectorDelta(1)).toBeCloseTo(-28, 5);
+    expect(timer.sectorDelta(2)).toBeUndefined();
+    expect(timer.sectorDeltas()).toHaveLength(3);
+  });
+});

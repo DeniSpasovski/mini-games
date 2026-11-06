@@ -49,6 +49,14 @@
         "z": [-2.2, -1.72]
       },
       {
+        "$comment": "rear bumper corner, the wedge under the lip beside the arch (|x| 0.72 - 0.9, y 0.41 - 0.47): it faces down (normal y about -0.7), so the bottom chart painted it black above the black lower section - it reads the rear chart's livery",
+        "chart": "rear",
+        "minNy": -0.85,
+        "x": [0.72, 0.9],
+        "y": [0.41, 0.47],
+        "z": [-1.82, -1.7]
+      },
+      {
         "$comment": "rear bumper lower edge (|x| < 0.55, y 0.28 - 0.34, z -2.0 - -1.85): the 45 degree bevel under the bumper (normal y -0.7) went to the dark bottom chart and showed as black triangles between the body colour - it reads the rear chart like the rest of the bumper",
         "chart": "rear",
         "minNy": -0.8,
@@ -190,17 +198,51 @@
         "material": "mirror"
       },
       {
-        "$comment": "rear bumper lower valance (below y 0.29, like the real car's black diffuser area): the model's diffuser fins intersect the bumper skin, which showed as black teeth poking through the white from below - both black now, so the intersection line disappears. Exact outline cut, rear view",
+        "$comment": "front splitter: the lip plate under the bumper (top deck to y 0.237, its ends in front of the wheels): unpainted black like the real car's splitter; it took the livery's front chart. Exact outline cut, front view",
+        "mat": "Car_body",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-1.1, 0.0],
+            [1.1, 0.0],
+            [1.1, 0.24],
+            [-1.1, 0.24]
+          ],
+          "depth": [1.45, 2.2]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "rear bumper lower section (as the real car's black diffuser panel): everything below the bumper's crease (y 0.418 across the middle, rising to 0.455 at the arches) is black - the exhaust sits in it; the model's diffuser fins intersect the bumper skin lower down, so one black section also hides that line. Exact outline cut, rear view",
         "mat": "Car_body",
         "region": {
           "view": "rear",
           "poly": [
-            [-1.1, 0.0],
-            [1.1, 0.0],
-            [1.1, 0.29],
-            [-1.1, 0.29]
+            [-0.8, 0.0],
+            [0.8, 0.0],
+            [0.8, 0.41],
+            [0.5, 0.418],
+            [-0.5, 0.418],
+            [-0.8, 0.41]
           ],
-          "depth": [-2.1, -1.7]
+          "depth": [-2.1, -1.68]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "rear bumper lower section, outer ends: the crease rises to the arches (convex pieces: the cut takes convex outlines only)",
+        "mat": "Car_body",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.8, 0.0],
+            [1.1, 0.0],
+            [1.1, 0.46],
+            [0.9, 0.455],
+            [0.8, 0.41]
+          ],
+          "depth": [-2.1, -1.68],
+          "mirror": true
         },
         "material": "trim"
       },

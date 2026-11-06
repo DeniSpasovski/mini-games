@@ -7,7 +7,6 @@ import {
 } from 'three';
 import { hash3, Rng } from '../../../shared/rng';
 import { FACADE_DEFS, type FacadeId } from './facade-textures';
-import { drawTuftSheet } from './grass';
 import { LOT_DEFS, type LotTextureId } from './lot-textures';
 import {
   drawPeopleAtlas,
@@ -57,9 +56,6 @@ export type TextureId =
   | 'people_normal'
   | 'flag_mk'
   | 'macro'
-  | 'grass_card'
-  | 'grass_card_dry'
-  | 'grass_card_spring'
   | 'bark_pine'
   | 'bark_birch'
   | 'chevron'
@@ -1256,31 +1252,6 @@ const DEFS: Record<TextureId, TexDef> = {
         4,
         71,
       );
-    },
-  },
-  // Preview only (asset-debug): the game uses engine/grass.ts `grassSheet` (same drawing, coverage mipmaps).
-  grass_card: {
-    name: 'Grass card (alpha)',
-    size: [512, 256],
-    color: true,
-    draw(ctx, w, h) {
-      drawTuftSheet(ctx, w, h, 'green');
-    },
-  },
-  grass_card_dry: {
-    name: 'Dry grass card (alpha)',
-    size: [512, 256],
-    color: true,
-    draw(ctx, w, h) {
-      drawTuftSheet(ctx, w, h, 'dry');
-    },
-  },
-  grass_card_spring: {
-    name: 'Spring grass card (alpha)',
-    size: [512, 256],
-    color: true,
-    draw(ctx, w, h) {
-      drawTuftSheet(ctx, w, h, 'spring');
     },
   },
   bark_pine: {

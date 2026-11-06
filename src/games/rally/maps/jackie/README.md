@@ -10,6 +10,7 @@ carriageway, ramps and interchange as ordinary side roads. Map id `jackie`, stag
 |                                                   |
 | ------------------------------------------------- |
 | ![Start of the stage](screenshots/city-start.jpg) |
+| ![The parkway at night](screenshots/night.jpg)    |
 
 Ten team cars are parked on both sides of the stage road at the start line (`service-park.ts`).
 
@@ -34,6 +35,7 @@ npm run dev     # /games/rally/?stage=jackie&spawn=1000
 | Land cover (woods, grass)                    | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                                                                                                                                                                                                  | CC BY 4.0                                                                        |
 | Service park kit                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) (service park: tool chest, tyre rack, trolley jack, flood light, extinguisher, wheelbarrow, hand truck, ladder, bin, axle stands, pail, tyre stillage, yard pallets, drums, IBC tank, crate, stacker, pallet jack) | CC BY 4.0                                                                        |
 | Service park props                           | [Poly Haven](https://polyhaven.com/models) (service park table and chairs, generator, underpass wall lamps, jerrycans: Outdoor Table Chair Set 01, Portable Generator, Industrial Wall Lamp, Metal Jerrycan Green)                                                                                  | CC0                                                                              |
+| Grass, weeds and reeds                       | [Poly Haven](https://polyhaven.com/models) (plant scans: Grass Medium 01 / 02, Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02)                                                                                                                                                             | CC0                                                                              |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of OpenStreetMap and stay under the ODbL. The emergency vehicles carry short
 generic lettering ("POLICE", "AMBULANCE") and no logos or badges.

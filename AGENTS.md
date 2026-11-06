@@ -4,7 +4,7 @@
 
 - `npm run dev` - dev server (http://localhost:3000)
 - `npm run dev:noreload` - same without HMR (file edits by other sessions / tools never reload the page): debugging, benchmarks,
-  stage-card bakes. Reload by hand. Browser pane: `portal-dev-noreload`.
+  stage-card bakes, the CI smoke test. Reload by hand. Browser pane: `portal-dev-noreload`.
 - `npm run build` - production build, one self-contained `dist/games/<id>/` per game (`DETAILS.md` -> Deploying);
   `npm run build -- --environment <id>` rebuilds one game (`portal` = portal files only)
 - `npm run build:test` - same, but the TEST cars / maps (`release.ts`) ship too (the Pages workflow's default)
@@ -84,7 +84,7 @@ into `DETAILS.md`, never up.
 - `scripts/car-model/`: `scan-mesh.py` (run on every new model after the licence gate: split / panel edges / blob),
   `assemble-kit.py` (model kit on a sprue -> one body STL), `segment-stl.py` (labels body parts: seeds, regions, boxes, tubes),
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
-  rim; `stl-flatten-cap.py` flattens an emblem on its centre cap; `--two-sided` / `--bridge` close a one-sided rim barrel; `glb-wheel-straighten.py` re-centres a wheel GLB rim lip that sits off the axle), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
+  rim; `stl-flatten-cap.py` flattens an emblem on its centre cap; `clipR` cuts the spokes on an exact circle and sinks their tips under the lip; `--two-sided` / `--bridge` close a one-sided rim barrel; `glb-wheel-straighten.py` re-centres a wheel GLB rim lip that sits off the axle), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
   sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars), `door-plate.py` (rally door-plate position from a GLB: window line + mirror);
   the GLB import steps (`glb-to-parts-stl.py`, `glb-orient.py`, `glb-src-parts.py` ...) are in the `rally-car-import` skill; the street-car
   and truck bakes (`street-pack-extract.py`, `bake-street-textures.py`, `bake-street-cars.mjs`, `bake-fire-trucks.mjs`, `bake-trucks.mjs`) are in rally `DETAILS.md`
@@ -102,6 +102,8 @@ into `DETAILS.md`, never up.
 - `scripts/rocks/bake-rocks.mjs` - the rally boulders and small rocks (`assets/builders/rock-models.data.ts`, `engine/props/rocks.*.webp`) from the CC0 Poly Haven "Rock Moss Set 01" (`sources/rally/rocks/`)
 - `scripts/trees/bake-bark.py` - the rally trees' scanned bark tiles and their normal tiles (`trees/bark/*.webp`) from CC0 Poly Haven bark scans + normal maps (`sources/rally/bark/`); prints `BARK_GAIN` for trees/materials.ts
 - `scripts/particles/bake-dust.py` - the rally dust puff atlas (`engine/particles/dust.webp`) from Kenney's CC0 Particle Pack (`sources/rally/kenney/`)
+- `scripts/plants/bake-plants.mjs` - the rally grass / weed / reed card atlases (`engine/plants/*.webp` + `plant-atlas.data.ts`) from CC0 Poly Haven plant
+  models and CC BY Sketchfab reed / cattail models (`sources/rally/plants/`; `--sheets reeds` rebakes one sheet): `layout.ts` places the clumps (seeded), headless Chromium renders, `pack.py` packs and measures
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction

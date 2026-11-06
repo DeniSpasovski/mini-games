@@ -31,6 +31,7 @@ import { impostorMaterial } from '../trees/materials';
 import { speciesOfType } from '../trees/species';
 import type { TreeLibrary } from '../trees/load';
 import type { ScatterInstance } from './scatter';
+import { BAYER_DITHER_8 } from './lod-fade';
 import type { World } from './world';
 
 /** Metres per map cell (coarsened for very large maps so a side stays <= MAX_SIDE). */
@@ -103,7 +104,7 @@ export const TINT_RANGE = 2;
  * - **Far trees** (`farTrees`): between the forest distance and FAR_REACH, real impostors the vertex shader places from
  *   the canopy map, so a far slope shows trees, not a texture; the shell starts where they end.
  * - **Handover:** the trees dissolve over the last 15 % of the forest distance (`tlForest`) and the far trees in with
- *   the other side of the same 8x8 dither (trees/materials.ts `treeDither`); the shell takes the other side of the far
+ *   the other side of the same 8x8 dither (world/lod-fade.ts `BAYER_DITHER_8`); the shell takes the other side of the far
  *   trees' dissolve the same way.
  */
 /**
@@ -1006,14 +1007,8 @@ uniform float ffTo;
 varying vec2 vFfXZ;
 varying float vFfY;
 varying vec3 vFfN;
-/** 8x8 ordered (Bayer) dither, 0..1: trees/materials.ts treeDither (the same tile, for a complementary handover). */
-float ffDither() {
-	int x = int( mod( gl_FragCoord.x, 8.0 ) );
-	int y = int( mod( gl_FragCoord.y, 8.0 ) );
-	int xy = x ^ y;
-	int b = ( ( xy & 1 ) << 5 ) | ( ( x & 1 ) << 4 ) | ( ( xy & 2 ) << 2 ) | ( ( x & 2 ) << 1 ) | ( ( xy & 4 ) >> 1 ) | ( ( x & 4 ) >> 2 );
-	return ( float( b ) + 0.5 ) / 64.0;
-}
+// The trees' dither tile (lod-fade.ts BAYER_DITHER_8), for a complementary handover.
+${BAYER_DITHER_8}
 `;
 
 /** After color_fragment: the canopy's colour, the dithered edge / handover, the crown pattern. */
@@ -1026,7 +1021,7 @@ const FRAGMENT_COLOR = /* glsl */ `
 	float ffIn = smoothstep( ffFrom * 0.85, ffFrom, ffDist ) * ( 1.0 - smoothstep( ffTo + ${(OVERHANG * 0.4).toFixed(1)}, ffTo + ${OVERHANG.toFixed(1)}, ffDist ) );
 	float ffKeep = smoothstep( 0.12, 0.5, ffT.g ) * ffIn;
 	// The other side of the far trees' dither (they keep < 1 - in).
-	if ( ffDither() < 1.0 - ffKeep ) discard;
+	if ( bayerDither8() < 1.0 - ffKeep ) discard;
 	vec3 ffC = texture2D( ffTint, ffUV ).rgb;
 	diffuseColor.rgb = ffC * ffC * ${TINT_RANGE.toFixed(1)};
 	// Crowns: domes lit from above, darker gaps; faded out once a crown is a few pixels wide. Triplanar on fixed world

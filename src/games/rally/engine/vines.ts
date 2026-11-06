@@ -14,16 +14,28 @@ import {
 } from 'three';
 import { Rng } from '../../../shared/rng';
 import type { Season } from '../season';
-import { coverageMips } from '../trees/materials';
+import {
+  atlasUv,
+  CLUSTER_COLS,
+  CLUSTER_ROWS,
+  SPRAY_BASE,
+  spriteAtlas,
+} from '../trees/leaftex';
+import {
+  barkGain,
+  barkNormalTexture,
+  barkTexture,
+  coverageMips,
+} from '../trees/materials';
 import { merge, paint, shade } from './geo';
-import { dilateAndFlip } from './grass';
+import { setAlphaToCoverage } from './materials';
 import { groundLitCard } from './world-shading';
 
 /**
  * Vineyard rows (cordon-trained vines on posts and wires, as in the Skopje plain): one asset instance is a 6 m stretch
- * of a row - a post, five gnarled trunks with their cordon arms on the bottom wire, two more wires, and the canopy as
- * leaf cards painted here per season (spring: young shoots near the cordon; summer: a full hedge with dark grapes;
- * autumn: yellow and rust leaves, picked).
+ * of a row - a post, five gnarled trunks (the trees' scanned bark) with their cordon arms on the bottom wire, two more
+ * wires, and the canopy as leaf cards painted here per season from the trees' lobed leaf sprays (spring: young shoots
+ * near the cordon; summer: a full hedge with dark grapes; autumn: yellow and rust leaves, picked).
  */
 
 /** Length of one row segment (m): post to post. */
@@ -42,129 +54,196 @@ const CANOPY: Record<Season, CanopyRange> = {
 const SW = 512;
 const SH = 256;
 
-const LEAF: Record<Season, string[]> = {
-  spring: ['#9cc24a', '#b4d35c', '#88b03e', '#c3d873'],
-  summer: ['#3f6b22', '#4e7d2a', '#5c8c31', '#36601e', '#6a9a3a'],
-  autumn: ['#c99a2e', '#d8b23c', '#b5662a', '#9c4a22', '#a88a34', '#7f6a2a'],
+/**
+ * Leaf colours (linear albedo), from the shade leaf to the sun leaf. Summer sits between the trees' oak and plane
+ * palettes (trees/species.ts, measured: olive, red / green ~0.65, blue / green ~0.35); spring is the flush band of
+ * trees/Foliage.md (lighter, yellower); autumn yellows and rusts at luminance ~0.15-0.2, greyer than a painted autumn.
+ */
+const LEAF: Record<Season, RGB[]> = {
+  spring: [
+    [0.085, 0.14, 0.042],
+    [0.11, 0.165, 0.048],
+    [0.1, 0.155, 0.05],
+  ],
+  summer: [
+    [0.06, 0.095, 0.035],
+    [0.075, 0.115, 0.04],
+    [0.093, 0.144, 0.05],
+    [0.085, 0.125, 0.042],
+  ],
+  autumn: [
+    [0.21, 0.17, 0.07],
+    [0.19, 0.14, 0.065],
+    [0.17, 0.1, 0.055],
+    [0.14, 0.12, 0.06],
+    [0.12, 0.11, 0.05],
+  ],
 };
 
-/** One palmate vine leaf (5 lobes, the stem notch at the bottom). */
-function leaf(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  s: number,
-  rot: number,
-  fill: string,
-) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rot);
-  ctx.beginPath();
-  for (let i = 0; i <= 40; i++) {
-    const a = (i / 40) * Math.PI * 2;
-    // Lobes from the outline's polar wave; a notch where the stem joins (a = pi/2, the bottom).
-    const lobe = 0.72 + 0.28 * Math.abs(Math.cos(a * 2.5));
-    const notch = 1 - 0.55 * Math.exp(-((a - Math.PI / 2) ** 2) * 18);
-    const r = s * lobe * notch;
-    const px = Math.cos(a) * r;
-    const py = Math.sin(a) * r;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+type RGB = [number, number, number];
+
+/** Canes per sheet (3 m of row), their length (m) and how far up they point (rad from the row; VSP: up). */
+const CANES: Record<
+  Season,
+  { count: number; len: [number, number]; up: [number, number] }
+> = {
+  spring: { count: 26, len: [0.35, 0.6], up: [0.7, 1.5] },
+  summer: { count: 46, len: [1.0, 1.5], up: [0.9, 1.45] },
+  autumn: { count: 40, len: [0.9, 1.4], up: [0.8, 1.45] },
+};
+
+const linToSrgb8 = (c: number) =>
+  Math.round(
+    255 *
+      Math.min(1, c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055),
+  );
+const srgb8ToLin = (v: number) => {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+
+/**
+ * Paint the canopy sheet of a season (RGBA, row 0 = the bottom = the cordon; x wraps): canes of the trees' lobed leaf
+ * style (trees/leaftex.ts, the oak / plane sprays: alternating leaves along a shoot) rising from the cordon, back to
+ * front, the deeper ones darker; summer bunches in the fruiting zone.
+ */
+function drawCanopy(season: Season): Uint8Array {
+  const atlas = spriteAtlas('lobed');
+  const img = atlas.width / CLUSTER_COLS;
+  const out = new Uint8Array(SW * SH * 4);
+  const rng = new Rng(season.length * 977 + 5);
+  const pal = LEAF[season];
+  const cane = CANES[season];
+  const c = CANOPY[season];
+  const pxPerM = SW / (VINE_SEGMENT / 2);
+  // Sheet y (px from the bottom) of a height above the ground: the sheet spans the canopy band.
+  const band = c.hi - c.lo;
+  const sy = SH / band;
+  for (let i = 0; i < cane.count; i++) {
+    const depth = i / cane.count;
+    const k = 0.6 + 0.4 * depth;
+    const col = pal[rng.int(0, pal.length - 1)].map(
+      (v) => (v * k) / atlas.mean,
+    );
+    const im = rng.int(0, CLUSTER_COLS * CLUSTER_ROWS - 1);
+    const len = rng.range(cane.len[0], cane.len[1]);
+    const up = rng.range(cane.up[0], cane.up[1]) * (rng.next() < 0.5 ? 1 : -1);
+    // The image's shoot runs along x from its base (SPRAY_BASE left of the centre): put that on the cordon.
+    // Up and to the right, or mirrored up and to the left.
+    const ang = up > 0 ? up : Math.PI + up;
+    const scale = (len * pxPerM) / img; // sheet px per image px
+    const bx = rng.next() * SW;
+    const by = rng.range(-0.05, 0.12) * sy; // the cordon is at the bottom of the band
+    const ca = Math.cos(ang);
+    const sa = Math.sin(ang);
+    const half = (img * scale) / 2;
+    // Image centre: from the base along the shoot.
+    const cx = bx + ca * SPRAY_BASE * img * scale;
+    const cy = by + sa * SPRAY_BASE * img * scale;
+    const r = half * 1.42;
+    for (
+      let y = Math.max(0, Math.floor(cy - r));
+      y < Math.min(SH, Math.ceil(cy + r));
+      y++
+    )
+      for (let xx = Math.floor(cx - r); xx < Math.ceil(cx + r); xx++) {
+        const dx = xx + 0.5 - cx;
+        const dy = y + 0.5 - cy;
+        // Into the image (u along the shoot, v across), 0..1.
+        const u = (dx * ca + dy * sa) / (2 * half) + 0.5;
+        const v = (-dx * sa + dy * ca) / (2 * half) + 0.5;
+        if (u < 0 || u >= 1 || v < 0 || v >= 1) continue;
+        const [au, av] = atlasUv(im, u, v);
+        const t =
+          (Math.floor(av * atlas.height) * atlas.width +
+            Math.floor(au * atlas.width)) *
+          4;
+        if (atlas.albedo[t + 3] < 128) continue;
+        const x = ((xx % SW) + SW) % SW;
+        const o = (y * SW + x) * 4;
+        for (let ch = 0; ch < 3; ch++)
+          out[o + ch] = linToSrgb8(srgb8ToLin(atlas.albedo[t + ch]) * col[ch]);
+        out[o + 3] = 255;
+      }
+    // Summer: bunches under the leaves in the fruiting zone (just above the cordon), half hidden.
+    if (season === 'summer' && i === Math.floor(cane.count * 0.55))
+      for (let b = 0; b < 9; b++)
+        bunch(out, rng, 20 + rng.next() * (SW - 40), sy * rng.range(0.12, 0.3));
   }
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-  // Veins: slightly darker.
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = Math.max(0.6, s * 0.06);
-  ctx.beginPath();
-  for (const a of [
-    -Math.PI / 2,
-    -Math.PI / 2 - 1,
-    -Math.PI / 2 + 1,
-    -0.1,
-    Math.PI + 0.1,
-  ]) {
-    ctx.moveTo(0, s * 0.3);
-    ctx.lineTo(Math.cos(a) * s * 0.75, Math.sin(a) * s * 0.75);
-  }
-  ctx.stroke();
-  ctx.restore();
+  return bleed(out);
 }
 
-/** A bunch of dark grapes hanging from (x, y). */
-function bunch(ctx: CanvasRenderingContext2D, rng: Rng, x: number, y: number) {
+/** A bunch of dark grapes hanging from (x, y) (sheet px, y up). */
+function bunch(out: Uint8Array, rng: Rng, x: number, y: number) {
   const n = 14 + Math.floor(rng.next() * 10);
   const len = 16 + rng.next() * 10;
   for (let i = 0; i < n; i++) {
     const t = rng.next();
     const w = (1 - t) * 7 + 2;
     const bx = x + (rng.next() - 0.5) * 2 * w;
-    const by = y + t * len;
+    const by = y - t * len;
     const r = 2.4 + rng.next() * 0.8;
     const k = 0.7 + rng.next() * 0.35;
-    ctx.fillStyle = `rgb(${Math.round(52 * k)},${Math.round(34 * k)},${Math.round(68 * k)})`;
-    ctx.beginPath();
-    ctx.arc(bx, by, r, 0, Math.PI * 2);
-    ctx.fill();
+    const col = [52 * k, 34 * k, 68 * k];
+    for (let py = Math.floor(by - r); py <= Math.ceil(by + r); py++)
+      for (let px = Math.floor(bx - r); px <= Math.ceil(bx + r); px++) {
+        if (py < 0 || py >= SH || (px - bx) ** 2 + (py - by) ** 2 > r * r)
+          continue;
+        const o = (py * SW + (((px % SW) + SW) % SW)) * 4;
+        out[o] = col[0];
+        out[o + 1] = col[1];
+        out[o + 2] = col[2];
+        out[o + 3] = 255;
+      }
   }
 }
 
-/** Paint the canopy sheet of a season (transparent background; x wraps). */
-function drawCanopy(ctx: CanvasRenderingContext2D, season: Season) {
-  const rng = new Rng(season.length * 977 + 5);
-  const pal = LEAF[season];
-  const count = season === 'spring' ? 260 : season === 'autumn' ? 900 : 1300;
-  const size = season === 'spring' ? [7, 12] : [10, 17];
-  // Leaves painted back to front: the deeper ones darker. A wrapped copy at the edges keeps the sheet tileable.
-  for (let i = 0; i < count; i++) {
-    const depth = i / count;
-    const x = rng.next() * SW;
-    // Spring shoots stay near the cordon (the bottom of the band); summer / autumn fill it, thinner at the edges.
-    const v =
-      season === 'spring'
-        ? 1 - Math.pow(rng.next(), 1.6) * 0.95
-        : 0.06 +
-          0.88 * (0.5 + (rng.next() + rng.next() + rng.next() - 1.5) / 3);
-    const y = v * SH;
-    const s = size[0] + rng.next() * (size[1] - size[0]);
-    const base = pal[Math.floor(rng.next() * pal.length)];
-    const k = 0.55 + 0.45 * depth;
-    const c = base.match(/\w\w/g)!.map((h) => Math.round(parseInt(h, 16) * k));
-    const fill = `rgb(${c[0]},${c[1]},${c[2]})`;
-    const rot = (rng.next() - 0.5) * 1.2;
-    for (const dx of [0, -SW, SW])
-      if (x + dx > -s * 1.2 && x + dx < SW + s * 1.2)
-        leaf(ctx, x + dx, y, s, rot, fill);
-    // Summer: bunches under the leaves along the fruiting zone (the lower third), half hidden.
-    if (season === 'summer' && i === Math.floor(count * 0.55)) {
-      for (let b = 0; b < 9; b++)
-        bunch(
-          ctx,
-          rng,
-          20 + rng.next() * (SW - 40),
-          SH * (0.62 + rng.next() * 0.12),
-        );
-    }
+/** Pushes the colour of the leaves into the transparent texels (filtering never pulls in black); x wraps. */
+function bleed(d: Uint8Array): Uint8Array {
+  for (let pass = 0; pass < 6; pass++) {
+    const prev = d.slice();
+    for (let y = 0; y < SH; y++)
+      for (let x = 0; x < SW; x++) {
+        const i = (y * SW + x) * 4;
+        if (prev[i + 3] > 0 || (prev[i] | prev[i + 1] | prev[i + 2]) !== 0)
+          continue;
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let n = 0;
+        for (const [dx, dy] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ]) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= SH) continue;
+          const j = (yy * SW + ((x + dx + SW) % SW)) * 4;
+          if (prev[j + 3] === 0 && (prev[j] | prev[j + 1] | prev[j + 2]) === 0)
+            continue;
+          r += prev[j];
+          g += prev[j + 1];
+          b += prev[j + 2];
+          n++;
+        }
+        if (n) {
+          d[i] = r / n;
+          d[i + 1] = g / n;
+          d[i + 2] = b / n;
+        }
+      }
   }
+  return d;
 }
 
 const sheets = new Map<Season, Texture>();
 
-/** The canopy sheet of a season with bled colour and coverage-preserving mipmaps (like the grass sheets). */
+/** The canopy sheet of a season with coverage-preserving mipmaps (like the grass atlases). */
 export function vineSheet(season: Season): Texture {
   const t = sheets.get(season);
   if (t) return t;
-  const canvas = document.createElement('canvas');
-  canvas.width = SW;
-  canvas.height = SH;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  let data: Uint8Array;
-  if (ctx) {
-    drawCanopy(ctx, season);
-    data = dilateAndFlip(ctx.getImageData(0, 0, SW, SH).data, SW, SH);
-  } else data = new Uint8Array(SW * SH * 4); // no 2D canvas (tests)
+  const data = drawCanopy(season);
   const dt = new DataTexture(data, SW, SH);
   dt.mipmaps = coverageMips(data, SW, SH, false).main;
   dt.generateMipmaps = false;
@@ -199,14 +278,30 @@ export function vineMaterial(season: Season): MeshStandardMaterial {
   return m;
 }
 
+/** The trunks' bark: the trees' stringy scanned bark (trees/bark/cedar.webp), a grapevine's shaggy trunk. */
+const VINE_BARK = 'cedar';
+/** Bark tiles per metre along a trunk (and twice that around, the tile's aspect). */
+const BARK_TILING = 4;
+let bark: MeshStandardMaterial | null = null;
+
+/** The trunks' material: scanned bark tile + its normal tile over the vertex colour (the trees' bark, without their shader). */
+export function vineBarkMaterial(): MeshStandardMaterial {
+  if (bark) return bark;
+  bark = new MeshStandardMaterial({
+    vertexColors: true,
+    map: barkTexture(VINE_BARK),
+    normalMap: barkNormalTexture(VINE_BARK),
+    roughness: 0.95,
+  });
+  bark.color.setScalar(barkGain(VINE_BARK));
+  bark.name = 'vine bark';
+  return bark;
+}
+
 /** Alpha-to-coverage on the canopy cards when the renderer has MSAA. */
 export function setVineAntialias(on: boolean): void {
   a2c = on;
-  for (const m of materials.values())
-    if (m.alphaToCoverage !== on) {
-      m.alphaToCoverage = on;
-      m.needsUpdate = true;
-    }
+  setAlphaToCoverage(materials.values(), on);
 }
 
 /** A plane card along the row (x) at depth z, y from lo to hi, u over the segment (2 sheet repeats) + `u0`. */
@@ -259,7 +354,10 @@ export function vineCanopy(
   return merge(parts);
 }
 
-/** A bent tube along `pts` (x, y, z triples) with radius r0 -> r1, `sides` around; non-indexed with uv. */
+/**
+ * A bent tube along `pts` (x, y, z triples) with radius r0 -> r1, `sides` around; non-indexed, uv = bark tile (u
+ * around, a whole number of times; v = metres along x BARK_TILING).
+ */
 function tube(
   pts: number[][],
   r0: number,
@@ -268,6 +366,9 @@ function tube(
 ): BufferGeometry {
   const pos: number[] = [];
   const nrm: number[] = [];
+  const uvs: number[] = [];
+  const around = Math.max(1, Math.round(2 * Math.PI * r0 * BARK_TILING * 2));
+  let along = 0;
   const ring = (k: number) => {
     const p = pts[k];
     const q = pts[Math.min(pts.length - 1, k + 1)];
@@ -283,8 +384,8 @@ function tube(
     // a = any vector not along d, crossed twice.
     const ax = Math.abs(dy) < 0.9 ? 0 : 1;
     const ay = Math.abs(dy) < 0.9 ? 1 : 0;
-    let ux = ay * dz - 0 * dy;
-    let uy = 0 * dx - ax * dz;
+    let ux = ay * dz;
+    let uy = -ax * dz;
     let uz = ax * dy - ay * dx;
     const ul = Math.hypot(ux, uy, uz) || 1;
     ux /= ul;
@@ -294,13 +395,29 @@ function tube(
     const vy = dz * ux - dx * uz;
     const vz = dx * uy - dy * ux;
     const r = r0 + (r1 - r0) * (k / (pts.length - 1));
+    if (k > 0)
+      along += Math.hypot(
+        p[0] - pts[k - 1][0],
+        p[1] - pts[k - 1][1],
+        p[2] - pts[k - 1][2],
+      );
     const out: number[][] = [];
-    for (let s = 0; s < sides; s++) {
+    // sides + 1: the seam repeats the first vertex with u = around.
+    for (let s = 0; s <= sides; s++) {
       const a = (s / sides) * Math.PI * 2;
       const nx = Math.cos(a) * ux + Math.sin(a) * vx;
       const ny = Math.cos(a) * uy + Math.sin(a) * vy;
       const nz = Math.cos(a) * uz + Math.sin(a) * vz;
-      out.push([p[0] + nx * r, p[1] + ny * r, p[2] + nz * r, nx, ny, nz]);
+      out.push([
+        p[0] + nx * r,
+        p[1] + ny * r,
+        p[2] + nz * r,
+        nx,
+        ny,
+        nz,
+        (s / sides) * around,
+        along * BARK_TILING,
+      ]);
     }
     return out;
   };
@@ -308,46 +425,55 @@ function tube(
   for (let k = 0; k + 1 < rings.length; k++)
     for (let s = 0; s < sides; s++) {
       const a = rings[k][s];
-      const b = rings[k][(s + 1) % sides];
+      const b = rings[k][s + 1];
       const c = rings[k + 1][s];
-      const d = rings[k + 1][(s + 1) % sides];
+      const d = rings[k + 1][s + 1];
       for (const v of [a, c, b, b, c, d]) {
         pos.push(v[0], v[1], v[2]);
         nrm.push(v[3], v[4], v[5]);
+        uvs.push(v[6], v[7]);
       }
     }
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
   g.setAttribute('normal', new BufferAttribute(new Float32Array(nrm), 3));
-  g.setAttribute(
-    'uv',
-    new BufferAttribute(new Float32Array((pos.length / 3) * 2), 2),
-  );
+  g.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
   return g;
 }
 
 /**
- * The wood of a segment (props material, vertex coloured): a post at the start, three wires, five trunks (gnarled,
- * ~0.85 m) with a cordon arm each way along the bottom wire. `near` = full detail; otherwise the post and trunks only.
+ * The wood of a segment: `post` = the post and the three wires (props material, vertex coloured); else the five
+ * gnarled trunks (~0.85 m) with a cordon arm each way along the bottom wire (`vineBarkMaterial`). `near` = full detail;
+ * otherwise the post and the trunks only.
  */
-export function vineWood(seed: number, near: boolean): BufferGeometry {
+export function vineWood(
+  seed: number,
+  near: boolean,
+  post: boolean,
+): BufferGeometry {
   const rng = new Rng(seed * 7 + 3);
   const parts: BufferGeometry[] = [];
   const half = VINE_SEGMENT / 2;
   // Non-indexed like the tubes, so they merge.
-  const post = new BoxGeometry(0.08, 2.05, 0.08).toNonIndexed();
-  post.translate(0, 2.05 / 2 - 0.05, 0);
-  post.rotateZ((rng.next() - 0.5) * 0.06);
-  post.translate(-half, 0, 0);
-  parts.push(
-    shade(paint(post, '#7a5a3a', rng, 0.08), (_x, y) => 0.7 + 0.15 * y),
+  const box = new BoxGeometry(0.08, 2.05, 0.08).toNonIndexed();
+  box.translate(0, 2.05 / 2 - 0.05, 0);
+  box.rotateZ((rng.next() - 0.5) * 0.06);
+  box.translate(-half, 0, 0);
+  const postPart = shade(
+    paint(box, '#7a5a3a', rng, 0.08),
+    (_x, y) => 0.7 + 0.15 * y,
   );
-  if (near)
-    for (const y of [0.9, 1.45, 1.9]) {
-      const w = new BoxGeometry(VINE_SEGMENT, 0.01, 0.01).toNonIndexed();
-      w.translate(0, y, 0);
-      parts.push(paint(w, '#8a8a86'));
-    }
+  if (post) {
+    parts.push(postPart);
+    if (near)
+      for (const y of [0.9, 1.45, 1.9]) {
+        const w = new BoxGeometry(VINE_SEGMENT, 0.01, 0.01).toNonIndexed();
+        w.translate(0, y, 0);
+        parts.push(paint(w, '#8a8a86'));
+      }
+    return merge(parts);
+  }
+  postPart.dispose();
   for (let i = 0; i < 5; i++) {
     const x = -half + 0.6 + i * 1.2 + (rng.next() - 0.5) * 0.15;
     const lean = (rng.next() - 0.5) * 0.12;
@@ -360,8 +486,9 @@ export function vineWood(seed: number, near: boolean): BufferGeometry {
         lean * t + Math.cos(t * 4 + i * 2) * 0.025,
       ]);
     }
+    // Vertex colour: the bark's brown under the grey scan (x its gain in the material).
     parts.push(
-      paint(tube(pts, 0.045, 0.03, near ? 5 : 3), '#5a4632', rng, 0.12),
+      paint(tube(pts, 0.045, 0.03, near ? 6 : 3), '#7a5e46', rng, 0.12),
     );
     if (near)
       for (const dir of [-1, 1]) {
@@ -374,7 +501,7 @@ export function vineWood(seed: number, near: boolean): BufferGeometry {
             lean + Math.sin(t * 6 + i) * 0.015,
           ]);
         }
-        parts.push(paint(tube(arm, 0.028, 0.016, 4), '#5d4935', rng, 0.12));
+        parts.push(paint(tube(arm, 0.028, 0.016, 4), '#7d624a', rng, 0.12));
       }
   }
   return merge(parts);

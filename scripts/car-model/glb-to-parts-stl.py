@@ -21,6 +21,11 @@ Which primitive becomes which material is the `gltf` block of model.source.json:
       "default": "trim"                                   # unmatched primitives (omit = error)
     }
 
+`relief` (list) flattens lens rows that step in and out deeper than the real lamp: `"relief": [{"materials": ["brakecover",
+"amber"], "z": [-3, -2], "k": 0.3, "|x|": [0, 0.68], "fade": 0.04}]` moves each vertex of those parts toward the lens face (the outermost
+rear-facing depth per 1 cm of |x|), keeping k of its depth; `"to": "in"` moves them in to the deepest row instead (the lens
+sits by its reflector, behind the body lip; `relief()`; worked example `cars/merc-190/`).
+
 `panels` adds flat downward-facing patches for holes the model leaves open: `"panels": [{"material": "trim", "y": 0.19, "poly": [[x, z], ...], "mirror": true}]`
 (source coordinates, convex polygon, mirrored in x with `mirror`; cars/ford-gt3/ closes the open front underbody).
 
@@ -43,7 +48,8 @@ for the black border round a windscreen without hand-placed boxes.
 
 Rules and `near` blocks can also take `"facing": {"y": [0.3, 1], "|x|": [0, 0.7]}`: the triangle's unit normal component
 must lie in the range (a scalar = minimum; "|x|" tests the absolute value). In a `near` block it filters the sampled
-triangles (windscreen + rear screen glass without the side windows of the same material).
+triangles (windscreen + rear screen glass without the side windows of the same material); in a `region` it keeps only the
+cut pieces facing that way (a slot's inside walls, not the skin round it).
 
 `"arch": {"axles": [1.32, -1.27], "y": 0.31, "r": [0.28, 0.48], "toward": 0.3, "|x|": [0.45, 1], "dy": -0.06}` (source
 coordinates) matches the wheel-arch liners and the inner faces of the flares: triangles within `r` of a hub line whose normal
@@ -389,6 +395,10 @@ def region_cut(T, r, off):
         ok = (dc >= r['depth'][0]) & (dc <= r['depth'][1])
         out = np.concatenate([out, ins[~ok]])
         ins = ins[ok]
+    if 'facing' in r and len(ins):
+        ok = facing_mask(ins, r['facing'])
+        out = np.concatenate([out, ins[~ok]])
+        ins = ins[ok]
     return ins, out
 
 
@@ -598,21 +608,30 @@ def main():
                 keep &= (uc[:, 0] >= u0) & (uc[:, 0] <= u1) & (uc[:, 1] >= v0) & (uc[:, 1] <= v1)
             if 'texture' in r:
                 tx = r['texture']
+                # one mask per texel window: a second texture rule on the same primitive (another lum / sat window)
+                # must not reuse the first rule's mask
+                key = json.dumps({k: tx.get(k) for k in ('maxLum', 'minLum', 'maxSat', 'blur', 'exclude')})
                 if im is None:
-                    im = dark_mask(texture_image(g, bins, mat), tx)
-                    h, w = im.shape[:2]
+                    im = {}
+                if key not in im:
+                    if 'tex' not in im:
+                        im['tex'] = texture_image(g, bins, mat)
+                    m = dark_mask(im['tex'], tx)
+                    h, w = m.shape[:2]
                     for u0, u1, v0, v1 in tx.get('exclude', []):  # logos / emblems drawn in the same dark ink
-                        im[int(v0 * h):int(v1 * h), int(u0 * w):int(u1 * w)] = 0
+                        m[int(v0 * h):int(v1 * h), int(u0 * w):int(u1 * w)] = 0
+                    im[key] = m
+                mask = im[key]
                 if tx.get('refine'):
                     # split the box's triangles along the texture border first (T / UVs re-built, other rules see the new list)
                     box = keep.copy()
                     if box.any():
-                        Tn, Un = refine_by_texture(T[box], uvt[box], im, tx, tx['refine'])
+                        Tn, Un = refine_by_texture(T[box], uvt[box], mask, tx, tx['refine'])
                         T, uvt = np.concatenate([T[~box], Tn]), np.concatenate([uvt[~box], Un])
                         c = T.mean(1)
                         keep = np.concatenate([np.zeros((~box).sum(), bool), np.ones(len(Tn), bool)])
                         isl = None
-                cls = texture_samples(im, uvt) >= 0.5
+                cls = texture_samples(mask, uvt) >= 0.5
                 keep &= cls.mean(1) >= 0.5
             if 'facing' in r:
                 keep &= facing_mask(T, r['facing'])
@@ -661,8 +680,11 @@ def main():
         tris.append(PT)
         labels.append(np.full(len(PT), mats.index(pn['material']), np.uint16))
         used[pn['material']] = used.get(pn['material'], 0) + len(PT)
-    T = np.vstack(tris).astype(np.float32)
+    T = np.vstack(tris)
     L = np.concatenate(labels)
+    for rl in rules.get('relief', []):
+        relief(T, L, [mats.index(m) for m in rl['materials']], rl, np.array(cfg['offset'], float))
+    T = T.astype(np.float32)
     N = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
     N /= np.linalg.norm(N, axis=1)[:, None] + 1e-20
     rec = np.zeros(len(T), dtype=[('n', '<f4', 3), ('v', '<f4', (3, 3)), ('a', '<u2')])
@@ -676,6 +698,61 @@ def main():
         print(f'  {m:12s} {n:8d}')
     report_defaulted(defaulted, default)
     report_discs(T, L, mats)
+
+
+def relief(T, L, labels, rl, off):
+    """`gltf.relief`: flatten a lens whose rows step in and out too deep (stair edges off-axis). For the triangles labelled
+    `materials` (centre in the model-space `z` range), per `bin` of |x| the outermost depth along -z of the rear-facing faces (nz <= -0.9) is the
+    lens face; a vertex up to `depth`[0] behind it moves toward it (z' = z_out + k (z - z_out)), one deeper than `depth`[1]
+    stays (the lens walls still meet the housing), linear between. `"to": "in"` instead moves the rows in to the deepest
+    rear face within `depth`[1] of the lens face (z' = z_in - k (z_in - z)): the lens sits by its reflector, behind the body lip. Inside `|x|` fully, fading out over `fade` beyond it (a lens
+    wrapping round the corner keeps its shape there). In place."""
+    sel = np.isin(L, labels)
+    if 'z' in rl:  # model-space z range of the lamp (front lamps share the materials)
+        cz = T.mean(1)[:, 2] + off[2]
+        sel &= (cz >= rl['z'][0]) & (cz <= rl['z'][1])
+    if not sel.any():
+        return
+    S = T[sel] + off
+    n = np.cross(S[:, 1] - S[:, 0], S[:, 2] - S[:, 0])
+    n /= np.linalg.norm(n, axis=1)[:, None] + 1e-20
+    b = rl.get('bin', 0.01)
+    face = n[:, 2] <= -0.9
+    ax = np.abs(S.mean(1)[face, 0])
+    zo = {}
+    for i, z in zip((ax / b).astype(int), S.mean(1)[face, 2]):
+        zo[i] = min(zo.get(i, z), z)
+    keys = np.array(sorted(zo))
+    vals = np.array([zo[i] for i in keys])
+    V = S.reshape(-1, 3)
+    vx = np.abs(V[:, 0])
+    z_out = np.interp(vx / b - 0.5, keys, vals)
+    lo, hi = rl.get('|x|', [0, 10])
+    fade = rl.get('fade', 0.04)
+    w = np.clip(1 - np.maximum(lo - vx, vx - hi) / fade, 0, 1)
+    d1, d2 = rl.get('depth', [0.022, 0.045])
+    if rl.get('to') == 'in':  # rows go in to the deepest lens face within depth[1] of the outermost: the lens sits by its reflector
+        # each face counts in every bin its |x| span covers (long thin lens faces have their centre in one bin only)
+        A = np.abs(S[face][:, :, 0])
+        spans = [(int(a / b), int(c / b), z) for a, c, z in zip(A.min(1), A.max(1), S.mean(1)[face, 2])]
+        zo, zi = {}, {}
+        for i0, i1, z in spans:
+            for i in range(i0, i1 + 1):
+                zo[i] = min(zo.get(i, z), z)
+        for i0, i1, z in spans:
+            for i in range(i0, i1 + 1):
+                if z <= zo[i] + d2:
+                    zi[i] = max(zi.get(i, z), z)
+        keys = np.array(sorted(zi))
+        z_in = np.interp(vx / b - 0.5, keys, np.array([zi[i] for i in keys]))
+        d = np.maximum(z_in - V[:, 2], 0)
+        V[:, 2] += w * (1 - rl['k']) * d
+        T[sel] = V.reshape(-1, 3, 3) - off
+        return
+    d = V[:, 2] - z_out
+    dn = np.where(d <= d1, rl['k'] * d, np.where(d >= d2, d, rl['k'] * d1 + (d - d1) * (d2 - rl['k'] * d1) / (d2 - d1)))
+    V[:, 2] = z_out + d + w * (dn - d)
+    T[sel] = V.reshape(-1, 3, 3) - off
 
 
 def report_defaulted(defaulted, default):

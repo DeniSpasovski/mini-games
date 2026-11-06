@@ -50,7 +50,7 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
      `HANDLING_OUT=x.json` dumps every number. To try a change without editing a car, pass a modified def
      (`Cfg.def`) or a Vehicle patch (`Cfg.patch`) to the manoeuvres in `handling-harness.ts`. Last review notes
      (local only, git-ignored): `sources/cars/HANDLING-REVIEW.md`.
-   - In game `/games/rally/?car=<id>&spawn=pad&mute=1` (always `mute=1` when testing; AGENTS.md "Sound while testing"): `F2` telemetry (per-wheel load, compression, slip ratio/angle,
+   - In game `/games/rally/?car=<id>&spawn=pad&mute=1` (always `mute=1` when testing; AGENTS.md "Conventions", `isMutedByUrl`): `F2` telemetry (per-wheel load, compression, slip ratio/angle,
      Fx/Fy, surface), `F4` force vectors + hull.
    - For a specific stage spot: `?spawn=<metres along road>`.
 2. For behaviour over a whole stage write a throwaway trace test (see git history / the pattern in

@@ -11,6 +11,8 @@ narrow tarmac with a loose gravel film, in spring colours. Map id `ajvatovci`, s
 | ![Farmland road](screenshots/farmland-road.jpg) | ![Hill road](screenshots/hill-road.jpg) |
 | the farmland road (vineyards, power lines)      | switchbacks up Ajvatovci Hill           |
 
+![The farmland road at night](screenshots/night.jpg)
+
 The first ~500 m, the **start street**, is hand-modelled: lots with real window and door openings, yards, fences,
 kerbs, sidewalks, power poles and about 100 parked vehicles (`start-row/`); the car bounces off its kerbs and stops at fences. At the finish, the hilltop
 church of St. Peter and St. Paul with its bell tower, and the village playground court on the way up, are hand-modelled
@@ -39,6 +41,8 @@ npm run dev     # /games/rally/?stage=ajvatovci&spawn=200      (drive from 200 m
 | Road asphalt                                 | [Asphalt 04 (Poly Haven)](https://polyhaven.com/a/asphalt_04), by Sergej Majboroda and Jenelle van Heerden                                                                                                                                                                                                                                                    | CC0                                                                              |
 | Service park kit                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) (service park: tool chest, tyre rack, trolley jack, flood light, extinguisher, wheelbarrow, hand truck, ladder, bin, axle stands, pail, tyre stillage, yard pallets, drums, IBC tank, crate, stacker, pallet jack)                                                           | CC BY 4.0                                                                        |
 | Service park props                           | [Poly Haven](https://polyhaven.com/models) (service park table and chairs, generator, jerrycans, power poles: Outdoor Table Chair Set 01, Portable Generator, Metal Jerrycan Green, Modular Electricity Poles; village benches, dustbins, utility cabinets, picnic tables: Modular Street Seating, Metal Trash Can, Utility Box 01 / 02, Wooden Picnic Table) | CC0                                                                              |
+| Reeds and cattails                           | ["Reed Plants Pack"](https://sketchfab.com/3d-models/reed-plants-pack-bc77ea5218e44f2dbc23b2a4aef0c898) and ["Ground Cover Foliage Showcase"](https://sketchfab.com/3d-models/ground-cover-foliage-showcase-ae35b4f7856644f58860b1f0c889848a) (cattails) by Nicholas-3D (Sketchfab)                                                                           | CC BY 4.0                                                                        |
+| Grass and weeds                              | [Poly Haven](https://polyhaven.com/models) (plant scans: Grass Medium 01 / 02, Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02)                                                                                                                                                                                                                       | CC0                                                                              |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of the ODbL sources above and stay under the ODbL (attribution +
 share-alike). A few shapes (the vineyard outlines and the lot positions of the start street) were traced by eye from
