@@ -1878,6 +1878,13 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       this.rig.update(dt, v, this.renderPos, this.renderFwd, this.renderUp);
     if (Math.abs(this.camera.fov - this.lastFov) > 0.5)
       this.updateParticleScale();
+    // Tyre detail (tyre-lod.ts): full tread at rest / close, smeared tread at speed, cheap tyres far from the camera.
+    // In a replay the wheels turn at the playback rate: paused (photo) = full detail, slow motion = less smear.
+    const playback = replay ? (dt > 0 ? fdt / dt : 0) : 1;
+    this.model.setTyreLod(
+      v.speed * 3.6 * playback,
+      this.camera.position.distanceTo(this.renderPos),
+    );
 
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;

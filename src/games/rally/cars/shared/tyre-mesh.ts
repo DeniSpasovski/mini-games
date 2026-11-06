@@ -26,6 +26,10 @@ export { treadDepth, treadRubber, pitchesFor } from './tyre-tread';
  *   - lettering ring (compounds only, its own group / material): a thin ring just off the outer sidewall carrying the
  *     printed wordmark, tyre name and compound colour band (tyre-sidewall.ts).
  * `dust` greys the rubber (old road cars). ~11-13k triangles per tyre (4 per car).
+ *
+ * `lod: 'low'` builds the cheap level for speed and distance (tyre-lod.ts): the same carcass, band and lettering ring at
+ * the carcass's 64 segments around, fewer rings across, and no displaced tread (the normal map carries it). ~3k
+ * triangles; same outline, UV layout and groups, so the same materials draw it.
  */
 
 const RIM_INCH = 0.0254 / 2; // rim diameter inch -> radius (m)
@@ -46,6 +50,15 @@ const LETTER_SEGMENTS = 64;
 const LETTER_LIFT = 0.0006;
 /** Share of the groove depth the band is displaced by (the rest is the normal map's). */
 const DISPLACE = 0.85;
+/** Low level: the sidewall profile points kept (indices into the full outer / inner profile; both keep the bead seat
+ * and the band edge) and the band's columns across (flat crown, the shoulder rounding down). The lettering ring keeps
+ * its 7 rows: with fewer, its chords sink into the bulging sidewall and cut the prints. */
+const LOW_OUTER = [0, 2, 3, 6, 8, 10, 12, 13];
+const LOW_INNER = [0, 3, 8, 12, 13];
+const LOW_ACROSS = [-1, -0.84, -CROWN / BAND, 0, CROWN / BAND, 0.84, 1];
+
+/** Detail level of a tyre mesh: full displaced tread, or the low-poly normal-map-only tyre (tyre-lod.ts). */
+export type TyreLevel = 'full' | 'low';
 
 /** Where the tyre leaves the rim: the flange's outer radius (m) and its outer face (fraction of the half width). */
 export interface TyreFit {
@@ -62,6 +75,8 @@ export interface TyreOptions {
   dust?: boolean;
   /** The rim's flange (measured with `rimLip`); default: a generic flange 6% above the bead seat at 0.8 of the half width. */
   fit?: TyreFit;
+  /** Detail level (default 'full'). */
+  lod?: TyreLevel;
 }
 
 /** Rim bead radius (m) of a size. */
@@ -281,9 +296,19 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
     // meets the tread band's edge exactly (the band is not displaced there): no crack, no lip catching the light
     { r: R - drop, a: BAND },
   ];
+  const low = o.lod === 'low';
+  // Kept profile points (low: a subset, the bead seat and band edge always), by their index in `side`.
+  const outerK = low ? LOW_OUTER : side.map((_, k) => k);
+  const innerK = low ? LOW_INNER : outerK;
+  const outer = outerK.map((k) => side[k]);
   const carcassProf = [
-    ...[...side].reverse().map((p) => ({ r: p.r, a: -p.a * hw })),
-    ...side.map((p) => ({ r: p.r, a: p.a * hw })),
+    ...[...innerK].reverse().map((k) => ({ r: side[k].r, a: -side[k].a * hw })),
+    ...outer.map((p) => ({ r: p.r, a: p.a * hw })),
+  ];
+  // Profile index -> full profile index (the dust noise follows the full mesh's, so both levels are dusted alike).
+  const fullK = [
+    ...[...innerK].reverse().map((k) => side.length - 1 - k),
+    ...outerK.map((k) => side.length + k),
   ];
   // Open ring (a seam ring at 2pi) so the lettering ring's UVs can share the layout.
   const carcassT = Array.from(
@@ -297,7 +322,7 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
       r: carcassProf[k].r,
       c: rubber(
         CARCASS_RUBBER,
-        o.dust ? 0.55 + 0.45 * noise(carcassT[i], k) : 0,
+        o.dust ? 0.55 + 0.45 * noise(carcassT[i], fullK[k]) : 0,
       ),
     }),
     true,
@@ -309,20 +334,25 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
   // --- tread band ------------------------------------------------------------------------------------------------
   // A whole number of pitches around (u across the tread, v in pitches); rings ~BAND_RING_SPACING apart, a whole number
   // per pitch, and a seam ring repeating the first (v = pitches).
+  // Low level: one ring per carcass segment (a fraction of a pitch apart; the UVs still repeat every pitch).
   const t = o.compound ? tread(o.compound) : null;
   const pitches = o.compound ? pitchesFor(o.compound, R) : 1;
-  const perPitch = t
-    ? Math.max(3, Math.round((Math.PI * 2 * R) / pitches / BAND_RING_SPACING))
-    : CARCASS_SEGMENTS;
-  const rings = pitches * perPitch;
+  const perPitch = low
+    ? CARCASS_SEGMENTS / pitches
+    : t
+      ? Math.max(3, Math.round((Math.PI * 2 * R) / pitches / BAND_RING_SPACING))
+      : CARCASS_SEGMENTS;
+  const rings = Math.round(pitches * perPitch);
   const bandT = Array.from(
     { length: rings + 1 },
     (_, i) => (i / rings) * Math.PI * 2,
   );
-  const across = Array.from(
-    { length: BAND_COLUMNS + 1 },
-    (_, k) => (k / BAND_COLUMNS) * 2 - 1,
-  );
+  const across = low
+    ? LOW_ACROSS
+    : Array.from(
+        { length: BAND_COLUMNS + 1 },
+        (_, k) => (k / BAND_COLUMNS) * 2 - 1,
+      );
   const bandProf = across.map((b) => ({
     r: surface(b * BAND),
     a: b * BAND * hw,
@@ -331,7 +361,7 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
   // crown (R) and the lowest DISPLACE of the groove depth below it.
   let relief: Float32Array | null = null;
   const m = across.length;
-  if (t) {
+  if (t && !low) {
     const ry = Math.max(1, Math.round(t.rows / perPitch / 2));
     const rx = Math.max(1, Math.round((t.cols / BAND_COLUMNS) * 0.5));
     const soft = blurred(t, rx, ry);
@@ -396,19 +426,21 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
   // --- lettering ring ------------------------------------------------------------------------------------------
   // A thin ring just off the outer sidewall over the lettering band (LETTER_R0..LETTER_R1 of the sidewall height),
   // u around (mirrored: the prints read left to right seen from outside), v across. Drawn with `sidewallMaterial`.
+  // Follows this level's own outer sidewall (the low level's has fewer points).
   const at = (r: number) => {
-    for (let i = 1; i < side.length; i++)
-      if (side[i].r >= r) {
-        const p = side[i - 1];
-        const q = side[i];
+    for (let i = 1; i < outer.length; i++)
+      if (outer[i].r >= r) {
+        const p = outer[i - 1];
+        const q = outer[i];
         return p.a + ((q.a - p.a) * (r - p.r)) / (q.r - p.r);
       }
-    return side[side.length - 1].a;
+    return outer[outer.length - 1].a;
   };
   const r0 = lipR + LETTER_R0 * h;
   const r1 = lipR + LETTER_R1 * h;
-  const letterProf = Array.from({ length: 7 }, (_, k) => {
-    const r = r0 + ((r1 - r0) * k) / 6;
+  const lastRow = 6;
+  const letterProf = Array.from({ length: lastRow + 1 }, (_, k) => {
+    const r = r0 + ((r1 - r0) * k) / lastRow;
     return { r, a: Math.min(hw, at(r) * hw + LETTER_LIFT) };
   });
   const letterT = Array.from(
@@ -421,7 +453,7 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
     (i, k) => ({
       r: letterProf[k].r,
       c: [1, 1, 1],
-      uv: [1 - i / LETTER_SEGMENTS, k / 6],
+      uv: [1 - i / LETTER_SEGMENTS, k / lastRow],
     }),
     true,
     true,
