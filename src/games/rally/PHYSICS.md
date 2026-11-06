@@ -42,9 +42,7 @@ Input only: the physics and autopilot never see it, so it bumps no times version
 Full stick held 3 s, Skoda on tarmac at 100 km/h: Direct 0.92 g and scrubs to 75 km/h; Smooth 1.12 g, Build-up 1.09 g,
 Grip assist 1.23 g, all holding ~98 km/h.
 
-Tuning from the URL (overrides the option): `?padsteer=direct|smooth|buildup|assist` plus `steerturn` / `steerrelease`
-(s), `steerlock` (x keyboard lock), `steerbuild` / `steerbuildtime`, `steerslip` (x peak angle), `steerself` (0-1). `F2`
-shows mode, stick and lock. Touch: the stick floats (rests bottom left, centres under a thumb landing anywhere in the
+Tuning: `PAD_STEER_TUNING` in `game/pad-steering.ts`; `F2` shows mode, stick and lock. Touch: the stick floats (rests bottom left, centres under a thumb landing anywhere in the
 left 40 % of the screen); Options -> Touch steering switches back to the arrows.
 
 ## Tuning guide

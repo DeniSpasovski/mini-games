@@ -99,7 +99,7 @@ import { TyreDust } from './tyre-dust';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
-import { PAD_STEER_LABELS, padSteerFromUrl } from './pad-steering';
+import { PAD_STEER_LABELS } from './pad-steering';
 import {
   BLOOM_MIX,
   OBJECT_DISTANCE,
@@ -844,11 +844,7 @@ export class RallyGame {
     this.vehicle.tractionControl = s.traction;
     this.vehicle.abs = s.abs;
     this.rig.mode = s.camera;
-    // Pad steering: the option, or `?padsteer=` + tuning params while testing (pad-steering.ts).
-    const pad = padSteerFromUrl(
-      typeof location === 'undefined' ? '' : location.search,
-    );
-    this.input.pad.set(pad.mode ?? s.padSteering, pad.tuning);
+    this.input.pad.set(s.padSteering);
     // Object draw distance (options): the streamer re-buckets on its next update.
     const lodScale =
       this.opts.quality.lodScale * OBJECT_DISTANCE[s.objectDistance];

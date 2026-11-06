@@ -2,7 +2,6 @@ import { describe, expect, test } from '@rstest/core';
 import { keyboardSteerLimit } from '../../src/games/rally/game/input';
 import {
   PadSteering,
-  padSteerFromUrl,
   stickCurve,
   type PadDriveState,
 } from '../../src/games/rally/game/pad-steering';
@@ -83,15 +82,6 @@ describe('pad steering', () => {
     expect(hold(p, 0, 1, { ...at(100), frontTravel: 0.1 }, steer)).toBeLessThan(
       -0.05,
     );
-  });
-
-  test('URL mode and tuning are validated', () => {
-    const u = padSteerFromUrl(
-      '?padsteer=assist&steerturn=0.4&steerself=7&steerlock=x',
-    );
-    expect(u.mode).toBe('assist');
-    expect(u.tuning).toEqual({ turnIn: 0.4, selfSteer: 1 });
-    expect(padSteerFromUrl('?padsteer=bogus').mode).toBeNull();
   });
 
   test('setting defaults to build-up and rejects unknown modes', () => {

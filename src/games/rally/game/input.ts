@@ -79,7 +79,7 @@ export class InputController {
     steer: 0,
     handbrake: 0,
   };
-  /** Stick -> steer for the gamepad (mode + tuning: Options / `?padsteer=`, see pad-steering.ts). */
+  /** Stick -> steer for the gamepad (mode: Options, see pad-steering.ts). */
   readonly pad = new PadSteering();
   /** Last raw stick X (-1..1), for the telemetry line. */
   stickX = 0;

@@ -1,5 +1,3 @@
-import { paramNumber, paramOneOf } from '../../../shared/url-params';
-
 /**
  * Gamepad steering: stick -> steer (-1..1, + = right). A stick has ~2 cm of travel and no force feedback, so racing
  * games don't map it straight to the wheel angle. The usual tools (Assetto Corsa / ACC "steering speed", "speed
@@ -11,7 +9,7 @@ import { paramNumber, paramOneOf } from '../../../shared/url-params';
  *  - counter-steer allowance: steering into a slide may go past the speed limit;
  *  - a curve near the centre (gamma) for small corrections.
  *
- * Modes (Options -> Pad steering, or `?padsteer=` to test):
+ * Modes (Options -> Pad steering):
  *  - direct: the old mapping, stick ^1.4 straight to the wheels, no limit.
  *  - smooth: rack speed + speed-sensitive lock (the keyboard's) + counter-steer allowance.
  *  - buildup: like smooth but starts below the keyboard lock; holding the stick over to one side keeps winding
@@ -90,31 +88,6 @@ export const PAD_STEER_TUNING: Record<PadSteerMode, PadSteerTuning> = {
   },
 };
 
-/** URL tuning params -> tuning field (`?padsteer=buildup&steerturn=0.4&steerbuild=0.8`). */
-const URL_TUNING: Record<string, [keyof PadSteerTuning, number, number]> = {
-  steerturn: ['turnIn', 0, 2],
-  steerrelease: ['release', 0, 2],
-  steerlock: ['lock', 0.2, 3],
-  steerbuild: ['build', 0, 3],
-  steerbuildtime: ['buildTime', 0.1, 5],
-  steerslip: ['slip', 0.2, 3],
-  steerself: ['selfSteer', 0, 1],
-};
-
-/** Mode + tuning overrides from the URL (dev / tuning), each param validated. */
-export function padSteerFromUrl(search: string): {
-  mode: PadSteerMode | null;
-  tuning: Partial<PadSteerTuning>;
-} {
-  const p = new URLSearchParams(search);
-  const tuning: Partial<PadSteerTuning> = {};
-  for (const [key, [field, min, max]] of Object.entries(URL_TUNING)) {
-    const n = paramNumber(p.get(key), min, max, null);
-    if (n !== null) tuning[field] = n;
-  }
-  return { mode: paramOneOf(p.get('padsteer'), PAD_STEER_MODES, null), tuning };
-}
-
 /** Stick X -> -1..1 after the dead zone, with a curve (gamma 1.4) so small corrections stay small. */
 export function stickCurve(x: number): number {
   const dz = 0.08;
@@ -153,9 +126,9 @@ export class PadSteering {
   /** Last lock limit, for the telemetry line. */
   limit = 1;
 
-  set(mode: PadSteerMode, overrides: Partial<PadSteerTuning> = {}): void {
+  set(mode: PadSteerMode): void {
     this.mode = mode;
-    this.tuning = { ...PAD_STEER_TUNING[mode], ...overrides };
+    this.tuning = { ...PAD_STEER_TUNING[mode] };
     this.held = 0;
   }
 
