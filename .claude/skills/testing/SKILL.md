@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Where a test goes (tests/ vs integration-tests/<game>), which npm script runs it and how the eight GitHub Actions jobs map to them. Use when adding, moving or running tests, or editing .github/workflows/ci.yml.
+description: Where a test goes (tests/ vs integration-tests/<game>), which npm script runs it and how the nine GitHub Actions jobs map to them. Use when adding, moving or running tests, or editing .github/workflows/ci.yml.
 ---
 
 # Testing layout
@@ -31,7 +31,7 @@ stay next to the tests that use them. A new game gets its own `tests/<id>/`, `in
 
 ## CI (`.github/workflows/ci.yml`)
 
-Runs on pull requests and on pushes to `main`, eight parallel jobs: rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
+Runs on pull requests and on pushes to `main`, nine jobs (`changes` picks the integration tests, the other eight run in parallel): rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
 hole integration tests, a shared job (type check + lint + `test:shared`) and the browser smoke test (dev server + headless
 Chrome on the SwiftShader GPU). A new script or folder needs a CI step in the same change, otherwise it silently never runs.
 
