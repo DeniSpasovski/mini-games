@@ -96,5 +96,5 @@ against the pictures before hand-tuning anything.
 ## 6. Hand over
 
 README (about 60 lines: what it is, 1-4 in-game screenshots, how to run, credits table, licence), `DETAILS.md` (every source and the exact
-bake commands), `TODO.md`. Screenshots last: 16:9 jpg, 1280-1536 px, taken in game, no HUD. The stage stays `hideInProd` until the orchestrator
+bake commands), `TODO.md`. Screenshots last: 16:9 jpg, 1280-1536 px, taken in game, no HUD. The stage stays `hideInProd` until Deni
 says release. PR description: short, which stage is new, no times bump.
