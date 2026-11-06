@@ -48,6 +48,32 @@ const PIPE = '#b3ab9b';
 const conc = (g: BufferGeometry, color: string): BufferGeometry =>
   planarUV(paint(g, color), 1 / CONC_TS);
 
+/**
+ * Concrete on flat faces: each face takes the texture on the plane it faces most (tops and the apron flat, a splayed
+ * wing along its own run), so none is smeared the way one vertical projection smears them. Needs flat face normals.
+ */
+const concFaces = (geo: BufferGeometry, color: string): BufferGeometry => {
+  const g = paint(geo, color);
+  const p = g.getAttribute('position');
+  const n = g.getAttribute('normal');
+  const uv = g.getAttribute('uv');
+  const s = 1 / CONC_TS;
+  for (let i = 0; i < p.count; i++) {
+    const ax = Math.abs(n.getX(i));
+    const ay = Math.abs(n.getY(i));
+    const az = Math.abs(n.getZ(i));
+    const [u, v] =
+      ay >= ax && ay >= az
+        ? [p.getX(i), p.getZ(i)]
+        : ax >= az
+          ? [p.getZ(i), p.getY(i)]
+          : [p.getX(i), p.getY(i)];
+    uv.setXY(i, u * s, v * s);
+  }
+  uv.needsUpdate = true;
+  return g;
+};
+
 /** Wet / soiled foot: darker up to ~0.4 m over the invert. */
 const soiled = (g: BufferGeometry): BufferGeometry =>
   shade(g, (_x, y) => 0.72 + 0.28 * smoothstep(-0.1, 0.5, y));
@@ -96,10 +122,10 @@ function end(
     bevelEnabled: false,
     curveSegments: 20,
   }).translate(0, 0, -WALL_T);
-  parts.push(soiled(conc(wall, WALL)));
+  parts.push(soiled(concFaces(wall, WALL)));
   // Coping: a little proud of the wall all round.
   parts.push(
-    conc(
+    concFaces(
       new BoxGeometry(e.half * 2 + 0.08, 0.1, WALL_T + 0.08).translate(
         0,
         top + 0.05,
@@ -167,7 +193,7 @@ function end(
     );
     parts.push(
       soiled(
-        conc(
+        concFaces(
           slab(
             0,
             tip,
@@ -182,7 +208,7 @@ function end(
   }
   // Apron slab between the wings.
   parts.push(
-    conc(
+    concFaces(
       slab(
         0,
         tip,

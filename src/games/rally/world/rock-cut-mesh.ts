@@ -37,6 +37,10 @@ const TILE = 3.6;
 const SCHIST = [1.12, 1.0, 0.82];
 const OCHRE = [1.4, 0.98, 0.48];
 const RUST = [1.22, 0.8, 0.56];
+/** Tone the face fades to where it sinks into the ground at a run's end: the terrain's cool grey rock / scree beside it. */
+const GROUND_ROCK = [0.92, 0.97, 1.06];
+/** Road samples over which a run's end sinks into the ground and takes the ground's tone. */
+const END_TAPER = 5;
 /** Length of a stretch of one tone along the road (m). */
 const ZONE = 70;
 
@@ -146,10 +150,10 @@ export function* rockCutMeshJob(
     const idx: number[] = [];
     const n = run.length;
     run.forEach((r, i) => {
-      // Ends of a run taper into the ground.
+      // Ends of a run taper into the ground, their tone easing to the ground's rock so the face has no hard edge there.
       const end = Math.min(
-        open[0] ? 1 : smoothstep(0, 3, i),
-        open[1] ? 1 : smoothstep(0, 3, n - 1 - i),
+        open[0] ? 1 : smoothstep(0, END_TAPER, i),
+        open[1] ? 1 : smoothstep(0, END_TAPER, n - 1 - i),
       );
       const ys: number[] = [];
       const ls: number[] = [];
@@ -196,7 +200,8 @@ export function* rockCutMeshJob(
         const rust = smoothstep(-0.1, 0.4, noise.noise2(r.d / ZONE + 17, 2.5));
         for (let c = 0; c < 3; c++) {
           const tint = OCHRE[c] + (RUST[c] - OCHRE[c]) * rust;
-          col.push(shade * (SCHIST[c] + (tint - SCHIST[c]) * warm));
+          const face = shade * (SCHIST[c] + (tint - SCHIST[c]) * warm);
+          col.push(GROUND_ROCK[c] + (face - GROUND_ROCK[c]) * end);
         }
         uv.push(r.d / TILE, (y0 + r.d * 0.05) / TILE);
       }

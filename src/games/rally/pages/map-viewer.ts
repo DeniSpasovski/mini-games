@@ -137,6 +137,8 @@ void loadMap(state.map).then(async (map) => {
     },
   });
   const { scene, camera, controls, renderer } = shell;
+  // No frames while the world builds: the first view is streamed in and its shaders compiled off the main thread first (below).
+  shell.paused = true;
   const ownSeason = stageSeason({
     season: stageDef?.season,
     environment: map.environment,
@@ -855,6 +857,17 @@ void loadMap(state.map).then(async (map) => {
   if (state.building) focusBuilding(state.building);
   // A shared camera link wins over the default / along / building framing.
   shell.applyCameraLink(state);
+  // A first pass of streaming (a few terrain chunks, the scatter and trees near the target), then every shader that
+  // view uses compiled by the driver in the background (`compileAsync`, as the game does) before the first frame: one
+  // frame would otherwise compile them all on the main thread, a frozen page. The rest streams in as usual.
+  {
+    const t = controls.target;
+    terrain.update(new Vector3(t.x, 0, t.z), 30, 0);
+    for (let i = 0; i < 6; i++) streamer.update(t);
+    trees.updateNow(camera);
+  }
+  await renderer.compileAsync(scene, camera);
+  shell.paused = false;
   loaded();
   /**
    * Test hook for bots / the console (the preview pane renders one frame every few seconds): put the camera

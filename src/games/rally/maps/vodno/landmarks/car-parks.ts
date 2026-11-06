@@ -68,6 +68,8 @@ export interface Lot {
   stairsAt?: number;
   /** Thickness of the wall (m), default 0.6: a thick one hides the ground's step down to a lowered garden; its railing then stands on its outer edge. */
   wallThick?: number;
+  /** The strip's first end stops short of the road and opens to it through a flared apron of asphalt (`buildMouth`). */
+  mouth?: boolean;
 }
 
 export const SREDNO: Lot = {
@@ -121,7 +123,8 @@ const TRAIL_SITE: Site = { x: 2086.4, z: -210.9, yaw: 0 };
 export const TRAIL: Lot = {
   site: TRAIL_SITE,
   centre: [
-    [2086.4, -210.9],
+    // (the first point short of the road: the end is square, and the mouth joins it to the road)
+    [2090.5, -213.4],
     [2104, -221.6],
     [2121.4, -232.2],
   ].map(([x, z]): V2 => [x - TRAIL_SITE.x, z - TRAIL_SITE.z]),
@@ -134,6 +137,7 @@ export const TRAIL: Lot = {
     both: false,
     straight: true,
   },
+  mouth: true,
 };
 
 /** Thickness of the slab above the levelled ground (m): the terrain pad lies this far under the lot's top. */
@@ -142,6 +146,8 @@ export const SLAB = 0.2;
 const ROAD_CLEAR = 3.6;
 /** A lot's edge this close to the road (m) is its open road side: no kerb or wall. */
 const ROAD_SIDE = ROAD_CLEAR + 2;
+/** Stage road centre line -> the outer edge of a lot's mouth (m): at the road ribbon's edge (half width 2.9), so its edge line stays in view. */
+const MOUTH_EDGE = 2.95;
 
 /** Resample a polyline to points at most `step` apart. */
 function resample(pts: V2[], step: number): V2[] {
@@ -429,7 +435,8 @@ export interface WallRun {
 }
 
 /** A cap across the strip's end is open (no kerb, no wall) where it meets the road: a narrow mouth, or a cap that runs along the road. */
-function capOpenOf(shape: LotShape, i: number): boolean {
+function capOpenOf(shape: LotShape, i: number, lot: Lot): boolean {
+  if (lot.mouth && i === 0) return true;
   const { left, right, dl, dr } = shape;
   return (
     (Math.hypot(left[i][0] - right[i][0], left[i][1] - right[i][1]) < 9 &&
@@ -450,7 +457,7 @@ export function wallRuns(lot: Lot): WallRun[] {
   const n = centre.length;
   const OUT = 0.05 + (lot.wallThick ?? 0.6);
   const stairs = stairsAnchor(lot);
-  const capOpen = (i: number): boolean => capOpenOf(shape, i);
+  const capOpen = (i: number): boolean => capOpenOf(shape, i, lot);
   const runs: WallRun[] = [];
   const unit = (x: number, z: number): V2 => {
     const k = Math.hypot(x, z) || 1;
@@ -577,13 +584,15 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
     open: boolean;
     /** A cap across the strip's end: a wall without railing. */
     cap: boolean;
+    /** A cap: its end of the strip (row 0 or n - 1); a long edge: its row. */
+    end?: number;
   }
   /**
    * A cap across the strip's end is open (no kerb, no wall) where it meets the road: a narrow mouth, or a cap that runs along the
    * road (the wide strip cut by it: both its ends within a few metres of the road's edge).
    */
   const shape = lotShape(lot);
-  const capOpen = (i: number): boolean => capOpenOf(shape, i);
+  const capOpen = (i: number): boolean => capOpenOf(shape, i, lot);
   const edges: Edge[] = [];
   const push = (
     a: V2,
@@ -592,7 +601,8 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
     nz: number,
     open: boolean,
     cap: boolean,
-  ) => edges.push({ a, b, nx, nz, open, cap });
+    end?: number,
+  ) => edges.push({ a, b, nx, nz, open, cap, end });
   for (let i = 0; i + 1 < n; i++) {
     for (const [pts, d, s] of [
       [left, dl, -1],
@@ -609,6 +619,7 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
         ((b[0] - a[0]) / len) * s,
         d[i] < ROAD_SIDE && d[i + 1] < ROAD_SIDE,
         false,
+        i,
       );
     }
   }
@@ -629,7 +640,7 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       left[i][1] + ((right[i][1] - left[i][1]) * k) / m,
     ];
     for (let k = 0; k < m; k++)
-      push(at(k), at(k + 1), tx / tl, tz / tl, mouth, true);
+      push(at(k), at(k + 1), tx / tl, tz / tl, mouth, true, i);
   }
 
   /**
@@ -732,12 +743,73 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       );
     }
 
+  /**
+   * The mouth of an open end: an apron of asphalt from the end's two corners out to the road's edge (under the road ribbon,
+   * drawn over it), flared along the road as far as each corner is from it, so an end that meets the road at an angle joins
+   * it all across. It follows the ground, easing from the slab's top to the road's level. False = no road near.
+   */
+  function buildMouth(i: number): boolean {
+    const [mx, mz] = toWorld(site, centre[i][0], centre[i][1]);
+    const toRoad = (p: V2): V2 | undefined => {
+      const [wx, wz] = toWorld(site, p[0], p[1]);
+      const h = nearestRoad(wx, wz);
+      if (!Number.isFinite(h.d) || h.d > ROAD_SIDE + 4) return undefined;
+      const side = Math.sign(h.lat) || 1;
+      // Flared away from the end's middle, along the road, as far as the corner is from the road's edge (45 deg).
+      const away = Math.sign((wx - mx) * h.tx + (wz - mz) * h.tz) || 1;
+      const f = Math.min(Math.max(0, Math.abs(h.lat) - MOUTH_EDGE), 2.5) * away;
+      return toLocal(
+        site,
+        h.x + side * MOUTH_EDGE * -h.tz + h.tx * f,
+        h.z + side * MOUTH_EDGE * h.tx + h.tz * f,
+      ) as V2;
+    };
+    const a = left[i];
+    const b = right[i];
+    const a2 = toRoad(a);
+    const b2 = toRoad(b);
+    if (!a2 || !b2) return false;
+    const lerp = (p: V2, q: V2, t: number): V2 => [
+      p[0] + (q[0] - p[0]) * t,
+      p[1] + (q[1] - p[1]) * t,
+    ];
+    // A fine grid (~0.5 m: the verge's bumps must not poke through), each point on the ground plus a lift easing from
+    // the slab's top to 5 cm at the road.
+    const M = 20;
+    const N = 8;
+    const pt = (u: number, v: number): V3 => {
+      const p = lerp(lerp(a, b, u / M), lerp(a2, b2, u / M), v / N);
+      return [p[0], y(p, SLAB + (0.05 - SLAB) * (v / N)), p[1]];
+    };
+    for (let u = 0; u < M; u++)
+      for (let v = 0; v < N; v++) {
+        const q = [pt(u, v), pt(u + 1, v), pt(u + 1, v + 1), pt(u, v + 1)];
+        // (each cell wound to face up, whichever way the flare turns it: a cell seen from below is culled)
+        const up1 =
+          (q[1][2] - q[0][2]) * (q[2][0] - q[0][0]) -
+          (q[1][0] - q[0][0]) * (q[2][2] - q[0][2]);
+        if (up1 < 0) q.reverse();
+        l.fan('asphalt', q, LOT_ASPHALT, up, (c) => [c[0], c[2]]);
+      }
+    return true;
+  }
+
   // The open road side: a short bevel of asphalt from the slab's edge to the ground beside it (the road's shoulder), so the lot
   // levels out into the road's level - from higher to lower terrain or the other way - without a lip. The road is drawn over it.
   const BEVEL = 0.9;
   const mid = centre[n >> 1];
+  const mouths = new Set(lot.mouth && buildMouth(0) ? [0] : []);
   for (const e of edges) {
     if (!e.open) continue;
+    // (an open end with a mouth to the road has its own apron: buildMouth)
+    if (e.cap && e.end !== undefined && mouths.has(e.end)) continue;
+    // (nor do the long edges' rows next to a mouth: their bevels would step out of its apron)
+    if (
+      !e.cap &&
+      e.end !== undefined &&
+      ((mouths.has(0) && e.end < 3) || (mouths.has(n - 1) && e.end > n - 5))
+    )
+      continue;
     let [nx, nz] = [e.nx, e.nz];
     if (e.cap) {
       const dx = e.b[0] - e.a[0];
