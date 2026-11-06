@@ -49,7 +49,7 @@ import {
   RIM_UNIT_BARREL,
   wheelModelFor,
 } from './stl-wheel';
-import { buildTyre, rimLip, rimRadius } from './tyre-mesh';
+import { BAKED_DUST_GAIN, buildTyre, rimLip, rimRadius } from './tyre-mesh';
 import { dustyTyre, tyreMaterial, type DustyTyre } from './tyre-tread';
 import { LampHalos } from './lamp-halo';
 import {
@@ -99,6 +99,9 @@ export interface CarModelOptions {
   /** Skip the GLB and show the fallback body (car viewer `fallback=1`). */
   fallback?: boolean;
 }
+
+/** A brake disc mesh whose rim set has no disc any more (shared, never disposed: draws nothing). */
+const NO_DISC = new BufferGeometry();
 
 // --- shared materials ------------------------------------------------------------
 // Decal-type materials (they sit a few mm above the body) get a depth bias.
@@ -1149,7 +1152,10 @@ export class CarModel {
   private tyreMaterials(fresh = false): Material | Material[] {
     if (fresh || !this.dusty) {
       this.dusty?.dispose();
-      this.dusty = dustyTyre(this.tyre);
+      this.dusty = dustyTyre(
+        this.tyre,
+        this.def.model.tyreDust ? BAKED_DUST_GAIN : undefined,
+      );
       this.dusty.set(this.tyreDust.level, this.tyreDust.color);
     }
     return this.dusty.materials;
@@ -1166,7 +1172,7 @@ export class CarModel {
   setTyre(tyre: TyreId | null): void {
     if (tyre === this.tyre) return;
     this.tyre = tyre;
-    this.refreshWheels();
+    this.refreshWheels(true);
     if (this.ride !== null) this.setRideHeight(this.ride);
   }
 
@@ -1192,10 +1198,13 @@ export class CarModel {
     return this.rimColoredMat;
   }
 
-  /** Rebuild tyre / rim / brake geometry for the fitted compound and swap it in (old ones are disposed). */
-  private refreshWheels(): void {
+  /**
+   * Rebuild tyre / rim / brake geometry for the fitted compound and swap it in (old ones are disposed). `compound`: the
+   * compound changed, so the tyre materials are rebuilt too (else they are kept: no program delete / recompile).
+   */
+  private refreshWheels(compound = false): void {
     this.rimMat.color.set(rimColorFor(this.def.model, this.tyre));
-    const tyreMats = this.tyreMaterials(true);
+    const tyreMats = this.tyreMaterials(compound);
     for (const g of this.wheelGroups) {
       const w = buildWheelSet(this.def, this.tyre, this.stlRims, g.axle);
       for (const old of g.geoms) old.dispose();
@@ -1210,7 +1219,11 @@ export class CarModel {
       if (g.disc && w.disc) {
         g.disc.geometry = w.disc;
         g.geoms.push(w.disc);
-      } else w.disc?.dispose();
+      } else {
+        w.disc?.dispose();
+        // The old disc was disposed above: draw nothing rather than re-upload it.
+        if (g.disc) g.disc.geometry = NO_DISC;
+      }
     }
   }
 

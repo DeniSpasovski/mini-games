@@ -134,14 +134,26 @@ function leaveTo(url: string, title: string): void {
     `<div class="box"><h2>${title}</h2><div class="bar"><div></div></div></div>`,
     'loading leaving',
   );
+  // A finished run's replay still being saved gets a moment to finish (never more than LEAVE_WAIT_MS).
+  const saved = Promise.race([
+    beforeLeave(),
+    new Promise((r) => setTimeout(r, LEAVE_WAIT_MS)),
+  ]);
   requestAnimationFrame(() => {
     // No real progress to show: the bar eases towards the end while the next page loads.
     el.querySelector<HTMLElement>('.bar div')!.style.width = '90%';
-    requestAnimationFrame(() => {
-      location.href = url;
-    });
+    void saved.then(() =>
+      requestAnimationFrame(() => {
+        location.href = url;
+      }),
+    );
   });
 }
+
+/** Longest wait for `beforeLeave` before the page changes (ms). */
+const LEAVE_WAIT_MS = 1500;
+/** Runs before the page is left (play: saves the finished run's replay if its tail is still recording). */
+let beforeLeave: () => Promise<unknown> = () => Promise.resolve();
 
 /** Back to the main menu. */
 function mainMenu(): void {
@@ -233,6 +245,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     quality: loadQuality(),
     settings: loadSettings(),
   });
+  beforeLeave = () => game.flushReplay();
   (window as unknown as { __rally: RallyGame }).__rally = game;
   // Dev tool: what the camera draws, by group / asset (`__rallyProbe()` in the console, engine/perf-probe.ts).
   (window as unknown as { __rallyProbe: () => unknown }).__rallyProbe = () =>
@@ -341,7 +354,6 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     canSave: !replayParam,
     onExit: () => {
       game.exitReplay();
-      replayUi.hide();
       if (replayParam) {
         mainMenu();
         return;
@@ -353,13 +365,17 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   });
   const watch = async (file?: Uint8Array) => {
     try {
-      const session = await game.watchReplay(file);
-      results.classList.add('hidden');
-      replayUi.show(session);
+      await game.watchReplay(file);
     } catch (e) {
       console.error(e);
       game.hud.message('REPLAY NOT AVAILABLE', 2, 'small bad');
     }
+  };
+  // Every way into a replay (results, `?replay=`, the console's `__rally.replay`) shows the replay UI.
+  game.onReplayChange = (on) => {
+    if (!on) return replayUi.hide();
+    results.classList.add('hidden');
+    replayUi.show(game.watching!);
   };
   /** The finished run's saved replay (an auto save until named here). */
   let savedId: string | null = null;
@@ -514,7 +530,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   game
     .init(setLoading)
     .then(async () => {
-      // F2 panel: the hidden debug exports (also `__rally.replay` in the console). 
+      // F2 panel: the hidden debug exports (also `__rally.replay` in the console).
       if (REPLAYS_ENABLED) {
         game.telemetry.addAction('Copy replay', () => game.replay.copy());
         game.telemetry.addAction('Copy trace 5 s', () =>

@@ -143,7 +143,8 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
 - **Recording** (`recorder.ts`): state, not inputs (re-simulating from rounded inputs drifts hundreds of metres in a minute). `RallyGame.frame` calls
   `recorder.step` after each physics step; every 4th step (60 Hz) it stores pose, per-wheel omega / temperatures and car channels (rpm, gear, pedals, steer,
   impact, flags, stage clock, progress; `format.ts`). No physics changes: `Vehicle.probeGround()` is the old first half of `suspensionPass`, split out so
-  playback can re-run the wheel rays.
+  playback can re-run the wheel rays. The finished run records on for `REPLAY_TAIL` (the run-off), then is encoded; a restart or leaving the page in that tail
+  saves it at once (`flushReplay`). **Limit:** `MAX_SECONDS` (30 min) of recording; a longer run (or free drive) has no replay: not saved, Watch replay says not available.
 - **File** (`codec.ts`, DOM-free): `RRP` + format byte + JSON header (stage, car, set-up, conditions, versions, splits) + quantised, delta-coded,
   zigzag-varint, gzipped columns (`WHEEL_QUANT` / `CAR_QUANT`, pos 1 mm); ~200-260 B/s. Over `REPLAY_BUDGET` (100 KB) the rate halves (max 30 Hz). Bump
   `REPLAY_FORMAT` on a layout change (old files are refused).
@@ -153,7 +154,7 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
   auto saves** (all stages; named saves never, personal bests kept unless unticked: `autoDeleteIds`). From `REPLAY_SOFT_LIMIT` (1000) replays the line becomes
   a notice with size and quota; saving never stops. Failures are silent: never a lost time.
 - **Playback** (`playback.ts`, `session.ts`): no physics; `ReplayTrack.apply` poses the real `Vehicle` (Catmull-Rom position, slerp, velocities from the
-  frames, `probeGround`, derived wheel slide / roll speeds), so model, dust, tyre marks, sound and HUD run as in a drive. `ReplayClock` feeds the HUD the
+  frames, `probeGround`, derived wheel slide / roll speeds and slip), so model, dust, tyre marks, sound and HUD run as in a drive, on replay time; opening a replay or seeking back clears the marks and tyre dust, which it redraws. `ReplayClock` feeds the HUD the
   recorded clock and sector colours.
 - **Cameras** (`replay-cameras.ts`, `tv-cameras.ts`): Broadcast (auto director), Trackside, Chase, Far, Bonnet, Bumper, Drone. Trackside cameras: one outside
   every big corner (> 0.6 rad over 40 m) plus fillers on long straights, placed by terrain line of sight past tree crowns / colliders, planned at the finish
@@ -593,12 +594,14 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   `envMapIntensity`, never replaces it.
 - Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).
 - Empty InstancedMeshes are hidden (each still costs a draw setup). A split by camera distance runs before the render
-  (the road `DistanceCull` calls `userData.beforeRender`), not in `onBeforeRender`, which needs a visible mesh.
+  (the road `DistanceCull` calls `userData.beforeRender`), not in `onBeforeRender`, which needs a visible mesh; the
+  cull hides an empty InstancedMesh only under such a hook (nothing else would show it again once filled).
 - Level fades (`world/lod-fade.ts`, catalog `fade`: grass, weeds, crops, vines, people): a level change at a rebuild draws
   the instance in both buckets for 0.3 s with a per-instance `instFade` (start, role); the fade copy of the material
   (`lodFadeMaterial`) dithers the two with the trees' 8 x 8 pattern, only while a fade runs (its `discard` costs early
-  depth). One copy casts the shadow; `endFades` drops the outgoing copies when the fades end. The far end of the last
-  level fades too.
+  depth). One copy casts the shadow; when the fades end, a bucket without outgoing copies draws plain again (`endFades`), one
+  with them keeps the fade material (the copies collapsed) until the next rebuild drops them. The far end of the last
+  level fades too, and while driving an instance new to the stream fades in.
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**

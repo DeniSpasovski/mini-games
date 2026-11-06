@@ -1,11 +1,13 @@
 import { describe, expect, test } from '@rstest/core';
-import type { BufferGeometry } from 'three';
+import { type BufferGeometry, Color, type MeshStandardMaterial } from 'three';
 import { ALL_CARS } from '../../src/games/rally/cars';
 import {
+  BAKED_DUST_GAIN,
   buildTyre,
   rimRadius,
   treadDepth,
 } from '../../src/games/rally/cars/shared/tyre-mesh';
+import { dustyTyre } from '../../src/games/rally/cars/shared/tyre-tread';
 import { tyreSizeFor } from '../../src/games/rally/physics/car-tyres';
 import { TYRE_IDS, type TyreId } from '../../src/games/rally/physics/tyres';
 
@@ -91,4 +93,29 @@ test('rim switch: a gravel tyre sits on a smaller rim than a tarmac tyre (Fabia 
   // Taller sidewall on the gravel tyre (same overall radius).
   const side = (def: typeof fabia, t: TyreId) => def.wheelRadius - rim(def, t);
   expect(side(fabia, 'gravel')).toBeGreaterThan(side(fabia, 'tarmac') * 1.3);
+});
+
+test('road dust does not stack on baked tyre dust (old road cars): their carcass lands on the dust colour like a clean one', () => {
+  const dust = new Color(0.47, 0.37, 0.25);
+  const rubberOf = (t: ReturnType<typeof dustyTyre>) =>
+    (Array.isArray(t.materials)
+      ? t.materials[0]
+      : t.materials) as MeshStandardMaterial;
+  const plain = dustyTyre('gravel');
+  const baked = dustyTyre('gravel', BAKED_DUST_GAIN);
+  // Clean: the same rubber (the baked dust is the vertex colours' alone).
+  plain.set(0, dust);
+  baked.set(0, dust);
+  expect(rubberOf(baked).color.equals(rubberOf(plain).color)).toBe(true);
+  // Full dust: material x baked gain = the dust colour (a clean tyre's material = the dust colour).
+  plain.set(1, dust);
+  baked.set(1, dust);
+  const c = rubberOf(baked).color;
+  expect(c.r * BAKED_DUST_GAIN[0]).toBeCloseTo(dust.r, 5);
+  expect(c.g * BAKED_DUST_GAIN[1]).toBeCloseTo(dust.g, 5);
+  expect(c.b * BAKED_DUST_GAIN[2]).toBeCloseTo(dust.b, 5);
+  expect(rubberOf(plain).color.equals(dust)).toBe(true);
+  expect(Math.min(...BAKED_DUST_GAIN)).toBeGreaterThan(1);
+  plain.dispose();
+  baked.dispose();
 });
