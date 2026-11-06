@@ -464,13 +464,18 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     if (p) showPauseMenu();
     if (p) hideResults();
   };
-  game.onFinish = (time, delta, run, board, refSectors) => {
+  game.onFinish = (time, delta, run, board) => {
     if (REPLAYS_ENABLED) clearReplayResult();
-    const sectors = buildSectors(run, refSectors);
+    const sectors = buildSectors(board, run);
     results
       .querySelector('[data-ref="board"]')!
       .replaceChildren(
-        buildLeaderboard(board, run, game.world.map.environment.timeOfDay),
+        buildLeaderboard(
+          board,
+          run,
+          sectors.setScope,
+          game.world.map.environment.timeOfDay,
+        ),
       );
     results.querySelector('[data-ref="sectors"]')!.replaceChildren(sectors);
     results.querySelector('[data-ref="time"]')!.innerHTML =
