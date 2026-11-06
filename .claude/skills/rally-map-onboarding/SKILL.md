@@ -1,6 +1,6 @@
 ---
 name: rally-map-onboarding
-description: Guided intake for a NEW real-world Gravel Rally map or stage. Asks the developer for the place, the route and the visuals first (OpenStreetMap area, Google Maps route, satellite / Street View screenshots), files them in sources/maps/<id>/, proves the route with a trial bake, then builds to the rally-maps standards. Use when someone says "add a map / stage / track at <place>", shares a Google Maps or OpenStreetMap link for a new map, or asks how to start one.
+description: Guided intake for a NEW real-world Gravel Rally map or stage. Asks the developer for the place, the route and the visuals first (OpenStreetMap area, Google Maps route, satellite and street-level screenshots), files them in sources/maps/<id>/, proves the route with a trial bake, then builds to the rally-maps standards. Use when someone says "add a map / stage / track at <place>", shares a Google Maps or OpenStreetMap link for a new map, or asks how to start one.
 ---
 
 # Onboarding a new rally map
@@ -29,18 +29,18 @@ Send the developer this, adapted to what they already said:
 >      (`#map=15/<lat>/<lon>`) and a screenshot. That view becomes the map box, its centre the world origin.
 >    - **Google Maps:** a directions link for the stage (`google.com/maps/dir/<start>/<finish>`, both points on the real road) and a
 >      satellite screenshot with the route line showing. Google's length is what the baked route is checked against.
-> 3. **Pictures** (each one is used, see below): start and finish close-ups, Street View frames, landmark photos.
+> 3. **Pictures** (each one is used, see below): start and finish close-ups, pictures from street level, landmark photos.
 > 4. **Anything that must be in or out**, who took the pictures (yours or from the web), and an elevation file if you have a better one.
 
-| Ask for                                                                                          | Used for                                                                          |
-| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| OSM area screenshot                                                                              | what is imported, the landmark list                                               |
-| Google route screenshot (satellite, route line, start and finish markers)                        | route check; `trace_route.py` where OSM lacks the road                            |
-| Satellite close-ups of the start and the finish                                                  | start area, service park, gantry spot                                             |
-| Street View or dash-cam frames: start, finish, every surface change, bridge, hairpin, wall, rail | `road.sections`, barriers, bridges, rails                                         |
-| Photos or links of landmarks (church, tower, cross, lodge)                                       | procedural landmark shapes: reference only, nothing traced from them              |
-| Road-cut rock, drops, car parks, trail starts, culverts or drains by the road, guard rails       | rock cuts, fill banks, rails, lots, culverts: what is real, not guessed from data |
-| Optional: GeoTIFF / OpenTopography DEM (US: USGS 3DEP lidar is built in)                         | `dem.file`; only if better than the free Terrarium tiles                          |
+| Ask for                                                                                                    | Used for                                                                          |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| OSM area screenshot                                                                                        | what is imported, the landmark list                                               |
+| Google route screenshot (satellite, route line, start and finish markers)                                  | route check; `trace_route.py` where OSM lacks the road                            |
+| Satellite close-ups of the start and the finish                                                            | start area, service park, gantry spot                                             |
+| Street-level pictures or dash-cam frames: start, finish, every surface change, bridge, hairpin, wall, rail | `road.sections`, barriers, bridges, rails                                         |
+| Photos or links of landmarks (church, tower, cross, lodge)                                                 | procedural landmark shapes: reference only, nothing traced from them              |
+| Road-cut rock, drops, car parks, trail starts, culverts or drains by the road, guard rails                 | rock cuts, fill banks, rails, lots, culverts: what is real, not guessed from data |
+| Optional: GeoTIFF / OpenTopography DEM (US: USGS 3DEP lidar is built in)                                   | `dem.file`; only if better than the free Terrarium tiles                          |
 
 No OSM or Google link, only a name? Ask for the links; stop if there are none. Ask again whenever OSM misses a road, the surface
 change is unknown, or the baked route differs from Google's.
