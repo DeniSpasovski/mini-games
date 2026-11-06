@@ -38,6 +38,7 @@ import {
   roadZ,
 } from '../../src/games/rally/maps/vodno/landmarks/restaurant';
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
+import { distance as polygonDistance } from '../../src/games/rally/world/pads';
 import {
   BANK,
   JUNCTION,
@@ -249,6 +250,8 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-crossroad-hotel',
     'vodno-start-lot',
     'vodno-roadside-gazebo',
+    'vodno-trail-lot',
+    'vodno-osm-features',
   ];
 
   test('registered on the map and in the world', () => {
@@ -429,7 +432,26 @@ describe('vodno car parks', () => {
       'vidikovec_garden_ramp_2',
       'sredno_lot',
       'sredno_bus_lot',
+      'trail_lot',
+      'trail_mouth',
+      'trail_start',
     ]);
+  });
+
+  test('the footpaths stop short of the graded lots (their heights come from the land)', () => {
+    const feet = vodnoMap.paths!.filter(
+      (p) => p.kind === 'path' || p.kind === 'footway',
+    );
+    expect(feet.length).toBeGreaterThan(40);
+    for (const pad of LOT_PADS) {
+      const pts = new Float64Array(pad.polygon);
+      for (const p of feet)
+        for (let i = 0; i < p.pts.length; i += 2)
+          expect(
+            polygonDistance(pts, p.pts[i], p.pts[i + 1]),
+            `${pad.name} (${p.pts[i]}, ${p.pts[i + 1]})`,
+          ).toBeGreaterThan(pad.blend);
+    }
   });
 
   test('the two Sredno lots are straight bands: parallel long sides, west ends on one line, east ends cut by the road', () => {

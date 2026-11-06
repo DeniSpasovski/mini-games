@@ -23,7 +23,27 @@ Driver aids: traction / stability control (`T`, `Vehicle.tractionAssist`: trims 
 combined slip 1.15 on driven rear tyres, 2.0 on driven front tyres - `TC_REAR_SLIP` / `TC_FRONT_SLIP`), ABS (`B`, `Vehicle.absPass`: per wheel, eases the
 foot brake off past 1.3x the surface's peak slip ratio above ~11 km/h, so the fronts keep steering; the handbrake is
 untouched; `physics.noAbs` = not fitted, the Zastava and the Fiat 126p), auto reverse, keyboard steering ramp + speed limit
-(`keyboardSteerLimit` in `game/input.ts`, close to the steering that gives peak grip).
+(`keyboardSteerLimit` in `game/input.ts`, close to the steering that gives peak grip) and pad / touch stick steering
+modes (below).
+
+## Steering input (`game/input.ts`, `game/pad-steering.ts`)
+
+Input only: the physics and autopilot never see it, so it bumps no times versions. Keyboard and the touch arrows ramp to
+`keyboardSteerLimit` (counter-steer into a slide may go past it). A gamepad stick, and the touch stick, go through
+`PadSteering` (Options -> Pad steering):
+
+| Mode               | What it does                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Direct             | old mapping: stick^1.4 straight to the wheels, full lock at any speed (fronts slide at speed)                 |
+| Smooth             | winds on in 0.2 s, back in 0.12 s; full stick = `keyboardSteerLimit`; counter-steer allowance                 |
+| Build-up (default) | winds on in 0.3 s; full stick starts at 0.6x the keyboard lock and grows to 1.2x over 1 s held past 70 %      |
+| Grip assist        | aims the fronts at their peak slip angle from the front axle's travel; caster-like self-steer counters slides |
+
+Full stick held 3 s, Skoda on tarmac at 100 km/h: Direct 0.92 g and scrubs to 75 km/h; Smooth 1.12 g, Build-up 1.09 g,
+Grip assist 1.23 g, all holding ~98 km/h.
+
+Tuning: `PAD_STEER_TUNING` in `game/pad-steering.ts`; `F2` shows mode, stick and lock. Touch: the stick floats (rests bottom left, centres under a thumb landing anywhere in the
+left 40 % of the screen); Options -> Touch steering switches back to the arrows.
 
 ## Tuning guide
 
@@ -424,8 +444,9 @@ character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are
 
 `tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`): a new map goes there too, with its own
 `stage-<map>.test.ts` (`tests/rally/stage-playtests.test.ts` fails without one). Cars under test (`cars-under-test.ts`): every car by default and on pushes to
-main; on a PR the five representative cars plus the cars it changed (`RALLY_CARS`, from `scripts/ci-affected.mjs`; `RALLY_CARS=all` runs every car,
-`RALLY_CARS=fiesta` adds one). The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or dusty-tarmac stage,
+main; on a PR one car per drive type (Fabia, Zastava, M3 GT2) plus the cars it changed (`RALLY_CARS`, from `scripts/ci-affected.mjs`; `RALLY_CARS=all` runs
+every car, `RALLY_CARS=fiesta` adds one). On a PR the worst-pick hills run only for changed cars (every map) and map roads (representative cars):
+`RALLY_HILL_CARS` / `RALLY_HILL_MAPS`. The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or dusty-tarmac stage,
 driven only over `hillSpots` (a few of each stage's steepest hills and tightest hairpin climbs, from a 50 km/h rolling start, flat out but lifting off for
 bends; the autopilot only steers), never at rally pace: a wrong tyre flies off there by physics. Ajvatovci has its own margin test: Mixed ahead of Tarmac and
 Gravel by > 1.5 % (limit driver).

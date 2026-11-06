@@ -11,6 +11,7 @@ import { CHUNK_CELLS } from './heightfield';
 import type { TerrainGenerator } from './terrain-gen';
 import {
   getTerrainMaterial,
+  setCulvertHoles,
   setGroundMoisture,
   setGroundTint,
 } from './terrain-material';
@@ -158,6 +159,8 @@ export class TerrainRenderer {
       p.h = h;
       this.heightAbove = h;
       this.plan(focus);
+      if (this.world.map.culverts)
+        setCulvertHoles(this.world.gen.culverts, focus.x, focus.z);
     } else if (this.pending === 0) {
       this.world.heightfield.tick();
       return true;

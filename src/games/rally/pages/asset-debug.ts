@@ -623,9 +623,9 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// The park, yard and village props' models are chunks of their own (`loadSimready`).
+// The park, yard, village and forest props' models are chunks of their own (`loadSimready`).
 const propsLoaded = loadingPlate('asset models');
-void loadSimready('park', 'yard', 'village').then(() => {
+void loadSimready('park', 'yard', 'village', 'forest').then(() => {
   propsLoaded();
   rebuild(true);
   // A shared camera link wins over the automatic framing.

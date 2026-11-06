@@ -1,9 +1,10 @@
 """Bake the wall and roof tiles of the rally buildings (engine/facades/*.webp) from Poly Haven (CC0) scans.
 
-usage: python3 scripts/facades/bake.py <dir with <id>_diff_1k.jpg or <id>.jpg> [out dir]
+usage: python3 scripts/facades/bake.py <dir with <id>_diff_1k.jpg or <id>.jpg> [out dir] [tile ...]  (default: every tile)
 
 One 512 px tile covers one 3.2 m bay. Render and block are neutralised (grey, fixed brightness) because the vertex colour
 supplies the paint; clay brick, rubble, brick and the roof keep their own colour (brick and roof darkened / lifted a little).
+Drystone (Vodno's dry-stone walls, kit key `drystone`) keeps a third of its colour: grey limestone, dark joints.
 """
 import json
 import os
@@ -23,6 +24,7 @@ TILES = {
     'sheet': ('corrugated_iron_03', 2.0, 0.80, 0.2, 1.0, 1.0, 1.0),
     'slab': ('concrete_slab_wall', 2.3, 0.80, 0.2, 1.0, 1.0, 1.0),
     'ashlar': ('sandstone_blocks_05', 3.0, None, 1.0, 1.0, 1.0, 1.0),
+    'drystone': ('stone_wall', 2.0, 0.62, 0.35, 1.0, 1.0, 1.15),
     'siding': ('white_planks_clean', 1.8, 0.85, 0.0, 1.0, 1.0, 1.0),
     'roof_clay': ('clay_roof_tiles_03', 2.6, None, 1.0, 1.0, 1.2, 1.0),
 }
@@ -42,7 +44,9 @@ def main():
     src = sys.argv[1]
     out = sys.argv[2] if len(sys.argv) > 2 else 'src/games/rally/engine/facades'
     os.makedirs(out, exist_ok=True)
-    for name, (pid, size, lum, sat, gamma, gain, contrast) in TILES.items():
+    only = sys.argv[3:] or list(TILES)
+    for name in only:
+        pid, size, lum, sat, gamma, gain, contrast = TILES[name]
         im = Image.open(find(src, pid)).convert('RGB')
         n = max(1, round(BAY / size))
         t = im.resize((SZ // n, SZ // n), Image.LANCZOS)

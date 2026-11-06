@@ -5,6 +5,7 @@ import { getAssetMeta } from '../assets/catalog';
 import type {
   Country,
   MapDef,
+  RealTreesDef,
   RoadsideRule,
   ScatterRule,
 } from '../maps/shared/types';
@@ -23,6 +24,7 @@ import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
 import { newRoadQuery, type Road, type RoadQuery } from './road';
 import { fanVariant } from './fan-variants';
+import { outcropRow } from './outcrops';
 import { splitRuns, tapeRun } from './tape';
 
 /** Real-world map data the scatter respects (land cover classes, other roads, canals). */
@@ -60,6 +62,43 @@ export function setbackAt(
     best = Math.max(best, s.dist * Math.max(0, k));
   }
   return best;
+}
+
+/** A `canopy` rule's share of its density (0-1) where the real canopy covers `share` of the ground. */
+export function canopyKeep(
+  c: NonNullable<ScatterRule['canopy']>,
+  share: number,
+): number {
+  if (c.open)
+    return share <= c.min
+      ? 1
+      : Math.max(0, (c.full - share) / (c.full - c.min));
+  return share < c.min ? 0 : Math.min(1, share / c.full);
+}
+
+/** A `canopy` rule's size factor where the stand is `stand` m tall (0 = no canopy there: unchanged). */
+export function canopySize(
+  c: NonNullable<ScatterRule['canopy']>,
+  stand: number,
+): number {
+  return c.height && stand > 0
+    ? Math.min(1.4, Math.max(0.7, stand / c.height))
+    : 1;
+}
+
+/** Cell of the real trees' density grid (m): `treeRulesAt` reports them as a density per cell. */
+const REAL_CELL = 48;
+
+/** A tree type's mean height at map scale 1 (its species' mean size; variant 0), cached. */
+const typeHeights = new Map<string, number>();
+function typeHeight(asset: string): number {
+  let h = typeHeights.get(asset);
+  if (h === undefined) {
+    const def = speciesOfType(asset);
+    h = (variantInfo(def.name, 0).height * (def.scale[0] + def.scale[1])) / 2;
+    typeHeights.set(asset, h);
+  }
+  return h;
 }
 
 /** Variant count / solidity of a placed asset id: a catalog asset or a tree type (trees/species.ts). */
@@ -164,6 +203,8 @@ export class ScatterField {
   private extraRules = new WeakSet<ScatterRule>();
   /** Placement index of the next hand-placed / road-side tree. */
   private fixedTrees = 0;
+  /** The real trees (`addRealTrees`) per REAL_CELL cell: asset -> [count, scale sum]. */
+  private realCells = new Map<number, Map<string, [number, number]>>();
 
   constructor(
     private hf: TerrainSampler,
@@ -215,6 +256,69 @@ export class ScatterField {
     list.push(inst);
   }
 
+  /**
+   * The trees where they really stand (`MapDef.realTrees`): the tree type from the land cover at each, sized to its
+   * height; skipped where the scatter grows nothing (bounds, buildings, landmarks, water, the road and path margins, the
+   * stage's tree setback). Returns how many were placed.
+   */
+  addRealTrees(def: RealTreesDef): number {
+    const lc = this.ctx.landcover;
+    const t = def.trees;
+    const minPath = def.minPathDist ?? 1.5;
+    const tiltM = ((def.tilt ?? 0) * Math.PI) / 180;
+    let placed = 0;
+    for (let i = 0; i + 2 < t.length; i += 3) {
+      const h = hash3(i, 0x7ea1, 0, this.seed);
+      const u = (k: number) => hash3(h, k, 0, 0x7ea1) / 4294967296;
+      // The CHM's 1 m pixel: anywhere in it.
+      const x = t[i] + u(1) - 0.5;
+      const z = t[i + 1] + u(2) - 0.5;
+      const cover = lc?.coverAt(x, z);
+      const list = cover === undefined ? undefined : def.assets[cover];
+      if (!list?.length) continue;
+      if (!this.inBounds(x, z) || this.excluded(x, z)) continue;
+      const asset = list[Math.floor(u(3) * list.length)];
+      const q = this.road.query(x, z, this.q);
+      const rd = q.found ? q.distance - q.halfWidth : Infinity;
+      if (rd < def.minRoadDist) continue;
+      if (
+        this.ctx.treeSetback &&
+        q.found &&
+        assetSolid(asset) &&
+        rd < setbackAt(this.ctx.treeSetback, q.along)
+      )
+        continue;
+      if (this.nearPath(x, z, minPath)) continue;
+      const tiltA = u(4) * Math.PI * 2;
+      const scale = Math.min(
+        def.scale[1],
+        Math.max(def.scale[0], t[i + 2] / typeHeight(asset)),
+      );
+      const inst: ScatterInstance = {
+        asset,
+        variant: 0,
+        x,
+        y: this.hf.height(x, z) - (def.sink ?? 0) * scale,
+        z,
+        rotY: 0,
+        scale,
+        tiltX: Math.cos(tiltA) * tiltM,
+        tiltZ: Math.sin(tiltA) * tiltM,
+      };
+      this.addFixed(inst);
+      const k = key(Math.floor(x / REAL_CELL), Math.floor(z / REAL_CELL));
+      let cell = this.realCells.get(k);
+      if (!cell) this.realCells.set(k, (cell = new Map()));
+      const e = cell.get(asset);
+      if (e) {
+        e[0]++;
+        e[1] += inst.scale;
+      } else cell.set(asset, [1, inst.scale]);
+      placed++;
+    }
+    return placed;
+  }
+
   /** Every hand-placed / road-side instance (tests, tools). */
   *fixedInstances(): Generator<ScatterInstance> {
     for (const list of this.fixed.values()) yield* list;
@@ -254,6 +358,12 @@ export class ScatterField {
     if (!this.inBounds(x, z) || this.excluded(x, z)) return;
     const lc = this.ctx.landcover;
     const zone = lc ? lc.zoneAt(x, z) : -1;
+    const real = this.realCells.get(
+      key(Math.floor(x / REAL_CELL), Math.floor(z / REAL_CELL)),
+    );
+    if (real)
+      for (const [asset, [n, sum]] of real)
+        visit(asset, n / (REAL_CELL * REAL_CELL), sum / n);
     for (let ri = 0; ri < this.rules.length; ri++) {
       const rule = this.rules[ri];
       if (!isTreeType(rule.asset) || rule.rows || rule.density <= 0) continue;
@@ -271,10 +381,17 @@ export class ScatterField {
         )
           continue;
       }
+      let keep = 1;
+      let size = 1;
+      if (rule.canopy && lc?.canopy) {
+        keep = canopyKeep(rule.canopy, lc.canopy.cover.at(x, z));
+        if (keep <= 0) continue;
+        size = canopySize(rule.canopy, lc.canopy.height.at(x, z));
+      }
       visit(
         rule.asset,
-        rule.density / 1000,
-        (rule.scale[0] + rule.scale[1]) / 2,
+        (rule.density / 1000) * keep,
+        ((rule.scale[0] + rule.scale[1]) / 2) * size,
       );
     }
   }
@@ -426,11 +543,18 @@ export class ScatterField {
           if (zone < 0 || !coverMask[zone]) continue;
         }
         if (rule.crop && this.ctx.cropAt?.(x, z) !== rule.crop) continue;
+        // The real canopy: thinned by its share, sized by the stand height (one look-up each).
+        let size = 1;
+        if (rule.canopy && lc?.canopy) {
+          const keep = canopyKeep(rule.canopy, lc.canopy.cover.at(x, z));
+          if (keep <= 0 || (keep < 1 && rng.next() >= keep)) continue;
+          size = canopySize(rule.canopy, lc.canopy.height.at(x, z));
+        }
         const variant =
           rule.asset === 'spectator'
             ? fanVariant(rng.next(), undefined)
             : Math.floor(rng.next() * variants);
-        const scale = rng.range(rule.scale[0], rule.scale[1]);
+        const scale = rng.range(rule.scale[0], rule.scale[1]) * size;
         // Field rows face along the strips (either way round, a little off line); `face` rows exactly along their
         // zone's rows (vineyard segments join up).
         const rotY = rule.rows?.fields
@@ -479,6 +603,32 @@ export class ScatterField {
         }
         const n = ground.normal(x, z, this.n);
         if (rule.maxSlope !== undefined && 1 - n.y > rule.maxSlope) continue;
+        if (rule.minSlope !== undefined && 1 - n.y < rule.minSlope) continue;
+        // A rock band: a row of pieces along the contour from here (world/outcrops.ts), each kept in this chunk.
+        if (rule.outcrop) {
+          outcropRow(
+            rule,
+            x,
+            z,
+            scale,
+            variants,
+            rng,
+            ground,
+            (px, pz) => {
+              if (px < x0 || pz < z0 || px >= x0 + cs || pz >= z0 + cs)
+                return false;
+              if (!this.inBounds(px, pz) || this.excluded(px, pz)) return false;
+              const pq = this.road.query(px, pz, this.q);
+              return (
+                (!pq.found ||
+                  pq.distance - pq.halfWidth >= (rule.minRoadDist ?? 0)) &&
+                !this.nearPath(px, pz, minPath)
+              );
+            },
+            out,
+          );
+          continue;
+        }
         let tiltX = Math.cos(tiltA) * tiltM;
         let tiltZ = Math.sin(tiltA) * tiltM;
         if (rule.alignToGround) {
@@ -499,7 +649,7 @@ export class ScatterField {
         if (tree) {
           const ruleScale = inst.scale;
           const index = hash3(cx, cz, ri * 65536 + i, 0x7ee5);
-          this.poseTree(inst, index);
+          this.poseTree(inst, index, true);
           // No low limbs over the road: a solid tree whose leaves hang low over the stage road takes another pose
           // (variant, rotation, size) from the same hash: the one of REPOSE_TRIES that keeps them furthest off.
           if (solid && this.ctx.treeCrownClear !== undefined && q.found) {
@@ -513,7 +663,7 @@ export class ScatterField {
                 sc = inst.scale,
                 pose = inst.tree;
               inst.scale = ruleScale;
-              this.poseTree(inst, mix32(index, k));
+              this.poseTree(inst, mix32(index, k), true);
               const o = this.lowOverRoad(inst, q, rd);
               if (o < over) over = o;
               else {
@@ -580,13 +730,17 @@ export class ScatterField {
     return best + f.margin * k - rd;
   }
 
-  /** Variant, rotation, scale (x the map's) and tint of a placed tree from the stage id and its placement index. */
-  private poseTree(inst: ScatterInstance, index: number): void {
+  /**
+   * Variant, rotation, scale (x the map's) and tint of a placed tree from the stage id and its placement index; `ladder`:
+   * a scattered tree, sized on the stand's age ladder (trees/placement.ts).
+   */
+  private poseTree(inst: ScatterInstance, index: number, ladder = false): void {
     const t = placeTree(
       this.ctx.stageId ?? 'stage',
       index,
       inst.asset,
       inst.scale,
+      ladder,
     );
     inst.variant = t.variant;
     inst.rotY = t.rotY;

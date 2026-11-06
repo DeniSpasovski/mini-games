@@ -4,6 +4,7 @@ import { startRowLandmark } from '../maps/ajvatovci/start-row';
 import { stationLandmark } from '../maps/ajvatovci/station';
 import { propertiesLandmark } from '../maps/petralica/properties';
 import { VODNO_LANDMARKS } from '../maps/vodno/landmarks';
+import { osmFeaturesLandmark } from '../maps/vodno/landmarks/osm-features';
 import type { BuildingDef, MapDef } from '../maps/shared/types';
 import type { SurfaceId } from '../physics/surfaces';
 import type { StaticCollider } from '../physics/types';
@@ -50,10 +51,24 @@ const REGISTRY: Record<string, Landmark> = {
   ...Object.fromEntries(VODNO_LANDMARKS.map((l) => [l.id, l])),
 };
 
+/** Landmarks built from the map's own data (its baked OSM features), after the hand-built ones (which they skip). */
+const FROM_MAP: Record<string, (map: MapDef, others: Landmark[]) => Landmark> =
+  {
+    'vodno-osm-features': osmFeaturesLandmark,
+  };
+
 export function landmarksOf(map: MapDef): Landmark[] {
-  return (map.landmarks ?? []).map((id) => {
-    const landmark = REGISTRY[id];
-    if (!landmark) throw new Error(`Unknown landmark "${id}" in map ${map.id}`);
-    return landmark;
-  });
+  const ids = map.landmarks ?? [];
+  const fixed = ids
+    .filter((id) => !FROM_MAP[id])
+    .map((id) => {
+      const landmark = REGISTRY[id];
+      if (!landmark)
+        throw new Error(`Unknown landmark "${id}" in map ${map.id}`);
+      return landmark;
+    });
+  return [
+    ...fixed,
+    ...ids.filter((id) => FROM_MAP[id]).map((id) => FROM_MAP[id](map, fixed)),
+  ];
 }

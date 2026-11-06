@@ -33,6 +33,8 @@ generated deterministically from it. There is no map editor on purpose — edit 
 - Surface changes along the stage: `road.sections: [{ from: <metres along>, surface, texture }]` (applies until the
   next entry; `road.surface` / `texture` are used before the first). E.g. asphalt valley road -> gravel climb
   (`maps/petralica`). Real maps: check Street View for where the surface really changes.
+- Rally tarmac (`road_tarmac*`) wears by itself (`world/road-wear.ts`, DETAILS.md "Rally-worn tarmac"): cut dirt in tight
+  bends, rubber, mud at dirt-track mouths; a barrier rule or a kerbed texture keeps a verge clean. Check hairpins in shots.
 - `stage.start` / `stage.finishFromEnd` / `stage.splits` define timing. They also place the start / finish gantries, the lines
   and the split boards automatically (`world/stage-signs.ts`; the gantry header shows `name` + `year`) -
   do not add arch props. Every map needs `year`.
@@ -87,12 +89,19 @@ Example: `maps/ajvatovci/` (`map.ts`, baked `data.json`, task list `TODO.md`, so
    grids and the `landcover` (5 m) raster, `canopy` heights subtracted from the surface model, `minCornerRadius`.
    Optional: `dem` (`file` = local GeoTIFF or the OpenTopography `.tar.gz` in `sources/maps/<id>/`, `credit`) instead
    of Terrarium tiles - the detail grid must lie inside the file, the horizon grid falls back to Terrarium beyond it;
-   `landcover.highTrees` / `osmWood` = `"trees"` where the woods are broadleaf (default: pine plantations); `landcover.plainOrchards = false` keeps big lowland tree patches as woods (default: they become `orchard`, which only suits farmland maps - a city forest turns empty), `landcover.plainTreesAs = "shrub"` makes them scrub (a valley of bushes); `landcover.leafType` = split the woods into evergreen / mixed / broadleaf covers from a leafless winter and a summer Sentinel-2 scene (`scripts/realmap/leaf_type.py`, run after `bake.py`; worked example Vodno); `landcover.manualCover` = hand-traced lat / lon rings painted over the cover (orchards WorldCover reads as crops: fit the screenshot to the baked route line by ICP, see ajvatovci DETAILS.md "Traced land cover");
+   `landcover.highTrees` / `osmWood` = `"trees"` where the woods are broadleaf (default: pine plantations); `landcover.plainOrchards = false` keeps big lowland tree patches as woods (default: they become `orchard`, which only suits farmland maps - a city forest turns empty), `landcover.plainTreesAs = "shrub"` makes them scrub (a valley of bushes); `landcover.leafType` = split the woods into evergreen / mixed / broadleaf covers from a leafless winter and a summer Sentinel-2 scene (`scripts/realmap/leaf_type.py`, run after `bake.py`; worked example Vodno); `canopyHeight` = the Meta / WRI 1 m canopy height map (`canopy.py`, run after `leaf_type.py` -> `canopy.json`): `landcover.canopy` + scatter `canopy: { full, min, height }` thin and size the wood rules by the real canopy, `MapDef.realTrees` places the trees outside closed stands where they stand (worked example Vodno); `landcover.manualCover` = hand-traced lat / lon rings painted over the cover (orchards WorldCover reads as crops: fit the screenshot to the baked route line by ICP, see ajvatovci DETAILS.md "Traced land cover");
    `landcover.belts` = cover by altitude (`[{from: [covers], to, min?, max?}]`, DEM metres, e.g. oak -> beech -> pasture on a
    mountain; covers `beech`, `pasture`); `lakes.levels` = fixed water level by lake name (big multipolygon lakes are stitched
    and clipped to the map, `LakeDef.level`); `paths.keepNear` = `[[lat, lon, radius]]` keeps every road round the stage ends
    beyond `paths.corridor`; `buildings.box: true` = one Overpass building query for the box (long winding routes);
-   Mountain roads: `barriers: hairpinRails(data.route, { maxRadius: 30, lead: 20 })` rails the outside of every hairpin.
+   Mountain roads: `barriers: hairpinRails(data.route, { maxRadius: 30, lead: 20 })` rails the outside of every hairpin;
+   `road.rockCuts` / `road.fills` carve cut faces and valley-side fill banks, `dropRails: { minDrop: 2 }` rails the drops (rally
+   DETAILS "Guard rails" / "Fill banks"); `osm.features: { corridor: 300 }` bakes park furniture / gates / fences into
+   `data.json` "features" (`features.py`; place them with a map landmark, worked example Vodno `osm-features.ts`).
+   `terrain.talus` / `terrain.streamBeds` and scatter `minSlope` give steep ground its bare rock, scree and crags and the
+   streams their pebble beds, scatter `outcrop` (asset `rock_outcrop`) rock bands along the contour (rally DETAILS "Natural
+   ground"); `landcover.needles` = pine-needle floor per cover, `fern` / `fern_autumn` (`season`) under shaded crowns;
+   `forestEdge()` for the shrub belt along a wood: "Forest edges".
    `buildings.worldcover: true` generates houses on WorldCover built-up ground where no footprint data set covers
    the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon;
    `msRoads: { country, clearance, minLength }` adds roads OSM lacks from Microsoft ML Road Detections (ODbL,
@@ -105,10 +114,18 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
 2. Bake: `python scripts/realmap/bake.py scripts/realmap/<id>.json --preview` (needs numpy, scipy, Pillow,
    opencv-python; downloads are cached in `scripts/realmap/.cache/`). It prints route length, control point
    spacing, min corner radius, self-proximity; `--preview` writes a land cover + roads PNG (north up).
+   Real-data passes, each only when the map needs it, always in this order (each reads the one before; keep the route
+   fixed, diff `data.json` after every step): `bake.py` -> `leaf_type.py` (evergreen / mixed / broadleaf woods) ->
+   `canopy.py` (`canopy.json`: tree positions and heights from the Meta / WRI canopy height map; set `canopyHeight.tile`,
+   the script header says how) -> `horizon.py` (+ `rivers.py`) -> `culverts.py`. `features.py` runs inside `bake.py` (or alone).
+   Commit the baked files with the config and list each source + licence in the map DETAILS.md + README table.
 3. Map file: `terrain.heightmap` (+ `offset` so the start is near y = 0, small noise `layers` for detail,
    `edgeRise: 0`), `landcover` (+ `splat` weights per cover, `fields` patchwork), `paths`, `road.points` from
-   `data.route` (widths per section), `geo`, `credits: data.meta.sources`.
-4. Scatter by cover class: `cover: ['pine']`; orchards `rows: { spacing, rowSpacing }` (row angle per zone);
+   `data.route` (widths per section), `geo`, `credits: data.meta.sources`, `country` (`'mk'` / `'us'`: the only flag fans wave).
+4. Trees touching the road: never thin out the forest or push whole stands back. `treeSetback` keeps solid trees off the
+   edge along one stretch; `treeCrownClear` (metres, Vodno 1.5) re-poses the few trees whose low limbs (< 4 m) overhang the road
+   (the owner rejected removing trees and moving 76: fewer than ~20 should change) - count them in the PR and look at them in game.
+   Scatter by cover class: `cover: ['pine']`; orchards `rows: { spacing, rowSpacing }` (row angle per zone);
    `minPathDist` keeps trees off other roads / canals (default 1.5 m solid, 0.4 m grass). Other roads are carved
    flat on their own smoothed height line (`PATH_PROFILE` per OSM kind in `world/terrain-gen.ts`); a new road kind
    that should be smoother / steeper gets a row there. `tests/rally/side-roads.test.ts` checks them. Water ways
@@ -120,7 +137,12 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    `python scripts/realmap/dem_stream.py <config> --at=<x>,<z>` traces the DEM flow line through that point down to the
    next baked water way and prints a config `waterways` entry (lat / lon); the baker appends it as a `stream` path. To add
    it without the other drift of a full re-bake, bake to a temp `out` and copy only the new path (+ the buildings it drops);
-   worked example `maps/petralica/DETAILS.md` "Valley creek". Lakes /
+   worked example `maps/petralica/DETAILS.md` "Valley creek". Culverts (OSM has none on country roads):
+   `python scripts/realmap/culverts.py <config> --preview <png>` -> `maps/<id>/culverts.json` (drainage of the baked height grid,
+   a culvert where a fold's catchment peaks on the route; thresholds in its header), `culverts` in `map.ts`; check with the map
+   viewer `drain=1` and in game - the road heights must not change (rally DETAILS "Culverts"). They are an estimate from the elevation data; for now only Vodno keeps them (README says "estimated from the elevation data"). In rain they run by themselves
+   (`culvert-water.ts`): look at each inlet with `weather=rain_heavy` and dry, from the side and low (no see-through gap
+   between wing wall and ground hole, water only inside the pipe line). Lakes /
    ponds / reservoirs come from the baker (`data.lakes`): set `lakes: data.lakes` in `map.ts`. To add them to an
    already baked map without renumbering its buildings, bake to a temp `out` and copy only `lakes` into its data.json. Roadside `minRadius` keeps solid props out of hairpins.
    Junctions: side roads are joined to the stage road automatically (`world/junctions.ts`); add
@@ -162,6 +184,7 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - `osm: { source: "overpass" }` (`scripts/realmap/overpass.py`): the plain OSM API refuses a city-sized box. Base query for the
   whole box, then buildings only within `buildings.corridor` m of the route (default 220: a wide map must not model
   every building). Needs `curl` (TLS). `paths: { corridor, highwayCorridor }` limit the other roads the same way.
+  `osm.footpaths: { kinds: ["path", "footway"], corridor }` adds foot ways (own query, appended last: roads / buildings unchanged; Vodno).
 - `dem: { source: "3dep", cell: 5 }`: USGS 3DEP lidar bare earth (US only, public domain) - no `canopy` to subtract.
 - `route: { highways: true, offHighwayCost: 5 }`: the stage may follow motorway / parkway carriageways (one-way respected);
   the bake prints the OSM roads the route follows. The other carriageway, ramps and cross streets become `paths`
@@ -187,6 +210,9 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - Looking at a map in the preview pane (it renders one frame every few seconds): `window.__mapViewer.look(cx, cy, cz, lx, ly, lz, fov)`
   parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Helpers to build camera
   positions along the road: `world.road.at(d)` (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.
+- Owner review of many spots: hand over one console line per spot instead of camera links - the owner opens the map viewer
+  once, pastes `__mapViewer.look(cx,cy,cz, lx,ly,lz, fov) // what to check` lines in DevTools (Ctrl+Shift+J) and jumps
+  between them without reloading. `__mapViewer.shell.camera.position` / `.controls.target` read the current view back.
 - Power lines: `MapDef.pylons` / `powerLines` (baked from OSM, `data.pylons` / `data.powerLines`) become `power_pylon` / `power_pole` instances + cables
   (`world/power-lines.ts`). Scatter option `channelDist: [min, max]` = only within that distance of a canal / drain edge (willows, reeds).
 - Railways: `MapDef.railways` = `data.railways` (baker `railway_lines`: OSM `railway=rail`, electrified flag). Tracks become
@@ -265,6 +291,28 @@ Single buildings away from the stage road (example `maps/ajvatovci/hilltop/`: ch
 OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`hilltop/build/shapes.ts`: the kit's
 `Frame` with its own `origin`, walls with real openings, tiled roof planes), ground levelled with named `flatAreas`
 (pads need a stage-road frontage) - keep their blend rim off the road (`tests/rally/hilltop.test.ts`).
+
+## Detail pass and review (lessons from Vodno)
+
+After the road is proven and the world is up, add detail one topic at a time (rock cuts and fill banks, rails, forest edge and
+floor, foot paths, car parks, landmarks, culverts) and look at each against real references before the next. Vodno's detail PR
+(122 files) only landed after these were learned:
+
+- **Real data first, estimates labelled.** Tree positions / sizes from the canopy map, woods by leaf type, paths and furniture from
+  OSM, culverts from the DEM. Anything inferred (culverts, traced road parts, DEM streams) is said so in README + DETAILS.md. In-game and README text describes the place for players, never how it was built.
+- **Wording:** landmark models and car parks that we drew are "ai-generated" (never "hand-modelled" / "hand-built").
+- **Where a new part meets the road is where it fails.** Check edge, ditch, verge, rails, paint, junction mouths and, for ground
+  holes (culverts, lots), the gap between wall and terrain, from the road and from the side. Rails stand on the verge, not on the
+  slope; a lot's mouth is a graded pad with the ditch filled and the apron a few cm over the ground (Vodno `car-parks.ts` `Lot.mouth` + the `trail_mouth` pad in `lots.ts`); sand spills stop at the bank.
+- **Shared engine code in a map PR changes every map.** A tweak to wet shading, trees, tarmac wear or the ground (Vodno's did)
+  needs a look at one shot per other map, and a line in the PR. Foliage / species work belongs to its own PR: Vodno's restyled
+  species and photo-leaf code were taken out of the map PR and kept generated.
+- **Heavy hero assets need a stage-start check.** pack hero trees and photo leaves froze the Vodno stage start and were moved out of the PR; measure the first frame of the stage and the draw calls before keeping one. Every new in-game credit link needs the
+  owner's pick (see AGENTS.md); data-source links for the map itself are added automatically.
+- **Perf:** an early Vodno probe (headless, High) read 4-5.5 M triangles and 500-630 draw calls along the stage, 55-60 % of it trees
+  (thinning the roadside pines gained only 6 %). Measure with a probe before cutting anything; the owner times it on his devices.
+- **Cloud shots:** software GL is slow. Open the map viewer, wait for the LOADING text to vanish, then take the shot with a long
+  timeout; `weather=`, `tod=`, `drain=1` and `look(...)` get you to the spot. Hand the owner console lines per spot (above).
 
 ## New map checklist
 

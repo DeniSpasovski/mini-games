@@ -1,4 +1,10 @@
-import { DataTexture, LinearFilter, RedFormat, UnsignedByteType } from 'three';
+import {
+  DataTexture,
+  LinearFilter,
+  RedFormat,
+  RGFormat,
+  UnsignedByteType,
+} from 'three';
 import { distance as polygonDistance } from './pads';
 import { newPathQuery } from './real-data';
 import { newLakeQuery } from './lakes';
@@ -30,6 +36,8 @@ export interface GroundMoisture {
  * `setGroundMoisture`): greener in hollows and near water, straw on ridges. From the land height before roads
  * (`TerrainGenerator.landHeight`) - its height against the mean of its surroundings at two scales - and the
  * distance to channels / lakes. Slope (steep = drier) is added in the shader from the vertex normal.
+ * A map with `landcover.needles` gets a second channel (G): the share of the floor litter that is pine needles, from the
+ * land cover (4 samples per texel).
  */
 export function bakeGroundMoisture(
   gen: TerrainGenerator,
@@ -111,10 +119,41 @@ export function bakeGroundMoisture(
     }
   }
 
-  const t = new DataTexture(data, nx, nz, RedFormat, UnsignedByteType);
+  // Pine-needle share of the floor litter (G), from the cover classes the map lists.
+  const needles = map.landcover?.needles;
+  const lc = gen.landcover;
+  let texData: Uint8Array = data;
+  if (needles && lc) {
+    texData = new Uint8Array(n * 2);
+    const q = res / 4;
+    for (let j = 0; j < nz; j++) {
+      const z = z0 + (j + 0.5) * res;
+      for (let i = 0; i < nx; i++) {
+        const x = x0 + (i + 0.5) * res;
+        let s = 0;
+        for (const [dx, dz] of [
+          [-q, -q],
+          [q, -q],
+          [-q, q],
+          [q, q],
+        ])
+          s += needles[lc.coverAt(x + dx, z + dz) ?? ''] ?? 0;
+        const k = j * nx + i;
+        texData[k * 2] = data[k];
+        texData[k * 2 + 1] = Math.round(Math.min(1, s / 4) * 255);
+      }
+    }
+  }
+  const t = new DataTexture(
+    texData,
+    nx,
+    nz,
+    texData === data ? RedFormat : RGFormat,
+    UnsignedByteType,
+  );
   t.magFilter = LinearFilter;
   t.minFilter = LinearFilter;
-  t.unpackAlignment = 1; // rows of nx bytes
+  t.unpackAlignment = 1; // rows of nx (or 2 nx) bytes
   t.name = 'ground-moisture';
   t.needsUpdate = true;
   return {

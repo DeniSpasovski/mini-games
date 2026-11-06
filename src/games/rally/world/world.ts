@@ -1,7 +1,13 @@
 import { Vector3 } from 'three';
 import { hashString } from '../../../shared/rng';
 import { mapSeason } from '../maps/shared/climate';
-import type { BuildingDef, MapDef, StageDef } from '../maps/shared/types';
+import type {
+  BarrierRule,
+  BuildingDef,
+  MapDef,
+  StageDef,
+} from '../maps/shared/types';
+import { dropRailRules } from './drop-rails';
 import { roadSurfaceAt } from '../maps/shared/types';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
@@ -12,6 +18,7 @@ import type {
 import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
 import { isTreeType } from '../trees/species';
+import { culvertColliders, culvertStones } from './culverts';
 import { landmarksOf, type Landmark } from './landmarks';
 import {
   barrierColliders,
@@ -148,6 +155,8 @@ export class World implements GroundProvider {
   readonly landmarks: Landmark[];
   /** Continuous barriers (MapDef.barriers): drawn by barrier-mesh.ts, solid via box colliders. */
   readonly barrierRuns: BarrierRun[];
+  /** `map.barriers` + the derived drop rails (`map.dropRails`). */
+  readonly barrierRules: BarrierRule[];
   /** Walls in the portal tunnels between the parkway lanes and the parkway (portals.ts laneWalls). */
   readonly laneWalls: LaneWallRow[][];
   /** City maps (MapDef.cityStreets): where the streets have kerbs / sidewalks / crosswalks / lamps. */
@@ -245,6 +254,8 @@ export class World implements GroundProvider {
         this.landmarks.some((l) => l.occupies(x, z, 1.5)) ||
         // No trees hanging into an underpass trench.
         this.gen.inUnderpassTrench(x, z) ||
+        // Nothing grows on a culvert's walls or in its gully.
+        this.gen.nearCulvert(x, z, 2.5) ||
         // Nothing grows on a service park's level lot.
         (!!parkDef && serviceParkOccupies(parkDef, x, z, 3)),
       this.heightfield,
@@ -329,6 +340,7 @@ export class World implements GroundProvider {
       this.scatter.addFixed(inst);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
+    if (map.realTrees) this.scatter.addRealTrees(map.realTrees);
     for (const inst of this.servicePark?.instances ?? [])
       this.scatter.addFixed(inst);
     const bq = newPathQuery();
@@ -364,9 +376,22 @@ export class World implements GroundProvider {
       );
       return !(cq.found && cq.distance <= cq.halfWidth + 1);
     });
+    // The map's own rails, then the derived ones where the valley side drops away (the map's win).
+    this.barrierRules = [
+      ...(map.barriers ?? []),
+      ...(map.dropRails
+        ? dropRailRules(
+            this.road,
+            (x, z) => this.gen.height(x, z),
+            map.dropRails,
+            map.barriers ?? [],
+            map.road.shoulder,
+          )
+        : []),
+    ];
     this.barrierRuns = barrierRuns(
       this.road,
-      map.barriers ?? [],
+      this.barrierRules,
       mouths,
       net
         ? (x, z, along) => {
@@ -454,7 +479,7 @@ export class World implements GroundProvider {
         this.scatter.addFixed(inst);
     }
     if (map.cityStreets && this.gen.paths) {
-      const near = nearestRoadPoint(this.road);
+      const near = nearestRoadPoint(this.road, 12, map.cityStreets.until);
       this.streetDetail = streetDetail(map.cityStreets, {
         road: this.road,
         net: this.gen.paths,
@@ -544,8 +569,13 @@ export class World implements GroundProvider {
         this.surfaceFns.push(landmark.surfaceAt.bind(landmark));
     }
 
+    for (const c of culvertColliders(this.gen.culverts))
+      this.scatter.addFixedCollider(c);
+    for (const inst of culvertStones(this.gen.culverts, this.analytic))
+      this.scatter.addFixed(inst);
+
     this.signs = stageSigns(
-      map,
+      { ...map, barriers: this.barrierRules },
       this.stageRoad,
       this.analytic,
       this.stage,

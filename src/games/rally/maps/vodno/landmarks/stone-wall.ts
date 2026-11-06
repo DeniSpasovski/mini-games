@@ -21,7 +21,7 @@ export interface WallRun {
 
 /**
  * A continuous rock wall along a run: an outer face, an inner face, a top and the two end faces, all sloping with the
- * heights given per vertex - no steps, no cracks at curves (one ribbon, not a row of boxes). Material `rubble`.
+ * heights given per vertex - no steps, no cracks at curves (one ribbon, not a row of boxes). Material `drystone` (grey limestone scan).
  */
 export function wallRibbon(l: Local, run: WallRun, color = '#ddd7ca'): void {
   const m = run.p.length;
@@ -34,13 +34,18 @@ export function wallRibbon(l: Local, run: WallRun, color = '#ddd7ca'): void {
     run.p[m - 1][0] - run.p[0][0],
     run.p[m - 1][1] - run.p[0][1],
   );
-  const face = (pts: V3[], want: V3, top = false): void =>
+  // UV u: along the wall on its faces, across it on the end faces (along would smear one texel column over them).
+  const face = (pts: V3[], want: V3, top = false, end = false): void =>
     l.fan(
-      'rubble',
+      'drystone',
       pts,
       color,
       want,
-      top ? (q) => [q[0], q[2]] : (q) => [q[0] * tan[0] + q[2] * tan[1], q[1]],
+      top
+        ? (q) => [q[0], q[2]]
+        : end
+          ? (q) => [q[0] * tan[1] - q[2] * tan[0], q[1]]
+          : (q) => [q[0] * tan[0] + q[2] * tan[1], q[1]],
     );
   const v3 = (q: V2, y: number): V3 => [q[0], y, q[1]];
   const { hi, lo, inner, outer } = run;
@@ -81,6 +86,8 @@ export function wallRibbon(l: Local, run: WallRun, color = '#ddd7ca'): void {
         v3(at(k, inner), hi[k]),
       ],
       [tan[0] * sgn, 0, tan[1] * sgn],
+      false,
+      true,
     );
 }
 

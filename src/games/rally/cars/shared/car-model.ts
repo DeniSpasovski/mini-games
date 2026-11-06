@@ -51,6 +51,7 @@ import {
 } from './stl-wheel';
 import { BAKED_DUST_GAIN, buildTyre, rimLip, rimRadius } from './tyre-mesh';
 import { dustyTyre, tyreMaterial, type DustyTyre } from './tyre-tread';
+import { tyreLodShares, type TyreLodShares } from './tyre-lod';
 import { LampHalos } from './lamp-halo';
 import {
   splitBootLamp,
@@ -480,6 +481,8 @@ export class CarModel {
   private brakeLamps?: MeshStandardMaterial[];
   private headLamps: MeshStandardMaterial[] = [];
   private dusty: DustyTyre | null = null;
+  /** Tyre level shares in use (tyre-lod.ts; full detail until `setTyreLod`). */
+  private lod: TyreLodShares = FULL_TYRE;
   private tyreDust = { level: 0, color: new Color(0xb7a58a) };
   /** Glow round the red tail lamps (`collectLamps`), lit by `setBrake`. */
   private halos?: LampHalos;
@@ -780,14 +783,17 @@ export class CarModel {
     }
     const axles: Axle[] = p.tyres.rear ? ['front', 'rear'] : ['front'];
     this.wheelGroups = axles.map((axle) => {
-      const wheel = buildWheelSet(def, this.tyre, new Map(), axle);
+      const wheel = buildWheelSet(def, this.tyre, new Map(), axle, true);
       const n = 4 / axles.length;
+      const tireLow = wheel.tireLow!;
       return {
         axle,
         geoms: wheel.disc
-          ? [wheel.tire, wheel.rim, wheel.caliper, wheel.disc]
-          : [wheel.tire, wheel.rim, wheel.caliper],
+          ? [wheel.tire, tireLow, wheel.rim, wheel.caliper, wheel.disc]
+          : [wheel.tire, tireLow, wheel.rim, wheel.caliper],
         tire: this.instanced(wheel.tire, this.tyreMaterials(), n),
+        tireSharp: this.lowTyre(tireLow, 'sharp', n),
+        tireBlur: this.lowTyre(tireLow, 'blur', n),
         rim: this.instanced(wheel.rim, rimMat, n),
         caliper: this.instanced(wheel.caliper, this.calMat, n),
         disc:
@@ -848,7 +854,10 @@ export class CarModel {
       for (const o of parts) o.visible = false;
       this.ready = Promise.allSettled([this.imported, wheelsLoaded]).then(
         () => {
-          if (!this.disposed) for (const o of parts) o.visible = true;
+          if (this.disposed) return;
+          for (const o of parts) o.visible = true;
+          // Only the tyre level(s) in use.
+          this.applyTyreLod();
         },
       );
     }
@@ -987,6 +996,22 @@ export class CarModel {
     return mesh;
   }
 
+  /** A low-poly tyre level (tyre-lod.ts), hidden until `setTyreLod` shows it. */
+  private lowTyre(
+    g: BufferGeometry,
+    level: 'sharp' | 'blur',
+    count: number,
+  ): InstancedMesh {
+    const im = this.instanced(g, this.lowTyreMaterials(level), count);
+    im.visible = false;
+    return im;
+  }
+
+  private lowTyreMaterials(level: 'sharp' | 'blur'): Material | Material[] {
+    const d = this.dusty!;
+    return d.low ? d.low[level] : d.materials;
+  }
+
   private instanced(
     g: BufferGeometry,
     mat: Material | Material[],
@@ -1040,10 +1065,19 @@ export class CarModel {
       this.tmpQ2.copy(this.q).multiply(this.tmpQ);
       this.m.compose(this.wheelPos[i], this.tmpQ2, this.one);
       g.tire.setMatrixAt(k, this.m);
+      g.tireSharp.setMatrixAt(k, this.m);
+      g.tireBlur.setMatrixAt(k, this.m);
       g.rim.setMatrixAt(k, this.m);
     }
     for (const g of this.wheelGroups)
-      for (const im of [g.tire, g.rim, g.caliper, g.disc])
+      for (const im of [
+        g.tire,
+        g.tireSharp,
+        g.tireBlur,
+        g.rim,
+        g.caliper,
+        g.disc,
+      ])
         if (im) im.instanceMatrix.needsUpdate = true;
     if (this.uprights) this.uprights.instanceMatrix.needsUpdate = true;
     if (this.links) this.links.instanceMatrix.needsUpdate = true;
@@ -1103,6 +1137,25 @@ export class CarModel {
       this.wheelSpin[i] = w.spin;
     }
     this.syncWheels();
+  }
+
+  /**
+   * Tyre detail for this frame (tyre-lod.ts): the car's speed (km/h) and the camera's distance from the car's centre
+   * (m). Never called = full detail (car viewer, showroom, setup bench).
+   */
+  setTyreLod(speedKmh: number, camDist: number): void {
+    this.lod = this.dusty?.low ? tyreLodShares(speedKmh, camDist) : FULL_TYRE;
+    this.applyTyreLod();
+  }
+
+  private applyTyreLod(): void {
+    const lod = this.lod;
+    this.dusty?.setLod(lod);
+    for (const g of this.wheelGroups) {
+      g.tire.visible = lod.full > 0;
+      g.tireSharp.visible = lod.sharp > 0;
+      g.tireBlur.visible = lod.blur > 0;
+    }
   }
 
   triangleCount(): number {
@@ -1205,12 +1258,17 @@ export class CarModel {
   private refreshWheels(compound = false): void {
     this.rimMat.color.set(rimColorFor(this.def.model, this.tyre));
     const tyreMats = this.tyreMaterials(compound);
+    this.dusty?.setLod(this.lod);
     for (const g of this.wheelGroups) {
-      const w = buildWheelSet(this.def, this.tyre, this.stlRims, g.axle);
+      const w = buildWheelSet(this.def, this.tyre, this.stlRims, g.axle, true);
       for (const old of g.geoms) old.dispose();
-      g.geoms = [w.tire, w.rim, w.caliper];
+      g.geoms = [w.tire, w.tireLow!, w.rim, w.caliper];
       g.tire.geometry = w.tire;
       g.tire.material = tyreMats;
+      g.tireSharp.geometry = w.tireLow!;
+      g.tireSharp.material = this.lowTyreMaterials('sharp');
+      g.tireBlur.geometry = w.tireLow!;
+      g.tireBlur.material = this.lowTyreMaterials('blur');
       g.rim.geometry = w.rim;
       g.rim.material = w.rim.hasAttribute('color')
         ? this.rimColored()
@@ -1922,7 +1980,15 @@ export class CarModel {
     this.root.removeFromParent();
     for (const o of this.owned) o.dispose();
     for (const g of this.wheelGroups)
-      for (const im of [g.tire, g.rim, g.caliper, g.disc]) im?.dispose();
+      for (const im of [
+        g.tire,
+        g.tireSharp,
+        g.tireBlur,
+        g.rim,
+        g.caliper,
+        g.disc,
+      ])
+        im?.dispose();
     this.uprights?.dispose();
     this.links?.dispose();
     this.corners?.dispose();
@@ -1933,7 +1999,10 @@ export class CarModel {
 interface WheelGroup {
   axle: Axle;
   geoms: BufferGeometry[];
+  /** The full tyre, and the low-poly tyre with sharp and smeared tread (tyre-lod.ts; one geometry, two materials). */
   tire: InstancedMesh;
+  tireSharp: InstancedMesh;
+  tireBlur: InstancedMesh;
   rim: InstancedMesh;
   caliper: InstancedMesh;
   /** Brake discs of STL wheels (static like the calipers: they are round). */
@@ -1942,6 +2011,8 @@ interface WheelGroup {
 
 export interface WheelSet {
   tire: BufferGeometry;
+  /** The low-poly tyre (tyre-lod.ts), when asked for. */
+  tireLow?: BufferGeometry;
   rim: BufferGeometry;
   caliper: BufferGeometry;
   /** Brake disc (STL wheels only). */
@@ -1959,19 +2030,25 @@ export function buildWheelSet(
   tyre: TyreId | null,
   stlRims: ReadonlyMap<string, BufferGeometry>,
   axle: Axle = 'front',
+  withLow = false,
 ): WheelSet {
   const p = def.physics;
   const size = tyreSizeFor(p, tyre, axle);
   const radius = axleRadius(p, tyre, axle);
   // The tyre leaves the rim at the rim's own flange (measured), so the two meet with no gap on any rim model.
-  const tyreOn = (rim: BufferGeometry) =>
-    buildTyre({
+  const tyreOn = (rim: BufferGeometry) => {
+    const o = {
       radius,
       size,
       compound: tyre,
       dust: def.model.tyreDust,
       fit: rimLip(rim, size.width / 2) ?? undefined,
-    });
+    };
+    return {
+      tire: buildTyre(o),
+      tireLow: withLow ? buildTyre({ ...o, lod: 'low' }) : undefined,
+    };
+  };
   const barrel = rimRadius(size);
   const base = def.model.wheels
     ? def.model.wheels(radius, size.width)
@@ -1985,7 +2062,7 @@ export function buildWheelSet(
   base.tire.dispose();
   const file = wheelModelFor(def.model, tyre);
   if (!hasWheelModel(file))
-    return { tire: tyreOn(base.rim), rim: base.rim, caliper: base.caliper };
+    return { ...tyreOn(base.rim), rim: base.rim, caliper: base.caliper };
   // Converted STL rim: its barrel (0.62 of the unit radius) = the size's rim radius; brakes follow the rim.
   const scale = barrel / RIM_UNIT_BARREL;
   const brakes = buildBrakeGeometries(scale, size.width);
@@ -2002,7 +2079,7 @@ export function buildWheelSet(
     rim.scale(size.width, scale, scale);
   }
   return {
-    tire: tyreOn(rim),
+    ...tyreOn(rim),
     rim,
     caliper: brakes.caliper,
     disc: brakes.disc,
@@ -2010,6 +2087,13 @@ export function buildWheelSet(
 }
 
 const X_AXIS = new Vector3(1, 0, 0);
+const FULL_TYRE: TyreLodShares = {
+  full: 1,
+  sharp: 0,
+  blur: 0,
+  letters: 'full',
+  letterBias: 0,
+};
 const Y_AXIS = new Vector3(0, 1, 0);
 
 // --- wheels ----------------------------------------------------------------------------------

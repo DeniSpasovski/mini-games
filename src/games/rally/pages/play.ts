@@ -286,7 +286,10 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
         tractionControl: !getCar(params.car).physics.noTractionControl,
         abs: !getCar(params.car).physics.noAbs,
         onBack: showPauseMenu,
-        onChange: (s) => game.applySettings(s),
+        onChange: (s) => {
+          game.applySettings(s);
+          touchControls?.setSteering(s.touchSteering);
+        },
         // The renderer is built for one quality: reload into the same stage.
         onQuality: () => {
           const u = new URL(location.href);
@@ -552,6 +555,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
           game.input,
           () => game.setPaused(true),
           () => game.resetToRoad(),
+          loadSettings().touchSteering,
         );
       game.start();
       // `?perf=1`: open the perf panel (the ` key in game, game/perf-panel.ts).

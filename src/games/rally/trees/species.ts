@@ -421,6 +421,18 @@ interface ConiferShape {
   twigRadius: number;
   collisionRadius: number;
   variants: number;
+  /**
+   * An open crown (the tall black pine of a closed stand), all optional, off = the dense layered crown: side sprays only
+   * from limb generation `sprayFrom` on (default `leafFrom` - 2), limb lengths over `limbJitter` (default 0.85-1.15), a
+   * `deadLimbs` share of the limbs died back to bare stubs (gaps in the crown), limbs curving up `curl` deg per
+   * internode, and the bole's dead stubs on a `stubs.p` share of its metres, `stubs.len` m long (default every metre,
+   * 0.2-0.45 m).
+   */
+  sprayFrom?: number;
+  limbJitter?: [number, number];
+  deadLimbs?: number;
+  curl?: number;
+  stubs?: { p: number; len: [number, number] };
 }
 
 /**
@@ -439,7 +451,8 @@ function conifer(o: ConiferShape): SpeciesDef {
         ? `(1-0.7*${t}*${t})`
         : `(1-0.45*${t}*${t})`;
   // A limb's axis is about 3x its first internode.
-  const len = `${(o.limb / 3).toFixed(3)}*${env}*rnd(0.85,1.15)`;
+  const [j0, j1] = o.limbJitter ?? [0.85, 1.15];
+  const len = `${(o.limb / 3).toFixed(3)}*${env}*rnd(${j0},${j1})`;
   const [p0, p1] = o.pitch;
   const pitch = `${p0}+${p1 - p0}*${t}`;
   const turn = 360 / o.perWhorl;
@@ -449,7 +462,10 @@ function conifer(o: ConiferShape): SpeciesDef {
   // The bole in ~1 m pieces, a dead stub at each (a short foot has none).
   let axiom = '!';
   const pieces = o.bole > 0 ? Math.max(1, Math.round(o.bole)) : 0;
-  const stub = o.bole >= 1 ? '[&(rnd(70,95))!!!!!F(rnd(0.2,0.45))]' : '';
+  const [u0, u1] = o.stubs?.len ?? [0.2, 0.45];
+  const deadStub = `[&(rnd(70,95))!!!!!F(rnd(${u0},${u1}))]`;
+  // (with `stubs`: an apex B(0,-1) that grows a stub on some metres only)
+  const stub = o.bole < 1 ? '' : o.stubs ? 'B(0,-1)' : deadStub;
   for (let i = 0; i < pieces; i++)
     axiom += `F(${(o.bole / pieces).toFixed(3)})${stub}>(rnd(100,160))`;
   axiom += `A(${o.step},0)`;
@@ -464,17 +480,34 @@ function conifer(o: ConiferShape): SpeciesDef {
     },
     { pred: 'A(l,k)', cond: `k >= ${N}`, succ: 'F(l*0.8)L' },
   ];
+  if (o.stubs)
+    rules.push(
+      { pred: 'B(l,o)', cond: 'o < 0', p: o.stubs.p, succ: deadStub },
+      { pred: 'B(l,o)', cond: 'o < 0', p: 1 - o.stubs.p, succ: 'f(0)' },
+    );
   // Side sprays are needle tufts off the limb (no wood of their own): the branch budget draws every limb's axis out to
   // its needles instead of the first internodes of a thousand side shoots.
+  const sprayFrom = o.sprayFrom ?? o.leafFrom - 2;
   const spray = (g: number) =>
-    g + 2 >= o.leafFrom
+    g >= sprayFrom
       ? `[+(rnd(${s0},${s1}))f(l*0.6)L][-(rnd(${s0},${s1}))f(l*0.6)L]`
       : '';
+  const curl = o.curl ? `^(rnd(${o.curl * 0.5},${o.curl * 1.5}))` : '';
+  const dead = o.deadLimbs ?? 0;
   for (let g = 0; g < D; g++)
     rules.push({
       pred: 'B(l,o)',
       cond: `o == ${g}`,
-      succ: `F(l)${leaf(g)}${spray(g)}>(rnd(-20,20))!B(l*0.82,o+1)`,
+      ...(g === 0 && dead > 0 ? { p: 1 - dead } : {}),
+      succ: `${curl}F(l)${leaf(g)}${spray(g)}>(rnd(-20,20))!B(l*0.82,o+1)`,
+    });
+  // A limb that died back in the stand's shade: a bare stub of its first internodes, a gap in the crown.
+  if (dead > 0)
+    rules.push({
+      pred: 'B(l,o)',
+      cond: 'o == 0',
+      p: dead,
+      succ: `${curl}F(l*rnd(0.3,0.55))!F(l*rnd(0.1,0.25))`,
     });
   rules.push({ pred: 'B(l,o)', cond: `o >= ${D}`, succ: 'F(l*0.6)L' });
   return {
@@ -607,6 +640,49 @@ export const BLACK_PINE = conifer({
   variants: 4,
 });
 
+/**
+ * Black pine of a closed stand, about 19-20 m: the stand shades its lower limbs off, so a slim trunk (~0.3 m) stands bare
+ * to two thirds of its height under a small flat crown; the bark dark at the foot, paler grey-brown up the stem.
+ */
+export const TALL_BLACK_PINE = conifer({
+  name: 'Tall black pine',
+  bole: 13.2,
+  whorls: 7,
+  step: 0.85,
+  taper: 0.95,
+  perWhorl: 5,
+  limb: 4.4,
+  shape: 'umbrella',
+  // Low limbs near level, curving up; the top ones rise: an irregular flat-topped crown, not a ball.
+  pitch: [80, 55],
+  curl: 6,
+  limbJitter: [0.55, 1.15],
+  deadLimbs: 0.22,
+  // Needle tufts on the limbs' outer ends only: sky between the clumps, the limbs show.
+  spray: [30, 55],
+  leafFrom: 2,
+  sprayFrom: 1,
+  stubs: { p: 0.45, len: [0.3, 0.9] },
+  tropism: [0, -1, 0],
+  tropismStrength: 0.03,
+  baseRadius: 0.16,
+  bark: {
+    color: '#93765c',
+    texture: 'furrowed',
+    scan: 'pine',
+    foot: { color: '#5e4838', height: 5 },
+    tiling: 1.2,
+  },
+  foliage: { ...BLACK_PINE.foliage, spriteSize: 0.85 },
+  scale: [0.95, 1.1],
+  maxSprites: 320,
+  maxBranchTriangles: 2000,
+  // Thin: the limbs the needles hang on show (the branch cap thickens it to fit).
+  twigRadius: 0.006,
+  collisionRadius: 0.1,
+  variants: 4,
+});
+
 /** Juniper: a dark, dense, narrow cone of short upswept limbs, needled to the ground, 2-3.5 m; drive-through. */
 export const JUNIPER = conifer({
   name: 'Juniper',
@@ -655,14 +731,14 @@ export const OAK = broadleaf({
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 1.7,
+    spriteSize: 1.5,
     leaf: 'lobed',
     palette: ['#3b4f34', '#3f5235', '#445636', '#485937', '#4c5d37'],
   },
   scale: [0.9, 1.3],
   variants: 6,
-  crook: 14,
-  leafFrom: 2,
+  crook: 17,
+  leafFrom: 3,
 });
 
 /** Mountain beech (Galichica): tall straight smooth pale-grey trunk under a dense rounded crown turning bronze. */
@@ -707,14 +783,15 @@ export const HORNBEAM = broadleaf({
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 1.65,
+    spriteSize: 1.45,
     leaf: 'serrate',
     palette: ['#405537', '#455838', '#495c38', '#4e6039', '#526439'],
   },
   scale: [0.85, 1.3],
   variants: 6,
   stems: 3,
-  crook: 6,
+  crook: 9,
+  leafFrom: 2,
 });
 
 /** Walnut / mulberry yard tree: a thick short trunk under a big, dense, dark round crown. */
@@ -1211,14 +1288,14 @@ export const LOCUST = broadleaf({
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 1.15,
+    spriteSize: 1.05,
     leaf: 'small',
     palette: ['#4a5d33', '#516234', '#576734', '#5d6b34'],
   },
   scale: [0.85, 1.2],
   variants: 4,
-  crook: 8,
-  leafFrom: 1,
+  crook: 11,
+  leafFrom: 2,
 });
 
 /** Bramble and wild rose along the forest edge and the verges: a low arching tangle of green canes, 0.8-1.4 m. */
@@ -1249,6 +1326,7 @@ export const SPECIES: readonly SpeciesDef[] = [
   PINE,
   PLANTATION_PINE,
   BLACK_PINE,
+  TALL_BLACK_PINE,
   JUNIPER,
   OAK,
   BEECH,
@@ -1287,6 +1365,7 @@ export const TREE_TYPES: Readonly<Record<string, string>> = {
   pine_tree: 'Pine',
   plantation_pine: 'Plantation pine',
   black_pine: 'Black pine',
+  tall_black_pine: 'Tall black pine',
   juniper: 'Juniper',
   oak_tree: 'Oak',
   beech_tree: 'Beech',

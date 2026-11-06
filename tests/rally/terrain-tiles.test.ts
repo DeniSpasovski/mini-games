@@ -9,6 +9,7 @@ rs.mock('../../src/games/rally/world/terrain-material', () => ({
   getTerrainMaterial: () => new MeshBasicMaterial(),
   setGroundTint: () => {},
   setGroundMoisture: () => {},
+  setCulvertHoles: () => {},
 }));
 
 interface Tile {

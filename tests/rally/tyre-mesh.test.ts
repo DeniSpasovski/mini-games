@@ -8,6 +8,10 @@ import {
   treadDepth,
 } from '../../src/games/rally/cars/shared/tyre-mesh';
 import { dustyTyre } from '../../src/games/rally/cars/shared/tyre-tread';
+import {
+  TYRE_LOD,
+  tyreLodShares,
+} from '../../src/games/rally/cars/shared/tyre-lod';
 import { tyreSizeFor } from '../../src/games/rally/physics/car-tyres';
 import { TYRE_IDS, type TyreId } from '../../src/games/rally/physics/tyres';
 
@@ -118,4 +122,85 @@ test('road dust does not stack on baked tyre dust (old road cars): their carcass
   expect(Math.min(...BAKED_DUST_GAIN)).toBeGreaterThan(1);
   plain.dispose();
   baked.dispose();
+});
+
+describe.each(TYRE_IDS)('%s low-poly tyre (tyre-lod.ts)', (tyre) => {
+  test('is a fraction of the full tyre, same size and groups, no displaced tread', () => {
+    const size = tyreSizeFor(fabia, tyre);
+    const o = { radius: fabia.wheelRadius, size, compound: tyre };
+    const full = buildTyre(o);
+    const low = buildTyre({ ...o, lod: 'low' });
+    const f = stats(full, size.width / 2);
+    const l = stats(low, size.width / 2);
+    expect(l.tris).toBeLessThan(3200);
+    expect(l.tris).toBeLessThan(f.tris / 3);
+    expect(l.maxR).toBeCloseTo(f.maxR, 3);
+    expect(l.maxX).toBeCloseTo(f.maxX, 3);
+    // Smooth crown: the normal map carries the pattern.
+    expect(l.maxR - l.minTreadR).toBeLessThan(0.0005);
+    // Rubber + lettering, like the full tyre (the same materials draw it).
+    expect(low.groups.length).toBe(full.groups.length);
+    expect(low.groups.length).toBe(2);
+    for (const name of ['normal', 'color', 'uv'])
+      expect(low.getAttribute(name).count).toBe(
+        low.getAttribute('position').count,
+      );
+    full.dispose();
+    low.dispose();
+  });
+});
+
+describe('tyre levels by speed and camera distance', () => {
+  const near = 6; // chase camera
+  test('full detail at rest, at low speed and from the chase cameras', () => {
+    for (const kmh of [0, 5, TYRE_LOD.blurFromKmh])
+      for (const dist of [0.8, near, Math.hypot(7.8, 2.6)])
+        expect(tyreLodShares(kmh, dist)).toMatchObject({
+          full: 1,
+          sharp: 0,
+          blur: 0,
+          letters: 'full',
+          letterBias: 0,
+        });
+  });
+  test('smeared tread above the crossfade, either direction', () => {
+    for (const kmh of [TYRE_LOD.blurToKmh, 100, -60])
+      expect(tyreLodShares(kmh, near)).toMatchObject({
+        full: 0,
+        sharp: 0,
+        blur: 1,
+        letters: 'blur',
+      });
+  });
+  test('cheap levels far away: sharp low-poly, no lettering past farM', () => {
+    expect(tyreLodShares(0, TYRE_LOD.lowToM)).toMatchObject({
+      full: 0,
+      sharp: 1,
+      letters: 'sharp',
+    });
+    expect(tyreLodShares(0, TYRE_LOD.farM + 1).letters).toBeNull();
+    expect(tyreLodShares(100, TYRE_LOD.farM + 1).letters).toBeNull();
+  });
+  test('crossfades: shares sum to 1 and move smoothly (no pop)', () => {
+    let prev = tyreLodShares(0, near);
+    for (let kmh = 0; kmh <= 60; kmh += 0.5) {
+      const s = tyreLodShares(kmh, near);
+      expect(s.full + s.sharp + s.blur).toBeCloseTo(1, 6);
+      expect(Math.abs(s.blur - prev.blur)).toBeLessThan(0.05);
+      prev = s;
+    }
+    const mid = tyreLodShares(
+      (TYRE_LOD.blurFromKmh + TYRE_LOD.blurToKmh) / 2,
+      near,
+    );
+    expect(mid.full).toBeCloseTo(0.5, 6);
+    expect(mid.blur).toBeCloseTo(0.5, 6);
+    prev = tyreLodShares(0, 0);
+    for (let d = 0; d <= 30; d += 0.1) {
+      const s = tyreLodShares(0, d);
+      expect(s.full + s.sharp + s.blur).toBeCloseTo(1, 6);
+      expect(Math.abs(s.sharp - prev.sharp)).toBeLessThan(0.1);
+      prev = s;
+    }
+  });
 });

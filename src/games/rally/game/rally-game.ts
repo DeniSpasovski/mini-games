@@ -64,6 +64,7 @@ import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
+import { CarSurround } from '../world/car-surround';
 import { canopyTone, FarForest } from '../world/far-forest';
 import { FarShadow } from '../world/far-shadow';
 import { TerrainLight } from '../world/terrain-light';
@@ -99,6 +100,7 @@ import { TyreDust } from './tyre-dust';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
+import { PAD_STEER_LABELS } from './pad-steering';
 import {
   BLOOM_MIX,
   OBJECT_DISTANCE,
@@ -305,6 +307,8 @@ export class RallyGame {
   private canopy!: CanopyShadows;
   /** The canopy shell and far trees (world/far-forest.ts); the perf panel moves their forest distance. */
   farForest!: FarForest;
+  /** What the car reflects besides the sky: trees, far forest, terrain round it (world/car-surround.ts). */
+  private surround?: CarSurround;
   /** Hill shadows past the shadow maps and sky light in valleys, baked in the background (world/terrain-light.ts). */
   private terrainLight?: TerrainLight;
   private hazeAcc = 0;
@@ -553,6 +557,14 @@ export class RallyGame {
         this.renderer.extensions.has('EXT_color_buffer_half_float'),
     );
     this.farForest.renderer = this.renderer;
+    this.surround = new CarSurround(this.world, this.farForest);
+    // Off on low (the sky env alone, as before); `?surround=0..1` to compare.
+    this.surround.strength = paramNumber(
+      new URLSearchParams(location.search).get('surround'),
+      0,
+      1,
+      q.name === 'low' ? 0 : 1,
+    );
     this.trees.group.add(this.farForest.mesh);
     if (this.farForest.farTrees) this.trees.group.add(this.farForest.farTrees);
     // The land beyond: its woods in the stage's crown colour, inside the map the canopy map's.
@@ -843,6 +855,7 @@ export class RallyGame {
     this.vehicle.tractionControl = s.traction;
     this.vehicle.abs = s.abs;
     this.rig.mode = s.camera;
+    this.input.pad.set(s.padSteering);
     // Object draw distance (options): the streamer re-buckets on its next update.
     const lodScale =
       this.opts.quality.lodScale * OBJECT_DISTANCE[s.objectDistance];
@@ -1778,6 +1791,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         speed: lon,
         slipAngle: slip,
         maxSteer: (v.def.maxSteerDeg * Math.PI) / 180,
+        frontTravel: v.frontTravel(),
+        frontPeakAngle: v.frontPeakAngle(),
       });
       v.controls.throttle = c.throttle;
       v.controls.brake = c.brake;
@@ -1863,6 +1878,13 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       this.rig.update(dt, v, this.renderPos, this.renderFwd, this.renderUp);
     if (Math.abs(this.camera.fov - this.lastFov) > 0.5)
       this.updateParticleScale();
+    // Tyre detail (tyre-lod.ts): full tread at rest / close, smeared tread at speed, cheap tyres far from the camera.
+    // In a replay the wheels turn at the playback rate: paused (photo) = full detail, slow motion = less smear.
+    const playback = replay ? (dt > 0 ? fdt / dt : 0) : 1;
+    this.model.setTyreLod(
+      v.speed * 3.6 * playback,
+      this.camera.position.distanceTo(this.renderPos),
+    );
 
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;
@@ -1898,6 +1920,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
     this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
+    this.surround?.update(dt, this.renderPos, this.env);
     // The nearest roofed zones, looked up again only after the camera moved a few metres (a zone is ~12 m long).
     if (
       this.roofs.length &&
@@ -2033,7 +2056,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ? 'free drive'
         : `${Math.max(0, Math.min(st.finish, progress) - st.start).toFixed(0)} / ${(st.finish - st.start).toFixed(0)} m`,
     );
-    this.telemetry.update(dt, v);
+    const pad = this.input.pad;
+    this.telemetry.update(
+      dt,
+      v,
+      this.input.device === 'gamepad' ||
+        (this.input.device === 'touch' && this.input.touchStick !== null)
+        ? `pad ${PAD_STEER_LABELS[pad.mode]}  stick ${this.input.stickX.toFixed(2).padStart(5)}  lock ${pad.limit.toFixed(2)}`
+        : '',
+    );
 
     const tFx = performance.now();
     if (this.autoScale) this.adaptScale(performance.now());

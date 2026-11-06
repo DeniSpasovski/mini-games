@@ -170,9 +170,9 @@ export function ruinsLayout(): {
 export function buildRuins(l: Local): void {
   const { stumps, towers, blocks } = ruinsLayout();
   for (const { quad, h } of stumps) {
-    ringWalls(l, quad, FOOT, h, 'rubble', '#cfc6b4');
+    ringWalls(l, quad, FOOT, h, 'drystone', '#cfc6b4');
     l.fan(
-      'rubble',
+      'drystone',
       quad.map(([x, z]): V3 => [x, h, z]),
       '#b8ae9b',
       [0, 1, 0],
@@ -182,9 +182,9 @@ export function buildRuins(l: Local): void {
   // Three tower stumps on the corners: round, thicker and taller.
   for (const [cx, cz, r, h] of towers) {
     const pts = arc(cx, cz, r, 0, Math.PI * 2, 14).slice(0, -1);
-    ringWalls(l, pts, FOOT, h, 'rubble', '#d3cab8');
+    ringWalls(l, pts, FOOT, h, 'drystone', '#d3cab8');
     l.fan(
-      'rubble',
+      'drystone',
       pts.map(([x, z]): V3 => [x, h, z]),
       '#b4aa97',
       [0, 1, 0],
@@ -202,7 +202,7 @@ export function buildRuins(l: Local): void {
   // Fallen blocks in the courtyard.
   for (const { x, z, s, h } of blocks)
     l.box(
-      'rubble',
+      'drystone',
       [x - s, FOOT + 0.8, z - s * 0.7],
       [x + s, h, z + s * 0.7],
       '#c3baa8',

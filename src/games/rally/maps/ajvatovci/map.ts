@@ -14,6 +14,7 @@ import { HILLTOP_FLATS } from './hilltop';
 import { STATION_FLAT } from './station';
 import { fieldLinkPads, fieldLotPad, startLotPad } from './service-park';
 import { startRowPads } from './start-row';
+import { forestEdge } from '../shared/forest-edge';
 
 /**
  * "Ajvatovci Hill" - first real-world stage: Ilinden industrial zone (by the A2 motorway)
@@ -94,6 +95,8 @@ export const ajvatovciMap: MapDef = {
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
+    // Pine-needle carpet on the floor of the pine stands (world/ground-moisture.ts).
+    needles: { pine: 1 },
     // The big parcel north-east of the industrial zone was traced as an orchard (the zone at 0.828 rad): it is a vineyard.
     zones: data.landcover.zones.map((z) =>
       z.cover === 'orchard' && 'angle' in z && z.angle === 0.828
@@ -499,6 +502,12 @@ export const ajvatovciMap: MapDef = {
         scale: [0.92, 1.08] as [number, number],
       },
     ]),
+    // Where the road cuts a wood: shrub belt and young trees along the verge (maps/shared/forest-edge.ts).
+    ...forestEdge({
+      woods: ['pine', 'trees'],
+      young: ['oak_tree'],
+      open: ['shrub'],
+    }),
   ],
   roadside: [
     // Lamps along the hill road (as on the street-view photos).

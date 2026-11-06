@@ -15,6 +15,7 @@ import {
   type RoadSurfaceId,
 } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
+import { facadePhotosReady } from '../engine/facade-textures';
 import {
   gravelBase,
   gravelShader,
@@ -29,13 +30,25 @@ import {
 } from '../maps/shared/types';
 import { barrierMeshJob } from './barrier-mesh';
 import { bridgeMeshJob } from './bridge-mesh';
+import { culvertMeshJob } from './culvert-mesh';
 import { cutWallMeshJob } from './cut-wall-mesh';
+import { rockCutMeshJob } from './rock-cut-mesh';
 import { roadMarkingsMesh } from './road-markings';
 import { aerialwayMeshJob } from './aerialway-mesh';
 import { powerLineMeshJob } from './power-line-mesh';
 import { railMeshJob } from './rail-mesh';
 import { streetDetailMeshJob } from './street-detail-mesh';
 import { newRoadQuery, type RoadSample } from './road';
+import {
+  KERBED_TEX,
+  mudAt,
+  roadWear,
+  type Wear,
+  WEAR_TEX,
+  type WearMouth,
+} from './road-wear';
+import { hashString } from '../../../shared/rng';
+import { SPLAT_DIRT, SPLAT_GRAVEL, SPLAT_ROCK } from './terrain-gen';
 import { gantryMeshJob } from './gantry-mesh';
 import { goreMeshJob } from './gore-mesh';
 import {
@@ -51,6 +64,7 @@ import { waterMeshJob } from './water-mesh';
 import type { World } from './world';
 import { GroundTerrain } from './heightfield';
 import { newPathQuery } from './real-data';
+import { FOOT_WIDTH } from './terrain-gen';
 
 /**
  * Road surface ribbon. Vertices sample the terrain generator (so the ribbon hugs
@@ -110,6 +124,8 @@ export function getRoadMaterial(
   layer = 0,
   junction?: RoadSurfaceId,
 ): MeshStandardMaterial {
+  // The stage road's rally tarmac wears (world/road-wear.ts; its mesh has the attributes).
+  const wear = layer === 0 && WEAR_TEX.has(texture);
   const key = `${texture}:${layer}:${junction ?? ''}`;
   let m = roadMaterials.get(key);
   if (!m) {
@@ -141,7 +157,8 @@ export function getRoadMaterial(
       RALLY_WET: baked || texture === 'road' ? 0.15 : 0.4,
       RALLY_PUDDLES: 1,
     };
-    if (baked) applyRoadSurface(m, texture, junction ?? JUNCTION_OF[texture]);
+    if (baked)
+      applyRoadSurface(m, texture, junction ?? JUNCTION_OF[texture], wear);
     // The gravel is the terrain's own (world/gravel-road.ts), blended into the verge at its edges.
     if (gravel) setupGravelRibbon(m);
     roadMaterials.set(key, m);
@@ -531,6 +548,110 @@ function junctionBlend(mouths: Mouth[], x: number, z: number): number {
   return w;
 }
 
+/** Side road kinds that carry vehicles out onto the stage road (mud), by how much; other dirt ways wash gravel out. */
+const MUD_KINDS: Record<string, number> = {
+  track: 0.85,
+  unclassified: 0.7,
+  service: 0.6,
+  residential: 0.6,
+  tertiary: 0.6,
+};
+
+/**
+ * The stage road's rally wear (world/road-wear.ts) when it has rally tarmac: the verge each side (what is beside the
+ * edge: bare earth / gravel gives more than grass; nothing on a deck, a kerbed street or behind a barrier) and the dirt
+ * mouths (tracks bring mud, paths wash gravel out, more where they come down to the road).
+ */
+function stageRoadWear(world: World, line: Float32Array): Wear | null {
+  const road = world.map.road;
+  const samples = world.road.samples;
+  if (!samples.some((s) => WEAR_TEX.has(roadSurfaceAt(road, s.dist).texture)))
+    return null;
+  const n = samples.length;
+  const vergeL = new Float32Array(n);
+  const vergeR = new Float32Array(n);
+  const gen = world.gen;
+  const nTmp = new Vector3();
+  const splat = [0, 0, 0, 0];
+  const STEP = 4;
+  const at = (i: number, side: 1 | -1): number => {
+    const s = samples[i];
+    const tex = roadSurfaceAt(road, s.dist).texture;
+    if (
+      !WEAR_TEX.has(tex) ||
+      KERBED_TEX.has(tex) ||
+      world.road.bridgeAt(s.dist)
+    )
+      return 0;
+    const lat = side * (s.halfWidth + road.shoulder + 0.8);
+    const x = s.x + s.tz * lat;
+    const z = s.z - s.tx * lat;
+    world.analytic.normal(x, z, nTmp);
+    gen.splat(x, z, 1 - nTmp.y, Math.abs(lat), s.halfWidth, splat);
+    const bare = Math.min(
+      1,
+      splat[SPLAT_DIRT] + splat[SPLAT_ROCK] + splat[SPLAT_GRAVEL],
+    );
+    return 0.55 + 0.45 * bare;
+  };
+  for (const side of [1, -1] as const) {
+    const out = side > 0 ? vergeL : vergeR;
+    let prev = at(0, side);
+    for (let i = 0; i < n; i += STEP) {
+      const next = at(Math.min(n - 1, i + STEP), side);
+      for (let k = 0; k < STEP && i + k < n; k++)
+        out[i + k] = prev + ((next - prev) * k) / STEP;
+      prev = next;
+    }
+    // A barrier at the edge: no wheel goes off there.
+    for (const b of world.barrierRuns)
+      if (b.path === undefined && b.side === side)
+        for (
+          let i = Math.max(0, Math.floor(b.from));
+          i <= Math.min(n - 1, b.to);
+          i++
+        )
+          out[i] *= 0.15;
+  }
+  const mouths: WearMouth[] = [];
+  for (const j of gen.junctions) {
+    if (j.surface !== 'dirt') continue;
+    const tex = roadSurfaceAt(road, j.along).texture;
+    if (!WEAR_TEX.has(tex) || KERBED_TEX.has(tex)) continue;
+    const mud = MUD_KINDS[j.kind];
+    if (mud !== undefined && j.width > FOOT_WIDTH) {
+      mouths.push({
+        along: j.along,
+        side: j.side,
+        width: j.width,
+        vehicles: true,
+        strength: mud,
+      });
+      continue;
+    }
+    // A path: gravel washed out of it, more where it comes down to the road (rain runs down it).
+    const drop =
+      gen.height(j.x + j.dx * 8, j.z + j.dz * 8) - gen.height(j.x, j.z);
+    const foot = j.kind === 'footway' || j.kind === 'steps' ? 0.5 : 1;
+    mouths.push({
+      along: j.along,
+      side: j.side,
+      width: j.width,
+      vehicles: false,
+      strength: foot * (0.2 + 0.3 * Math.min(1, Math.max(0, drop / 1.2))),
+    });
+  }
+  return roadWear({
+    samples,
+    line,
+    reverse: !!world.stageDef.reverse,
+    vergeL,
+    vergeR,
+    mouths,
+    seed: hashString(world.map.id),
+  });
+}
+
 /** buildRoadMesh as a time-sliced job: yields after every road segment / side road. */
 /** Metres the driven line moves into a bend per 1/m of curvature (a 30 m radius bend: ~1 m towards the inside). */
 const LINE_GAIN = 32;
@@ -627,6 +748,9 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   });
   const rpq = newPathQuery();
   const line = drivenLine(samples);
+  const tWear = performance.now();
+  const wear = stageRoadWear(world, line);
+  roadJobMs.wear = performance.now() - tWear;
   for (const [si, start] of starts.entries()) {
     const end = starts[si + 1] ?? samples.length - 1;
     const rows = end - start + 1;
@@ -636,6 +760,9 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     const uv = new Float32Array(rows * cols * 2);
     const jw = new Float32Array(rows * cols);
     const grX = segTex === 'road' ? new Float32Array(rows * cols * 3) : null;
+    const worn = wear && WEAR_TEX.has(segTex);
+    const rwA = worn ? new Float32Array(rows * cols * 3) : null;
+    const rwB = worn ? new Uint8Array(rows * cols * 4) : null;
     const blends = !!JUNCTION_OF[segTex as RoadSurfaceId];
     for (let r = 0; r < rows; r++) {
       const s = samples[start + r];
@@ -665,6 +792,17 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
           grX[v * 3] = lat - line[start + r];
           grX[v * 3 + 1] = s.halfWidth - Math.abs(lat);
           grX[v * 3 + 2] = line[start + r];
+        }
+        // Rally wear: metres left of the centre, half width, driven line; dirt left / right, rubber, mud (0..255).
+        if (rwA && rwB) {
+          const i = start + r;
+          rwA[v * 3] = lat;
+          rwA[v * 3 + 1] = s.halfWidth;
+          rwA[v * 3 + 2] = line[i];
+          rwB[v * 4] = Math.round(255 * wear!.dirtL[i]);
+          rwB[v * 4 + 1] = Math.round(255 * wear!.dirtR[i]);
+          rwB[v * 4 + 2] = Math.round(255 * wear!.rub[i]);
+          rwB[v * 4 + 3] = Math.round(255 * mudAt(wear!, i, lat, s.halfWidth));
         }
         // Across a junction mouth the edge band fades into the junction asphalt (only the outer columns, out to
         // where the side road's pad dips under: the stage road's own wheel paths run on through the junction).
@@ -708,6 +846,10 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     g.setAttribute('uv', new BufferAttribute(uv, 2));
     g.setAttribute('jw', new BufferAttribute(jw, 1));
     if (grX) g.setAttribute('grX', new BufferAttribute(grX, 3));
+    if (rwA && rwB) {
+      g.setAttribute('rwA', new BufferAttribute(rwA, 3));
+      g.setAttribute('rwB', new BufferAttribute(rwB, 4, true));
+    }
     g.setIndex(idx);
     g.computeBoundingSphere();
     const mesh = new Mesh(
@@ -743,6 +885,10 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (rail) group.add(rail);
   const cutWalls = yield* timed('cutWalls', cutWallMeshJob(world));
   if (cutWalls) group.add(cutWalls);
+  const rockCuts = yield* timed('rockCuts', rockCutMeshJob(world));
+  if (rockCuts) group.add(rockCuts);
+  const culverts = yield* timed('culverts', culvertMeshJob(world));
+  if (culverts) group.add(culverts);
   const markings = roadMarkingsMesh(world);
   if (markings) group.add(markings);
   const signs = yield* timed('stageSigns', stageSignMeshJob(world));
@@ -753,6 +899,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (bridges) group.add(bridges);
   const buildings = yield* timed('buildings', buildingMeshJob(world));
   if (buildings) group.add(buildings);
+  // Landmark walls may wear a facade scan (kit `drystone`): its photo must be decoded before the texture is drawn.
+  while (world.landmarks.length && !facadePhotosReady) yield;
   for (const landmark of world.landmarks) {
     const built = yield* timed('landmarks', landmark.build(world));
     if (built) group.add(built);
@@ -807,6 +955,8 @@ const onStageSpan = (world: World, along: number): boolean =>
 /** Rings of a junction fillet fan from its corner to its arc. */
 const FILLET_RINGS = 4;
 const PATH_STEP = 3; // m between ribbon rows
+/** A foot way lies on the ground (no levelled bed under it): rows this close, or it sank into a bank's brow between them. */
+const FOOT_STEP = 1;
 const PATH_TILE = 256; // m, one merged mesh per tile
 
 /**
@@ -873,13 +1023,14 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   };
   for (const p of paths) {
     // Resample the polyline every PATH_STEP metres.
+    const step = p.width <= FOOT_WIDTH ? FOOT_STEP : PATH_STEP;
     const pts: [number, number, number][] = [];
     let dist = 0;
     for (let k = 0; k + 3 < p.pts.length; k += 2) {
       const ax = p.pts[k];
       const az = p.pts[k + 1];
       const L = Math.hypot(p.pts[k + 2] - ax, p.pts[k + 3] - az);
-      const n = Math.max(1, Math.ceil(L / PATH_STEP));
+      const n = Math.max(1, Math.ceil(L / step));
       for (let i = 0; i < n; i++) {
         const t = i / n;
         pts.push([
@@ -895,12 +1046,13 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     if (pts.length < 2) continue;
     // An end that stops short of the stage road (OSM joins the way to the road's raw line; the drawn road is smoothed
     // and can run metres away on a bend, and a slanted way's square end leaves one corner out on the verge) runs on
-    // until both corners of its end are well under the stage ribbon, so no verge shows between them.
+    // until both corners of its end are well under the stage ribbon, so no verge shows between them. A way not joined to the
+    // road (`junction: false`) keeps its ends.
     const under = (x: number, z: number) => {
       world.road.query(x, z, rq);
       return rq.found && rq.distance < rq.halfWidth - 0.3;
     };
-    for (const atEnd of [false, true]) {
+    for (const atEnd of p.junction === false ? [] : [false, true]) {
       const [ex, ez, ed] = atEnd ? pts[pts.length - 1] : pts[0];
       const [px, pz] = atEnd ? pts[pts.length - 2] : pts[1];
       world.road.query(ex, ez, rq);
@@ -995,8 +1147,10 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           !rq.found ||
           (rq.distance > rq.halfWidth + 1 &&
             !(world.road.bridges.length && world.road.bridgeAt(rq.along)));
+        // (a foot way lies on the ground: a trail climbing the stage road's cut bank stood up off it as a wall)
         const y =
           free &&
+          p.width > FOOT_WIDTH &&
           ground < prof - 0.15 &&
           (ground > prof - 3 || world.gen.portals.inside(x, z))
             ? prof
@@ -1124,6 +1278,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth - 0.2)
             u = 2 * (1 - (PATH_ACROSS[c === 0 ? 1 : c - 1] + 1) / 2) - u;
         }
+        // A foot way on the gravel shader: u + 2 asks for one trodden earth tread instead of wheel ruts (gravel-road.ts).
+        if (tex === 'road' && p.width <= FOOT_WIDTH) u += 2;
         tile.uv.push(u, pts[r][2] / texLength(tex));
       }
       if (r % 256 === 255) yield;

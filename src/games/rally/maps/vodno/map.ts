@@ -6,15 +6,20 @@ import {
 } from '../shared/real-map';
 import type {
   BarrierRule,
+  CulvertsDef,
   HeightmapDef,
   HorizonDef,
   LandcoverDef,
+  MapFeatures,
   MapDef,
   PathDef,
   PropPlacement,
   RailwayDef,
+  RasterDef,
   ScatterRule,
 } from '../shared/types';
+import canopy from './canopy.json';
+import culverts from './culverts.json';
 import data from './data.json';
 import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
@@ -23,6 +28,7 @@ import { GATE_PAD } from './landmarks/gate';
 import { BUILDING_PAD, HOTEL_PAD } from './landmarks/hotel';
 import { LOWER_NODE } from './landmarks/sites';
 import { BLOCK_PADS } from './landmarks/start-blocks';
+import { TRAIL_PATH } from './landmarks/trail-lot';
 import {
   CROSSROAD_BANK,
   laneExtra,
@@ -58,6 +64,8 @@ const BASE_HEIGHT = 349;
  * wall.
  */
 const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
+/** Guard rails stand on the 0.6 m verge (`road.shoulder`), not past it on the falling slope (posts hanging in the air). */
+const RAIL_OFFSET = 0.4;
 
 /** Covers where dry grass grows (detail layer). */
 const DRY = ['grass', 'shrub', 'bare', 'crop', 'urban'];
@@ -93,18 +101,77 @@ const WOOD_BANDS: [number, number | undefined, number][] = [
 /** Every wood cover (the bake's leaf type split, scripts/realmap/leaf_type.py): pine stands, mixed, oak coppice. */
 const WOODS = ['pine', 'mixed', 'oakwood'];
 
+/**
+ * The woods follow the real canopy (scripts/realmap/canopy.py): full density where it is closed (85 %), none in the
+ * gaps (under 1/8); trees sized by the stand height against each cover's median stand (m), so the gully stands grow
+ * tall and the ridge coppice low while the mean size stays.
+ */
+const STAND: Record<string, number> = { pine: 14, mixed: 14, oakwood: 12 };
+const canopyOf = (cover: string): ScatterRule['canopy'] => ({
+  full: 0.85,
+  min: 0.125,
+  height: STAND[cover],
+});
+
+/** The gaps of the woods: full where the canopy share is under 1/8, none from a half up. */
+const GAPS: ScatterRule['canopy'] = { full: 0.5, min: 0.125, open: true };
+
+/** A wood rule split into the road-distance bands (WOOD_BANDS), thinned by the real canopy of its cover. */
 function banded(
-  cover: string[],
+  cover: [string],
   rule: Omit<ScatterRule, 'cover' | 'maxRoadDist'>,
 ): ScatterRule[] {
   return WOOD_BANDS.map(([from, to, share]) => ({
     ...rule,
     cover,
+    canopy: canopyOf(cover[0]),
     density: rule.density * share,
     minRoadDist: Math.max(rule.minRoadDist ?? 0, from),
     maxRoadDist: to,
   }));
 }
+
+// ---- Ground layer and rock bands (used by `landcover.needles` and the end of `scatter`) ----
+/** Pine-needle carpet: the whole floor of the black pine stands, patches of it in the mixed stands. */
+const NEEDLE_FLOOR = { pine: 1, mixed: 0.5 };
+/** Ferns in the shade of the oak / hornbeam coppice and the mixed stands; rock bands on the steep spurs. */
+const GROUND_LAYER: ScatterRule[] = [
+  // Ferns in drifts under closed crowns: unfurling in spring, full in summer, dead rust-brown bracken in autumn.
+  ...(
+    [
+      ['fern', ['spring'], [0.55, 0.8]],
+      ['fern', ['summer'], [0.8, 1.15]],
+      ['fern_autumn', ['autumn'], [0.8, 1.1]],
+    ] as const
+  ).map(([asset, season, scale]): ScatterRule => ({
+    asset,
+    season: [...season],
+    cover: ['oakwood', 'mixed', 'trees'],
+    canopy: { full: 0.75, min: 0.35 },
+    density: 40,
+    detail: true,
+    mask: { scale: 28, threshold: 0.15 },
+    minRoadDist: 1.5,
+    maxSlope: 0.4,
+    scale: [scale[0], scale[1]],
+    sink: 0.05,
+  })),
+  // Schist breaking through the wooded hillside where it steepens past ~27 deg (the spurs of 650-850 m, 1 300-1 400 m
+  // and 2 550-2 750 m): short bands of rock faces along the contour, faces down the slope, backs in the hill. Past the
+  // road's cut faces and fill banks (steeper than any natural slope here: `maxSlope`).
+  {
+    asset: 'rock_outcrop',
+    cover: [...WOODS, 'shrub', 'bare', 'grass'],
+    density: 2.5,
+    minRoadDist: 9,
+    minSlope: 0.095,
+    maxSlope: 0.17,
+    mask: { scale: 45, threshold: 0 },
+    scale: [1.2, 1.7],
+    sink: 0.4,
+    outcrop: { pieces: [3, 6], lean: 0.5 },
+  },
+];
 
 const props: PropPlacement[] = [
   // The cross faces the city: its arm runs north-west / south-east, square to the view from the stage.
@@ -128,6 +195,9 @@ export const vodnoMap: MapDef = {
     ],
     edgeRise: 0,
     rockSlope: [0.65, 1.0],
+    // Bare schist and its scree where the hillside steepens past ~25-30 deg (the elevation data tops out at ~30 deg
+    // near the road: the spurs of 650-850 m, 1 300-1 400 m and 2 550-2 750 m).
+    talus: { slope: [0.09, 0.13], reach: 12 },
     flatAreas: VODNO_FLATS,
     pads: [
       ...LOT_PADS,
@@ -142,17 +212,22 @@ export const vodnoMap: MapDef = {
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
+    canopy: {
+      cover: canopy.cover as RasterDef,
+      height: canopy.height as RasterDef,
+    },
+    needles: NEEDLE_FLOOR,
     // [grass, dirt, rock, gravel]
     splat: {
       grass: [0.78, 0.16, 0.06, 0],
-      shrub: [0.55, 0.28, 0.17, 0],
-      trees: [0.5, 0.45, 0.05, 0],
+      shrub: [0.62, 0.22, 0.16, 0],
+      trees: [0.6, 0.35, 0.05, 0],
       // Pine plantation floor: needles and bare earth.
-      pine: [0.3, 0.68, 0.02, 0],
+      pine: [0.38, 0.6, 0.02, 0],
       beech: [0.25, 0.73, 0.02, 0],
-      // Oak / hornbeam coppice floor: leaf litter with grass in the gaps.
-      oakwood: [0.38, 0.58, 0.04, 0],
-      mixed: [0.34, 0.63, 0.03, 0],
+      // Oak / hornbeam coppice floor: leaf litter with grass and moss in the gaps (the owner's photos: green under the trees).
+      oakwood: [0.5, 0.46, 0.04, 0],
+      mixed: [0.45, 0.52, 0.03, 0],
       pasture: [0.62, 0.1, 0.28, 0],
       orchard: [0.7, 0.3, 0, 0],
       crop: [0.6, 0.4, 0, 0],
@@ -164,7 +239,11 @@ export const vodnoMap: MapDef = {
       cemetery: [0.7, 0.2, 0, 0.1],
     },
   },
-  paths: startStreets(countryRoad(dropLotAisles(data.paths as PathDef[]))),
+  // Appended last: the baked paths keep their index.
+  paths: [
+    ...startStreets(countryRoad(dropLotAisles(data.paths as PathDef[]))),
+    TRAIL_PATH,
+  ],
   // The side roads are streets and forest tracks: tracks are gravel ribbons (objects), streets city asphalt.
   trackRibbons: true,
   // Tracks over steep pine woods: a longer height window than the default track (25 m) keeps them smooth.
@@ -175,7 +254,12 @@ export const vodnoMap: MapDef = {
     residential: [60, 0.16],
     living_street: [45, 0.16],
     service: [40, 0.18],
+    // Footpaths (bake `osm.footpaths`) follow the land: no trench through a lot or across the hillside.
+    path: [6, 1.5],
+    footway: [6, 1.5],
   },
+  // Culverts where the elevation data says water crosses the road (scripts/realmap/culverts.py; OSM has none here).
+  culverts: culverts as CulvertsDef,
   pylons: data.pylons as [number, number][],
   powerLines: data.powerLines as number[][],
   aerialways: [
@@ -188,6 +272,8 @@ export const vodnoMap: MapDef = {
   // Kerbs, sidewalks and lamps on the streets round the stage road (the Vodno neighbourhood at the start).
   cityStreets: {
     reach: 320,
+    // the suburb only: the closed side road at the 2 000 m hairpin is a bare hill road
+    until: 1300,
     sidewalk: 1.4,
     lampEvery: 38,
     // the side streets in the stage road's own asphalt
@@ -213,6 +299,15 @@ export const vodnoMap: MapDef = {
       range: WALL_RANGE,
       solid: true,
     },
+    // The hill road is blasted into the slope: layered shale faces wherever the land stands 3 m above the road.
+    rockCuts: { minRise: 3, slope: 1.3, foot: 1.2, maxFace: 7 },
+    // ... and its spoil tipped over the valley side: a straight bank of rock and earth from the verge's rim.
+    fills: { minDrop: 1.5, slope: 0.8 },
+    // The big hairpin (2 000 m): the road is blasted through a spur the 30 m elevation data smooths to ~2 m - a 6-8 m
+    // shale face round the outside of the bend and along the leg above it (the owner's photos).
+    trenchFills: [
+      { from: 1998, to: 2105, halfWidth: 15, depth: [8, 6], side: 1 },
+    ],
     surface: 'tarmac',
     // Old tarmac with white edge and centre lines all along; at the first crossroad every line is paint (`markings`).
     texture: 'road_tarmac_lines',
@@ -235,6 +330,33 @@ export const vodnoMap: MapDef = {
   treeSetback: [{ from: 250, to: 1150, dist: 8, fade: 80 }],
   // Elsewhere the woods come to the verge; no low limb hangs over the road.
   treeCrownClear: 1.5,
+  // Every crown of the canopy height model outside the woods (gardens, hedgerows, field and edge trees) and the lone
+  // ones in them (clearings, edges), where it stands (scripts/realmap/canopy.py); the species from the cover there.
+  realTrees: {
+    trees: canopy.trees,
+    assets: {
+      urban: [
+        ...['fruit_tree', 'fruit_tree', 'fruit_tree', 'locust_tree'],
+        ...['locust_tree', 'walnut_tree', 'pale_tree', 'cypress_tree'],
+      ],
+      grass: ['oak_tree', 'oak_tree', 'locust_tree'],
+      shrub: ['oak_tree', 'oak_tree', 'locust_tree'],
+      bare: ['oak_tree', 'locust_tree'],
+      pasture: ['oak_tree', 'locust_tree'],
+      crop: ['locust_tree', 'walnut_tree', 'oak_tree', 'fruit_tree'],
+      industrial: ['locust_tree', 'pale_tree'],
+      cemetery: ['cypress_tree'],
+      trees: ['oak_tree', 'locust_tree', 'hornbeam_tree'],
+      pine: ['plantation_pine', 'black_pine'],
+      mixed: ['black_pine', 'oak_tree', 'hornbeam_tree'],
+      oakwood: ['oak_tree', 'oak_tree', 'hornbeam_tree'],
+    },
+    minRoadDist: 3.5,
+    minPathDist: 2,
+    scale: [0.45, 1.5],
+    tilt: 3,
+    sink: 0.15,
+  },
   scatter: [
     // The woods of the north face (leaf type from winter / summer satellite scenes, scripts/realmap/leaf_type.py): low
     // downy / Turkey oak and oriental hornbeam coppice (the natural forest), black pine plantations from the 1950s in
@@ -259,15 +381,17 @@ export const vodnoMap: MapDef = {
       tilt: 2,
       sink: 0.3,
     }),
-    // A few full pines at the verge, where the car passes close enough to see the needles.
+    // A few more pines at the verge, where the car passes close enough to see the needles: tall black pines (a bare
+    // trunk under a small open crown, the owner's photos), not full cones.
     {
-      asset: 'pine_tree',
+      asset: 'tall_black_pine',
       cover: ['pine', 'mixed'],
+      canopy: canopyOf('pine'),
       density: 2,
       minRoadDist: 3.5,
       maxRoadDist: 40,
       maxSlope: 0.8,
-      scale: [0.8, 1.2],
+      scale: [0.85, 1.1],
       tilt: 2,
       sink: 0.3,
     },
@@ -330,6 +454,7 @@ export const vodnoMap: MapDef = {
     {
       asset: 'oak_tree',
       cover: ['pine', 'trees'],
+      canopy: canopyOf('oakwood'),
       density: 1.5,
       minRoadDist: 3.5,
       maxSlope: 0.75,
@@ -341,6 +466,7 @@ export const vodnoMap: MapDef = {
     {
       asset: 'black_pine',
       cover: ['oakwood'],
+      canopy: canopyOf('oakwood'),
       density: 0.5,
       minRoadDist: 4,
       maxSlope: 0.8,
@@ -390,7 +516,78 @@ export const vodnoMap: MapDef = {
       tilt: 3,
       sink: 0.1,
     },
-    // Dry south-facing scrub and meadows on the lower slopes.
+    // The gaps in the woods (the canopy model sees nothing under 3 m there: cut slopes, clearings, the open hillside round
+    // the big hairpin) grow young pines / oaks and scrub, near the road only.
+    {
+      asset: 'young_tree',
+      cover: WOODS,
+      canopy: GAPS,
+      density: 5,
+      minRoadDist: 4,
+      maxRoadDist: 140,
+      maxSlope: 0.8,
+      scale: [0.8, 1.4],
+      tilt: 3,
+      sink: 0.15,
+    },
+    {
+      asset: 'scrub_bush',
+      cover: WOODS,
+      canopy: GAPS,
+      density: 12,
+      minRoadDist: 2.5,
+      maxRoadDist: 140,
+      scale: [0.8, 1.5],
+      sink: 0.15,
+    },
+    // The road's understorey (the owner's photos: bright green shrubs and young locust 2-6 m along the verges, the car
+    // parks and the rails, under the canopy model's 3 m floor): generated bush and hazel in clumps, young locust.
+    {
+      asset: 'bush',
+      cover: [...WOODS, ...DRY, 'trees', 'pasture'],
+      density: 10,
+      minRoadDist: 2,
+      maxRoadDist: 22,
+      mask: { scale: 40, threshold: -0.1 },
+      scale: [0.7, 1.1],
+      maxSlope: 0.2,
+      sink: 0.1,
+    },
+    {
+      asset: 'hazelnut_tree',
+      cover: [...WOODS, ...DRY, 'trees', 'pasture'],
+      density: 4,
+      minRoadDist: 3,
+      maxRoadDist: 25,
+      mask: { scale: 55, threshold: 0 },
+      scale: [0.5, 0.8],
+      maxSlope: 0.2,
+      sink: 0.15,
+    },
+    {
+      asset: 'locust_tree',
+      cover: [...DRY, 'pasture'],
+      density: 1.2,
+      minRoadDist: 4,
+      maxRoadDist: 45,
+      mask: { scale: 60, threshold: 0.05 },
+      scale: [0.45, 0.8],
+      tilt: 4,
+      sink: 0.2,
+    },
+    {
+      asset: 'locust_tree',
+      cover: WOODS,
+      canopy: GAPS,
+      density: 2,
+      minRoadDist: 4,
+      maxRoadDist: 45,
+      mask: { scale: 60, threshold: 0.05 },
+      scale: [0.45, 0.8],
+      tilt: 4,
+      sink: 0.2,
+    },
+    // Dry south-facing scrub and meadows on the lower slopes (their trees: `realTrees`).
     {
       asset: 'scrub_bush',
       cover: ['shrub'],
@@ -399,20 +596,12 @@ export const vodnoMap: MapDef = {
       scale: [0.8, 1.6],
       sink: 0.15,
     },
-    {
-      asset: 'oak_tree',
-      cover: ['shrub', 'grass'],
-      density: 0.6,
-      minRoadDist: 4,
-      mask: { scale: 200, threshold: 0 },
-      scale: [0.55, 1],
-      tilt: 5,
-      sink: 0.2,
-    },
-    // Black locust, the roadside and wasteland tree of the Skopje valley, loose among the oaks of the lower slopes.
+    // Black locust, the roadside and wasteland tree of the Skopje valley, loose among the oaks of the lower slopes (in the
+    // open, the real trees: `realTrees`).
     {
       asset: 'locust_tree',
-      cover: ['shrub', 'grass', 'trees', 'oakwood'],
+      cover: ['trees', 'oakwood'],
+      canopy: canopyOf('oakwood'),
       density: 0.7,
       minRoadDist: 4,
       mask: { scale: 170, threshold: -0.05 },
@@ -439,47 +628,53 @@ export const vodnoMap: MapDef = {
       alignToGround: true,
       sink: 0.35,
     },
-    // The suburb: garden trees between the houses.
-    {
-      asset: 'fruit_tree',
-      cover: ['urban'],
-      density: 2.5,
+    // The forest floor under the crowns: stumps of the coppice cuts, fallen logs and trunks, dead branches and
+    // root plates (CC0 Poly Haven models, `forest_*`), thinning out where the canopy opens.
+    ...(
+      [
+        ['forest_stump', 1.6, [0.8, 1.3], false],
+        ['forest_log', 0.7, [0.8, 1.2], true],
+        ['forest_trunk', 0.25, [0.8, 1.1], true],
+        ['forest_branches', 2.2, [0.8, 1.4], true],
+        ['forest_roots', 0.6, [0.8, 1.2], true],
+      ] as const
+    ).map(([asset, density, scale, align]): ScatterRule => ({
+      asset,
+      cover: [...WOODS, 'trees'],
+      canopy: { full: 0.6, min: 0.15 },
+      density,
       minRoadDist: 3,
-      minPathDist: 3,
-      scale: [0.8, 1.3],
-      tilt: 5,
-      sink: 0.1,
+      // A 1.7 m root plate bridges a bump on steep ground: gentler ground only.
+      maxSlope: asset === 'forest_roots' ? 0.2 : 0.5,
+      scale: [scale[0], scale[1]],
+      alignToGround: align,
+      sink: 0.05,
+    })),
+    // Outcrops: the schist breaks through where the hillside steepens past ~25 deg (the elevation data; the bare faces
+    // and their scree: `terrain.talus`): boulders in clusters, half buried, and loose stones below.
+    {
+      asset: 'rock_boulder',
+      cover: [...WOODS, ...DRY, 'trees'],
+      density: 6,
+      minRoadDist: 4,
+      minSlope: 0.095,
+      mask: { scale: 35, threshold: -0.15 },
+      scale: [0.8, 2.2],
+      alignToGround: true,
+      sink: 0.45,
     },
     {
-      asset: 'locust_tree',
-      cover: ['urban'],
-      density: 1.2,
-      minRoadDist: 4,
-      minPathDist: 3,
-      scale: [0.85, 1.25],
-      tilt: 3,
-      sink: 0.1,
+      asset: 'rock_small',
+      cover: [...WOODS, ...DRY, 'trees'],
+      density: 12,
+      minRoadDist: 2,
+      minSlope: 0.075,
+      scale: [0.6, 1.6],
+      alignToGround: true,
+      sink: 0.08,
     },
-    {
-      asset: 'cypress_tree',
-      cover: ['urban'],
-      density: 0.35,
-      minRoadDist: 4,
-      minPathDist: 3,
-      scale: [0.8, 1.3],
-      tilt: 1.5,
-      sink: 0.1,
-    },
-    {
-      asset: 'pale_tree',
-      cover: ['urban'],
-      density: 0.8,
-      minRoadDist: 4,
-      minPathDist: 3,
-      scale: [0.8, 1.2],
-      tilt: 3,
-      sink: 0.1,
-    },
+    ...GROUND_LAYER,
+    // The suburb's garden trees: `realTrees`.
     {
       asset: 'fruit_tree',
       cover: ['orchard'],
@@ -523,6 +718,16 @@ export const vodnoMap: MapDef = {
       asset: 'marker_post',
       every: 50,
       side: 'both',
+      offset: 1.4,
+      from: START + 400,
+      alongRoad: true,
+    },
+    // ... closer on the outside of the bends (white posts, red reflectors): every 16 m where the radius is under 80 m.
+    {
+      asset: 'marker_post',
+      every: 16,
+      maxRadius: 80,
+      side: 'outside',
       offset: 1.4,
       from: START + 400,
       alongRoad: true,
@@ -616,11 +821,15 @@ export const vodnoMap: MapDef = {
   // after the first crossroad, where the verge falls away.
   barriers: [
     ...[
-      ...hairpinRails(data.route, { maxRadius: 30, lead: 20 }),
+      ...hairpinRails(data.route, {
+        maxRadius: 30,
+        lead: 20,
+        offset: RAIL_OFFSET,
+      }),
       {
         kind: 'guardrail',
         side: 'right',
-        offset: 0.9,
+        offset: RAIL_OFFSET,
         from: VIDIKOVEC_RAIL.from,
         to: VIDIKOVEC_RAIL.to,
         skipJunctions: 4,
@@ -629,13 +838,16 @@ export const vodnoMap: MapDef = {
     {
       kind: 'guardrail',
       side: 'left',
-      offset: 0.9,
+      offset: RAIL_OFFSET,
       from: 500,
       to: 640,
       skipJunctions: 4,
       rusty: false,
     } satisfies BarrierRule,
   ],
+  // Galvanised rails (ref-07 / ref-12) wherever the fill bank / the valley side drops more than 2 m within 3 m of the
+  // verge (world/drop-rails.ts; the map's own rails above win).
+  dropRails: { minDrop: 2, rusty: false, offset: RAIL_OFFSET },
   props,
   landmarks: [
     'vodno-sredno-vodno',
@@ -649,5 +861,9 @@ export const vodnoMap: MapDef = {
     'vodno-crossroad-hotel',
     'vodno-start-lot',
     'vodno-roadside-gazebo',
+    'vodno-trail-lot',
+    // OSM's park furniture, gates and fences along the stage (data.json features), where no landmark above models them
+    'vodno-osm-features',
   ],
+  features: data.features as MapFeatures,
 };

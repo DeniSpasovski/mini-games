@@ -27,26 +27,44 @@ export interface PlacedTree {
 }
 
 /**
+ * Size ladder of a scattered stand (`ladder`): real woods mix ages, so a share of the trees are young (a fraction of the
+ * species' size) and a few are veterans, the rest the species' own range. [share, scale from, scale to].
+ */
+const YOUNG: [number, number, number] = [0.16, 0.38, 0.62];
+const VETERAN: [number, number, number] = [0.1, 1.12, 1.3];
+
+/**
  * Pose of the `index`-th tree placed on stage `stageId`, a tree type from the map data. `mapScale` is the scale the
  * map gave it (its scatter rule's range, a hand-placed sapling, a street tree sized by its trunk): it multiplies the
- * species' own size range.
+ * species' own size range. `ladder`: a scattered tree, sized on the stand's age ladder (YOUNG / VETERAN); trees the map
+ * sizes itself (measured heights, hand-placed) keep their size.
  */
 export function placeTree(
   stageId: string,
   index: number,
   asset: string,
   mapScale = 1,
+  ladder = false,
 ): PlacedTree {
   const def = speciesOfType(asset);
   const h = mix32(hashText(stageId), index);
   const u = (k: number) => unit(mix32(h, k));
+  const age = u(7);
+  const rung = !ladder
+    ? 1
+    : age < YOUNG[0]
+      ? YOUNG[1] + (YOUNG[2] - YOUNG[1]) * u(8)
+      : age > 1 - VETERAN[0]
+        ? VETERAN[1] + (VETERAN[2] - VETERAN[1]) * u(8)
+        : 1;
   return {
     variant: Math.min(
       variantCount(def) - 1,
       Math.floor(u(1) * variantCount(def)),
     ),
     rotY: u(2) * Math.PI * 2,
-    scale: (def.scale[0] + (def.scale[1] - def.scale[0]) * u(3)) * mapScale,
+    scale:
+      (def.scale[0] + (def.scale[1] - def.scale[0]) * u(3)) * mapScale * rung,
     pose: {
       species: def.name,
       hue: (u(4) - 0.5) * 0.06,

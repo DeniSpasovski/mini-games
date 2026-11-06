@@ -358,6 +358,8 @@ export class Environment {
   private t0 = performance.now();
   /** Studio softboxes in the env map (menu car screens): crisp panel highlights on paint and glass. */
   studio: boolean;
+  /** Radiance of the env map's ground disc (below its horizon): the car's surroundings are lit like it (car-surround.ts). */
+  readonly groundRadiance = new Color();
 
   constructor(
     private scene: Scene,
@@ -644,6 +646,7 @@ export class Environment {
           ? 0.012
           : 0.25 + 0.55 * Math.sin(MathUtils.degToRad(this.sunElevation)),
       );
+    this.groundRadiance.copy(groundCol);
     const ground = new Mesh(
       new CircleGeometry(900, 48).rotateX(-Math.PI / 2),
       new MeshBasicMaterial({ color: groundCol, fog: false }),

@@ -21,7 +21,7 @@ import {
  * Bump when generated output changes for the same species and seed, or the leaf atlases change (trees/leaftex.ts,
  * `coverageMips`): cached variants and atlases regenerate.
  */
-export const GENERATOR_VERSION = 30;
+export const GENERATOR_VERSION = 31;
 
 export interface TreeVariantInfo {
   species: string;
@@ -52,6 +52,7 @@ export const VARIANT_SEEDS: Readonly<Record<string, readonly number[]>> = {
   Pine: [70358897, 4269693251, 1578089916, 1076235523, 683012891, 177544273],
   'Plantation pine': [3997988242, 448287570, 1952667911, 3425810768],
   'Black pine': [30515455, 2221014150, 4294701043, 2983813763],
+  'Tall black pine': [1925759533, 3797966878, 1611007792, 4072343043],
   Juniper: [361934921, 1368382076, 1350965330, 1622798451],
   Oak: [1932688229, 2022549835, 810071768, 492729341, 128271731, 514585895],
   Beech: [3810229138, 2546762649, 1672154091, 3124777938],
