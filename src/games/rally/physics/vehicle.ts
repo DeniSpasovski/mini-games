@@ -467,6 +467,35 @@ export class Vehicle {
     return this.velocity.dot(this.forward);
   }
 
+  /**
+   * Direction the front axle is travelling relative to the car's nose (rad, + = left, same sense as a wheel's
+   * `steerAngle`): steering the fronts to it leaves them with no slip angle. 0 when barely moving. Read-only (input).
+   */
+  frontTravel(): number {
+    let x = 0;
+    let z = 0;
+    for (const w of this.wheels) {
+      if (!w.isFront) continue;
+      const r = _v1.copy(w.mount).applyQuaternion(this.quaternion);
+      const vp = _v2.crossVectors(this.angularVelocity, r).add(this.velocity);
+      x += vp.dot(this.right);
+      z += vp.dot(this.forward);
+    }
+    return Math.hypot(x, z) < 1 ? 0 : Math.atan2(x, Math.abs(z));
+  }
+
+  /** Front tyres' peak slip angle (rad) on the surface under them (tyre and set-up included). */
+  frontPeakAngle(): number {
+    let a = 0;
+    let n = 0;
+    for (const w of this.wheels)
+      if (w.isFront) {
+        a += w.surface.peakAngle;
+        n++;
+      }
+    return ((a / Math.max(1, n)) * Math.PI) / 180;
+  }
+
   /** Place the car at rest at `position` (ground level under the car), facing `heading` (rad, 0 = +Z). */
   reset(groundPosition: Vector3, heading: number): void {
     this.position.copy(groundPosition);

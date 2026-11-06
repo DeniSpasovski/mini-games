@@ -69,6 +69,12 @@ import {
   saveDisplayMode,
 } from '../engine/display';
 import { CAMERA_MODES, type CameraMode } from './camera-rig';
+import { isTouchDevice } from './touch-controls';
+import {
+  PAD_STEER_LABELS,
+  PAD_STEER_MODES,
+  type PadSteerMode,
+} from './pad-steering';
 import {
   activateFocused,
   GamepadMenuNav,
@@ -104,11 +110,7 @@ import {
 } from '../weather';
 import { Showroom } from './showroom';
 import { replayUrl } from './replay/debug-export';
-import {
-  confirmButton,
-  nameForm,
-  storageLine,
-} from './replay/manage-ui';
+import { confirmButton, nameForm, storageLine } from './replay/manage-ui';
 import {
   deleteReplay,
   isNamed,
@@ -119,11 +121,13 @@ import {
 } from './replay/store';
 
 import {
+  formatDelta,
   formatTime,
   isOldRun,
   loadTimes,
   oldRunLabel,
   runConditions,
+  bestSectorTimes,
   sectorTimes,
   timesVersion,
   type RunRecord,
@@ -1895,14 +1899,39 @@ export function buildOptions(opts: {
     ),
     'C in game',
   );
+  row(
+    'Pad steering',
+    choice(
+      PAD_STEER_MODES.map((m): [PadSteerMode, string] => [
+        m,
+        PAD_STEER_LABELS[m],
+      ]),
+      s.padSteering,
+      (v) => set({ padSteering: v }),
+    ),
+    'controller · touch stick',
+  );
+  if (isTouchDevice())
+    row(
+      'Touch steering',
+      choice(
+        [
+          ['stick', 'Stick'],
+          ['buttons', 'Buttons'],
+        ],
+        s.touchSteering,
+        (v) => set({ touchSteering: v }),
+      ),
+      'stick floats under the left thumb',
+    );
   el.append(buttons(['Back', opts.onBack, true]));
   return el;
 }
 
 /**
- * Sector chips of the run just driven (empty when it kept no splits). Each chip is green / red
- * against the same sector of the best other run in the selected scope (all cars / this car);
- * `setScope` re-colours them when the leaderboard toggle changes.
+ * Sector chips of the run just driven (empty when it kept no splits). Each chip is green / red, with its gap, against
+ * the fastest the same sector was driven by any other run in the selected scope (all cars / this car); `setScope`
+ * re-colours them when the leaderboard toggle changes. No colour for a sector nobody else drove.
  */
 export function buildSectors(
   board: RunRecord[],
@@ -1913,20 +1942,14 @@ export function buildSectors(
   };
   const mine = sectorTimes(run);
   el.setScope = (carOnly) => {
-    const ref = board.find(
-      (r) =>
-        r !== run &&
-        !isOldRun(r, run.ver ?? 1) &&
-        (!carOnly || r.car === run.car) &&
-        r.splits?.length,
-    );
-    const refSec = ref ? sectorTimes(ref) : [];
+    const best = bestSectorTimes(board, run, carOnly);
     el.innerHTML = mine
       .map((t, i) => {
-        const r = refSec[i];
-        const cls =
-          r === undefined ? '' : t <= r ? ' class="good"' : ' class="bad"';
-        return `<div${cls}><span>S${i + 1}</span>${t.toFixed(2)}</div>`;
+        const r = best[i];
+        if (r === undefined)
+          return `<div><span>S${i + 1}</span>${t.toFixed(2)}</div>`;
+        const d = t - r;
+        return `<div class="${d <= 0 ? 'good' : 'bad'}"><span>S${i + 1}</span>${t.toFixed(2)}<b>${formatDelta(d)}</b></div>`;
       })
       .join('');
   };
