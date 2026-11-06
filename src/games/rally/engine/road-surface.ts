@@ -1,5 +1,15 @@
 import { JUNCTION_ASPHALT } from '../world/junctions';
 import {
+  ROAD_WEAR_FRAGMENT,
+  ROAD_WEAR_FRAGMENT_PARS,
+  ROAD_WEAR_NORMAL,
+  ROAD_WEAR_ROUGHNESS,
+  ROAD_WEAR_VERTEX,
+  ROAD_WEAR_VERTEX_PARS,
+} from '../world/road-wear';
+import { getTerrainMaterial } from '../world/terrain-material';
+import { GROUND_LAYER, GROUND_MEAN, GROUND_SCAN } from './ground-textures';
+import {
   DataTexture,
   LinearFilter,
   LinearMipmapLinearFilter,
@@ -75,6 +85,21 @@ const TONE: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_plain: 0.6,
   road_tarmac_plain_kerbed: 0.6,
 };
+
+/** Constants of the wear shader (world/road-wear.ts): the terrain's soil and gravel layers, dust / mud / rubber tones. */
+const WEAR_DEFINES = [
+  `#define RW_SOIL_LAYER ${GROUND_LAYER.soil.toFixed(1)}`,
+  `#define RW_SOIL_SCALE ${(1 / GROUND_SCAN.soil).toFixed(4)}`,
+  `#define RW_SOIL_MEAN ${GROUND_MEAN.soil.toFixed(4)}`,
+  `#define RW_GR_LAYER ${GROUND_LAYER.gravel.toFixed(1)}`,
+  `#define RW_GR_SCALE ${(1 / GROUND_SCAN.gravel).toFixed(4)}`,
+  `#define RW_GR_MEAN ${GROUND_MEAN.gravel.toFixed(4)}`,
+  // linear luminance of the dust film and the mud (the soil scan normalised to 1)
+  '#define RW_DUST 0.21',
+  '#define RW_MUD 0.085',
+  // darkening of a full rubber line
+  '#define RW_RUB 0.6',
+].join('\n');
 
 export const isRoadSurface = (id: string): id is RoadSurfaceId =>
   Object.prototype.hasOwnProperty.call(ROAD_SURFACE_LEN, id);
@@ -205,11 +230,14 @@ export async function preloadRoadSurfaces(map: MapDef): Promise<void> {
  * The tone shader multiplies the colour by blotches (9 m, 3 m) and streaks along the road that never repeat, so the
  * tile does not show along a long straight. Roads in `PATCHES` also get pale repair patches (one cell of road = 10 m,
  * at most two patches in a cell: a pale rounded block, 0.5 - 1.9 m wide and up to 7 m long, with a wobbly edge).
+ * `wear` = the stage road's rally wear (world/road-wear.ts: cut dirt, rubber, mouth mud, sealed cracks; the mesh brings
+ * the `rwA` / `rwB` attributes).
  */
 export function applyRoadSurface(
   m: MeshStandardMaterial,
   id: RoadSurfaceId,
   junction: RoadSurfaceId | undefined = JUNCTION_OF[id],
+  wear = false,
 ): void {
   const configure = (s: Surface | undefined, js?: Surface) => {
     if (!s) {
@@ -239,6 +267,24 @@ export function applyRoadSurface(
       shader.uniforms.rsPatch = patch;
       shader.uniforms.rsPatchDark = patchDark;
       shader.uniforms.rsTone = tone;
+      if (wear) {
+        shader.uniforms.tGround = (
+          getTerrainMaterial().userData.uniforms as Record<
+            string,
+            { value: unknown }
+          >
+        ).tGround;
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            '#include <common>',
+            `#include <common>${ROAD_WEAR_VERTEX_PARS}`,
+          )
+          .replace(
+            '#include <project_vertex>',
+            `#include <project_vertex>${ROAD_WEAR_VERTEX}`,
+          );
+        shader.fragmentShader = `${WEAR_DEFINES}\n${shader.fragmentShader}`;
+      }
       // Junction blend: the same asphalt laid by world XZ, mixed in by `jw` (colour, normal, roughness, tone).
       const j = !!js;
       if (js) {
@@ -276,7 +322,8 @@ export function applyRoadSurface(
           float rsNoise( vec2 p ) {
             vec2 i = floor( p ); vec2 f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
             return mix( mix( rsHash( i ), rsHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( rsHash( i + vec2( 0.0, 1.0 ) ), rsHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
-          }`,
+          }
+          ${wear ? ROAD_WEAR_FRAGMENT_PARS : ''}`,
         )
         .replace(
           '#include <map_fragment>',
@@ -318,24 +365,26 @@ export function applyRoadSurface(
               }
               diffuseColor.rgb *= 1.0 + mix( 0.6, -0.35, rsPatchDark ) * rsCov * ( 0.75 + 0.25 * rsNoise( rsM * 9.0 ) );
             }
+            ${wear ? ROAD_WEAR_FRAGMENT : ''}
           }`,
         )
         // Roughness rides in the normal map's alpha.
         .replace(
           '#include <roughnessmap_fragment>',
-          `float roughnessFactor = roughness * ${nSample}.a;`,
+          `float roughnessFactor = roughness * ${nSample}.a;${wear ? ROAD_WEAR_ROUGHNESS : ''}`,
         )
         .replace(
           '#include <normal_fragment_maps>',
           ShaderChunk.normal_fragment_maps
             .split('texture2D( normalMap, vNormalMapUv )')
-            .join(nSample),
+            .join(nSample) + (wear ? ROAD_WEAR_NORMAL : ''),
         );
     };
     // (the blended shader is different code: its own program)
     m.customProgramCacheKey = () =>
       Material.prototype.customProgramCacheKey.call(m) +
-      (js ? ':junction' : '');
+      (js ? ':junction' : '') +
+      (wear ? ':wear' : '');
     m.needsUpdate = true;
   };
   const s = surfaces.get(id);

@@ -22,8 +22,8 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 Most species come from a family builder in trees/species.ts that writes the grammar from a few shape numbers, so a new or retuned species changes numbers, not rules:
 
 - `shrub`: stems rising from a stool (count, stool radius), upright and longest in the centre, leaning out at the rim, so the bush is a dome whose rim reaches the ground; a leaf cluster on every internode; `arch` bows the stems over (bramble canes), `crook` bends them.
-- `conifer`: a bare bole with dead stubs, then whorls of limbs whose length follows a crown shape (cone, umbrella, column) and whose angle rises up the crown; needles only on the outer limb generations (`leafFrom`), so the whorls read as layers. Side sprays are needle tufts on the limb with no wood of their own, so the branch budget draws every limb's axis out to its needles.
-- `broadleaf`: a bole with two low limbs forking into three leaders that bifurcate; `crook` bends the limbs, `leafFrom` leaves the inner limbs bare (a crown in clumps with limbs showing), `stems` grows a coppice from one stool.
+- `conifer`: a bare bole with dead stubs, then whorls of limbs whose length follows a crown shape (cone, umbrella, column) and whose angle rises up the crown; needles only on the outer limb generations (`leafFrom`), so the whorls read as layers. Side sprays are needle tufts on the limb with no wood of their own, so the branch budget draws every limb's axis out to its needles. Optional, for an open crown: sprays only on the outer generations (`sprayFrom`), a wide limb-length spread (`limbJitter`), a share of dead limbs (`deadLimbs`), limbs curving up (`curl`) and stubs on only some metres of the bole (`stubs`).
+- `broadleaf`: a bole with two low limbs forking into three leaders that bifurcate; `crook` bends the limbs, `leafFrom` leaves the inner limbs bare (a crown in clumps with limbs showing: the oak, hornbeam and locust, so sky shows between the clumps), `stems` grows a coppice from one stool.
 - Poplar, cypress, hedge cypress, birch, sapling and willow keep rules of their own. The cypresses hang their fronds on the limbs only (none on the leader) and keep the limbs thin enough to draw, so every frond grows from wood.
 
 ## Types
@@ -32,6 +32,7 @@ Most species come from a family builder in trees/species.ts that writes the gram
 - pine_tree is a pine, a Scots or spruce style conifer: one straight leader, whorls of drooping limbs, a layered cone of needle sprays down to a short foot.
 - plantation_pine is a plantation pine: the pine's cone grown cheaper for dense stands, four limbs to a whorl and about half the sprites, each larger; a full cone like the young planted hillside stands.
 - black_pine is a black pine, an Austrian black pine: a long straight trunk bare but for dead stubs, under a flat umbrella of dark needle clumps.
+- tall_black_pine is a black pine of a closed stand, about 20 m: a slim trunk bare to two thirds of its height but for a few dead stubs, under a small, open, flat-topped crown: needle tufts on the outer ends of long near-level limbs that curve up, a share of the limbs died back to bare stubs, so sky shows between the clumps; its bark dark at the foot and paler warm grey-brown up the stem (Vodno's trail start).
 - juniper is a juniper, a dark dense cone of spreading needled limbs, widest near the foot and needled almost to the ground, 2 to 3.5 m, drive-through.
 - oak_tree is an oak, a broad irregular field tree with a forking trunk and a rounded crown.
 - beech_tree is a mountain beech: a tall straight smooth pale-grey trunk under a dense rounded crown.
@@ -64,7 +65,7 @@ Most species come from a family builder in trees/species.ts that writes the gram
 
 ## Checks
 
-- A test checks every type's proportions and colours against its description: a columnar poplar, cypress, hedge cypress and juniper, a pine taller than wide, a walnut and a willow wider than tall, a black pine crown in its top third, pale birch and plane bark, needles on the conifers, autumn reds on the thicket, a cypress darker than the beech, low bushes, a fruit tree under an oak and a poplar over it.
+- A test checks every type's proportions and colours against its description: a columnar poplar, cypress, hedge cypress and juniper, a pine taller than wide, a walnut and a willow wider than tall, a black pine crown in its top third and the tall black pine's above 70 % of its height, half again as tall, pale birch and plane bark, needles on the conifers, autumn reds on the thicket, a cypress darker than the beech, low bushes, a fruit tree under an oak and a poplar over it.
 
 ## Identity
 

@@ -19,6 +19,7 @@ import {
   SREDNO,
   wallColliders,
   SREDNO_BUS,
+  TRAIL,
   VIDIKOVEC,
 } from './car-parks';
 import { gazebo } from './park';
@@ -94,6 +95,21 @@ import {
   START_LOT_PLANTS,
 } from './start-lot';
 import { buildStation } from './station';
+import {
+  buildTrailLot,
+  ISLAND_PLANTS,
+  PILE_PLANTS,
+  SIDE_ROAD_BLOCK,
+  TRAIL_LOT_AREAS,
+  TRAIL_SCRUB,
+  TRAIL_LOT_REPLACES,
+  TRAIL_PINES,
+  TRAIL_STAND_OAKS,
+  TRAIL_START,
+  TRAIL_UNDERSTOREY,
+  TRAIL_VERGE,
+  trailLotColliders,
+} from './trail-lot';
 import { buildLodge, buildPlatform } from './summit';
 import {
   LODGE,
@@ -431,16 +447,22 @@ export const carParksLandmark = landmark({
     ...parkPlants(VIDIKOVEC),
   ],
   surfaceAt: (x, z) =>
-    onLot(SREDNO, x, z) || onLot(SREDNO_BUS, x, z) || onLot(VIDIKOVEC, x, z)
+    onLot(SREDNO, x, z) ||
+    onLot(SREDNO_BUS, x, z) ||
+    onLot(VIDIKOVEC, x, z) ||
+    onLot(TRAIL, x, z)
       ? 'tarmac'
       : undefined,
   groundOverride: (ground) =>
-    slabHeight([SREDNO, SREDNO_BUS, VIDIKOVEC], (x, z) => ground.height(x, z)),
+    slabHeight([SREDNO, SREDNO_BUS, VIDIKOVEC, TRAIL], (x, z) =>
+      ground.height(x, z),
+    ),
   build: (at, ground) => {
     for (const [lot, tile] of [
       [SREDNO, 'sredno-lot'],
       [SREDNO_BUS, 'sredno-bus-lot'],
       [VIDIKOVEC, 'vidikovec-lot'],
+      [TRAIL, 'trail-lot-slab'],
     ] as const) {
       const l = at(lot.site, tile);
       buildLot(l, lot, ground);
@@ -451,6 +473,11 @@ export const carParksLandmark = landmark({
         return ground(wx, wz) - base;
       };
       if (lot === SREDNO_BUS) continue;
+      // The hikers' lot: bay lines only (its walls, lamps and sign: trail-lot.ts).
+      if (lot === TRAIL) {
+        drawMarkings(l, lot, gy);
+        continue;
+      }
       drawParkGround(l, lot, gy);
       drawMarkings(l, lot, gy);
       for (const piece of parkPieces(lot)) drawPiece(l, piece, gy);
@@ -605,6 +632,72 @@ export const roadsideGazeboLandmark = landmark({
     }),
 });
 
+/** The big hairpin (~2 000 m; its car park and trail start at ~1 830 m): the closed side road's gravel piles, the hikers' car park and the trail start (`trail-lot.ts`). */
+const AT_WORLD: Site = { x: 0, z: 0, yaw: 0 };
+export const trailLotLandmark = landmark({
+  id: 'vodno-trail-lot',
+  areas: TRAIL_LOT_AREAS,
+  replaces: (b) => TRAIL_LOT_REPLACES.has(b.id),
+  colliders: trailLotColliders,
+  plants: [
+    // Tall black pines (the owner's photo: ~20-25 m, straight, close together), a few oaks among them, over a low
+    // hornbeam / oak understorey.
+    ...TRAIL_PINES.map(([x, z, scale, variant]) => ({
+      asset: 'tall_black_pine',
+      variant,
+      site: AT_WORLD,
+      x,
+      z,
+      scale,
+    })),
+    ...TRAIL_STAND_OAKS.map(([x, z, asset, scale]) => ({
+      asset,
+      site: AT_WORLD,
+      x,
+      z,
+      scale,
+    })),
+    ...ISLAND_PLANTS.map(([x, z, asset]) => ({
+      asset,
+      site: AT_WORLD,
+      x,
+      z,
+      scale: 1,
+    })),
+    ...TRAIL_UNDERSTOREY.map(([x, z], i) => ({
+      asset: i % 2 ? 'oak_tree' : 'hornbeam_tree',
+      site: AT_WORLD,
+      x,
+      z,
+      scale: 0.6,
+    })),
+    ...TRAIL_SCRUB.map(([x, z, asset, scale]) => ({
+      asset,
+      site: AT_WORLD,
+      x,
+      z,
+      scale,
+    })),
+    ...TRAIL_VERGE.map(([x, z, asset, scale]) => ({
+      asset,
+      site: TRAIL_START,
+      x,
+      z,
+      scale,
+    })),
+    // Weeds on the side-road piles (`lift` = the pile's height there).
+    ...PILE_PLANTS.map(([x, z, asset, lift]) => ({
+      asset,
+      site: SIDE_ROAD_BLOCK,
+      x,
+      z,
+      scale: 0.8,
+      lift,
+    })),
+  ],
+  build: buildTrailLot,
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
@@ -617,5 +710,6 @@ export const VODNO_LANDMARKS: Landmark[] = [
   hotelLandmark,
   startLotLandmark,
   roadsideGazeboLandmark,
+  trailLotLandmark,
 ];
 export { VODNO_FLATS } from './sites';

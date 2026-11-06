@@ -133,6 +133,38 @@ export const reeds: AssetBuilder = ({ seed, variant }) => {
   };
 };
 
+/**
+ * Ferns of the shaded woods (male fern / bracken): three crossed cards of the fern sheet (2.4 x 1.2 m cells, the stand
+ * ~0.6 of the card's height), green or dead bracken (autumn).
+ */
+function fernStand(autumn: boolean): AssetBuilder {
+  return ({ seed }) => {
+    const rng = new Rng(seed);
+    const h = rng.range(0.9, 1.3);
+    return {
+      parts: [
+        {
+          geometry: plantCards(
+            rng,
+            autumn ? 'ferns-autumn' : 'ferns',
+            CELLS.ferns,
+            h * 2,
+            h,
+            3,
+            0.6,
+          ),
+          material: getMaterial(
+            autumn ? 'foliage_card_ferns_autumn' : 'foliage_card_ferns',
+          ),
+        },
+      ],
+    };
+  };
+}
+
+export const fern = fernStand(false);
+export const fernAutumn = fernStand(true);
+
 /** Nettle stands of the field margins and ditches, green and dried. */
 export const tallWeeds = tallCards(
   [...CELLS.nettles, ...CELLS.dryNettles],

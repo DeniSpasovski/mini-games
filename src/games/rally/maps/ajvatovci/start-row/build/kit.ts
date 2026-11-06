@@ -209,6 +209,7 @@ const colorOf = (c: ColorRepresentation): Color => {
 
 const _p = new Vector3();
 const _n = new Vector3();
+const _c = new Color();
 
 /** Options shared by the emit helpers. */
 export interface EmitOptions {
@@ -399,7 +400,7 @@ export class Frame {
 
   /**
    * Any three.js geometry (cylinders, lathes, icospheres...): positions / normals / uvs copied
-   * (uvs scaled by 1 / tile), indexed or not.
+   * (uvs scaled by 1 / tile), indexed or not; a `color` attribute multiplies `color` per vertex.
    */
   add(
     key: MatKey,
@@ -412,6 +413,7 @@ export class Frame {
     const pos = g.getAttribute('position');
     const nor = g.getAttribute('normal');
     const uv = g.getAttribute('uv');
+    const vc = g.getAttribute('color');
     const index = g.getIndex();
     const count = index ? index.count : pos.count;
     const nm = o.matrix ? new Matrix3().getNormalMatrix(o.matrix) : undefined;
@@ -422,7 +424,13 @@ export class Frame {
         [pos.getX(v), pos.getY(v), pos.getZ(v)],
         nor ? [nor.getX(v), nor.getY(v), nor.getZ(v)] : [0, 1, 0],
         uv ? [uv.getX(v), uv.getY(v)] : [0, 0],
-        col,
+        vc
+          ? _c.setRGB(
+              col.r * vc.getX(v),
+              col.g * vc.getY(v),
+              col.b * vc.getZ(v),
+            )
+          : col,
         o.matrix,
         nm,
       );

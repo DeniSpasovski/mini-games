@@ -22,6 +22,8 @@ import dryUrl from './plants/grass-dry.webp';
 import springUrl from './plants/grass-spring.webp';
 import weedsUrl from './plants/weeds.webp';
 import reedsUrl from './plants/reeds.webp';
+import fernsUrl from './plants/ferns.webp';
+import fernsAutumnUrl from './plants/ferns-autumn.webp';
 
 type RGB = [number, number, number];
 export type GrassKind = 'green' | 'dry' | 'spring';
@@ -33,6 +35,8 @@ const URLS: Record<PlantSheet, string> = {
   'grass-spring': springUrl,
   weeds: weedsUrl,
   reeds: reedsUrl,
+  ferns: fernsUrl,
+  'ferns-autumn': fernsAutumnUrl,
 };
 
 /** The grass sheet of a kind. */
@@ -54,6 +58,7 @@ export const CELLS = {
   dryNettles: [2, 3, 7],
   reeds: [0, 1, 2, 3, 4, 5],
   cattails: [6, 7],
+  ferns: [0, 1, 2, 3],
 } as const;
 
 interface Palette {
@@ -70,7 +75,7 @@ interface Palette {
  * ~0.12, a little above the grass ground; spring the flush band (~0.14, yellower); dry grass pale straw (red / green
  * ~1.1, blue / green ~0.45, ~0.3; scripts/plants/pack.py already tones the scan's orange down); nettles a touch less
  * blue-starved; reeds (green with pale plumes and dead leaves) about the grass, the plumes and cattail heads brown,
- * not black.
+ * not black; ferns a deep shade green under the grass (they stand under the crowns), dead bracken rust brown.
  */
 export const SHEET_GAIN: Record<PlantSheet, RGB> = {
   'grass-green': [1.15, 1.3, 1.2],
@@ -78,6 +83,8 @@ export const SHEET_GAIN: Record<PlantSheet, RGB> = {
   'grass-spring': [1.4, 1.2, 1.25],
   weeds: [1.1, 1.15, 1.15],
   reeds: [0.95, 1.05, 0.95],
+  ferns: [1.0, 1.0, 1.4],
+  'ferns-autumn': [1.0, 1.0, 1.0],
 };
 
 /**
@@ -224,6 +231,8 @@ const ASSET_SHEETS: Record<string, PlantSheet> = {
   spring_grass: 'grass-spring',
   tall_weeds: 'weeds',
   reeds: 'reeds',
+  fern: 'ferns',
+  fern_autumn: 'ferns-autumn',
 };
 
 /**

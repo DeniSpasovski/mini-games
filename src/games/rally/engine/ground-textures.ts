@@ -16,6 +16,7 @@ import rockUrl from './ground/rock.webp';
 import litterUrl from './ground/litter.webp';
 import leavesUrl from './ground/leaves.webp';
 import stubbleUrl from './ground/stubble.webp';
+import needlesUrl from './ground/needles.webp';
 
 /**
  * Terrain scans (Poly Haven, CC0): one texture array, a layer per ground material, read by the terrain material
@@ -32,6 +33,7 @@ export const GROUND_LAYER = {
   litter: 6,
   leaves: 7,
   stubble: 8,
+  needles: 9,
 } as const;
 export type GroundLayer = keyof typeof GROUND_LAYER;
 
@@ -46,6 +48,7 @@ export const GROUND_SCAN: Record<GroundLayer, number> = {
   litter: 1.5,
   leaves: 1.26,
   stubble: 2.0,
+  needles: 2.0,
 };
 
 /** Mean linear luminance of each tile (scripts/ground/bake.py prints it): the terrain shader's brightness reference. */
@@ -59,6 +62,7 @@ export const GROUND_MEAN: Record<GroundLayer, number> = {
   litter: 0.144,
   leaves: 0.128,
   stubble: 0.09,
+  needles: 0.105,
 };
 
 const URLS = [
@@ -71,6 +75,7 @@ const URLS = [
   litterUrl,
   leavesUrl,
   stubbleUrl,
+  needlesUrl,
 ];
 const SIZE = 512;
 

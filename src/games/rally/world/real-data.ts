@@ -4,6 +4,7 @@ import type {
   HeightmapDef,
   LandcoverDef,
   PathDef,
+  RasterDef,
 } from '../maps/shared/types';
 
 /**
@@ -17,6 +18,52 @@ export function base64Bytes(b64: string): Uint8Array {
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
+}
+
+/** Runs of (value byte, LEB128 length) -> `n` bytes. */
+function decodeRle(rle: string, n: number): Uint8Array {
+  const out = new Uint8Array(n);
+  const bytes = base64Bytes(rle);
+  let p = 0;
+  let o = 0;
+  while (p < bytes.length && o < n) {
+    const v = bytes[p++];
+    let len = 0;
+    let shift = 0;
+    let b: number;
+    do {
+      b = bytes[p++];
+      len |= (b & 0x7f) << shift;
+      shift += 7;
+    } while (b & 0x80);
+    out.fill(v, o, Math.min(n, o + len));
+    o += len;
+  }
+  return out;
+}
+
+/** A byte grid read bilinear (`RasterDef`); 0 outside. */
+export class Raster {
+  private v: Uint8Array;
+  constructor(readonly def: RasterDef) {
+    this.v = decodeRle(def.rle, def.cols * def.rows);
+  }
+
+  at(x: number, z: number): number {
+    const d = this.def;
+    const fx = (x - d.originX) / d.cell;
+    const fz = (z - d.originZ) / d.cell;
+    if (fx < 0 || fz < 0 || fx > d.cols - 1 || fz > d.rows - 1) return 0;
+    const i = Math.min(Math.floor(fx), d.cols - 2);
+    const j = Math.min(Math.floor(fz), d.rows - 2);
+    const tx = fx - i;
+    const tz = fz - j;
+    const k = j * d.cols + i;
+    const v = this.v;
+    const a = v[k] + (v[k + 1] - v[k]) * tx;
+    const b = v[k + d.cols] + (v[k + d.cols + 1] - v[k + d.cols]) * tx;
+    return (a + (b - a) * tz) * d.scale;
+  }
 }
 
 class HeightGrid {
@@ -127,6 +174,8 @@ export class Landcover {
   readonly coverNames: string[];
   /** zone -> index into coverNames */
   readonly zoneCover: Uint8Array;
+  /** The real canopy share (0-1) and stand height (m), `LandcoverDef.canopy`. */
+  readonly canopy?: { cover: Raster; height: Raster };
 
   readonly def: LandcoverDef;
 
@@ -141,24 +190,12 @@ export class Landcover {
           ],
         }
       : base);
-    const n = def.cols * def.rows;
-    this.zones = new Uint8Array(n);
-    const bytes = base64Bytes(def.rle);
-    let p = 0;
-    let o = 0;
-    while (p < bytes.length && o < n) {
-      const v = bytes[p++];
-      let len = 0;
-      let shift = 0;
-      let b: number;
-      do {
-        b = bytes[p++];
-        len |= (b & 0x7f) << shift;
-        shift += 7;
-      } while (b & 0x80);
-      this.zones.fill(v, o, Math.min(n, o + len));
-      o += len;
-    }
+    this.zones = decodeRle(def.rle, def.cols * def.rows);
+    if (base.canopy)
+      this.canopy = {
+        cover: new Raster(base.canopy.cover),
+        height: new Raster(base.canopy.height),
+      };
     base.paint?.forEach((p, k) => this.paint(p.poly, base.zones.length + k));
     this.coverNames = [...new Set(def.zones.map((z) => z.cover))];
     this.zoneCover = new Uint8Array(

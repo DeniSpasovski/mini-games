@@ -119,6 +119,17 @@ out;"""
     return parse(run(q, cache_dir, 'base'))
 
 
+def load_footpaths(box, kinds, cache_dir):
+    """Foot / cycle ways (`highway` in kinds, e.g. path|footway) in the box: a query of their own, so the cached base
+    answer (and with it the baked roads) stays as it was."""
+    s, n, w, e = box
+    q = f"""[out:xml][timeout:600];
+way["highway"~"^({'|'.join(kinds)})$"]({s:.5f},{w:.5f},{n:.5f},{e:.5f});
+(._;>;);
+out;"""
+    return parse(run(q, cache_dir, 'footpaths'))
+
+
 def load_buildings_box(box, cache_dir):
     """Every building in the box (lat0, lat1, lon0, lon1) in one query: rural maps, where a long winding route would
     need dozens of `around` chunks (and a changed route re-fetches them all)."""

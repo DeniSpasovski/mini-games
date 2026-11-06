@@ -56,6 +56,8 @@ const GRASS_02 = 'grass_medium_02';
 /** CC BY 4.0 Sketchfab models (Nicholas-3D, glb): pieces picked by bake-plants.mjs (`GLB_MODELS`). */
 const REEDS = 'reed_pack';
 const CATTAILS = 'cattails';
+/** CC0 Poly Haven fern scan (four clumps), in sources/rally/polyhaven/fern_02. */
+const FERN = 'fern_02';
 
 /** A grass tuft: a few big clumps in the middle, smaller ones and single blades round them (a dome, no flat top). */
 const tuft = (seed: number, look: Look): Cell => ({
@@ -250,6 +252,32 @@ const cattailBed = (seed: number): Cell => ({
   ],
 });
 
+/**
+ * A fern stand of the shaded woods (male fern / bracken, 0.6-0.8 m): one or two big clumps of the CC0 Poly Haven
+ * "Fern 02" scan in the middle, smaller ones beside them. The scan's clumps are ~1 m across and 0.2-0.4 m tall: scaled
+ * up to the woods' ferns.
+ */
+const fernStand = (seed: number): Cell => ({
+  seed,
+  look: 'diff',
+  groups: [
+    {
+      model: FERN,
+      meshes: ['_c', '_d'],
+      count: [1, 2],
+      scale: [1.5, 1.8],
+      spread: 0.75,
+    },
+    {
+      model: FERN,
+      meshes: ['_a', '_b'],
+      count: [1, 2],
+      scale: [1.6, 1.9],
+      spread: 0.35,
+    },
+  ],
+});
+
 /** Grass cards: 2 x 2 cells of 1 x 0.5 m; cell 3 of the green / spring sheets is the weed margin. */
 export const SHEETS: Sheet[] = [
   {
@@ -307,7 +335,20 @@ export const SHEETS: Sheet[] = [
       cattailBed(48),
     ],
   },
+  // Fern cards: 2 x 2 cells of 2.4 x 1.2 m.
+  {
+    id: 'ferns',
+    w: 1024,
+    h: 512,
+    cols: 2,
+    rows: 2,
+    window: [2.4, 1.2],
+    cells: [fernStand(51), fernStand(52), fernStand(53), fernStand(54)],
+  },
 ];
+
+/** The autumn fern sheet is the fern one (same layout) turned to dead bracken. */
+export const AUTUMN_FROM = 'ferns';
 
 /** The spring sheet is the green one (same layout) brought to the spring palette. */
 export const SPRING_FROM = 'grass-green';
@@ -349,6 +390,7 @@ export const MODEL_MESHES: Record<string, string[]> = {
   ),
   reed_pack: [1, 2, 3, 4, 5].map((n) => `Reed_${n}_${n}`),
   cattails: ['cattail'],
+  fern_02: ['a', 'b', 'c', 'd'].map((n) => `fern_02_${n}`),
 };
 
 /** Every clump of a cell, back to front (the bake draws them with a depth test, the order only fixes the RNG). */

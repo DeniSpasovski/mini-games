@@ -14,7 +14,8 @@ import {
   groundArray,
 } from '../engine/ground-textures';
 import { type Season } from '../season';
-import { addWorldUniforms } from '../engine/world-shading';
+import { type CulvertSite, WALL_T, WING_FLARE } from './culverts';
+import { addWorldUniforms, worldUniforms } from '../engine/world-shading';
 import type { GroundMoisture } from './ground-moisture';
 
 /**
@@ -26,7 +27,8 @@ import type { GroundMoisture } from './ground-moisture';
  * - Tiling is broken by a second, rotated, larger-scale tap of the same scan that only modulates the near one (3 taps
  *   per layer; far chunks one). Layers a fragment does not use are not sampled (`textureGrad`, branches are safe).
  * - Grass takes the season's scan (spring / summer / autumn) and the map's tint (`setGroundTint`); fallen leaves and
- *   forest-floor litter lie where the baked canopy texture says there are tree crowns (`wsCanopyCover`).
+ *   forest-floor litter lie where the baked canopy texture says there are tree crowns (`wsCanopyCover`); where the
+ *   map's pine covers are (`landcover.needles`, the moisture texture's G) that litter is a pine-needle carpet instead.
  * Relief: the blended scans' brightness doubles as a height map (bump from screen-space derivatives, faded out by
  * ~90 m) so a low sun picks out stones and leaves.
  * Weight the four channels leave unused (sum < 1) is drawn as ripe crop (wheat fields, stubble scan).
@@ -77,10 +79,17 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
     uMoist: { value: 1 },
     /** Meadow colour patches (0 = off, `groundTint.variety`). */
     uVariety: { value: 0 },
+    /** Forest floor under the crowns 0..1 (`GroundTint.shade`): darker, browner humus soil. */
+    uFloorShade: { value: 0 },
     /** Bump strength (0 = flat, `setTerrainRelief`). */
     uRelief: { value: 1 },
     /** Distance (m) of the second taps and the relief (0 = off, `setTerrainDetail`). */
     uDetail: { value: 45 },
+    /** Culvert ends near the focus (`setCulvertHoles`): 2 vec4 each, see there. */
+    uCulvertHole: {
+      value: Array.from({ length: CULVERT_HOLES * 2 }, () => new Vector4()),
+    },
+    uCulvertN: { value: 0 },
   };
   sharedUniforms = uniforms;
   mat.userData.uniforms = uniforms;
@@ -97,6 +106,9 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
     GY_LITTER: GROUND_LAYER.litter.toFixed(1),
     GY_LEAVES: GROUND_LAYER.leaves.toFixed(1),
     GY_STUBBLE: GROUND_LAYER.stubble.toFixed(1),
+    GY_NEEDLES: GROUND_LAYER.needles.toFixed(1),
+    GM_NEEDLES: GROUND_MEAN.needles.toFixed(4),
+    GS_NEEDLES: (1 / GROUND_SCAN.needles).toFixed(4),
     GM_GRASS: GROUND_MEAN.grassSummer.toFixed(4),
     GM_SOIL: GROUND_MEAN.soil.toFixed(4),
     GM_GRAVEL: GROUND_MEAN.gravel.toFixed(4),
@@ -141,11 +153,14 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         uniform vec3 uTintGrass;
         uniform float uTintAmount;
         uniform float uVariety;
+        uniform float uFloorShade;
         uniform vec3 uTintCrop;
         uniform float uRelief;
         uniform sampler2D tMoist;
         uniform vec4 uMoistMap;
         uniform float uMoist;
+        uniform vec4 uCulvertHole[${CULVERT_HOLES * 2}];
+        uniform int uCulvertN;
         varying vec4 vSplat;
         varying vec3 vWPos;
         varying float vUpY;
@@ -185,6 +200,22 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         }`,
       )
       .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        #ifndef TERRAIN_FAR
+        // No ground between a culvert end's wing walls (the walls, apron and headwall close the hole).
+        for (int i = 0; i < ${CULVERT_HOLES}; i++) {
+          if (i >= uCulvertN) break;
+          vec4 ca = uCulvertHole[i * 2];
+          vec4 cb = uCulvertHole[i * 2 + 1];
+          vec2 cd = vWPos.xz - ca.xy;
+          float ct = dot(cd, ca.zw);
+          float cv = abs(cd.x * ca.w - cd.y * ca.z);
+          if (ct > cb.w && ct < cb.x && cv < (ct < 0.0 ? cb.y : cb.y + ct * cb.z)) discard;
+        }
+        #endif`,
+      )
+      .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
         #ifndef TERRAIN_FAR
@@ -213,7 +244,8 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         // Meadow patches: deeper green and yellow-green drifts tens of metres across, so a tinted meadow is not one flat colour.
         float pv = texture2D(tMacro, wp * 0.019 + 0.21).r * 0.6 + texture2D(tMacro, wp * 0.083 + 0.53).r * 0.4;
         // Moisture -1 (dry) .. 1 (wet): baked hollows / banks, minus steepness, plus slow noise.
-        float wet = texture2D(tMoist, (wp - uMoistMap.xy) * uMoistMap.zw).r * 2.0 - 1.0;
+        vec2 moistMap = texture2D(tMoist, (wp - uMoistMap.xy) * uMoistMap.zw).rg;
+        float wet = moistMap.r * 2.0 - 1.0;
         wet -= smoothstep(0.04, 0.25, 1.0 - vUpY) * 0.7;
         wet += (texture2D(tMacro, wp * 0.0017 + 0.61).r - 0.5) * 0.7;
         wet = clamp(wet * uMoist, -1.0, 1.0);
@@ -228,8 +260,15 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         crop /= wSum;
         // Leaf litter: under the tree crowns (baked canopy texture), broken up by noise; not on rock, little on gravel.
         float cover = wsCanopyCover(wp);
-        float lit = clamp((cover - 0.08) / 0.45 + (macro2 - 0.5) * 0.9, 0.0, 1.0) * uGroundLook.z;
+        // (forest-floor maps: the crown edges ragged, \`wsFloorCover\`; a lone tree paints no disc)
+        float floorCover = uFloorShade > 0.0 ? wsFloorCover(wp) : cover;
+        // Pine needles (landcover.needles): their share of the litter, in patches where the covers mix; a needle floor is a
+        // carpet in every season (0.85), leaf litter follows the season (uGroundLook.z).
+        float needle = moistMap.g > 0.0 ? smoothstep(0.3, 0.7, moistMap.g + (macro2 - 0.5) * 0.6) : 0.0;
+        float lit = clamp((floorCover - 0.08) / 0.45 + (macro2 - 0.5) * 0.9, 0.0, 1.0) * mix(uGroundLook.z, 0.85, needle);
         lit *= (1.0 - w.z) * (1.0 - 0.6 * w.w);
+        // Forest floor: the soil under closed crowns is dark humus, broken up like the litter (none on gravel).
+        float humus = uFloorShade * smoothstep(0.05, 0.6, floorCover) * (0.75 + 0.5 * macro2) * (1.0 - w.w);
         w *= 1.0 - lit;
         crop *= 1.0 - lit;
         // Scans of the layers in use only (a = weight + height, -1 = unused; r = relief height).
@@ -266,6 +305,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         }
         if (w.y > wCut) {
           cDirt = gVar(GY_SOIL, wp, GS_SOIL, GM_SOIL, dpx, dpy, near, h);
+          cDirt *= mix(vec3(1.0), vec3(0.6, 0.52, 0.44), clamp(humus, 0.0, 1.0));
           aD = w.y + HB_K * (h.x - 1.0);
           rD = 0.35 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.y));
         }
@@ -288,11 +328,15 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
           rV = 0.5 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.w));
         }
         if (lit > wCut) {
-          cLit = gVar(GY_LITTER, wp, GS_LITTER, GM_LITTER, dpx, dpy, near, h);
-          // Fresh fallen leaves (autumn): golden, thickest near the trunks, in drifts further out (one tap, under crowns only).
-          if (uGroundLook.w > 0.01) {
+          // One scan per fragment (a second \`gVar\` doubled the shader's compile time): needles or leaf litter, dithered by a
+          // fine noise where they mix, so a patch edge reads as needles strewn over the leaves.
+          bool isN = needle > texture2D(tMacro, wp * 0.71 + 0.37).r;
+          cLit = gVar(isN ? GY_NEEDLES : GY_LITTER, wp, isN ? GS_NEEDLES : GS_LITTER, isN ? GM_NEEDLES : GM_LITTER, dpx, dpy, near, h);
+          // Fresh fallen leaves (autumn): golden, thickest near the trunks, in drifts further out (one tap, under crowns only;
+          // none on a needle floor).
+          if (uGroundLook.w > 0.01 && needle < 0.98) {
             vec3 cLeaf = gTap(GY_LEAVES, wp, GS_LEAVES, dpx, dpy) * vec3(1.3, 1.08, 0.62);
-            float lp = uGroundLook.w * clamp(smoothstep(0.3, 0.6, texture2D(tMacro, wp * 0.06 + 0.77).r) + (cover - 0.55) * 1.6, 0.0, 1.0);
+            float lp = uGroundLook.w * (1.0 - needle) * clamp(smoothstep(0.3, 0.6, texture2D(tMacro, wp * 0.06 + 0.77).r) + (cover - 0.55) * 1.6, 0.0, 1.0);
             cLit = mix(cLit, cLeaf, lp * 0.9);
           }
           aL = lit + 0.1 + HB_K * (h.x - 1.0);
@@ -333,7 +377,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
       );
   };
   mat.customProgramCacheKey = () =>
-    far ? 'rally-terrain-far-v6' : 'rally-terrain-v11';
+    far ? 'rally-terrain-far-v9' : 'rally-terrain-v14';
   if (far) sharedFar = mat;
   else shared = mat;
   return mat;
@@ -385,6 +429,8 @@ export function setGroundTint(
   u.uTintCrop.value.set(tint?.crop ?? DEFAULT_CROP);
   u.uMoist.value = tint?.moisture ?? 1;
   u.uVariety.value = tint?.variety ?? 0;
+  u.uFloorShade.value = tint?.shade ?? 0;
+  worldUniforms.wsCanopyAO.value = tint?.shade ?? 0;
   const look = SEASON_LOOK[season];
   u.uGroundLook.value.set(
     look.grass,
@@ -400,4 +446,49 @@ export function setGroundMoisture(m: GroundMoisture | null): void {
   u.tMoist.value = m?.texture ?? NEUTRAL_MOISTURE;
   if (m) u.uMoistMap.value.set(m.map.x0, m.map.z0, m.map.invW, m.map.invD);
   else u.uMoistMap.value.set(0, 0, 1, 1);
+}
+
+/** Culvert ends the near terrain cuts open at once (the nearest to the focus). */
+const CULVERT_HOLES = 8;
+const holeEnds: { id: number; d: number }[] = [];
+
+/**
+ * The terrain's 1 m grid cannot step down from the bank to a culvert's apron, so the near terrain draws no ground
+ * between the wing walls of the `CULVERT_HOLES` culvert ends nearest (`x`, `z`): from inside the headwall (the pipe
+ * looks into concrete, not ground) to the wing tips, out to the walls' inner faces. Per end: (face x, z, axis out)
+ * and (tip, half width at the face, flare, start behind the face).
+ */
+export function setCulvertHoles(
+  sites: readonly CulvertSite[],
+  x: number,
+  z: number,
+): void {
+  const u = getTerrainMaterial().userData.uniforms as {
+    uCulvertHole: { value: Vector4[] };
+    uCulvertN: { value: number };
+  };
+  holeEnds.length = 0;
+  sites.forEach((s, i) =>
+    s.ends.forEach((_e, j) =>
+      holeEnds.push({ id: i * 2 + j, d: Math.hypot(s.x - x, s.z - z) }),
+    ),
+  );
+  holeEnds.sort((a, b) => a.d - b.d);
+  const n = Math.min(CULVERT_HOLES, holeEnds.length);
+  for (let k = 0; k < n; k++) {
+    const id = holeEnds[k].id;
+    const s = sites[id >> 1];
+    const e = s.ends[id & 1];
+    const ax = s.ax * e.side;
+    const az = s.az * e.side;
+    // Wing walls' inner faces (culvert-mesh.ts) plus 2 cm into them, so no seam shows.
+    u.uCulvertHole.value[k * 2].set(s.x + ax * e.u, s.z + az * e.u, ax, az);
+    u.uCulvertHole.value[k * 2 + 1].set(
+      e.wing,
+      e.half - 0.13,
+      WING_FLARE,
+      -WALL_T + 0.02,
+    );
+  }
+  u.uCulvertN.value = n;
 }

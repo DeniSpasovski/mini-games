@@ -66,7 +66,7 @@ const ENTRIES: MapEntry[] = [
   {
     info: vodnoInfo,
     load: async () => (await import('./vodno/map')).vodnoMap,
-    models: ['park'],
+    models: ['park', 'forest'],
   },
   {
     info: petralicaInfo,

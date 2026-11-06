@@ -115,9 +115,9 @@ const YOUNG_BARK: [number, number] = [0.012, 0.045];
 /** A limb's collar where it leaves its parent (x its radius) and how far along it it runs (x the parent's radius). */
 const COLLAR: [number, number] = [1.3, 1.6];
 /** The trunk's root flare (x its radius), its buttress lobes (share of the radius, count) and height (x the radius). */
-const ROOT_FLARE = 1.45;
-const ROOT_LOBES: [number, number] = [0.12, 5];
-const ROOT_HEIGHT = 3;
+const ROOT_FLARE = 1.7;
+const ROOT_LOBES: [number, number] = [0.2, 5];
+const ROOT_HEIGHT = 3.5;
 
 class Builder {
   p: number[] = [];

@@ -48,6 +48,8 @@ test('cells of the sheets fit their atlases and the builders only use existing c
   for (const [sheet, c] of [
     ...used.map((c) => ['weeds', c] as const),
     ...reeds.map((c) => ['reeds', c] as const),
+    ...CELLS.ferns.map((c) => ['ferns', c] as const),
+    ...CELLS.ferns.map((c) => ['ferns-autumn', c] as const),
   ]) {
     const [u0, v0, u1, v1] = cellRect(sheet, c);
     expect(u0).toBeGreaterThanOrEqual(0);
@@ -100,4 +102,13 @@ test('the card colours (sheet mean x card colour) sit in the measured bands', ()
   expect(re.lum).toBeLessThan(0.16);
   expect(re.rg).toBeLessThan(0.95);
   expect(re.bg).toBeLessThan(0.4);
+  // Ferns: a deep shade green, no lighter than the grass; dead bracken rust brown.
+  const fe = at('ferns');
+  expect(fe.lum).toBeGreaterThan(0.06);
+  expect(fe.lum).toBeLessThan(0.13);
+  expect(fe.rg).toBeLessThan(0.8);
+  const br = at('ferns-autumn');
+  expect(br.lum).toBeGreaterThan(0.07);
+  expect(br.lum).toBeLessThan(0.16);
+  expect(br.rg).toBeGreaterThan(1.3);
 });

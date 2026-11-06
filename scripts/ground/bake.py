@@ -21,6 +21,8 @@ MEADOW = np.array([0.85, 1.08, 0.30], dtype=np.float32)
 # darker and browner, so its linear colour is tinted and brought to this mean luminance (the scan's own is 0.233); mean sRGB 121 101 77.
 GRAVEL_LUM = 0.145
 GRAVEL_TINT = np.array([1.0, 0.88, 0.70], dtype=np.float32)
+# The pine floor: the scan's needles are pale tan; an old black-pine carpet reads darker and more russet.
+NEEDLE_TINT = np.array([1.06, 0.95, 0.82], dtype=np.float32)
 # tile: (Poly Haven id, mean linear luminance or None, colour kept 0..1, contrast around the mean, meadow hue 0..1)
 TILES = {
     'grass_spring': ('forrest_ground_01', 0.077, 0.8, 1.0, 0.7),
@@ -32,6 +34,7 @@ TILES = {
     'litter': ('forest_leaves_04', None, 0.85, 1.0, 0),
     'leaves': ('leaves_forest_ground', None, 0.9, 1.0, 0),
     'stubble': ('withered_grass', 0.09, 0.6, 1.0, 0),
+    'needles': ('forrest_ground_03', 0.105, 0.95, 1.15, 0),
 }
 
 
@@ -85,6 +88,8 @@ def main():
             a = np.maximum((a - m) * contrast + m, 0)
         if name == 'gravel':
             a = a * GRAVEL_TINT
+        if name == 'needles':
+            a = a * NEEDLE_TINT
         if name in DETAIL:
             amount, radius, scan = DETAIL[name]
             a = np.maximum(a + (a - blur(a, radius * SZ / scan)) * amount, 0)

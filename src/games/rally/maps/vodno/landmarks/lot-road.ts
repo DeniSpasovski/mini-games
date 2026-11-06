@@ -1,8 +1,8 @@
 /**
- * The stage road's centre line along the two car parks, sampled every 3 m from the game road (`world.road.at`, the
+ * The stage road's centre line along the car parks, sampled every 3 m from the game road (`world.road.at`, the
  * smoothed, graded road the ribbon is drawn on; the route's control points differ from it by metres in the bends). Flat
  * [x0, z0, x1, z1, ...], in driving order. Re-sample when the road changes (map-viewer console:
- * `__mapViewer.world.road.at(along)`; Vidikovec along 2715-3000 m, Sredno Vodno 4195-4474 m).
+ * `__mapViewer.world.road.at(along)`; Vidikovec along 2715-3000 m, Sredno Vodno 4195-4474 m, the trail lot 1787-1877 m).
  */
 export const LOT_ROADS: number[][] = [
   [
@@ -48,5 +48,14 @@ export const LOT_ROADS: number[][] = [
     -325.7, 431.2, -327.1, 428.6, -328.5, 425.9, -329.8, 423.1, -331, 420.3,
     -332.1, 417.5, -333, 414.6, -333.9, 411.7, -334.6, 408.8, -335.3, 405.8,
     -336, 402.9, -336.6, 400, -337.1, 397, -337.7,
+  ],
+  // The hikers' trail lot below the big hairpin.
+  [
+    2081.1, -256.9, 2081.3, -253.9, 2081.5, -250.9, 2081.7, -247.9, 2081.8,
+    -244.9, 2081.9, -241.9, 2082.1, -239, 2082.3, -236, 2082.4, -233, 2082.6,
+    -230, 2082.8, -227, 2083, -224, 2083.2, -221, 2083.3, -218, 2083.5, -215,
+    2083.7, -212, 2083.8, -209, 2083.9, -206, 2084, -203, 2084.1, -200, 2084.2,
+    -197, 2084.3, -194, 2084.3, -191, 2084.4, -188, 2084.4, -185, 2084.4, -182,
+    2084.3, -179, 2084.3, -176, 2084.3, -173, 2084.3, -170, 2084.4, -167,
   ],
 ];

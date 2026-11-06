@@ -24,6 +24,11 @@ import {
   drum,
   extinguisherStand,
   floorJack,
+  forestBranches,
+  forestLog,
+  forestRoots,
+  forestStump,
+  forestTrunk,
   forklift,
   generator,
   handTruck,
@@ -102,6 +107,8 @@ import {
   dryCorn,
   dryCornRowCard,
   dryGrass,
+  fern,
+  fernAutumn,
   grassTuft,
   greenWheat,
   reeds,
@@ -112,6 +119,7 @@ import {
   vineRowSummer,
   wheat,
 } from './builders/vegetation';
+import { rockOutcrop } from './builders/outcrops';
 import { getAssetMeta } from './catalog';
 import type { AssetBuilder, BuiltAsset } from './types';
 
@@ -201,11 +209,19 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   crate,
   forklift,
   pallet_jack: palletJack,
+  forest_stump: forestStump,
+  forest_log: forestLog,
+  forest_trunk: forestTrunk,
+  forest_branches: forestBranches,
+  forest_roots: forestRoots,
   food_truck: foodTruck,
   porta_toilet: portaToilet,
   fuel_trailer: fuelTrailer,
   control_board: controlBoard,
   reeds,
+  fern,
+  fern_autumn: fernAutumn,
+  rock_outcrop: rockOutcrop,
   tall_weeds: tallWeeds,
   power_pylon: powerPylon,
   power_pole: powerPole,
