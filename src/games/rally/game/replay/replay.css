@@ -496,34 +496,30 @@ html.touch .rp-keys {
 }
 .rp-ex-btns {
   display: flex;
-  gap: 6px;
-}
-.rp-ex-btns button,
-.rp-ex-actions button {
-  padding: 6px 12px;
-  border: 0;
-  background: var(--ui-raised);
-  color: var(--ui-text);
-  font: 700 14px/1 var(--ui-font-display);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
+  gap: 8px;
 }
 .rp-ex-actions {
   display: flex;
   gap: 8px;
 }
-.rp-ex-actions button.primary {
-  background: var(--ui-accent);
-  color: var(--ui-on-accent);
+/* Styleguide buttons and chips (slanted fill); the chips keep room for the slant and the active chip's edge. */
+.rp-ex-btns .menu-btn,
+.rp-ex-actions .menu-btn {
+  padding: 6px 14px;
+  font-size: 15px;
 }
-.rp-ex-btns button:focus-visible,
-.rp-ex-actions button:focus-visible {
-  box-shadow: 0 0 0 2px var(--ui-text);
-}
-.rp-ex-actions button:disabled {
+.rp-ex-actions .menu-btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+.rp-ex-size,
+.rp-ex-quality {
+  gap: 8px;
+}
+.rp-ex-size button,
+.rp-ex-quality button {
+  flex: none;
+  padding: 7px 14px 7px 16px;
 }
 .rp-ex-size button {
   text-transform: none;

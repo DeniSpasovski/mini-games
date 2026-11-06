@@ -38,6 +38,22 @@ const qualities = (): ExportQuality[] => [
   ...(losslessSupported() ? [LOSSLESS] : []),
 ];
 
+/** What each quality gives (sizes: 1080p, rough). */
+function exportNote(q: ExportQuality): string {
+  const tail =
+    'From the camera picked on the bar; drag the handles on the timeline to pick the section.';
+  switch (q.id) {
+    case 'standard':
+      return `${EXPORT_FPS} fps MP4 with sound, smallest file (about 200 MB a minute at 1080p). ${tail}`;
+    case 'high':
+      return `${EXPORT_FPS} fps MP4 with sound, hard to tell from the game (about 400 MB a minute at 1080p). ${tail}`;
+    case 'max':
+      return `${EXPORT_FPS} fps MP4 with sound, for editing or uploading again (about 750 MB a minute at 1080p). ${tail}`;
+    default:
+      return `A folder of ${EXPORT_FPS} fps PNG frames and the sound as WAV, every pixel exact (about 14 GB a minute at 1080p; import it as an image sequence). ${tail}`;
+  }
+}
+
 const ICON = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg>',
   pause:
@@ -367,7 +383,7 @@ export class ReplayUi {
     pop.innerHTML = `
       <div class="rp-ex-title">Export video</div>
       <div class="rp-ex-row"><span class="rp-ex-label">Section</span><b class="rp-ex-len" data-x="len"></b>
-        <span class="rp-ex-btns"><button data-x="from" title="I">Start here</button><button data-x="to" title="O">End here</button><button data-x="all">Whole replay</button></span></div>
+        <span class="rp-ex-btns"><button class="menu-btn small" data-x="from" title="I">Start here</button><button class="menu-btn small" data-x="to" title="O">End here</button><button class="menu-btn small" data-x="all">Whole replay</button></span></div>
       <div class="rp-ex-row"><span class="rp-ex-label">Resolution</span>
         <div class="menu-seg rp-ex-size">${EXPORT_SIZES.map((z) => `<button data-size="${z.id}">${z.label}</button>`).join('')}</div></div>
       <div class="rp-ex-row"><span class="rp-ex-label">Quality</span>
@@ -376,7 +392,7 @@ export class ReplayUi {
           .join('')}</div></div>
       <div class="rp-ex-note"></div>
       <div class="rp-ex-progress" hidden><div class="rp-ex-bar"><i></i></div><span class="rp-ex-status"></span></div>
-      <div class="rp-ex-actions"><button class="primary" data-x="go">Export</button><button data-x="cancel">Cancel</button></div>`;
+      <div class="rp-ex-actions"><button class="menu-btn small primary" data-x="go">Export</button><button class="menu-btn small" data-x="cancel">Cancel</button></div>`;
     pop.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('button');
       if (!b || !this.exp) return;
@@ -455,10 +471,7 @@ export class ReplayUi {
       .forEach((b) =>
         b.classList.toggle('on', b.dataset.quality === x.quality.id),
       );
-    x.pop.querySelector('.rp-ex-note')!.textContent =
-      x.quality === LOSSLESS
-        ? `A folder of ${EXPORT_FPS} fps PNG frames and the sound as WAV, nothing compressed away (large: import it as an image sequence). From the camera picked on the bar; drag the handles on the timeline to pick the section.`
-        : `${EXPORT_FPS} fps MP4 with sound, from the camera picked on the bar. Drag the handles on the timeline to pick the section.`;
+    x.pop.querySelector('.rp-ex-note')!.textContent = exportNote(x.quality);
   }
 
   private closeExport(): void {
