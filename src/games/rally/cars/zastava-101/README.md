@@ -32,7 +32,7 @@ npm run dev     # /games/rally/car-viewer.html?car=zastava_101
 | 100-0 km/h, full brake  | 44 m   | 50 m         | 46 m   | 52 m         |
 
 Measured by the physics sim on flat ground (full throttle from standstill, traction control on, each surface on its
-home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handling-harness.ts`. Top speed is the setup screen's number
+home tyre + set-up): `straight()` in `integration-tests/rally/handling-harness.ts`. Top speed is the setup screen's number
 (`topSpeed()` in `physics/gearing.ts`). Retune a car and these move - rerun and update.
 
 ## Credits and licence
@@ -59,9 +59,8 @@ home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handli
 - Outlines and dimensions come from the 4-view factory blueprint (length 3836, wheelbase 2448 mm), overlay-checked against
   orthographic car-viewer renders; `tests/rally/zastava-body.test.ts` pins them. The blueprint shows the early car (round lamps,
   chrome bumpers): grille, lamps and bumpers follow the later car's photos instead.
-- The rear arch is as tight as the real one (2 cm over the tyre): on full bump the tyre pokes into it.
-- The rim barrel is a closed 4 mm section (a single surface vanished from inside); the front wheel wells reach 0.36 m in so the
-  wheels clear them at full lock.
-- No traction control (`physics.noTractionControl`: the assist is always off, the Options row is hidden). Brake light is red
-  only (no reversing lamp).
+- The rear arch is as tight as the real one (2 cm over the tyre), and the front wheel wells reach 0.36 m in so the wheels clear
+  them at full lock.
+- No traction control (`physics.noTractionControl`: the assist is always off, the Options row is hidden); the brake light is
+  red only (no reversing lamp).
 - Tyres, suspension, gearing: [`PHYSICS.md`](../../PHYSICS.md).

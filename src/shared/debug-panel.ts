@@ -219,10 +219,15 @@ export class PanelSection {
     set(selected);
     this.body.append(wrap);
     // Once laid out: the picked row in the middle of the list (a long list would open on its first group).
-    requestAnimationFrame(() => {
-      const row = rows.get(selected);
+    // A section that starts closed has no layout yet: centre again when it opens.
+    const centre = () => {
+      const row = ul.querySelector<HTMLElement>('.active');
       if (row && ul.scrollHeight > ul.clientHeight)
         ul.scrollTop = row.offsetTop - (ul.clientHeight - row.offsetHeight) / 2;
+    };
+    requestAnimationFrame(centre);
+    this.el.addEventListener('toggle', () => {
+      if ((this.el as HTMLDetailsElement).open) centre();
     });
     return { el: wrap, set };
   }

@@ -53,12 +53,9 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 
 ## Documentation
 
-| Doc                                            | Content                                                                                     |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [`DETAILS.md`](DETAILS.md)                     | rules, level / size tables, scoring, item catalog, map generator, debug tools, architecture |
-| [`STYLEGUIDE.md`](STYLEGUIDE.md)               | UI look: tokens, type, components, the per-map accent                                       |
-| [`TOY-STORE.md`](TOY-STORE.md)                 | Toy Emporium: design, roster, open tasks                                                    |
-| [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md)         | Animal Island: design, roster, open tasks                                                   |
-| [`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md) | Construction Site: design, roster, open tasks                                               |
+[`DETAILS.md`](DETAILS.md) (rules, level / size tables, scoring, item catalog, map generator, debug tools, architecture),
+[`STYLEGUIDE.md`](STYLEGUIDE.md) (UI look: tokens, type, components, the per-map accent) and one design doc per map
+(design, roster, open tasks): [`TOY-STORE.md`](TOY-STORE.md), [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md),
+[`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md).
 
 Educational, non-commercial project; see the repository root for credits.

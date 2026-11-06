@@ -59,6 +59,30 @@ function opacityOf(m: MeshStandardMaterial): Glow | null {
   return lookup(m, m.map, 3);
 }
 
+/**
+ * A canvas's pixels, read once per texture version (every mesh of a lamp material, and the split meshes sharing a sheet,
+ * read the same canvas). A sheet redrawn later (a loaded source sheet, `chamberGlow`) sets `needsUpdate`, which bumps
+ * the version: it is read again.
+ */
+const sheetPixels = new WeakMap<
+  HTMLCanvasElement,
+  { version: number; width: number; height: number; px: Uint8ClampedArray }
+>();
+function pixels(img: HTMLCanvasElement, version: number): Uint8ClampedArray {
+  const { width, height } = img;
+  const hit = sheetPixels.get(img);
+  if (
+    hit &&
+    hit.version === version &&
+    hit.width === width &&
+    hit.height === height
+  )
+    return hit.px;
+  const px = img.getContext('2d')!.getImageData(0, 0, width, height).data;
+  sheetPixels.set(img, { version, width, height, px });
+  return px;
+}
+
 /** A canvas texture of `m` read at a texture coordinate: the brightest colour channel (`channel` 0) or alpha (3), 0..1. */
 function lookup(
   m: MeshStandardMaterial,
@@ -69,7 +93,7 @@ function lookup(
   if (!map || !img || typeof img.getContext !== 'function') return null;
   const { width, height } = img;
   const srcUv = !!m.userData.srcUv;
-  const px = img.getContext('2d')!.getImageData(0, 0, width, height).data;
+  const px = pixels(img, map.version);
   return (u, v) => {
     u = u * map.repeat.x + map.offset.x;
     v = v * map.repeat.y + map.offset.y;

@@ -205,7 +205,7 @@ a `$comment` saying which glitch it fixed):
 
 ## 8. Gotchas and verification
 
-- **Mute the game**: any URL that can start the game (`/games/rally/?car=...`) gets `&mute=1` (AGENTS.md "Sound while testing").
+- **Mute the game**: any URL that can start the game (`/games/rally/?car=...`) gets `&mute=1` (AGENTS.md "Conventions", `isMutedByUrl`).
 
 - **Blank viewer / `__carViewer` undefined**: the dev build is failing, usually ANOTHER session's file (a half-written
   `data.json`, a missing import). `preview_logs` (errors; grep "File:"), wait until it is valid, reload. Not yours to fix.

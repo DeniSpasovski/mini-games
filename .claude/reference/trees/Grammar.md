@@ -13,7 +13,7 @@ A species' L-system is a parametric, stochastic, bracketed grammar: an axiom and
 - "&" and "^" pitch down and up.
 - "<" and ">" roll left and right.
 - "|" turns around 180 degrees.
-- "!" multiplies the current radius by the species radius decay (the drawn radii follow the pipe model: [Turtle](#turtle)).
+- "!" multiplies the current radius by the species radius decay (the drawn radii follow the pipe model, see turtle).
 - "[" pushes the turtle state and starts a child branch, one branch order deeper; "]" pops it.
 - L places a leaf cluster at the turtle's position and orientation.
 - T(e) sets the tropism strength of the current branch and every branch grown from it, so a willow's shoots hang and a poplar's limbs stay upright while the trunk grows straight.

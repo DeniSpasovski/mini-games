@@ -1056,8 +1056,7 @@ export class RallyGame {
     this.vehicle.reset(spawn.position, spawn.heading);
     this.vehicle.resetTyreTemps();
     this.tyreMarks?.breakStrips();
-    this.tyreDust.reset();
-    this.model.setTyreDust(0, this.tyreDust.color);
+    this.resetTyreDust();
     this.rig.snap();
     this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
     this.people.reset((inst, m) => this.streamer.setMatrix(inst, m));
@@ -1069,6 +1068,9 @@ export class RallyGame {
     }
     this.lastCount = -1;
     this.finishPilot = undefined;
+    this.autopilot?.reset(0);
+    // A restart inside the finished run's replay tail: keep that run's replay (encoded from its rows first).
+    this.flushReplay();
     this.recorder.start();
     this.replayHeader = undefined;
     this.lastReplay = undefined;
@@ -1410,11 +1412,22 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     };
   }
 
+  /**
+   * A finished run still in its replay tail (restart, leaving the page): end the recording now and encode / save it.
+   * Resolves when the save is done (or there was nothing to save).
+   */
+  flushReplay(): Promise<unknown> {
+    if (this.replayHeader && !this.lastReplay) this.finishReplay();
+    return this.lastReplay?.catch(() => undefined) ?? Promise.resolve();
+  }
+
   /** The finished run's recording is complete: encode it, save it (ranked runs) and tell the page. */
   private finishReplay(): void {
     if (!REPLAYS_ENABLED) return;
     if (this.recorder.stopped && this.lastReplay) return;
     this.recorder.stopped = true;
+    // Longer than the recording limit (recorder.ts MAX_SECONDS): no replay for this run.
+    if (this.recorder.full) return;
     const header = this.replayHeader ?? this.makeReplayHeader();
     const rows = this.recorder.snapshot();
     const ranked = !this.freeDrive && !!this.replayHeader;
@@ -1444,6 +1457,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
    */
   async watchReplay(file?: Uint8Array): Promise<ReplaySession> {
     if (!REPLAYS_ENABLED) throw new Error('replays are off');
+    if (!file && this.recorder.full)
+      throw new Error('run longer than the replay limit');
     if (!file && this.replayHeader) this.finishReplay();
     const f = file ?? (await this.currentReplay());
     const session = await ReplaySession.open(f, this.world, this.camera);
@@ -1455,13 +1470,20 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.watching?.director.snap();
     this.watching = session;
     this.input.enabled = false;
-    this.autopilot = undefined;
-    this.tyreMarks.breakStrips();
+    // The replay draws its own marks and dust from its start (no doubled marks over the run's).
+    this.tyreMarks.clear();
+    this.resetTyreDust();
     this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
     this.hud.el.classList.add('replay');
     this.audio.setPaused(false);
     this.onReplayChange?.(true);
     return session;
+  }
+
+  /** Clean tyres (spawn, a replay's start). */
+  private resetTyreDust(): void {
+    this.tyreDust.reset();
+    this.model.setTyreDust(0, this.tyreDust.color);
   }
 
   /** Back to the stage: the car stays where the replay left it, at rest. */
@@ -1475,6 +1497,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     v.angularVelocity.set(0, 0, 0);
     for (const w of v.wheels) w.omega = 0;
     v.holding = true;
+    this.autopilot?.reset(this.stage.progress);
     this.tyreMarks.breakStrips();
     this.rig.snap();
     this.hud.el.classList.remove('replay', 'clean');
@@ -1488,8 +1511,11 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const v = this.vehicle;
     this.input.poll();
     r.advance(dt);
-    if (r.jumped && r.wentBack)
+    if (r.jumped && r.wentBack) {
       this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
+      this.tyreMarks.clear();
+      this.resetTyreDust();
+    }
     const teleport = r.track.apply(r.time, r.dt, v);
     if (teleport || r.jumped) {
       this.tyreMarks.breakStrips();
@@ -1928,7 +1954,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     if (replay ? replay.dt > 0 : !this.paused) {
       this.emitDust(fdt);
       this.tyreMarks.update();
-      if (this.tyreDust.update(dt, this.vehicle))
+      if (this.tyreDust.update(fdt, this.vehicle))
         this.model.setTyreDust(this.tyreDust.level, this.tyreDust.color);
     }
     this.dust.update(fdt);

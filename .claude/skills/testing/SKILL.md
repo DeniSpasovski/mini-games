@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Where a test goes (tests/ vs integration-tests/<game>), which npm script runs it and how the eight GitHub Actions jobs map to them. Use when adding, moving or running tests, or editing .github/workflows/ci.yml.
+description: Where a test goes (tests/ vs integration-tests/<game>), which npm script runs it and how the nine GitHub Actions jobs map to them. Use when adding, moving or running tests, or editing .github/workflows/ci.yml.
 ---
 
 # Testing layout
@@ -16,7 +16,7 @@ Regular tests are fast (the whole `tests/` folder runs in about a minute); integ
 | Rally playtests                                            | `integration-tests/rally/`  | `npm run test:integration:rally`  |
 | Hole playtests                                             | `integration-tests/hole/`   | `npm run test:integration:hole`   |
 | Kaboom bot playtests                                       | `integration-tests/kaboom/` | `npm run test:integration:kaboom` |
-| Browser smoke (stage + map / car viewer, console + WebGL)  | `scripts/smoke.mjs`         | `npm run test:smoke`              |
+| Browser smoke (each game's pages, console + WebGL)         | `scripts/smoke.mjs`         | `npm run test:smoke`              |
 
 `npm run test` = every regular test (no integration); `npm run test:integration` = every playtest.
 
@@ -31,18 +31,20 @@ stay next to the tests that use them. A new game gets its own `tests/<id>/`, `in
 
 ## CI (`.github/workflows/ci.yml`)
 
-Runs on pull requests and on pushes to `main`, eight parallel jobs: rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
+Runs on pull requests and on pushes to `main`, nine jobs (`changes` picks the integration tests, the other eight run in parallel): rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
 hole integration tests, a shared job (type check + lint + `test:shared`) and the browser smoke test (dev server + headless
 Chrome on the SwiftShader GPU). A new script or folder needs a CI step in the same change, otherwise it silently never runs.
 
-**Browser smoke** (`npm run test:smoke`, needs a dev server; `--base <url>`, `--stage`, `--car`, `--dist dist` for a build):
-loads a rally stage and drives it on autopilot, then the map and car viewer, in a fresh profile, and fails on any console
-error, exception, WebGL error or failed same-origin request. Run it before calling rendering, shader, loading or viewer work done.
-CI skips it when a change is docs only (`smoke` output of `scripts/ci-affected.mjs`).
+**Browser smoke** (`npm run test:smoke`, against `npm run dev:noreload`: HMR reloads from other sessions cause false failures;
+`--base <url>`, `--stage`, `--car`, `--games rally,hole`, `--dist dist` for a build): drives a rally stage on autopilot, then loads
+the rally, Hole Island and Kaboom play / tool pages in a fresh profile, and fails on any console error, exception, WebGL error
+or failed same-origin request. `--profile <dir>` (or `SMOKE_PROFILE`) reuses a profile folder. Run it before calling rendering,
+shader, loading or viewer work done. CI runs only the affected games' pages and skips it when none is affected (`smoke`
+output of `scripts/ci-affected.mjs`).
 
 Integration jobs are selective: `scripts/ci-affected.mjs` (job `changes`) runs only the test files whose import closure contains a
-changed file; a game with none is skipped. Changes to `src/shared/`, package / test / ts config, workflows or that script run all;
-pushes to `main` run all; docs and assets run none. Rally per-car playtests (`stage-<map>`, `car-matrix` worst pick) drive
+changed file (relative imports and `new URL()` workers, incl. imported assets such as `*.webp` and `*.data.ts`); a game with
+none is skipped. Package / test / ts config, workflows or that script run all; pushes to `main` run all; docs run none. Rally per-car playtests (`stage-<map>`, `car-matrix` worst pick) drive
 the five representative cars plus the cars a PR changed (`rally_cars` output -> `RALLY_CARS`, `cars-under-test.ts`); pushes to
 `main` and local runs drive every car. A playtest file per map lets the maps run side by side (rstest runs files in parallel). Run the matching script before pushing; after touching physics or a map also
 run `npm run test:integration:rally`.

@@ -28,6 +28,7 @@ import {
   coverageMips,
 } from '../trees/materials';
 import { merge, paint, shade } from './geo';
+import { setAlphaToCoverage } from './materials';
 import { groundLitCard } from './world-shading';
 
 /**
@@ -300,11 +301,7 @@ export function vineBarkMaterial(): MeshStandardMaterial {
 /** Alpha-to-coverage on the canopy cards when the renderer has MSAA. */
 export function setVineAntialias(on: boolean): void {
   a2c = on;
-  for (const m of materials.values())
-    if (m.alphaToCoverage !== on) {
-      m.alphaToCoverage = on;
-      m.needsUpdate = true;
-    }
+  setAlphaToCoverage(materials.values(), on);
 }
 
 /** A plane card along the row (x) at depth z, y from lo to hi, u over the segment (2 sheet repeats) + `u0`. */
