@@ -4,7 +4,6 @@ import { seasonal } from './seasons';
 import { getSpecies } from './species';
 import { generateVariant } from './variants';
 import { spriteAtlas, type LeafStyle, type SpriteAtlas } from './leaftex';
-import { photoAtlas } from './leafphoto';
 import { coverageMips, type MipLevel } from './materials';
 import {
   getCached,
@@ -28,8 +27,6 @@ export interface GenerateRequest {
 export interface AtlasRequest {
   id: number;
   atlas: LeafStyle;
-  /** A photo style's images (trees/leafphoto.ts `photoUrls`, resolved on the page). */
-  urls?: [string, string];
 }
 
 export interface AtlasResult {
@@ -80,25 +77,12 @@ async function readCached(id: number, key: string): Promise<void> {
   ]);
 }
 
-/**
- * From the disk cache, else made here and stored (the same pixels: `GENERATOR_VERSION` and the photo's baked mean
- * cover the atlas code and images). A photo that does not decode falls back to the drawn atlas, not stored.
- */
-async function sendAtlas(
-  id: number,
-  style: LeafStyle,
-  urls: [string, string] | undefined,
-): Promise<void> {
+/** From the disk cache, else made here and stored (the same pixels: `GENERATOR_VERSION` covers the atlas code). */
+async function sendAtlas(id: number, style: LeafStyle): Promise<void> {
   const key = atlasCacheKey(style);
   let hit = await getCached<CachedAtlas>(key);
   if (!hit) {
-    const photo = urls
-      ? await photoAtlas(style, urls).catch((err: unknown) => {
-          console.warn(`trees: leaf photo ${style}:`, err);
-          return null;
-        })
-      : null;
-    const atlas = photo ?? spriteAtlas(style);
+    const atlas = spriteAtlas(style);
     const mips = coverageMips(
       atlas.albedo,
       atlas.width,
@@ -108,7 +92,7 @@ async function sendAtlas(
     );
     hit = { atlas, mips };
     // Stored before the transfer below detaches the pixels.
-    if (photo || !urls) await putCached(key, hit);
+    await putCached(key, hit);
   }
   const { atlas, mips } = hit;
   const buffers = new Set<ArrayBuffer>([
@@ -129,8 +113,8 @@ scope.onmessage = (e) => {
     return;
   }
   if ('atlas' in e.data) {
-    const { id, atlas: style, urls } = e.data;
-    sendAtlas(id, style, urls).catch((err) =>
+    const { id, atlas: style } = e.data;
+    sendAtlas(id, style).catch((err) =>
       scope.postMessage({ id, error: String(err) }, []),
     );
     return;

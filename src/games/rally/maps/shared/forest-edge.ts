@@ -1,10 +1,13 @@
 import type { ScatterRule } from './types';
 
 /**
- * The edge a road cuts through a wood: a belt of shrubs (the bush and lilac pack models, in clumps) and young trees of
+ * The edge a road cuts through a wood: a belt of shrubs (generated bush and hazel, in clumps) and young trees of
  * the wood's own species in the light along the verge, where the generated stand would otherwise meet the road as a
  * wall of trunks. `open` covers (scrub, pasture) get a thinner scatter of bushes. Scatter rules for `MapDef.scatter`.
  */
+/** Off the road's cut faces and fill banks (steeper than ~37 deg): nothing roots there or it clips through the face. */
+const SLOPE = 0.2;
+
 export function forestEdge(o: {
   /** Land cover classes of the woods. */
   woods: string[];
@@ -17,23 +20,25 @@ export function forestEdge(o: {
 }): ScatterRule[] {
   const rules: ScatterRule[] = [
     {
-      asset: 'pack_bush',
+      asset: 'bush',
       cover: o.woods,
       density: 12,
       minRoadDist: 1.5,
       maxRoadDist: 14,
       mask: { scale: 35, threshold: -0.15 },
-      scale: [0.8, 1.5],
+      scale: [0.7, 1.1],
+      maxSlope: SLOPE,
       sink: 0.1,
     },
     {
-      asset: 'pack_lilac',
+      asset: 'hazelnut_tree',
       cover: o.woods,
       density: 3,
       minRoadDist: 3,
       maxRoadDist: 18,
       mask: { scale: 55, threshold: 0 },
-      scale: [0.6, 1.2],
+      scale: [0.5, 0.8],
+      maxSlope: SLOPE,
       sink: 0.15,
     },
     ...o.young.map((asset): ScatterRule => ({
@@ -45,18 +50,20 @@ export function forestEdge(o: {
       mask: { scale: 45, threshold: -0.05 },
       scale: o.youngScale ?? [0.35, 0.6],
       tilt: 3,
+      maxSlope: SLOPE,
       sink: 0.2,
     })),
   ];
   if (o.open?.length)
     rules.push({
-      asset: 'pack_bush',
+      asset: 'bush',
       cover: o.open,
       density: 4,
       minRoadDist: 2,
       maxRoadDist: 22,
       mask: { scale: 40, threshold: 0 },
-      scale: [0.7, 1.3],
+      scale: [0.6, 1],
+      maxSlope: SLOPE,
       sink: 0.1,
     });
   return rules;

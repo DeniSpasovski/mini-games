@@ -4,15 +4,18 @@ import {
   CircleGeometry,
   CylinderGeometry,
   ExtrudeGeometry,
+  Float32BufferAttribute,
   Group,
   Matrix4,
   Mesh,
+  type MeshStandardMaterial,
   Path,
   RingGeometry,
   Shape,
 } from 'three';
 import { smoothstep } from '../../../shared/noise';
 import { merge, paint, planarUV, shade } from '../engine/geo';
+import { addWorldUniforms } from '../engine/world-shading';
 import { bridgeMaterials } from './bridge-mesh';
 import {
   culvertFloor,
@@ -194,7 +197,84 @@ function end(
   const m = new Matrix4()
     .makeRotationY(Math.atan2(dx, dz))
     .setPosition(site.x + dx * e.u, e.invert, site.z + dz * e.u);
-  return parts.map((g) => (g.index ? g.toNonIndexed() : g).applyMatrix4(m));
+  return parts.map((g) => {
+    const t = g.index ? g.toNonIndexed() : g;
+    // Height over the invert (`cwH`): the weathering's water line and the moss creeping up from the foot.
+    const pos = t.getAttribute('position');
+    const h = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) h[i] = pos.getY(i);
+    t.setAttribute('cwH', new Float32BufferAttribute(h, 1));
+    return t.applyMatrix4(m);
+  });
+}
+
+let weathered: MeshStandardMaterial | undefined;
+
+/**
+ * The bridges' concrete, aged for a culvert: blotchy wear, a soil stain up to the water line, streaks, and moss on the
+ * apron, the wall tops and creeping up from the foot (world-space noise; one shared material).
+ */
+function weatheredConcrete(): MeshStandardMaterial {
+  if (weathered) return weathered;
+  const m = bridgeMaterials().concrete.clone();
+  m.onBeforeCompile = (sh) => {
+    addWorldUniforms(sh);
+    sh.vertexShader = sh.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+attribute float cwH;
+varying float vCwH;
+varying vec3 vCwP;
+varying vec3 vCwN;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+vCwH = cwH;
+vCwP = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+vCwN = normalize( mat3( modelMatrix ) * objectNormal );`,
+      );
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying float vCwH;
+varying vec3 vCwP;
+varying vec3 vCwN;
+float cwHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+float cwNoise( vec2 p ) {
+  vec2 i = floor( p ), f = fract( p );
+  f = f * f * ( 3.0 - 2.0 * f );
+  return mix( mix( cwHash( i ), cwHash( i + vec2( 1, 0 ) ), f.x ), mix( cwHash( i + vec2( 0, 1 ) ), cwHash( i + vec2( 1, 1 ) ), f.x ), f.y );
+}
+float cwFbm( vec2 p ) { return 0.55 * cwNoise( p ) + 0.3 * cwNoise( p * 2.3 + 7.1 ) + 0.15 * cwNoise( p * 5.1 + 3.7 ); }`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+  {
+    // world-space coordinates that run across walls and floors alike
+    vec2 q = vCwP.xz + vec2( vCwP.y * 0.7, -vCwP.y * 0.4 );
+    float wear = cwFbm( q * 2.1 );
+    float patchy = cwFbm( q * 3.6 + 11.0 );
+    float up = smoothstep( 0.55, 0.9, vCwN.y );
+    float low = 1.0 - smoothstep( 0.15, 0.7, vCwH + 0.25 * ( cwNoise( q * 1.7 ) - 0.5 ) );
+    // blotchy old concrete: darker and lighter patches
+    diffuseColor.rgb *= 0.7 + 0.5 * wear;
+    // soil and water stain: up to the water line, streaks running down the walls
+    float streak = cwNoise( vec2( ( vCwP.x + vCwP.z ) * 3.1, vCwP.y * 0.35 ) );
+    float dirt = clamp( 0.75 * low + 0.25 * up * patchy + 0.55 * smoothstep( 0.45, 0.8, streak ) * ( 1.0 - up ) * ( 0.6 + 0.4 * wear ), 0.0, 1.0 );
+    diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * vec3( 0.62, 0.5, 0.36 ), dirt * 0.8 );
+    // moss: patches on the apron and the wall tops, and from the damp foot up
+    float moss = smoothstep( 0.6, 0.78, patchy + 0.18 * low + 0.06 * up ) * clamp( 0.7 * up + 0.6 * low, 0.0, 1.0 );
+    vec3 mossCol = vec3( 0.075, 0.07, 0.03 ) * ( 0.65 + 0.7 * cwNoise( q * 11.0 ) );
+    diffuseColor.rgb = mix( diffuseColor.rgb, mossCol, moss * 0.7 );
+  }`,
+      );
+  };
+  m.customProgramCacheKey = () => 'culvert-weathered';
+  return (weathered = m);
 }
 
 export function* culvertMeshJob(
@@ -210,7 +290,7 @@ export function* culvertMeshJob(
   }
   const group = new Group();
   group.name = 'culverts';
-  const mesh = new Mesh(merge(parts), bridgeMaterials().concrete);
+  const mesh = new Mesh(merge(parts), weatheredConcrete());
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   mesh.matrixAutoUpdate = false;

@@ -279,16 +279,6 @@ export const TRAIL_SCRUB: [number, number, string, number][] = [];
           k === 1 || k === 3 ? 0.5 + 0.2 * s : 0.26 + 0.14 * s,
         ]);
     }
-  // Half the bushes and thickets are the packs' lilac and bush models (their real look close to the path), the rest
-  // generated ones: lilac 2-4 m (its tree variant 4-6 m), bush 1-1.8 m.
-  TRAIL_SCRUB.forEach((e, i) => {
-    const u =
-      (hash3(Math.round(e[0] * 10), Math.round(e[1] * 10), i, 97) % 100) / 100;
-    if (u >= 0.5) return;
-    if (e[2] === 'bush') [e[2], e[3]] = ['pack_bush', 0.8 + 0.6 * u];
-    else if (e[2] === 'thicket_shrub' || e[2] === 'hazelnut_tree')
-      [e[2], e[3]] = ['pack_lilac', 0.55 + 0.7 * u];
-  });
 }
 
 /**

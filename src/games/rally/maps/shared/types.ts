@@ -78,23 +78,6 @@ export interface MapDef {
    * take another pose (variant, rotation, size) that keeps them off: world/scatter.ts `lowOverRoad`.
    */
   treeCrownClear?: number;
-  /**
-   * Hero trees near the stage road: within `dist` m of its edge, `share` of the scattered trees of a generated species
-   * (the `swap` key: a tree asset id) stand as its pack model instead (`asset`, a `pack_*` id, at `scale` x the rule's scale), not nearer
-   * than `minRoadDist`. The forest beyond stays generated. world/scatter.ts.
-   */
-  heroTrees?: {
-    dist: number;
-    swap: Record<
-      string,
-      {
-        asset: string;
-        share: number;
-        scale: [number, number];
-        minRoadDist?: number;
-      }
-    >;
-  };
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */

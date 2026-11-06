@@ -200,6 +200,9 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - Looking at a map in the preview pane (it renders one frame every few seconds): `window.__mapViewer.look(cx, cy, cz, lx, ly, lz, fov)`
   parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Helpers to build camera
   positions along the road: `world.road.at(d)` (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.
+- Owner review of many spots: hand over one console line per spot instead of camera links - the owner opens the map viewer
+  once, pastes `__mapViewer.look(cx,cy,cz, lx,ly,lz, fov) // what to check` lines in DevTools (Ctrl+Shift+J) and jumps
+  between them without reloading. `__mapViewer.shell.camera.position` / `.controls.target` read the current view back.
 - Power lines: `MapDef.pylons` / `powerLines` (baked from OSM, `data.pylons` / `data.powerLines`) become `power_pylon` / `power_pole` instances + cables
   (`world/power-lines.ts`). Scatter option `channelDist: [min, max]` = only within that distance of a canal / drain edge (willows, reeds).
 - Railways: `MapDef.railways` = `data.railways` (baker `railway_lines`: OSM `railway=rail`, electrified flag). Tracks become

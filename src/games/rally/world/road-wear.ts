@@ -64,17 +64,19 @@ export interface Wear {
 }
 
 /** Bends cut with the inside wheels off the road: none at a radius of CUT_R0 m, full from CUT_R1 m. */
-const CUT_R0 = 90;
-const CUT_R1 = 16;
+const CUT_R0 = 40;
+const CUT_R1 = 12;
 /** Bends braked for hard enough to leave rubber: from RUB_R0 m, full at RUB_R1 m. */
 const RUB_R0 = 60;
 const RUB_R1 = 14;
 /** Metres the dragged dirt lasts after the apex (1/e), and before it. */
-const DIRT_AFTER = 16;
-const DIRT_BEFORE = 7;
+const DIRT_AFTER = 8;
+const DIRT_BEFORE = 4;
 /** Spill on the outside of the exit: share of the inside's, and its fade (m). */
-const SPILL = 0.3;
+const SPILL = 0.1;
 const SPILL_AFTER = 12;
+/** Strongest cut dirt (0..1 of the mask): a light film, never a carpet across the lane. */
+const DIRT_MAX = 0.4;
 /** Braking zone before the bend (1/e, m) and the cap on its reach (m). */
 const BRAKE_LEN = 24;
 const BRAKE_MAX = 45;
@@ -146,8 +148,10 @@ export function roadWear(inp: WearInput): Wear {
   for (let i = 0; i < n; i++) {
     const a = Math.abs(k[i]);
     // Some corners are cut harder than others (the drivers, the verge's edge): seeded per ~60 m.
+    // Kept light (a thin film at the edge) and only on about one hairpin in three.
     const vary =
-      0.55 + 0.45 * (0.5 + 0.5 * noise.noise2(samples[i].dist / 60, 3.7));
+      DIRT_MAX *
+      smooth(0.15, 0.45, 0.5 + 0.5 * noise.noise2(samples[i].dist / 60, 3.7));
     const c = smooth(1 / CUT_R0, 1 / CUT_R1, a) * vary;
     if (k[i] > 0) cutL[i] = c;
     else cutR[i] = c;
@@ -316,7 +320,7 @@ export const ROAD_WEAR_FRAGMENT = /* glsl */ `
       float str = s == 0 ? vRwB.x : vRwB.y;
       if ( str < 0.004 ) continue;
       float d = hw - ( s == 0 ? lat : -lat );
-      float w = 0.3 + 2.3 * str;
+      float w = 0.25 + 1.2 * str;
       c = max( c, str * ( 1.0 - smoothstep( -0.2, w, d + 0.35 * w * ( rsNoise( vec2( along / 3.1, float( s ) * 9.0 ) ) - 0.5 ) ) ) );
     }
     float streak = 0.55 * rsNoise( vec2( along / 2.4, lat / 0.22 ) ) + 0.45 * rsNoise( wp / 0.3 + 4.0 );

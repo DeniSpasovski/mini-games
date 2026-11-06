@@ -7,7 +7,6 @@ import {
 } from '../shared/real-map';
 import { greenInSpring } from '../shared/seasonal-grass';
 import type {
-  CulvertsDef,
   HeightmapDef,
   HorizonDef,
   LakeDef,
@@ -15,7 +14,6 @@ import type {
   MapDef,
   PathDef,
 } from '../shared/types';
-import culverts from './culverts.json';
 import data from './data.json';
 import horizon from './horizon.json';
 import { petralicaInfo as info } from './info';
@@ -111,8 +109,6 @@ export const petralicaMap: MapDef = {
   // OSM bridge decks (the E-871 viaducts, road bridges over streams): modern concrete, not old stone.
   bridgeStyle: 'concrete',
   lakes: data.lakes as LakeDef[],
-  // Culverts where the elevation data says water crosses the road (scripts/realmap/culverts.py).
-  culverts: culverts as CulvertsDef,
   road: {
     width: 5,
     shoulder: 0.9,

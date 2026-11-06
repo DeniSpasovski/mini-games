@@ -23,6 +23,7 @@ import {
 import { addWorldUniforms } from '../engine/world-shading';
 import {
   ALPHA_TEST,
+  primeSpriteAtlas,
   spriteAtlas,
   type LeafStyle,
   type SpriteAtlas,
@@ -778,12 +779,11 @@ export function barkNormalTexture(kind: BarkTexture | BarkScan): Texture {
   return t;
 }
 
-/** Atlases and mip chains made elsewhere (a worker: trees/worker.ts; photo styles, trees/leafphoto.ts), by leaf style. */
+/** Mip chains made elsewhere (a worker: trees/worker.ts), by leaf style. */
 const primedMips = new Map<
   LeafStyle,
   { main: MipLevel[]; companion: MipLevel[] }
 >();
-const primedAtlases = new Map<LeafStyle, SpriteAtlas>();
 
 /** The atlas and mips of a style, made in a worker: `spriteTextures` uses them. */
 export function primeSpriteTextures(
@@ -791,7 +791,7 @@ export function primeSpriteTextures(
   atlas: SpriteAtlas,
   mips: { main: MipLevel[]; companion: MipLevel[] },
 ): void {
-  primedAtlases.set(style, atlas);
+  primeSpriteAtlas(style, atlas);
   primedMips.set(style, mips);
 }
 
@@ -807,10 +807,9 @@ export function spriteTextures(style: LeafStyle): {
   const key = `sprite:${style}`;
   const hit = textures.get(`${key}:a`);
   if (hit) return { albedo: hit, normal: textures.get(`${key}:n`)! };
-  // The drawn atlas only without a primed one (no worker, no photo decode): `spriteAtlas` stays the drawn one (vines).
-  const atlas = primedAtlases.get(style) ?? spriteAtlas(style);
+  const atlas = spriteAtlas(style);
   const mips =
-    (primedAtlases.has(style) ? primedMips.get(style) : undefined) ??
+    primedMips.get(style) ??
     coverageMips(atlas.albedo, atlas.width, atlas.height, false, atlas.normal);
   const make = (levels: MipLevel[], srgb: boolean) => {
     const t = new DataTexture(

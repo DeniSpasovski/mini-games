@@ -65,6 +65,8 @@ const BASE_HEIGHT = 349;
  * wall.
  */
 const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
+/** Guard rails stand on the 0.6 m verge (`road.shoulder`), not past it on the falling slope (posts hanging in the air). */
+const RAIL_OFFSET = 0.4;
 
 /** Covers where dry grass grows (detail layer). */
 const DRY = ['grass', 'shrub', 'bare', 'crop', 'urban'];
@@ -573,25 +575,27 @@ export const vodnoMap: MapDef = {
       sink: 0.15,
     },
     // The road's understorey (the owner's photos: bright green shrubs and young locust 2-6 m along the verges, the car
-    // parks and the rails, under the canopy model's 3 m floor): the packs' bush and lilac models in clumps, young locust.
+    // parks and the rails, under the canopy model's 3 m floor): generated bush and hazel in clumps, young locust.
     {
-      asset: 'pack_bush',
+      asset: 'bush',
       cover: [...WOODS, ...DRY, 'trees', 'pasture'],
       density: 10,
       minRoadDist: 2,
       maxRoadDist: 22,
       mask: { scale: 40, threshold: -0.1 },
-      scale: [0.8, 1.5],
+      scale: [0.7, 1.1],
+      maxSlope: 0.2,
       sink: 0.1,
     },
     {
-      asset: 'pack_lilac',
+      asset: 'hazelnut_tree',
       cover: [...WOODS, ...DRY, 'trees', 'pasture'],
       density: 4,
       minRoadDist: 3,
       maxRoadDist: 25,
       mask: { scale: 55, threshold: 0 },
-      scale: [0.6, 1.2],
+      scale: [0.5, 0.8],
+      maxSlope: 0.2,
       sink: 0.15,
     },
     {
@@ -851,11 +855,15 @@ export const vodnoMap: MapDef = {
   // after the first crossroad, where the verge falls away.
   barriers: [
     ...[
-      ...hairpinRails(data.route, { maxRadius: 30, lead: 20 }),
+      ...hairpinRails(data.route, {
+        maxRadius: 30,
+        lead: 20,
+        offset: RAIL_OFFSET,
+      }),
       {
         kind: 'guardrail',
         side: 'right',
-        offset: 0.9,
+        offset: RAIL_OFFSET,
         from: VIDIKOVEC_RAIL.from,
         to: VIDIKOVEC_RAIL.to,
         skipJunctions: 4,
@@ -864,7 +872,7 @@ export const vodnoMap: MapDef = {
     {
       kind: 'guardrail',
       side: 'left',
-      offset: 0.9,
+      offset: RAIL_OFFSET,
       from: 500,
       to: 640,
       skipJunctions: 4,
@@ -873,7 +881,7 @@ export const vodnoMap: MapDef = {
   ],
   // Galvanised rails (ref-07 / ref-12) wherever the fill bank / the valley side drops more than 2 m within 3 m of the
   // verge (world/drop-rails.ts; the map's own rails above win).
-  dropRails: { minDrop: 2, rusty: false },
+  dropRails: { minDrop: 2, rusty: false, offset: RAIL_OFFSET },
   props,
   landmarks: [
     'vodno-sredno-vodno',

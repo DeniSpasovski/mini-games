@@ -49,7 +49,9 @@ describe('rally-worn tarmac (road-wear)', () => {
     expect(w.dirtR[60]).toBe(0);
     // the inside (left) is dirty through the bend and after it, more than before it
     const apexOut = 200 + Math.round(Math.PI * 14);
-    expect(w.dirtL[apexOut + 5]).toBeGreaterThan(0.3);
+    // a light film, never a carpet (road-wear.ts DIRT_MAX)
+    expect(w.dirtL[apexOut + 5]).toBeGreaterThan(0);
+    expect(Math.max(...w.dirtL)).toBeLessThanOrEqual(0.4);
     expect(w.dirtL[apexOut + 5]).toBeGreaterThan(w.dirtL[190]);
     // fading along the road
     expect(w.dirtL[apexOut + 60]).toBeLessThan(w.dirtL[apexOut + 5] * 0.1);

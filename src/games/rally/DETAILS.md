@@ -438,7 +438,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Rally-worn tarmac** (`world/road-wear.ts`, the stage road's rally tarmac `WEAR_TEX`: Vodno, Galichica, Petralica's valley,
   Ajvatovci): masks per 1 m sample from the curvature, the driven line, the verges and the mouths, in the stage road's
   `rwA` / `rwB` vertex attributes, drawn by the asphalt shader (no extra mesh). Earth and gravel dragged onto the inside of
-  tight bends (from ~90 m radius; most just after the apex, in the stage's direction; more off a bare verge; none on a deck,
+  hairpins only (under ~40 m radius, about one in three, a light film; most just after the apex, in the stage's direction; more off a bare verge; none on a deck,
   a kerbed street or behind a barrier), a thin spill on the outside of the exit, rubber lines on the driven line in the
   braking zone, mud in wheel tracks out of dirt tracks (`MUD_KINDS` in `road-mesh.ts`), gravel washed out of paths; old
   asphalt (`PATCHES` roads) also gets sealed cracks and filled potholes. Visual only: the physics surface is unchanged.

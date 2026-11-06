@@ -15,9 +15,6 @@ Most of the route is real OpenStreetMap road. Two parts that OSM does not have (
 last 1.1 km) were traced from a route screenshot and are only accurate to 10-25 m, and the houses are generated on
 land that is marked as built-up, so their number and sizes are approximate.
 
-Concrete culverts with headwalls carry the water under the road where the elevation data says a gully or fold crosses it
-(estimated from the drainage of the elevation data, `culverts.json`: OpenStreetMap maps none on this road).
-
 ```bash
 npm run dev     # /games/rally/?stage=petralica&spawn=7500
                 # /games/rally/map-viewer.html?map=petralica

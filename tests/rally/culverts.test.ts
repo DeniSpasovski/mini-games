@@ -1,13 +1,12 @@
 import { describe, expect, test } from '@rstest/core';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { galichicaMap } from '../../src/games/rally/maps/galichica/map';
-import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
 import { vodnoMap } from '../../src/games/rally/maps/vodno/map';
 import { TerrainGenerator } from '../../src/games/rally/world/terrain-gen';
 
 // Culverts (world/culverts.ts) carve their gullies beside the road only: the road surface and its verge keep exactly
 // the heights they had without them (a road change would need a stage times bump).
-describe.each([vodnoMap, galichicaMap, petralicaMap, ajvatovciMap])(
+describe.each([vodnoMap, galichicaMap, ajvatovciMap])(
   'culverts on $id',
   (map) => {
     const without = new TerrainGenerator({ ...map, culverts: undefined });

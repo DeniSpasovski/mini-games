@@ -57,8 +57,6 @@ export interface AssetMeta {
   /** Ordered near -> far. Instances beyond the last LOD are culled. */
   lods: LodSpec[];
   colliders?: ColliderSpec[];
-  /** Colliders per variant (index = variant), in place of `colliders`: models of very different trunks (pack trees). */
-  variantColliders?: ColliderSpec[][];
   /** Per-instance colour jitter (0 = none), applied via instanceColor. */
   tint?: number;
   /**
@@ -195,11 +193,6 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 1500, castShadow: false },
     ],
     colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
-    variantColliders: [
-      [{ kind: 'cylinder', r: 0.12, h: 8 }],
-      [{ kind: 'cylinder', r: 0.25, h: 10 }],
-      [{ kind: 'cylinder', r: 0.4, h: 12 }],
-    ],
     tint: 0.08,
   },
   {
