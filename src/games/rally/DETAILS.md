@@ -404,9 +404,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   m of the road, every age in one stand (the age ladder). Scatter tools: `mask.group` (rules on one clump field: mixed
   thickets; `invert` = the ground between: pine blocks with broadleaf between), `contour` (strips / planting rows along the
   contour: Vodno's logged slope regrowth), `lean` (stems within `within` m tilt toward the road, also on `realTrees`),
-  `fieldEdge` (within [min, max] m of a field parcel's edge: Ajvatovci hedgerows and poplar lines, Petralica field-edge
-  tree bands; with a `mask` so only some boundaries carry one). `minRoadDist` / `maxRoadDist` past the road query's
-  ~35 m reach use a coarse distance field (`farRoadDist`, to 260 m).
+  `fieldEdge` (within [min, max] m of a field parcel's edge: Petralica field-edge tree bands; with a `mask` so only some
+  boundaries carry one). `minRoadDist` / `maxRoadDist` past the road query's ~35 m reach use a coarse distance field
+  (`farRoadDist`, to 260 m).
   `forestEdge()` (`maps/shared/forest-edge.ts`) adds the verge belt: thicket / hazel / bush clumps and leaning young trees.
   Nothing grows on a rock cut's face, and no tree stands where its crown would hang over one (`ScatterContext.cutAt`,
   `world.ts`: carved below the land where `rockCutWeightAt` says cut; `CUT_CROWN` toward the road).
