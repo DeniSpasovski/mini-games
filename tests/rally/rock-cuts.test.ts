@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
-import type { BufferGeometry, Mesh } from 'three';
+import { type BufferGeometry, type Mesh, MeshStandardMaterial } from 'three';
 import { trailLotLandmark } from '../../src/games/rally/maps/vodno/landmarks';
 import { vodnoMap } from '../../src/games/rally/maps/vodno/map';
 import { newRoadQuery } from '../../src/games/rally/world/road';
@@ -11,7 +11,7 @@ describe('Vodno rock cuts', () => {
   const q = newRoadQuery();
 
   test('faces stand beside the road, never on it', () => {
-    const job = rockCutMeshJob(world);
+    const job = rockCutMeshJob(world, () => new MeshStandardMaterial());
     let r = job.next();
     while (!r.done) r = job.next();
     const meshes = (r.value?.children ?? []) as Mesh[];
@@ -51,7 +51,7 @@ describe('Vodno rock cuts', () => {
   });
 
   test('rock faces only at the hairpin, a low stone wall at Vidikovec, none elsewhere', () => {
-    const job = rockCutMeshJob(world);
+    const job = rockCutMeshJob(world, () => new MeshStandardMaterial());
     let r = job.next();
     while (!r.done) r = job.next();
     const [from, to] = [1985, 2125];
