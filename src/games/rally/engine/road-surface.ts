@@ -343,6 +343,14 @@ export function applyRoadSurface(
                 : ''
             }
             diffuseColor.rgb *= 1.03 + rsTone * rsK;
+            // The slab's side (a skirt, world/road-slab.ts) darkens: the cut face of the asphalt layer, not more road. Keyed
+            // on the drawn face's own slope (a skirt shares its top vertices with the road edge, so its vertex normals would
+            // only shade the buried toe); no road gets this steep.
+            {
+              vec3 rsFn = normalize( cross( dFdx( vViewPosition ), dFdy( vViewPosition ) ) );
+              float rsUp = abs( dot( rsFn, normalize( ( viewMatrix * vec4( 0.0, 1.0, 0.0, 0.0 ) ).xyz ) ) );
+              diffuseColor.rgb *= 1.0 - 0.4 * ( 1.0 - smoothstep( 0.7, 0.85, rsUp ) );
+            }
             if ( rsPatch > 0.0 ) {
               float rsCi = floor( rsM.y / 10.0 );
               float rsFy = rsM.y - rsCi * 10.0;

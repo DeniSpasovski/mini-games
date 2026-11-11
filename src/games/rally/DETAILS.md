@@ -457,6 +457,12 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
     `road_tarmac_plain_junction`; a square tile with no wheel paths, edges or lines, sampled by world XZ, weight in the mesh's `jw` attribute;
     `junctionMouths`) within 6 m, or 2 m where painted lines end at the mouth, with the dusty edge band running round each curve. On `cityStreets` maps the
     sidewalk turns round each corner onto the stage road edge, its kerb dropping flush there (`mouthCorners`, `StreetDetail.returns`).
+- **Road slab** (`world/road-slab.ts`, every map): roads are a layer laid into the ground, not a texture on it. The drawn terrain is cut
+  under the stage road, the ribbon side roads / tracks and the paved mouth corners (`RoadSlab.sink`, `TerrainGenerator.meshHeight`; `SLAB_SINKS`:
+  6 cm under asphalt, 2 cm under gravel / dirt), easing in over the first metre inside the edge so the 1 m mesh dips under the road,
+  not beside it. Physics and placement keep the uncut ground. Each ribbon edge has a skirt `SKIRT_DEPTH` deep (the slab's side), which the road
+  shader darkens by the face's own slope (`road-surface.ts`); none where the edge meets another paved surface (`RoadSlab.paved`: roads
+  join flush) and none round the mouth corners (their dust strip is the edge). The cut fades to 0 over 6 m onto bridge decks and plazas.
 - **Water:** canals / drains / rivers (`paths` surface `water`) and `lakes`, with real banks and water physics
   (`world/lakes.ts`, `water-mesh.ts`). `Lakes.query` reads only the outline edges near the point (a 16 m grid per outline): exact `sd` within
   `LAKE_REACH` of the shore, `-LAKE_REACH` further inside (every user stops at `LAKE_SHELF`); test `lakes-index`.

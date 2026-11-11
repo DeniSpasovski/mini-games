@@ -91,8 +91,10 @@ export const roadLine = (offset: number, x0 = -Infinity, x1 = Infinity) => {
 };
 
 /** z of the line `offset` metres north of the centre, at x (extended past the ends). */
+const offsetLines = new Map<number, Vector2[]>();
 export const roadZ = (x: number, offset: number) => {
-  const line = roadLine(offset);
+  let line = offsetLines.get(offset);
+  if (!line) offsetLines.set(offset, (line = roadLine(offset)));
   let i = line.findIndex((p) => p.x >= x);
   if (i === -1) i = line.length - 1;
   if (i === 0) i = 1;

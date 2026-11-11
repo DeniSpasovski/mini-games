@@ -23,7 +23,6 @@ import {
   setupGravelRibbon,
 } from './gravel-road';
 import {
-  type CityStreets,
   type PathDef,
   roadSurfaceAt,
   type RoadTexture,
@@ -54,8 +53,10 @@ import { goreMeshJob } from './gore-mesh';
 import {
   type Junction,
   type JunctionFillet,
-  MERGE_ANGLE,
+  MOUTH_TEX,
   mouthFillets,
+  mouthJunctions,
+  pathTexture,
 } from './junctions';
 import { plazaMeshJob } from './plaza-mesh';
 import { stageSignMeshJob } from './stage-sign-mesh';
@@ -65,6 +66,13 @@ import type { World } from './world';
 import { GroundTerrain } from './heightfield';
 import { newPathQuery } from './real-data';
 import { FOOT_WIDTH } from './terrain-gen';
+import {
+  SKIRT_DEPTH,
+  SKIRT_LEAN,
+  SKIRT_W,
+  skirtU,
+  STAGE_EDGE,
+} from './road-slab';
 
 /**
  * Road surface ribbon. Vertices sample the terrain generator (so the ribbon hugs
@@ -81,35 +89,7 @@ export const texLength = (t: RoadTexture): number =>
     : t === 'road_street' || t === 'road_city'
       ? 8
       : 7;
-/** City streets (OSM kinds) that get city asphalt on maps with `cityStreets`. */
-const CITY_KINDS = new Set([
-  'primary',
-  'secondary',
-  'tertiary',
-  'unclassified',
-  'residential',
-  'living_street',
-]);
-/**
- * Texture of another road (path / deck) by its OSM class: mainline motorways have lane markings; on city maps
- * the streets get city asphalt (a double yellow centre line from 6.4 m wide, dashed lane lines too from 12 m = 4 lanes).
- */
-export const pathTexture = (
-  kind: string,
-  width: number,
-  city?: CityStreets,
-): RoadTexture =>
-  (kind === 'motorway' || kind === 'trunk') && width >= 5.5
-    ? 'road_parkway'
-    : city && CITY_KINDS.has(kind)
-      ? city.asphalt
-        ? city.asphalt
-        : width >= 12
-          ? 'road_street4'
-          : width >= 6.4
-            ? 'road_street'
-            : 'road_city'
-      : 'road_tarmac';
+export { pathTexture };
 const SEGMENT = 64; // samples per mesh
 
 const roadMaterials = new Map<string, MeshStandardMaterial>();
@@ -381,14 +361,6 @@ interface Mouth {
  */
 const BLEND_FADE = 6;
 const LINE_FADE = 2;
-/** Side road textures that get a junction mouth: plain tarmac and the city streets. */
-const MOUTH_TEX = new Set<RoadTexture>([
-  'road_tarmac',
-  'road_tarmac_plain_kerbed',
-  'road_city',
-  'road_street',
-  'road_street4',
-]);
 /** Stage road textures with painted lines. */
 const LINED = new Set<RoadTexture>(['road_tarmac_lines']);
 
@@ -407,87 +379,69 @@ export function junctionMouths(world: World): Mouth[] {
   const cached = mouthCache.get(world);
   if (cached) return cached;
   const city = world.map.cityStreets;
-  const mouths = world.gen.junctions
-    .filter(
-      (j) =>
-        j.surface === 'tarmac' &&
-        MOUTH_TEX.has(pathTexture(j.kind, j.width, city)) &&
-        // (a stage road with its own junction asphalt: a parkway stage has ramps, not mouths)
-        !!JUNCTION_OF[
-          roadSurfaceAt(world.map.road, j.along).texture as RoadSurfaceId
-        ] &&
-        !world.gen.isParkwayLane(j.path) &&
-        // (a shallow merge runs into the edge like a slip road: no rounded corners or pad)
-        !shallowMerge(j, world) &&
-        !world.gen.plazas.inside(j.x, j.z, 2),
-    )
-    // Two ways joining at the same spot (a doubled way in the map data): one mouth.
-    .filter(
-      (j, i, all) =>
-        !all
-          .slice(0, i)
-          .some(
-            (o) =>
-              o.side === j.side && Math.hypot(o.x - j.x, o.z - j.z) < o.width,
-          ),
-    )
-    .map((j) => {
-      const fillets = mouthFillets(j, world.road);
-      const band = 0.18 * j.width;
-      const radius = Math.min(8, Math.max(4, j.width * 1.4));
-      const nx0 = -j.dz;
-      const nz0 = j.dx;
-      const inners: number[][][] = [];
-      // Each side's pad edge, from the stage road up the side road: the inner edge of its dust strip, or (no fillet)
-      // the side road's edge `band` inside, so its own dusty edge still shows.
-      const sides = new Map<number, number[][]>();
-      for (const f of fillets) {
-        const n = f.arc.length;
-        const [mx, mz] = [
-          (f.arc[0][0] + f.arc[n - 1][0]) / 2,
-          (f.arc[0][1] + f.arc[n - 1][1]) / 2,
-        ];
-        const inner = f.arc.map(([x, z], k) => {
-          const [ax, az] = f.arc[Math.max(0, k - 1)];
-          const [bx, bz] = f.arc[Math.min(n - 1, k + 1)];
-          const tl = Math.hypot(bx - ax, bz - az) || 1;
-          let nx = -(bz - az) / tl;
-          let nz = (bx - ax) / tl;
-          // Inside = away from the chord's middle (the curve bows from the chord towards the corner).
-          if (nx * (mx - x) + nz * (mz - z) > 0) [nx, nz] = [-nx, -nz];
-          return [x + nx * band, z + nz * band];
-        });
-        inners.push(inner);
-        const sd = (f.c[0] - j.x) * nx0 + (f.c[1] - j.z) * nz0 >= 0 ? 1 : -1;
-        sides.set(sd, inner);
-      }
-      for (const sd of [1, -1])
-        if (!sides.has(sd)) {
-          const e = (sd * j.width) / 2 - sd * band;
-          const ex = j.x + nx0 * e;
-          const ez = j.z + nz0 * e;
-          const line: number[][] = [];
-          for (let d = -2; d <= radius + 1e-6; d += radius / 4)
-            line.push([ex + j.dx * d, ez + j.dz * d]);
-          sides.set(sd, line);
-        }
-      const outline = [...sides.get(1)!, ...[...sides.get(-1)!].reverse()];
-      const xs = outline.map((q) => q[0]);
-      const zs = outline.map((q) => q[1]);
-      const tex = pathTexture(j.kind, j.width, city);
-      const fade =
-        tex === 'road_tarmac' &&
-        !LINED.has(roadSurfaceAt(world.map.road, j.along).texture)
-          ? BLEND_FADE
-          : LINE_FADE;
-      const box: Mouth['box'] = [
-        Math.min(...xs) - fade,
-        Math.min(...zs) - fade,
-        Math.max(...xs) + fade,
-        Math.max(...zs) + fade,
+  const mouths = mouthJunctions(
+    world.gen.junctions,
+    world.road,
+    world.map,
+    (pi) => world.gen.isParkwayLane(pi),
+    (x, z) => world.gen.plazas.inside(x, z, 2),
+  ).map((j) => {
+    const fillets = mouthFillets(j, world.road);
+    const band = 0.18 * j.width;
+    const radius = Math.min(8, Math.max(4, j.width * 1.4));
+    const nx0 = -j.dz;
+    const nz0 = j.dx;
+    const inners: number[][][] = [];
+    // Each side's pad edge, from the stage road up the side road: the inner edge of its dust strip, or (no fillet)
+    // the side road's edge `band` inside, so its own dusty edge still shows.
+    const sides = new Map<number, number[][]>();
+    for (const f of fillets) {
+      const n = f.arc.length;
+      const [mx, mz] = [
+        (f.arc[0][0] + f.arc[n - 1][0]) / 2,
+        (f.arc[0][1] + f.arc[n - 1][1]) / 2,
       ];
-      return { j, fillets, inners, band, outline, tex, fade, box };
-    });
+      const inner = f.arc.map(([x, z], k) => {
+        const [ax, az] = f.arc[Math.max(0, k - 1)];
+        const [bx, bz] = f.arc[Math.min(n - 1, k + 1)];
+        const tl = Math.hypot(bx - ax, bz - az) || 1;
+        let nx = -(bz - az) / tl;
+        let nz = (bx - ax) / tl;
+        // Inside = away from the chord's middle (the curve bows from the chord towards the corner).
+        if (nx * (mx - x) + nz * (mz - z) > 0) [nx, nz] = [-nx, -nz];
+        return [x + nx * band, z + nz * band];
+      });
+      inners.push(inner);
+      const sd = (f.c[0] - j.x) * nx0 + (f.c[1] - j.z) * nz0 >= 0 ? 1 : -1;
+      sides.set(sd, inner);
+    }
+    for (const sd of [1, -1])
+      if (!sides.has(sd)) {
+        const e = (sd * j.width) / 2 - sd * band;
+        const ex = j.x + nx0 * e;
+        const ez = j.z + nz0 * e;
+        const line: number[][] = [];
+        for (let d = -2; d <= radius + 1e-6; d += radius / 4)
+          line.push([ex + j.dx * d, ez + j.dz * d]);
+        sides.set(sd, line);
+      }
+    const outline = [...sides.get(1)!, ...[...sides.get(-1)!].reverse()];
+    const xs = outline.map((q) => q[0]);
+    const zs = outline.map((q) => q[1]);
+    const tex = pathTexture(j.kind, j.width, city);
+    const fade =
+      tex === 'road_tarmac' &&
+      !LINED.has(roadSurfaceAt(world.map.road, j.along).texture)
+        ? BLEND_FADE
+        : LINE_FADE;
+    const box: Mouth['box'] = [
+      Math.min(...xs) - fade,
+      Math.min(...zs) - fade,
+      Math.max(...xs) + fade,
+      Math.max(...zs) + fade,
+    ];
+    return { j, fillets, inners, band, outline, tex, fade, box };
+  });
   mouthCache.set(world, mouths);
   return mouths;
 }
@@ -503,12 +457,6 @@ function nearMouth(
     ({ box: [x0, z0, x1, z1] }) =>
       x > x0 - pad && x < x1 + pad && z > z0 - pad && z < z1 + pad,
   );
-}
-
-/** A side road meeting the stage road within MERGE_ANGLE of its line: a merge, not a mouth. */
-function shallowMerge(j: Junction, world: World): boolean {
-  const s = world.road.at(j.along);
-  return Math.abs(j.dx * s.tx + j.dz * s.tz) > Math.cos(MERGE_ANGLE);
 }
 
 /** The point lies in the box of a straight-on mouth (`Junction.through`). */
@@ -755,14 +703,16 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     const end = starts[si + 1] ?? samples.length - 1;
     const rows = end - start + 1;
     const segTex = roadSurfaceAt(world.map.road, samples[start].dist).texture;
-    const pos = new Float32Array(rows * cols * 3);
-    const nor = new Float32Array(rows * cols * 3);
-    const uv = new Float32Array(rows * cols * 2);
-    const jw = new Float32Array(rows * cols);
-    const grX = segTex === 'road' ? new Float32Array(rows * cols * 3) : null;
+    // (+ two skirt vertices per row after the grid: the slab's chamfer down into the verge on each side)
+    const nv = rows * (cols + 2);
+    const pos = new Float32Array(nv * 3);
+    const nor = new Float32Array(nv * 3);
+    const uv = new Float32Array(nv * 2);
+    const jw = new Float32Array(nv);
+    const grX = segTex === 'road' ? new Float32Array(nv * 3) : null;
     const worn = wear && WEAR_TEX.has(segTex);
-    const rwA = worn ? new Float32Array(rows * cols * 3) : null;
-    const rwB = worn ? new Uint8Array(rows * cols * 4) : null;
+    const rwA = worn ? new Float32Array(nv * 3) : null;
+    const rwB = worn ? new Uint8Array(nv * 4) : null;
     const blends = !!JUNCTION_OF[segTex as RoadSurfaceId];
     for (let r = 0; r < rows; r++) {
       const s = samples[start + r];
@@ -839,6 +789,53 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
         // Winding chosen so the face normal points up (+Y) for a road heading +Z.
         idx.push(a, d, e, a, e, b);
       }
+    }
+    // The slab's skirts (world/road-slab.ts): from each edge column out and SKIRT_DEPTH down, the normal leaning out (on
+    // a bridge deck, where the slab fades out, a lip straight down with the edge's own attributes).
+    for (let r = 0; r < rows; r++) {
+      const s = samples[start + r];
+      const onBridge = !!world.road.bridgeAt(s.dist);
+      for (const side of [-1, 1]) {
+        const e = r * cols + (side < 0 ? 0 : cols - 1);
+        const k = rows * cols + r * 2 + (side < 0 ? 0 : 1);
+        const top = pos[e * 3 + 1];
+        const lat = side * (s.halfWidth * STAGE_EDGE + SKIRT_W);
+        let x = onBridge ? pos[e * 3] : s.x + s.tz * lat;
+        let z = onBridge ? pos[e * 3 + 2] : s.z - s.tx * lat;
+        // (none where a side road or a mouth corner carries on from the edge: the toe folds back onto it)
+        const flush = !onBridge && world.slab.paved(x, z, 'stage');
+        if (flush) {
+          x = pos[e * 3];
+          z = pos[e * 3 + 2];
+        }
+        pos[k * 3] = x;
+        pos[k * 3 + 1] = flush
+          ? top
+          : onBridge
+            ? top - 0.02
+            : top - SKIRT_DEPTH;
+        pos[k * 3 + 2] = z;
+        if (onBridge || flush)
+          for (let i = 0; i < 3; i++) nor[k * 3 + i] = nor[e * 3 + i];
+        else skirtNormal(side * s.tz, -side * s.tx, nor, k);
+        // (the road's edge strip mirrored onto it; on the gravel its ragged edge carries on down: stones spilling over)
+        uv[k * 2] = skirtU(uv[e * 2], 1 / (2.08 * s.halfWidth));
+        uv[k * 2 + 1] = uv[e * 2 + 1];
+        jw[k] = jw[e];
+        if (grX) for (let i = 0; i < 3; i++) grX[k * 3 + i] = grX[e * 3 + i];
+        if (rwA && rwB) {
+          for (let i = 0; i < 3; i++) rwA[k * 3 + i] = rwA[e * 3 + i];
+          for (let i = 0; i < 4; i++) rwB[k * 4 + i] = rwB[e * 4 + i];
+        }
+      }
+    }
+    for (let r = 0; r < rows - 1; r++) {
+      const sr = rows * cols + r * 2;
+      const er = r * cols;
+      // right: skirt (outer) -> edge column 0; left: edge column cols - 1 -> skirt (as the grid, lower lateral first)
+      idx.push(sr, sr + 2, er + cols, sr, er + cols, er);
+      const lr = er + cols - 1;
+      idx.push(lr, lr + cols, sr + 3, lr, sr + 3, sr + 1);
     }
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(pos, 3));
@@ -952,6 +949,22 @@ function overArmBlend(
 /** A road query's point lies beside the stage road, not out past its start or finish (clamped to an end). */
 const onStageSpan = (world: World, along: number): boolean =>
   along > 0.05 && along < world.road.length - 0.05;
+/** A skirt toe's normal: out along (ox, oz) (unit, horizontal), leaning up by SKIRT_LEAN. */
+function pushSkirtNormal(out: number[], ox: number, oz: number): void {
+  const l = Math.hypot(1, SKIRT_LEAN);
+  out.push(ox / l, SKIRT_LEAN / l, oz / l);
+}
+function skirtNormal(
+  ox: number,
+  oz: number,
+  nor: Float32Array,
+  k: number,
+): void {
+  const l = Math.hypot(1, SKIRT_LEAN);
+  nor[k * 3] = ox / l;
+  nor[k * 3 + 1] = SKIRT_LEAN / l;
+  nor[k * 3 + 2] = oz / l;
+}
 /** Rings of a junction fillet fan from its corner to its arc. */
 const FILLET_RINGS = 4;
 const PATH_STEP = 3; // m between ribbon rows
@@ -978,6 +991,9 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   if (!paths?.length) return undefined;
   // The ground, not the top surface: a street under a stage-road bridge stays down in its underpass.
   const hf = new GroundTerrain(world.gen);
+  // A skirt's toe under an edge at `top`: the slab's side (road-slab.ts SKIRT_DEPTH).
+  const skirtToe = (top: number): number => top - SKIRT_DEPTH;
+
   const nTmp = new Vector3();
   const rq = newRoadQuery();
   const pqOther = newPathQuery();
@@ -1102,6 +1118,9 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         (tile = { tex, over, pos: [], nor: [], uv: [], jw: [], idx: [] }),
       );
     const v0 = tile.pos.length / 3;
+    // (each row: the columns, then its two skirt vertices)
+    const stride = cols + 2;
+    const rowTan: [number, number][] = [];
     const plazas = world.gen.plazas;
     const before = beyond(p, false);
     const after = beyond(p, true);
@@ -1282,23 +1301,87 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         if (tex === 'road' && p.width <= FOOT_WIDTH) u += 2;
         tile.uv.push(u, pts[r][2] / texLength(tex));
       }
+      // The slab's skirts (world/road-slab.ts): from each edge out and down under the ground past the chamfer.
+      const base = v0 + r * stride;
+      for (const side of [-1, 1]) {
+        const lat = side * (hw + SKIRT_W);
+        const x = pts[r][0] + tz * lat;
+        const z = pts[r][1] - tx * lat;
+        const e = base + (side < 0 ? 0 : cols - 1);
+        // (none where the edge meets another paved surface: the toe folds back onto the edge)
+        if (world.slab.paved(x, z, pi)) {
+          tile.pos.push(
+            tile.pos[e * 3],
+            tile.pos[e * 3 + 1],
+            tile.pos[e * 3 + 2],
+          );
+          tile.nor.push(
+            tile.nor[e * 3],
+            tile.nor[e * 3 + 1],
+            tile.nor[e * 3 + 2],
+          );
+        } else {
+          tile.pos.push(x, skirtToe(tile.pos[e * 3 + 1]), z);
+          pushSkirtNormal(tile.nor, side * tz, -side * tx);
+        }
+        tile.jw.push(tile.jw[e]);
+        tile.uv.push(skirtU(tile.uv[e * 2], 1 / (2 * hw)), tile.uv[e * 2 + 1]);
+      }
+      if (r === 0 || r === pts.length - 1) rowTan.push([tx, tz]);
       if (r % 256 === 255) yield;
     }
+    const inPlaza = (r: number) =>
+      onTop &&
+      !plazas.empty &&
+      plazas.inside(pts[r][0], pts[r][1]) &&
+      !plazas.keepsRibbons(pts[r][0], pts[r][1]);
+    // Vertices of a row in lateral order (right skirt, the columns, left skirt).
+    const lateral = (b: number) => [
+      b + cols,
+      ...PATH_ACROSS.map((_, c) => b + c),
+      b + cols + 1,
+    ];
+    const quads = (lo: number[], hi: number[]) => {
+      for (let c = 0; c < lo.length - 1; c++)
+        tile.idx.push(lo[c], hi[c], hi[c + 1], lo[c], hi[c + 1], lo[c + 1]);
+    };
     for (let r = 0; r < pts.length - 1; r++) {
       // Inside a junction plaza the plaza is the street (no lane lines, no ribbons crossing each other).
-      if (
-        onTop &&
-        !plazas.empty &&
-        plazas.inside(pts[r][0], pts[r][1]) &&
-        plazas.inside(pts[r + 1][0], pts[r + 1][1]) &&
-        !plazas.keepsRibbons(pts[r][0], pts[r][1])
-      )
-        continue;
-      for (let c = 0; c < cols - 1; c++) {
-        const a = v0 + r * cols + c;
-        const d = a + cols;
-        tile.idx.push(a, d, d + 1, a, d + 1, a + 1);
+      if (inPlaza(r) && inPlaza(r + 1)) continue;
+      quads(lateral(v0 + r * stride), lateral(v0 + (r + 1) * stride));
+    }
+    // A dead end (no ribbon carries on from it) gets an end skirt too: the slab's square cap.
+    for (const atEnd of [false, true]) {
+      const r = atEnd ? pts.length - 1 : 0;
+      if ((atEnd ? after : before) || inPlaza(r)) continue;
+      const [tx, tz] = rowTan[atEnd ? 1 : 0];
+      const out = (atEnd ? 1 : -1) * SKIRT_W;
+      const row = lateral(v0 + r * stride);
+      const toe: number[] = [];
+      for (const k of row) {
+        const x = tile.pos[k * 3] + tx * out;
+        const z = tile.pos[k * 3 + 2] + tz * out;
+        toe.push(tile.pos.length / 3);
+        if (world.slab.paved(x, z, pi)) {
+          tile.pos.push(
+            tile.pos[k * 3],
+            tile.pos[k * 3 + 1],
+            tile.pos[k * 3 + 2],
+          );
+          tile.nor.push(
+            tile.nor[k * 3],
+            tile.nor[k * 3 + 1],
+            tile.nor[k * 3 + 2],
+          );
+        } else {
+          tile.pos.push(x, skirtToe(tile.pos[k * 3 + 1]), z);
+          pushSkirtNormal(tile.nor, Math.sign(out) * tx, Math.sign(out) * tz);
+        }
+        tile.jw.push(tile.jw[k]);
+        tile.uv.push(tile.uv[k * 2], tile.uv[k * 2 + 1] + out / texLength(tex));
       }
+      if (atEnd) quads(row, toe);
+      else quads(toe, row);
     }
     yield;
   }
@@ -1314,7 +1397,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         (tile = { tex, pos: [], nor: [], uv: [], jw: [], idx: [] }),
       );
     const t = tile;
-    const put = (x: number, z: number, u: number, v: number, w: number) => {
+    const yAt = (x: number, z: number): number => {
       world.road.query(x, z, rq);
       const ground = hf.height(x, z);
       const sink =
@@ -1340,17 +1423,18 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         hf.height(x, z + 1.5),
         hf.height(x, z - 1.5),
       );
-      t.pos.push(
-        x,
+      return (
         ground +
-          (top - ground) * crease +
-          0.045 +
-          0.05 * crease -
-          0.08 * sink -
-          // (under a straight-on road's ribbon: the pad only fills the corners, the road runs over it)
-          (j.through ? 0.04 : 0),
-        z,
+        (top - ground) * crease +
+        0.045 +
+        0.05 * crease -
+        0.08 * sink -
+        // (under a straight-on road's ribbon: the pad only fills the corners, the road runs over it)
+        (j.through ? 0.04 : 0)
       );
+    };
+    const put = (x: number, z: number, u: number, v: number, w: number) => {
+      t.pos.push(x, yAt(x, z), z);
       // (its own ground normal: one for the whole mouth lit the pad unlike the ribbons round it on a slope)
       hf.normal(x, z, nTmp);
       t.nor.push(nTmp.x, nTmp.y, nTmp.z);

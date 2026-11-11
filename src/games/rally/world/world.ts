@@ -18,6 +18,7 @@ import type {
 } from '../physics/types';
 import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
+import { RoadSlab } from './road-slab';
 import { BARE_TWINS } from '../trees/placement';
 import { isTreeType } from '../trees/species';
 import { culvertColliders, culvertStones } from './culverts';
@@ -146,6 +147,8 @@ export class World implements GroundProvider {
   readonly heightfield: Heightfield;
   /** Uncached terrain sampling for whole-map placement work (see AnalyticTerrain). */
   readonly analytic: AnalyticTerrain;
+  /** The road slabs: the drawn terrain is cut under every road ribbon (world/road-slab.ts). */
+  readonly slab: RoadSlab;
   readonly scatter: ScatterField;
   readonly stage: StageLayout;
   /** Start / finish gantries, painted lines and split boards (stage-signs.ts, drawn by stage-sign-mesh.ts). */
@@ -206,6 +209,8 @@ export class World implements GroundProvider {
     for (let i = 1; i <= timing.splits; i++)
       splits.push(start + ((finish - start) * i) / (timing.splits + 1));
     this.stage = { start, finish, splits };
+    this.slab = new RoadSlab(this.gen, map);
+    this.gen.sink = (x, z) => this.slab.sink(x, z);
     this.heightfield = new Heightfield(this.gen);
     this.analytic = new AnalyticTerrain(this.gen);
     this.landmarks = landmarksOf(map);

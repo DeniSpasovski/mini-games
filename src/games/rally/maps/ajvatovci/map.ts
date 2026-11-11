@@ -32,9 +32,10 @@ import { seedingGrass } from '../shared/seasonal-grass';
  * real roads and buildings to explore (bounds below).
  */
 
-/** Road width by distance along the route (m): industrial street, field road, village, hill. */
+/** Road width by distance along the route (m): industrial street (to the start row's last kerb, round the first
+ * corner), field road, village, hill. */
 function widthAt(along: number): number {
-  if (along < 540) return 7;
+  if (along < 556) return 7;
   if (along < 2350) return 5.6;
   if (along < 3680) return 6;
   return 5.2;

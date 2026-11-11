@@ -774,12 +774,13 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       p[1] + (q[1] - p[1]) * t,
     ];
     // A fine grid (~0.5 m: the verge's bumps must not poke through), each point on the ground plus a lift easing from
-    // the slab's top to 8 cm at the road (over the verge's grit, which the terrain draws a few cm proud).
+    // the slab's top to just under the road's top at its edge (the ribbon lies 2 cm over the ground), so the apron runs
+    // on under the ribbon with no lip and no slot under its edge.
     const M = 20;
     const N = 8;
     const pt = (u: number, v: number): V3 => {
       const p = lerp(lerp(a, b, u / M), lerp(a2, b2, u / M), v / N);
-      return [p[0], y(p, SLAB + (0.08 - SLAB) * (v / N)), p[1]];
+      return [p[0], y(p, SLAB + (0.015 - SLAB) * (v / N)), p[1]];
     };
     for (let u = 0; u < M; u++)
       for (let v = 0; v < N; v++) {

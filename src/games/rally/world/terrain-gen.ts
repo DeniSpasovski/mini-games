@@ -2042,6 +2042,16 @@ export class TerrainGenerator {
     return this.capUnderDecks(x, z, this.heightUncapped(x, z));
   }
 
+  /** The cut under the road slabs (world/road-slab.ts `RoadSlab.sink`), set by the World: the terrain MESH only. */
+  sink?: (x: number, z: number) => number;
+
+  /** Height of the drawn terrain: `height` less the cut under a road slab (physics keeps `height`: a 1 m grid cannot
+   * hold a 5 cm step at a road's edge). */
+  meshHeight(x: number, z: number): number {
+    const h = this.height(x, z);
+    return this.sink ? h - this.sink(x, z) : h;
+  }
+
   private heightUncapped(x: number, z: number): number {
     let base = this.naturalHeight(x, z);
     const q = this.road.query(x, z, this.q);

@@ -1,4 +1,4 @@
-import { Vector2 } from 'three';
+import { Color, Vector2 } from 'three';
 import {
   inside,
   getLayout,
@@ -9,6 +9,12 @@ import {
 import type { Corner } from '../../frame';
 import { drapedFrame, lotFrame, type Build } from '../ctx';
 import { tileKey } from '../kit';
+import {
+  clipConvex,
+  stripsOf,
+  surfacesOf,
+  YARD_TOP,
+} from '../../yard-surfaces';
 import type { MatKey } from '../materials';
 import { buildMileks } from '../mileks';
 import { boomBarrier, stripedBarrier } from '../props';
@@ -240,14 +246,14 @@ function buildLot(b: Build, yard: Yard, index: number): void {
         .reduce((sum, p) => sum.add(p), new Vector2())
         .divideScalar(strip.length);
       const g = drapedFrame(b, c.x, c.y);
-      g.polygon(surface, strip, 0.05, tint, lift);
+      g.polygon(surface, strip, YARD_TOP.draped, tint, lift);
       for (const patch of patches) {
         const part = clipConvex(strip, patch.polygon);
         if (part.length >= 3)
           g.polygon(
             patch.material === 'pavers' ? 'patchPavers' : 'patchConcrete',
             part,
-            0.08,
+            YARD_TOP.drapedPatch,
             patch.tint,
             lift,
           );
@@ -259,7 +265,7 @@ function buildLot(b: Build, yard: Yard, index: number): void {
       strip.map((p): Corner => [p.x, p.y]),
       true,
     );
-    const top = style === 'mileks' ? 0.03 : 0.04;
+    const top = style === 'mileks' ? YARD_TOP.mileks : YARD_TOP.pad;
     f.polygon(surface, strip, top, tint);
     b.pads.push({ polygon: strip, plane: f.plane!, top });
     // Parts of the yard with another ground (sand, dirt, pavement) lie on the same plane as the strip they
@@ -270,18 +276,19 @@ function buildLot(b: Build, yard: Yard, index: number): void {
         f.polygon(
           patch.material === 'pavers' ? 'patchPavers' : 'patchConcrete',
           part,
-          0.07,
+          YARD_TOP.patch,
           patch.tint,
         );
-        b.pads.push({ polygon: part, plane: f.plane!, top: 0.07 });
+        b.pads.push({ polygon: part, plane: f.plane!, top: YARD_TOP.patch });
       }
     }
   }
-  if (yard.drive.length)
-    d.polygon(surface, yard.drive, 0.05, tint, {
+  if (yard.driveIn.length)
+    d.polygon(surface, yard.driveIn, YARD_TOP.drive, tint, {
       lift: (x, z) => b.ground(x, z),
-      step: 3,
+      step: 1,
     });
+  yardEdge(b, yard, surface, tint);
   if (style === 'site') siteProps(b);
 
   // Red and white striped barriers dividing off a yard's back part, a boom barrier at the gap.
@@ -302,82 +309,86 @@ function buildLot(b: Build, yard: Yard, index: number): void {
 
 const drapedTile = (p: Vector2): string => tileKey(p.x, p.y);
 
-/** `polygon` clipped to the band `a <= p . dir <= b` (Sutherland-Hodgman against two half-planes). */
-function clipBand(
-  polygon: Vector2[],
-  dir: Vector2,
-  a: number,
-  b: number,
-): Vector2[] {
-  const half = (poly: Vector2[], keep: (p: Vector2) => number): Vector2[] => {
-    const out: Vector2[] = [];
-    poly.forEach((p, i) => {
-      const q = poly[(i + 1) % poly.length];
-      const kp = keep(p);
-      const kq = keep(q);
-      if (kp >= 0) out.push(p);
-      if (kp >= 0 !== kq >= 0) out.push(p.clone().lerp(q, kp / (kp - kq)));
-    });
-    return out;
+/** Below the ground the yard's edge face reaches (m): it never shows a gap on a bumpy verge. */
+const EDGE_TOE = 0.08;
+
+/**
+ * The yard's edge: a face from the paving's top down into the ground all round the yard and its drive, so the lot
+ * reads as a slab of paving laid on the ground (a few cm proud), not a sheet floating over it. Darker than the top
+ * (the cut side, in shade).
+ */
+function yardEdge(b: Build, yard: Yard, surface: MatKey, tint: string): void {
+  const ground = (x: number, z: number) => b.ground(x, z);
+  const pieces = surfacesOf(yard, ground);
+  const top = (x: number, z: number): number => {
+    let y = -Infinity;
+    _p.set(x, z);
+    for (const s of pieces)
+      if (
+        x >= s.x0 &&
+        x <= s.x1 &&
+        z >= s.z0 &&
+        z <= s.z1 &&
+        inside(_p, s.polygon)
+      )
+        y = Math.max(y, s.height(x, z));
+    return y;
   };
-  const low = half(polygon, (p) => p.dot(dir) - a);
-  return low.length ? half(low, (p) => b - p.dot(dir)) : [];
-}
-
-/** `subject` clipped to the convex polygon `clip` (Sutherland-Hodgman, either winding). */
-function clipConvex(subject: Vector2[], clip: Vector2[]): Vector2[] {
-  const area = clip.reduce(
-    (sum, p, i) => sum + p.cross(clip[(i + 1) % clip.length]),
-    0,
-  );
-  const sign = area >= 0 ? 1 : -1;
-  let out = subject;
-  clip.forEach((a, i) => {
-    const c = clip[(i + 1) % clip.length];
-    const side = (p: Vector2) =>
-      sign * ((c.x - a.x) * (p.y - a.y) - (c.y - a.y) * (p.x - a.x));
-    const input = out;
-    out = [];
-    input.forEach((p, k) => {
-      const q = input[(k + 1) % input.length];
-      const sp = side(p);
-      const sq = side(q);
-      if (sp >= 0) out.push(p);
-      if (sp >= 0 !== sq >= 0) out.push(p.clone().lerp(q, sp / (sp - sq)));
+  const edge = new Color(tint).multiplyScalar(0.55);
+  for (const outline of [yard.polygon, yard.driveIn]) {
+    if (outline.length < 3) continue;
+    const c = outline
+      .reduce((sum, p) => sum.add(p), new Vector2())
+      .divideScalar(outline.length);
+    const f = drapedFrame(b, c.x, c.y);
+    outline.forEach((a, i) => {
+      const e = outline[(i + 1) % outline.length];
+      const len = a.distanceTo(e);
+      if (len < 0.05) return;
+      const n = Math.max(1, Math.ceil(len));
+      // Outward: away from the outline's centre (the yards are convex-ish; a reflex corner only flips a face's light).
+      const mid = a.clone().lerp(e, 0.5);
+      const ex = e.x - a.x;
+      const ez = e.y - a.y;
+      const out = -ez * (mid.x - c.x) + ex * (mid.y - c.y) > 0;
+      // (sampled a hair inside, where the top is defined)
+      const inward = mid.clone().sub(c).normalize().multiplyScalar(-0.05);
+      for (let k = 0; k < n; k++) {
+        const p = a.clone().lerp(e, k / n);
+        const q = a.clone().lerp(e, (k + 1) / n);
+        const tp = top(p.x + inward.x, p.y + inward.y);
+        const tq = top(q.x + inward.x, q.y + inward.y);
+        if (!Number.isFinite(tp) || !Number.isFinite(tq)) continue;
+        const bp = ground(p.x, p.y) - EDGE_TOE;
+        const bq = ground(q.x, q.y) - EDGE_TOE;
+        if (tp - bp < EDGE_TOE + 0.005 && tq - bq < EDGE_TOE + 0.005) continue;
+        const u0 = (len * k) / n;
+        const u1 = (len * (k + 1)) / n;
+        const quad: [number, number, number][] = out
+          ? [
+              [p.x, bp, p.y],
+              [q.x, bq, q.y],
+              [q.x, tq, q.y],
+              [p.x, tp, p.y],
+            ]
+          : [
+              [q.x, bq, q.y],
+              [p.x, bp, p.y],
+              [p.x, tp, p.y],
+              [q.x, tq, q.y],
+            ];
+        f.quad(surface, quad[0], quad[1], quad[2], quad[3], edge, [
+          [u0, 0],
+          [u1, 0],
+          [u1, 0.15],
+          [u0, 0.15],
+        ]);
+      }
     });
-  });
-  return out;
-}
-
-/** The yard cut every ~18 m along the street into polygons (a lot on a long frontage becomes several). */
-function stripsOf(yard: Yard): Vector2[][] {
-  const { polygon, plot } = yard;
-  // Along the frontage; a lot off the street is cut along x (the street runs roughly east).
-  const last = polygon.length - plot.yard.back.length - 1;
-  const dir = plot.yard.street
-    ? polygon[last].clone().sub(polygon[0]).normalize()
-    : new Vector2(1, 0);
-  return strips(polygon, dir);
-}
-
-/** `polygon` cut every ~18 m along `dir` into polygons, each fit for its own plane. */
-function strips(polygon: Vector2[], dir: Vector2): Vector2[][] {
-  const ts = polygon.map((p) => p.dot(dir));
-  const t0 = Math.min(...ts);
-  const t1 = Math.max(...ts);
-  const n = Math.max(1, Math.round((t1 - t0) / 18));
-  const out: Vector2[][] = [];
-  for (let k = 0; k < n; k++) {
-    const strip = clipBand(
-      polygon,
-      dir,
-      t0 + ((t1 - t0) * k) / n - 1e-3,
-      t0 + ((t1 - t0) * (k + 1)) / n + 1e-3,
-    );
-    if (strip.length >= 3) out.push(strip);
   }
-  return out;
 }
+
+const _p = new Vector2();
 
 /** Painted bay lines between adjacent parking spaces. */
 function bayLines(b: Build, yards: Yard[]): void {
