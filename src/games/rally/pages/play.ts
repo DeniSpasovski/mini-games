@@ -45,6 +45,7 @@ import { paramInt } from '../../../shared/url-params';
 import { stageSeason } from '../maps/shared/climate';
 import { seasonParam } from '../season';
 import { stageCardImageUrl } from '../tools/stage-card';
+import { PhotoUi } from '../game/photo/photo-ui';
 import { ReplayUi } from '../game/replay/replay-ui';
 import { readHeader } from '../game/replay/codec';
 import { nameForm, storageLine } from '../game/replay/manage-ui';
@@ -258,6 +259,9 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   };
   const freeDrive = params.spawn !== 'start';
 
+  // --- photo mode (game/photo/): from the pause menu and from a replay ---------------------
+  const photoUi = new PhotoUi(root, game);
+
   // --- pause menu (Esc) -----------------------------------------------------------------
   const pause = overlay(`<div class="box"></div>`, 'pause');
   pause.classList.add('hidden');
@@ -269,6 +273,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
       <h2>Paused</h2>
       <div class="menu">
         <button class="menu-btn primary" data-a="resume">Resume</button>
+        <button class="menu-btn" data-a="photo">Photo mode</button>
         <button class="menu-btn" data-a="reset">Reset to road</button>
         <button class="menu-btn" data-a="restart">Restart stage</button>
         <button class="menu-btn" data-a="${freeDrive ? 'stage' : 'pad'}">${freeDrive ? 'Back to the stage start' : 'Free drive on the test pad'}</button>
@@ -311,6 +316,14 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     if (a === 'pad') nav({ spawn: 'pad' });
     if (a === 'stage') nav({ spawn: 'start' });
     if (a === 'options') showPauseOptions();
+    if (a === 'photo') {
+      pause.classList.add('hidden');
+      photoUi.show(() => {
+        pause.classList.remove('hidden');
+        showPauseMenu();
+        pause.querySelector<HTMLElement>('[data-a="photo"]')?.focus();
+      });
+    }
     if (a === 'menu') {
       game.trackQuit('menu');
       mainMenu();
@@ -355,6 +368,10 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   const replayUi = new ReplayUi(root, game, {
     exitLabel: replayParam ? 'Menu' : 'Results',
     canSave: !replayParam,
+    onPhoto: () => {
+      replayUi.suspend(true);
+      photoUi.show(() => replayUi.suspend(false));
+    },
     onExit: () => {
       game.exitReplay();
       if (replayParam) {
@@ -502,6 +519,8 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   // --- gamepad: drive whichever overlay is open --------------------------------------------
   // Start toggles pause in the game itself (input.ts), so it's ignored here.
   new GamepadMenuNav((a: NavAction) => {
+    // Photo mode reads the pad itself (photo-ui.ts).
+    if (photoUi.open) return;
     const box = replayUi.open
       ? replayUi.box
       : !pause.classList.contains('hidden')

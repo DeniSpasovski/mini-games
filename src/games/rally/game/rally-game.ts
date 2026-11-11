@@ -144,6 +144,7 @@ import { ReplayRecorder } from './replay/recorder';
 import { ReplaySession, tvCamerasFor } from './replay/session';
 import { REPLAYS_ENABLED, saveReplay } from './replay/store';
 import { ReplayConsole } from './replay/debug-export';
+import { PhotoMode } from './photo/photo-mode';
 import { paramNumber } from '../../../shared/url-params';
 
 export interface GameOptions {
@@ -365,6 +366,14 @@ export class RallyGame {
   lastReplay?: Promise<Uint8Array>;
   private replayHeader?: ReplayHeader;
   private finishedAtFrame = -1;
+  /** Photo mode (game/photo/): open over the pause menu or a replay; the game stands still. */
+  photo?: PhotoMode;
+  /** Photo mode's post pass on a page without the High effects (made on open, gone on close). */
+  private photoPost?: PostFx;
+  /** Render scale before photo mode (it draws at full resolution). */
+  private photoScale = 1;
+  /** A picture asked for: taken right after the next frame's render. */
+  private photoShot?: (b: Blob | null) => void;
   /** Called when a replay opens / closes (the page swaps its overlays). */
   onReplayChange?: (on: boolean) => void;
   /** Called when the finished run's replay is encoded (and saved, ranked runs). */
@@ -893,7 +902,9 @@ export class RallyGame {
   private upWait = 15000;
   private lastUp = -Infinity;
   private gpuTimer:
-    { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null | undefined;
+    | { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number }
+    | null
+    | undefined;
 
   /** Fewer pixels (the post effects and particles follow the 'resized' event). */
   private setRenderScale(scale: number): void {
@@ -915,7 +926,7 @@ export class RallyGame {
 
   /** GPU time of the frame's render (`adaptScale`); not while the perf panel or tree timer use the queries. */
   private gpuTimed(): boolean {
-    if (!this.autoScale || this.paused || this.perf) return false;
+    if (!this.autoScale || this.paused || this.perf || this.photo) return false;
     if (this.trees.debug || this.trees.measure) return false;
     this.gpuTimer ??= this.renderer
       .getContext()
@@ -1176,6 +1187,8 @@ export class RallyGame {
 
   private onAction(a: InputAction): void {
     const v = this.vehicle;
+    // Photo mode owns the keys (game/photo/photo-ui.ts).
+    if (this.photo) return;
     // Watching a replay: the replay UI owns the keys; only mute and telemetry pass.
     if (this.watching && a !== 'mute' && a !== 'telemetry') return;
     switch (a) {
@@ -1485,6 +1498,57 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.audio.setPaused(false);
     this.onReplayChange?.(true);
     return session;
+  }
+
+  /**
+   * Open photo mode (game/photo/): over the pause menu or a replay (the replay pauses). The camera orbits the car with
+   * its own lens; the HUD hides. `exitPhoto` puts the game's camera back.
+   */
+  enterPhoto(): PhotoMode {
+    if (this.photo) return this.photo;
+    if (this.watching) this.watching.playing = false;
+    this.photo = new PhotoMode(this.camera, this.model.root, (x, z) =>
+      this.world.heightAt(x, z),
+    );
+    if (!this.post)
+      this.photoPost = new PostFx(
+        this.renderer,
+        this.scene,
+        this.camera,
+        this.opts.quality.antialias,
+        {
+          night: this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0,
+        },
+      );
+    this.photoScale = this.renderScale;
+    this.setRenderScale(1);
+    this.hud.el.classList.add('photo');
+    return this.photo;
+  }
+
+  exitPhoto(): void {
+    const p = this.photo;
+    if (!p) return;
+    this.photo = undefined;
+    p.restore();
+    this.updateParticleScale();
+    this.post?.set({ photo: null });
+    this.photoPost?.dispose();
+    this.photoPost = undefined;
+    this.setRenderScale(this.photoScale);
+    this.hud.el.classList.remove('photo');
+    if (this.watching) this.watching.director.snap();
+  }
+
+  /** The next frame as a JPEG (photo mode's Take photo). */
+  takePhoto(): Promise<Blob | null> {
+    return new Promise((resolve) => {
+      const prev = this.photoShot;
+      this.photoShot = (b) => {
+        prev?.(b);
+        resolve(b);
+      };
+    });
   }
 
   /** Clean tyres (spawn, a replay's start). */
@@ -1866,7 +1930,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
     // Paused: the camera freezes where it is (the rig would keep carrying it at the car's frozen velocity).
-    if (replay)
+    if (this.photo) this.photo.update();
+    else if (replay)
       replay.director.update(
         replay.dt,
         v,
@@ -1900,7 +1965,11 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.trees.setJobBudget(Math.min(1.5, Math.max(0.3, this.slack)));
     this.trees.update(
       this.camera,
-      replay ? replay.director.rig.steady : this.rig.steady,
+      this.photo
+        ? this.camera.position
+        : replay
+          ? replay.director.rig.steady
+          : this.rig.steady,
     );
     const tTrees = performance.now();
     const treeJob = this.trees.current.jobMs;
@@ -2085,8 +2154,16 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ? 0
         : 1 - 0.7 * (this.env.def.cloudCoverage ?? 0.4),
     );
-    if (this.post?.active) this.post.render();
+    const post = this.photo ? (this.post ?? this.photoPost) : this.post;
+    post?.set({ photo: this.photo ? this.photo.lens : null });
+    if (post?.active) post.render();
     else this.renderer.render(this.scene, this.camera);
+    if (this.photoShot) {
+      // Read the canvas in the same task as its render (no preserveDrawingBuffer needed).
+      const done = this.photoShot;
+      this.photoShot = undefined;
+      this.renderer.domElement.toBlob(done, 'image/jpeg', 0.95);
+    }
     if (timed) gl.endQuery(this.gpuTimer!.TIME_ELAPSED_EXT);
     this.perf?.gpuEnd();
     const tRender = performance.now();

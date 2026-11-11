@@ -210,6 +210,76 @@ const DROPS = /* glsl */ `
     gl_FragColor = vec4( mix( c.rgb, r, 0.85 * d.z ), c.a );
   }`;
 
+/** Photo mode lens blur: taps per pixel (golden-angle spiral, turned per pixel so the pattern doesn't band). */
+const PHOTO_TAPS = 64;
+
+/**
+ * Photo mode (game/photo/): thin-lens depth of field and exposure on the HDR image. The blur radius of a point at z m is
+ * `lens * |z - focus| / z` px (`photoLens`); gather only, so the sharp car never bleeds into the blurred background
+ * behind it (a nearer sample counts only if its own blur reaches the pixel).
+ */
+const PHOTO = /* glsl */ `
+  #include <packing>
+  uniform sampler2D tDiffuse, tDepth;
+  uniform vec2 texel, depthUvScale;
+  uniform float near, far, focus, lens, maxPx, exposure;
+  varying vec2 vUv;
+  float viewZ( vec2 uv ) {
+    return - perspectiveDepthToViewZ( texture2D( tDepth, uv * depthUvScale ).x, near, far );
+  }
+  float coc( float z ) {
+    return min( maxPx, lens * abs( z - focus ) / max( z, 1e-3 ) );
+  }
+  void main() {
+    vec3 c0 = texture2D( tDiffuse, vUv ).rgb;
+    float z0 = viewZ( vUv );
+    float r0 = coc( z0 );
+    vec3 acc = c0;
+    float wsum = 1.0;
+    if ( r0 > 0.5 ) {
+      // Interleaved gradient noise: a per-pixel turn of the spiral.
+      float turn = 6.2832 * fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) );
+      for ( int i = 0; i < ${PHOTO_TAPS}; i++ ) {
+        float t = ( float( i ) + 0.5 ) / float( ${PHOTO_TAPS} );
+        float rad = sqrt( t ) * r0;
+        float a = float( i ) * 2.39996 + turn;
+        vec2 uv = vUv + vec2( cos( a ), sin( a ) ) * rad * texel;
+        float z = viewZ( uv );
+        float w = z >= z0 - 0.3 ? 1.0 : smoothstep( rad * 0.5, rad, coc( z ) );
+        acc += texture2D( tDiffuse, uv ).rgb * w;
+        wsum += w;
+      }
+    }
+    gl_FragColor = vec4( acc / wsum * exposure, 1.0 );
+  }`;
+
+/** Photo mode camera (game/photo/photo-mode.ts): what the lens pass needs. */
+export interface PhotoLens {
+  /** Focus distance (m). */
+  focus: number;
+  /** Focal length (mm, 35 mm full frame: 24 mm sensor height). */
+  focal: number;
+  /** Aperture (f-number); 0 = no blur. */
+  fStop: number;
+  /** Exposure compensation (EV). */
+  ev: number;
+}
+
+/** Sensor height of a 35 mm full-frame camera (mm): the focal length to field of view. */
+export const SENSOR_MM = 24;
+
+/**
+ * Thin-lens blur: a point at z m has a circle of confusion of `A * |z - s| / z` mm on the sensor with
+ * A = f^2 / (N (s - f)); returned as the blur radius factor in px for an image `height` px tall.
+ */
+export function photoLens(l: PhotoLens, height: number): number {
+  if (l.fStop <= 0) return 0;
+  const f = l.focal / 1000;
+  const s = Math.max(l.focus, f * 1.5);
+  const a = (f * f) / (l.fStop * (s - f));
+  return (0.5 * a * 1000 * height) / SENSOR_MM;
+}
+
 function quadMaterial(
   fragmentShader: string,
   uniforms: Record<string, { value: unknown }>,
@@ -234,6 +304,8 @@ export interface PostFxOptions {
   drops: number;
   /** How hard the air blows them off (0 parked ... 1 fast), 0..1. */
   dropSpeed: number;
+  /** Photo mode lens (depth of field, exposure); null = none. Lens drops are off while it is set. */
+  photo: PhotoLens | null;
 }
 
 /**
@@ -284,6 +356,18 @@ export class PostFx {
     speed: { value: 0 },
     aspect: { value: 1 },
   });
+  private readonly lens = quadMaterial(PHOTO, {
+    tDiffuse: { value: null },
+    tDepth: { value: null },
+    texel: { value: new Vector2() },
+    depthUvScale: { value: new Vector2(1, 1) },
+    near: { value: 0.1 },
+    far: { value: 1000 },
+    focus: { value: 8 },
+    lens: { value: 0 },
+    maxPx: { value: 24 },
+    exposure: { value: 1 },
+  });
   private readonly nightBloom: UnrealBloomPass;
   private readonly gtao: GTAOPass;
   private readonly output = new OutputPass();
@@ -308,6 +392,7 @@ export class PostFx {
       ao: false,
       drops: 0,
       dropSpeed: 0,
+      photo: null,
       ...opts,
     };
     const depthTexture = new DepthTexture(1, 1);
@@ -366,6 +451,7 @@ export class PostFx {
       this.opts.day > 0 ||
       this.opts.ao ||
       this.opts.drops > 0 ||
+      !!this.opts.photo ||
       this.scale < 1
     );
   }
@@ -453,6 +539,25 @@ export class PostFx {
       this.swap();
     }
 
+    const photo = this.opts.photo;
+    if (photo) {
+      const u = this.lens.uniforms;
+      const h = this.a.height;
+      u.tDiffuse.value = this.a.texture;
+      u.tDepth.value = this.scene.depthTexture;
+      u.texel.value.set(1 / this.a.width, 1 / h);
+      u.depthUvScale.value.copy(this.depthUvScale.value);
+      u.near.value = this.camera.near;
+      u.far.value = this.camera.far;
+      u.focus.value = photo.focus;
+      u.lens.value = photoLens(photo, h);
+      // Largest blur: 2.5 % of the height (a long lens wide open).
+      u.maxPx.value = 0.025 * h;
+      u.exposure.value = 2 ** photo.ev;
+      this.pass(this.lens, this.b);
+      this.swap();
+    }
+
     if (this.opts.day > 0) {
       let src = this.a;
       for (let i = 0; i < this.mips.length; i++) {
@@ -476,7 +581,7 @@ export class PostFx {
       this.swap();
     }
 
-    if (this.opts.drops > 0) {
+    if (this.opts.drops > 0 && !photo) {
       const u = this.drops.uniforms;
       u.tDiffuse.value = this.a.texture;
       u.time.value = worldUniforms.wsTime.value;
@@ -515,6 +620,7 @@ export class PostFx {
       this.up,
       this.mixer,
       this.drops,
+      this.lens,
     ])
       m.dispose();
     this.quad.dispose();
@@ -542,6 +648,7 @@ export function postFxFromUrl(
     ao: aoParam === null ? ao : aoParam === '1',
     drops: 0,
     dropSpeed: 0,
+    photo: null,
   };
 }
 

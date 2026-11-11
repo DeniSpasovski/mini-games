@@ -58,16 +58,29 @@ tree distance, shadow map). Remembered in localStorage, applied only while the p
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.
 
+## Photo mode (`game/photo/`)
+
+From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pauses). The game stands still; `Back` / `Esc` returns to where it was.
+
+- **Camera** (`photo-mode.ts`): free orbit around the car's middle (full turn, pitch, distance 1.6-40 m, pan up to 15 m), kept above the ground; starts
+  from the game's view. Lens: focal length 16-200 mm on a 35 mm full frame (= field of view), aperture f/1.4-f/22, focus (auto on the orbit point, or set),
+  exposure ±2 EV, roll ±30°.
+- **Render** (`engine/post-fx.ts` `PHOTO`): thin-lens depth of field on the HDR image (circle of confusion `f² / (N (s - f)) · |z - s| / z`, 64 gather taps,
+  max 2.5 % of the height; a sharp nearer pixel never bleeds into the blur behind it) and exposure, before the bloom; lens drops off. Pages without the
+  High effects make a `PostFx` for photo mode only. Full render scale while open.
+- **Take photo**: the next frame as a JPEG download (`gravel-rally-<stage>-<date>-<time>.jpg`).
+
 ## Controls
 
-| Input    | Keys                                                                                                                                                                                                                                               |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                                                   |
-|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                                          |
-|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                                    |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset); steering mode: Options -> Pad steering (PHYSICS.md "Steering input") |
-| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit                     |
-| Touch    | floating steering stick (or arrows: Options -> Touch steering), BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                    |
+| Input    | Keys                                                                                                                                                                                                                                                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                                                                                                                      |
+|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                                                                                                             |
+|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                                                                                                       |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset); steering mode: Options -> Pad steering (PHYSICS.md "Steering input")                                                                    |
+| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `P` photo mode, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit                                                                        |
+| Photo    | drag orbit, right-drag / `Shift`-drag pan, wheel zoom, `W` `A` `S` `D` / arrows orbit, `Q` / `E` zoom, `R` recentre, `Enter` / `P` take photo, `H` hide, `Esc` back; pad left stick orbit, right stick zoom / pan, LT / RT focal length, A take photo, Y hide, B back; touch drag orbit, two fingers pan / pinch zoom |
+| Touch    | floating steering stick (or arrows: Options -> Touch steering), BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                                                                       |
 
 ## Game flow
 
