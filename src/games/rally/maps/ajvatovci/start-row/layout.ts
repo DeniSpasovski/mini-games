@@ -1468,6 +1468,8 @@ export interface Yard {
   polygon: Vector2[];
   /** The strip from the street's edge to the lot, through the gate. */
   drive: Vector2[];
+  /** The drive's part inside the yard (from the yard's street front in); the apron covers the rest (streetwork.ts). */
+  driveIn: Vector2[];
   /**
    * The yard's perimeter fence: every edge but the street one, as runs of points. Where a neighbour's
    * fence already stands on the boundary (lots that touch) the stretch is left out here, so a
@@ -1659,6 +1661,7 @@ const layoutYards = (): Yard[] => {
         plot,
         polygon,
         drive: [] as Vector2[],
+        driveIn: [] as Vector2[],
         outline: [...polygon, polygon[0]],
         barriers: [] as Yard['barriers'],
         divider: undefined,
@@ -1693,6 +1696,12 @@ const layoutYards = (): Yard[] => {
       b,
       a,
     ];
+    const driveIn = [
+      new Vector2(a.x, streetFence(a.x)),
+      new Vector2(b.x, streetFence(b.x)),
+      b,
+      a,
+    ];
     // The dividing fence, out to wherever it meets the perimeter (nearest hit, as a ray).
     const barriers: Yard['barriers'] = [];
     let divider: Yard['divider'];
@@ -1719,15 +1728,16 @@ const layoutYards = (): Yard[] => {
         if (run[0].distanceTo(run[1]) > 0.5) barriers.push(run);
       divider = { line: [from, at(reach)], gap: [at(g0), at(g1)] };
     }
-    return { plot, polygon, drive, outline, barriers, divider };
+    return { plot, polygon, drive, driveIn, outline, barriers, divider };
   });
 
   // Open lots have no fence: they drop out before the neighbours' fences are shared out.
   const fences = sharedFences(raw.map((r) => (r.plot.open ? [] : r.outline)));
-  return raw.map(({ plot, polygon, drive, barriers, divider }, i) => ({
+  return raw.map(({ plot, polygon, drive, driveIn, barriers, divider }, i) => ({
     plot,
     polygon,
     drive,
+    driveIn,
     fence: fences[i],
     barriers,
     divider,

@@ -1,6 +1,15 @@
-import { ROAD, roadLine, SIDEWALK_BACK, SOUTH_FENCE } from '../frame';
-import { fenceRuns, gates, kerbRuns, poleSpots } from '../streetwork';
+import { ROAD, roadLine, SIDEWALK_BACK } from '../frame';
+import {
+  apronLine,
+  type ApronLine,
+  fenceRuns,
+  gates,
+  kerbRuns,
+  poleSpots,
+} from '../streetwork';
+import { yardTop } from '../yard-surfaces';
 import { drapedFrame, type Build } from './ctx';
+import type { Frame } from './kit';
 import { meshFence, powerPole, powerWires } from './props';
 
 /**
@@ -15,8 +24,6 @@ import { meshFence, powerPole, powerWires } from './props';
 /** Kerb top above the road centre (m); the sidewalk behind it is 2 cm lower. */
 export const KERB = 0.17;
 export const SIDEWALK = 0.15;
-/** Driveway aprons are nearly flush with the road. */
-export const APRON = 0.06;
 
 export function buildStreet(b: Build): void {
   const { half, curb } = ROAD;
@@ -53,7 +60,7 @@ export function buildStreet(b: Build): void {
         [-half - curb, SIDEWALK],
       ],
       '#d9d6cf',
-      { lift: road },
+      { lift: road, caps: 0.15, endX: true },
     );
     f.sweep(
       'pavers',
@@ -64,24 +71,14 @@ export function buildStreet(b: Build): void {
         [SIDEWALK_BACK, 0.02],
       ],
       '#d2cfc8',
-      { lift: road },
+      { lift: road, caps: 0.15, endX: true },
     );
   }
-  for (const [x0, x1] of g.north) {
-    const line = roadLine(0, x0, x1);
-    if (line.length < 2) continue;
-    frameAt((x0 + x1) / 2).sweep(
-      'concrete',
-      line,
-      [
-        [half, 0.05],
-        [SIDEWALK_BACK + 0.4, APRON + 0.01],
-      ],
-      '#c4c1ba',
-      { lift: road },
-    );
-  }
-  // South: kerb, concrete aprons at the gates.
+  // The driveway aprons: ramps from the road up to each gate's yard.
+  const across = apronLine(ground, yardTop(ground));
+  for (const [x0, x1] of g.north) apron(b, across, x0, x1, 'north');
+  for (const [x0, x1] of g.south) apron(b, across, x0, x1, 'south');
+  // South: kerb.
   for (const [x0, x1] of runs.south) {
     const line = roadLine(0, x0, x1);
     if (line.length < 2) continue;
@@ -95,21 +92,7 @@ export function buildStreet(b: Build): void {
         [-half - curb, 0.1],
       ],
       '#d9d6cf',
-      { lift: road },
-    );
-  }
-  for (const [x0, x1] of g.south) {
-    const line = roadLine(0, x0, x1);
-    if (line.length < 2) continue;
-    frameAt((x0 + x1) / 2).sweep(
-      'concrete',
-      line,
-      [
-        [-half, 0.05],
-        [SOUTH_FENCE - 0.6, APRON],
-      ],
-      '#c4c1ba',
-      { lift: road },
+      { lift: road, caps: 0.15, endX: true },
     );
   }
 
@@ -156,4 +139,86 @@ export function buildStreet(b: Build): void {
     powerPole(frameAt(p.x), p, dir, lamp, ground);
   for (let i = 1; i < poles.length; i++)
     powerWires(frameAt(poles[i].p.x), poles[i - 1], poles[i]);
+}
+
+/** How far the apron's sides reach under its lower end (m). */
+const APRON_TOE = 0.15;
+
+type V3 = [number, number, number];
+
+/** A face of `pts` (a convex polygon) turned to face `out` (x, y, z). */
+function face(f: Frame, pts: V3[], out: V3, uv: [number, number][]): void {
+  const [a, b, c] = pts;
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  const n = [
+    u[1] * v[2] - u[2] * v[1],
+    u[2] * v[0] - u[0] * v[2],
+    u[0] * v[1] - u[1] * v[0],
+  ];
+  const flip = n[0] * out[0] + n[1] * out[1] + n[2] * out[2] < 0;
+  const p = flip ? [...pts].reverse() : pts;
+  const t = flip ? [...uv].reverse() : uv;
+  f.quad('concrete', p[0], p[1], p[2], p[3], '#c4c1ba', t);
+}
+
+/**
+ * One driveway apron, x0..x1 (cut along x like the gate in the fence and the drive behind it): a ramp from the
+ * road's edge to the yard's front (streetwork.ts `apronLine`), with solid sides where the sidewalk or kerb stops.
+ */
+function apron(
+  b: Build,
+  across: (x: number, side: 'north' | 'south') => ApronLine,
+  x0: number,
+  x1: number,
+  side: 'north' | 'south',
+): void {
+  const f = drapedFrame(b, (x0 + x1) / 2, 0);
+  const n = Math.max(1, Math.ceil(x1 - x0));
+  const lines = Array.from({ length: n + 1 }, (_, i) => {
+    const x = x0 + ((x1 - x0) * i) / n;
+    return { x, ...across(x, side) };
+  });
+  for (let i = 0; i < n; i++) {
+    const p = lines[i];
+    const q = lines[i + 1];
+    face(
+      f,
+      [
+        [p.x, p.yf, p.zf],
+        [q.x, q.yf, q.zf],
+        [q.x, q.yb, q.zb],
+        [p.x, p.yb, p.zb],
+      ],
+      [0, 1, 0],
+      [
+        [p.x, p.zf],
+        [q.x, q.zf],
+        [q.x, q.zb],
+        [p.x, p.zb],
+      ],
+    );
+  }
+  for (const [l, dir] of [
+    [lines[0], -1],
+    [lines[n], 1],
+  ] as const) {
+    const low = Math.min(l.yf, l.yb) - APRON_TOE;
+    face(
+      f,
+      [
+        [l.x, l.yf, l.zf],
+        [l.x, l.yb, l.zb],
+        [l.x, low, l.zb],
+        [l.x, low, l.zf],
+      ],
+      [dir, 0, 0],
+      [
+        [l.zf, l.yf],
+        [l.zb, l.yb],
+        [l.zb, low],
+        [l.zf, low],
+      ],
+    );
+  }
 }

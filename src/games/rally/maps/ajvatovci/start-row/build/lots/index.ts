@@ -283,10 +283,10 @@ function buildLot(b: Build, yard: Yard, index: number): void {
       }
     }
   }
-  if (yard.drive.length)
-    d.polygon(surface, yard.drive, YARD_TOP.drive, tint, {
+  if (yard.driveIn.length)
+    d.polygon(surface, yard.driveIn, YARD_TOP.drive, tint, {
       lift: (x, z) => b.ground(x, z),
-      step: 3,
+      step: 1,
     });
   yardEdge(b, yard, surface, tint);
   if (style === 'site') siteProps(b);
@@ -335,7 +335,7 @@ function yardEdge(b: Build, yard: Yard, surface: MatKey, tint: string): void {
     return y;
   };
   const edge = new Color(tint).multiplyScalar(0.55);
-  for (const outline of [yard.polygon, yard.drive]) {
+  for (const outline of [yard.polygon, yard.driveIn]) {
     if (outline.length < 3) continue;
     const c = outline
       .reduce((sum, p) => sum.add(p), new Vector2())

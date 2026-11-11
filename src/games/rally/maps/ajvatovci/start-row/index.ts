@@ -1,4 +1,3 @@
-import { Vector2 } from 'three';
 import type { BuildingDef, PadDef } from '../../shared/types';
 import type { StaticCollider } from '../../../physics/types';
 import type { TerrainSampler } from '../../../world/heightfield';
@@ -16,11 +15,12 @@ import {
   toWorld,
   type Corner,
 } from './frame';
-import { getYards, inside, PLOTS, SITE } from './layout';
-import { yardSurfaces, type YardSurface } from './yard-surfaces';
+import { getYards, PLOTS, SITE } from './layout';
+import { yardTop } from './yard-surfaces';
 import { buildStartRow } from './build';
 import { startRowInstances } from './plantings';
 import {
+  apronLine,
   CURBS_FROM,
   fenceRuns,
   gates,
@@ -237,17 +237,19 @@ const within = (x: number, z: number, margin: number): boolean => {
   return false;
 };
 
-/** Height of the kerb top / the sidewalk / a driveway apron above the road centre (m): see build/street.ts. */
+/** Height of the kerb top / the sidewalk above the road centre (m): see build/street.ts. */
 const KERB = 0.17;
 const SIDEWALK = 0.15;
-const APRON = 0.07;
 
 /**
  * The ground the car drives on: the terrain, except where the street has a kerb, a sidewalk or a
  * driveway apron - there it is the same raised surface the street mesh draws (build/street.ts), so
  * the wheels feel the 17 cm kerb and ride up onto the sidewalk. NaN elsewhere.
  */
-const kerbGround = (ground: TerrainSampler) => {
+const kerbGround = (
+  ground: TerrainSampler,
+  yard: (x: number, z: number) => number,
+) => {
   const centre = roadLine(0);
   const heights = centre.map((p) =>
     ground.height(p.x + ORIGIN.x, p.y + ORIGIN.z),
@@ -255,10 +257,21 @@ const kerbGround = (ground: TerrainSampler) => {
   const g = gates();
   const inGate = (x: number, gaps: [number, number][]) =>
     gaps.some(([a, b]) => x >= a && x <= b);
+  const across = apronLine(
+    (x, z) => ground.height(x + ORIGIN.x, z + ORIGIN.z),
+    yard,
+  );
   return (wx: number, wz: number): number => {
     const x = wx - ORIGIN.x;
     const z = wz - ORIGIN.z;
     if (x < CURBS_FROM || x > STREET_X[1]) return NaN;
+    // A driveway apron: the ramp from the road to the yard.
+    for (const side of ['north', 'south'] as const) {
+      if (!inGate(x, g[side])) continue;
+      const l = across(x, side);
+      const t = (z - l.zf) / (l.zb - l.zf);
+      if (t >= 0 && t <= 1) return l.yf + (l.yb - l.yf) * t;
+    }
     // The road sample whose x is nearest, then the closest of its neighbours.
     let lo = 0;
     let hi = centre.length - 1;
@@ -291,77 +304,15 @@ const kerbGround = (ground: TerrainSampler) => {
       len;
     const north = -lateral; // z grows south; flip so + is the row's side
     const cy = heights[best];
+    if (!inGate(x, g.north) && north >= ROAD.half && north <= SIDEWALK_BACK)
+      return cy + (north < ROAD.half + ROAD.curb ? KERB : SIDEWALK);
     if (
-      north >= ROAD.half &&
-      north <= SIDEWALK_BACK + (inGate(x, g.north) ? 0.4 : 0)
+      !inGate(x, g.south) &&
+      north <= -ROAD.half &&
+      north >= -ROAD.half - ROAD.curb
     )
-      return (
-        cy +
-        (inGate(x, g.north)
-          ? APRON
-          : north < ROAD.half + ROAD.curb
-            ? KERB
-            : SIDEWALK)
-      );
-    if (north <= -ROAD.half) {
-      if (inGate(x, g.south) && north >= SOUTH_FENCE - 0.6) return cy + APRON;
-      if (north >= -ROAD.half - ROAD.curb) return cy + KERB;
-    }
+      return cy + KERB;
     return NaN;
-  };
-};
-
-/** Grid cell for the yard lookup (m). */
-const YARD_CELL = 16;
-
-/**
- * The yards' paving (yard-surfaces.ts: the same planes build/lots draws), so the wheels ride on the yard, its
- * patches and its drive instead of sinking to the graded pad a few cm under them. NaN off every yard.
- */
-const yardGround = (ground: TerrainSampler) => {
-  const pieces = yardSurfaces((x, z) =>
-    ground.height(x + ORIGIN.x, z + ORIGIN.z),
-  );
-  const grid = new Map<number, YardSurface[]>();
-  const cell = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
-  for (const s of pieces)
-    for (
-      let cx = Math.floor(s.x0 / YARD_CELL);
-      cx <= Math.floor(s.x1 / YARD_CELL);
-      cx++
-    )
-      for (
-        let cz = Math.floor(s.z0 / YARD_CELL);
-        cz <= Math.floor(s.z1 / YARD_CELL);
-        cz++
-      ) {
-        const k = cell(cx, cz);
-        const l = grid.get(k);
-        if (l) l.push(s);
-        else grid.set(k, [s]);
-      }
-  const p = new Vector2();
-  return (wx: number, wz: number): number => {
-    const x = wx - ORIGIN.x;
-    const z = wz - ORIGIN.z;
-    const l = grid.get(
-      cell(Math.floor(x / YARD_CELL), Math.floor(z / YARD_CELL)),
-    );
-    if (!l) return NaN;
-    let y = NaN;
-    p.set(x, z);
-    for (const s of l)
-      if (
-        x >= s.x0 &&
-        x <= s.x1 &&
-        z >= s.z0 &&
-        z <= s.z1 &&
-        inside(p, s.polygon)
-      ) {
-        const h = s.height(x, z);
-        if (!(h <= y)) y = h;
-      }
-    return y;
   };
 };
 
@@ -488,11 +439,11 @@ export const startRowLandmark: Landmark = {
   },
 
   groundOverride: (ground) => {
-    const kerb = kerbGround(ground);
-    const yards = yardGround(ground);
+    const yard = yardTop((x, z) => ground.height(x + ORIGIN.x, z + ORIGIN.z));
+    const kerb = kerbGround(ground, yard);
     return (x, z) => {
       const h = kerb(x, z);
-      return Number.isNaN(h) ? yards(x, z) : h;
+      return Number.isNaN(h) ? yard(x - ORIGIN.x, z - ORIGIN.z) : h;
     };
   },
 

@@ -1,6 +1,6 @@
 import { Vector2 } from 'three';
 import { ORIGIN, type Corner } from './frame';
-import { getYards, type Yard } from './layout';
+import { getYards, inside, type Yard } from './layout';
 
 /**
  * The lots' yard surfaces as data (pure, node-safe): the planes the yard paving lies on, shared by the builder
@@ -235,8 +235,59 @@ export function surfacesOf(
         if (part.length >= 3) out.push(surface(part, on(YARD_TOP.patch)));
       }
     }
-    if (yard.drive.length >= 3)
-      out.push(surface(yard.drive, (x, z) => ground(x, z) + YARD_TOP.drive));
+    if (yard.driveIn.length >= 3)
+      out.push(surface(yard.driveIn, (x, z) => ground(x, z) + YARD_TOP.drive));
   }
   return out;
+}
+
+/** Grid cell for the yard lookup (m). */
+const YARD_CELL = 16;
+
+/**
+ * Height of the yards' paving at a site point (world y; the highest piece over it), NaN off every yard: what the
+ * wheels ride on (index.ts) and what the driveway aprons climb to (streetwork.ts). `ground`: site x, z -> world y.
+ */
+export function yardTop(
+  ground: (x: number, z: number) => number,
+): (x: number, z: number) => number {
+  const grid = new Map<number, YardSurface[]>();
+  const cell = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
+  for (const s of yardSurfaces(ground))
+    for (
+      let cx = Math.floor(s.x0 / YARD_CELL);
+      cx <= Math.floor(s.x1 / YARD_CELL);
+      cx++
+    )
+      for (
+        let cz = Math.floor(s.z0 / YARD_CELL);
+        cz <= Math.floor(s.z1 / YARD_CELL);
+        cz++
+      ) {
+        const k = cell(cx, cz);
+        const l = grid.get(k);
+        if (l) l.push(s);
+        else grid.set(k, [s]);
+      }
+  const p = new Vector2();
+  return (x, z) => {
+    const l = grid.get(
+      cell(Math.floor(x / YARD_CELL), Math.floor(z / YARD_CELL)),
+    );
+    if (!l) return NaN;
+    let y = NaN;
+    p.set(x, z);
+    for (const s of l)
+      if (
+        x >= s.x0 &&
+        x <= s.x1 &&
+        z >= s.z0 &&
+        z <= s.z1 &&
+        inside(p, s.polygon)
+      ) {
+        const h = s.height(x, z);
+        if (!(h <= y)) y = h;
+      }
+    return y;
+  };
 }
