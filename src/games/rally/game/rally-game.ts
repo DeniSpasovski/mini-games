@@ -1567,8 +1567,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   }
 
   /**
-   * Motion blur images for this frame: the longest streak (the car's speed, its turn over ~2.5 m, at the orbit
-   * distance; the wheel rims move about as fast) in px over the step size.
+   * Motion blur images for this frame: the longest streak (the wheel tops, the car's turn over ~2.5 m, at the orbit
+   * distance) in px over the step size.
    */
   private photoSamples(shutter: number): number {
     const v = this.vehicle;
@@ -1576,8 +1576,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const h = this.renderer.domElement.height;
     const fpx = h / (2 * Math.tan((cam.fov * Math.PI) / 360));
     const d = Math.max(1, cam.position.distanceTo(this.model.root.position));
+    // The top of a wheel moves at twice the car's speed (the camera holds still) or once it (panning with the car).
+    const wheel = this.photo?.settings.follow === 'ground' ? 2 : 1;
     const speed = Math.max(
-      v.velocity.length(),
+      v.velocity.length() * wheel,
       v.angularVelocity.length() * 2.5,
     );
     const px = ((speed * shutter) / d) * fpx;
