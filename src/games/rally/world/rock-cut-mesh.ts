@@ -11,6 +11,7 @@ import colorUrl from '../engine/props/cut-face.color.webp';
 import normalUrl from '../engine/props/cut-face.normal.webp';
 import { bridgeMaterials } from './bridge-mesh';
 import { newRoadQuery } from './road';
+import { WALL_GAP } from './terrain-gen';
 import type { World } from './world';
 
 /**
@@ -45,9 +46,8 @@ const GROUND_ROCK = [0.92, 0.97, 1.06];
 const END_TAPER = 5;
 /** Length of a stretch of one tone along the road (m). */
 const ZONE = 70;
-/** A retaining wall (`walls`): how far its face stands in front of the carve's foot (m), its stone's uv tile (m, the bridge
+/** A retaining wall (`walls`, its face `WALL_GAP` in front of the carve's foot): its stone's uv tile (m, the bridge
  * ashlar's), its tone (dark weathered limestone blocks, moss and lichen: the owner's photos) and the green of the moss. */
-const WALL_FRONT = 0.3;
 const WALL_TILE = 2;
 const WALL_STONE = [0.42, 0.42, 0.4];
 const WALL_MOSS = [0.36, 0.42, 0.3];
@@ -95,7 +95,6 @@ export function* rockCutMeshJob(
   if (!rc) return undefined;
   const road = world.road;
   const gen = world.gen;
-  const def = world.map.road;
   const rq = newRoadQuery();
   const noise = new Noise2D(world.map.seed + 811);
   const group = new Group();
@@ -105,7 +104,7 @@ export function* rockCutMeshJob(
   const section = (d: number, s: number): Section | null => {
     const p = road.at(d);
     const lat = (l: number) => [p.x + p.tz * l * s, p.z - p.tx * l * s];
-    const foot = p.halfWidth + def.shoulder + rc.foot;
+    const foot = gen.rockCutFoot(p.halfWidth, d, s);
     // Is this stretch a rock cut at all (the carve's own weight, half-way up a typical face)?
     const [mx, mz] = lat(foot + 2);
     if (
@@ -177,7 +176,7 @@ export function* rockCutMeshJob(
         // A wall is a vertical face standing WALL_FRONT m in front of the carve's foot (the 1 m terrain grid can't hold a
         // sheer step: its triangles would poke through a face laid on the carve), from just below the verge to the
         // carve's top, then a flat coping back to the bank.
-        const face = r.lo - WALL_FRONT * s;
+        const face = r.lo + (0.3 - WALL_GAP) * s;
         const yb = at(face) - 0.3;
         const yt = at(r.hi);
         for (let k = 0; k < ROWS; k++) {

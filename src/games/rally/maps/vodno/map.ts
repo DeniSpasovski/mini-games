@@ -64,6 +64,15 @@ const BASE_HEIGHT = 349;
  * wall.
  */
 const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
+/** The dark stone retaining wall on the uphill side opposite the upper half of the Vidikovec lot (`road.rockCuts.walls`):
+ * ~1.8 m high, 2 m back from the road edge behind a grass strip with small bushes (the owner's photos). */
+const VIDIKOVEC_WALL = {
+  from: 2860,
+  to: 2928,
+  side: 1,
+  height: 1.8,
+  offset: 2,
+} as const;
 /** The one real rock cut of the road: the big hairpin blasted through a spur (m along, `road.rockCuts`). */
 const ROCK_CUT: [number, number] = [1985, 2125];
 /** Guard rails stand on the 0.6 m verge (`road.shoulder`), not past it on the falling slope (posts hanging in the air). */
@@ -326,7 +335,7 @@ export const vodnoMap: MapDef = {
         [0, ROCK_CUT[0]],
         [ROCK_CUT[1], ROAD_LENGTH],
       ],
-      walls: [{ from: 2860, to: 2928, side: 1, height: 1.8 }],
+      walls: [VIDIKOVEC_WALL],
     },
     // ... and its spoil tipped over the valley side: a straight bank of rock and earth from the verge's rim.
     fills: { minDrop: 1.5, slope: 0.8 },
@@ -837,6 +846,16 @@ export const vodnoMap: MapDef = {
     }),
   ],
   roadside: [
+    // Small bushes in the grass strip in front of the Vidikovec wall.
+    {
+      asset: 'bush',
+      every: 6,
+      side: 'left',
+      offset: 0.9,
+      from: VIDIKOVEC_WALL.from + 3,
+      to: VIDIKOVEC_WALL.to - 3,
+      scale: [0.45, 0.7],
+    },
     // White / red chevrons on the outside of the hairpins.
     {
       asset: 'chevron_sign',

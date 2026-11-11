@@ -131,6 +131,8 @@ export interface CutShape {
 /** Rise per m across of the carve behind a low retaining wall (RoadDef.rockCuts `walls`): the wall mesh stands vertical in
  * front of it (world/rock-cut-mesh.ts), the carve only has to stay behind the face. */
 const WALL_SLOPE = 2;
+/** How far a retaining wall's face (world/rock-cut-mesh.ts) stands in front of the carve's foot (m). */
+export const WALL_GAP = 0.6;
 /** A `solid` wall (RoadDef.cutWalls) is held tighter than the parkway's, so its coping is a narrow strip. */
 export const cutShape = (solid?: boolean): CutShape =>
   solid
@@ -2269,13 +2271,23 @@ export class TerrainGenerator {
   }
 
   /** The low retaining wall (RoadDef.rockCuts `walls`) holding the cut `along` m along the road on `side` (+1 left), if any. */
-  rockCutWall(
-    along: number,
-    side: number,
-  ): { from: number; to: number; side: 1 | -1; height: number } | undefined {
+  rockCutWall(along: number, side: number) {
     return this.map.road.rockCuts?.walls?.find(
       (w) => w.side === Math.sign(side) && along >= w.from && along <= w.to,
     );
+  }
+
+  /**
+   * Lateral offset (m from the centreline) where the rock cut's carve leaves the road level, `along` m along on `side`: the
+   * verge + `foot`, or for a retaining wall its `offset` + the gap the wall mesh stands in front of the carve
+   * (world/rock-cut-mesh.ts `WALL_GAP`).
+   */
+  rockCutFoot(hw: number, along: number, side: number): number {
+    const r = this.map.road;
+    const wall = this.rockCutWall(along, side);
+    return wall
+      ? hw + wall.offset + WALL_GAP
+      : hw + r.shoulder + r.rockCuts!.foot;
   }
 
   /**
@@ -2422,7 +2434,7 @@ export class TerrainGenerator {
     const rw = this.rockCutWeightAt(x, z, rise, q.along, q.lateral);
     if (rw > 0) {
       const rc = r.rockCuts!;
-      const foot = hw + r.shoulder + rc.foot;
+      const foot = this.rockCutFoot(hw, q.along, q.lateral);
       // A low retaining wall (`walls`): a near-vertical face of its height, the rest a grassed bank above.
       const wall = this.rockCutWall(q.along, q.lateral);
       // The face up to `maxFace`, the rest of a deeper cut laid back as an earth bank above it.
