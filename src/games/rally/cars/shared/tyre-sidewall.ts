@@ -22,7 +22,7 @@ const W = 3200;
 const H = 80;
 const FONT = 'TyreSidewall';
 /** Print brightness (multiplies the strip): the lettering reads, but only just, like old paint on a dusty tyre. */
-const PRINT_DIM = 0x7a7a7a;
+const PRINT_DIM = 0xa8a8a8;
 const LOGO_ASPECT = 5237 / 1020; // wordmark.svg viewBox
 
 let logo: HTMLImageElement | null = null;
