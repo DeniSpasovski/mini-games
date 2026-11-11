@@ -2957,6 +2957,14 @@ export class TerrainGenerator {
     return o;
   }
 
+  /** Distance (m) from (x, z) to the edge of its field parcel (`landcover.fields`), undefined off the field covers. */
+  fieldEdgeAt(x: number, z: number): number | undefined {
+    if (!this.map.landcover?.fields || !this.landcover) return undefined;
+    const zone = this.landcover.zoneAt(x, z);
+    if (zone < 0 || !this.fieldZones![zone]) return undefined;
+    return this.parcelAt(x, z).edge;
+  }
+
   /**
    * The crop growing at a point in the map's season (`landcover.fields.crops`), undefined off the field parcels,
    * on bare / meadow parcels and within `margin` m of a parcel's edge (the weedy strip between parcels).

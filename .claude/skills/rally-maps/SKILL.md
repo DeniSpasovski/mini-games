@@ -47,7 +47,9 @@ generated deterministically from it. There is no map editor on purpose — edit 
 ## Scatter & props
 
 - `scatter` rules per asset: `density` per 1000 m², `minRoadDist` (from road EDGE), `maxSlope`, `mask` (noise clustering
-  -> forests/clearings), `scale`, `tilt`, `alignToGround`, `sink`, `detail` (grass: only near camera).
+  -> forests/clearings; same `group` = one shared clump field), `contour` (strips / rows along the contour), `fieldEdge`
+  (hedgerows on field parcel edges), `scale`,
+  `tilt`, `lean` (toward the road), `alignToGround`, `sink`, `detail` (grass: only near camera).
 - `roadside` rules: `every` m or `at: [metres]`, `side` (`outside` = outside of the bend), `offset` from edge,
   `maxRadius` (only in tight bends), `count/spread/depth` (crowds), `faceRoad`.
 - Real maps: grow the area by widening `detail` / `landcover` / `outer` extents and ADDING the new strips to
@@ -101,7 +103,8 @@ Example: `maps/ajvatovci/` (`map.ts`, baked `data.json`, task list `TODO.md`, so
    `terrain.talus` / `terrain.streamBeds` and scatter `minSlope` give steep ground its bare rock, scree and crags and the
    streams their pebble beds, scatter `outcrop` (asset `rock_outcrop`) rock bands along the contour (rally DETAILS "Natural
    ground"); `landcover.needles` = pine-needle floor per cover, `fern` / `fern_autumn` (`season`) under shaded crowns;
-   `forestEdge()` for the shrub belt along a wood: "Forest edges".
+   woods as layered stands of generated trees (`forestEdge()` for the verge belt, scatter `mask.group` / `contour` /
+   `lean`): rally DETAILS "Stands"; pack models (`heroTrees`) are off the default path.
    `buildings.worldcover: true` generates houses on WorldCover built-up ground where no footprint data set covers
    the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon;
    `msRoads: { country, clearance, minLength }` adds roads OSM lacks from Microsoft ML Road Detections (ODbL,

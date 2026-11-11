@@ -35,6 +35,7 @@ import { mapSeason } from '../maps/shared/climate';
 import { isTreeType } from '../trees/species';
 import { BuildQueue, evictions, type Held, type Want } from './build-queue';
 import { CORNER_FAN_ASSETS } from './corner-fans';
+import { meadowPatch } from './meadow-patches';
 import { ParkCars } from './park-car-mesh';
 import { SERVICE_PARK_ASSETS } from './service-park';
 import {
@@ -145,8 +146,10 @@ interface Slot {
 /** The level fade state lives on the instance itself (world/lod-fade.ts FadeState): no object per streamed plant. */
 interface InstanceData extends FadeState {
   m: Float32Array;
-  /** Brightness multiplier (per-instance tint). */
+  /** Colour multiplier r, g, b (per-instance tint, meadow patches). */
   t: number;
+  tg: number;
+  tb: number;
   meta: AssetMeta;
   variant: number;
   /** Bucket key per LOD, shared by every instance of the asset + variant (`keysOf`). */
@@ -197,6 +200,7 @@ const _q = new Quaternion();
 const _e = new Euler();
 const _p = new Vector3();
 const _s = new Vector3();
+const _patch = [1, 1, 1, 0];
 
 export class InstanceStreamer {
   readonly group = new Group();
@@ -666,12 +670,32 @@ export class InstanceStreamer {
           2 -
           1) *
           tint;
+      let r = t;
+      let g = t * (1 + tint * 0.15);
+      let b = t;
+      let variant = inst.variant;
+      if (meta.patches) {
+        const p = meadowPatch(inst.x, inst.z, meta.patches, _patch);
+        r *= p[0];
+        g *= p[1];
+        b *= p[2];
+        // Two-variant grass: the drier variant 0 in the dry patches, 1 in the lush ones (never all one).
+        if (meta.variants === 2)
+          variant =
+            hash3(Math.floor(inst.x * 7), Math.floor(inst.z * 7), 5) /
+              4294967296 <
+            0.15 + 0.7 * p[3]
+              ? 0
+              : 1;
+      }
       d = {
         m: placedMatrix(inst, new Float32Array(16)),
-        t,
+        t: r,
+        tg: g,
+        tb: b,
         meta,
-        variant: inst.variant,
-        keys: this.keysOf(inst.asset, inst.variant, meta),
+        variant,
+        keys: this.keysOf(inst.asset, variant, meta),
         owner: this.owner,
         // (lod-fade.ts newFadeState)
         lod: -1,
@@ -712,7 +736,13 @@ export class InstanceStreamer {
     if (!bucket) {
       bucket = newBucket(key, d.meta, lod, !!this.opts.fade);
       this.buckets.set(key, bucket);
-      this.createMeshes(bucket, inst, lod, 64);
+      // (The meadow patches may pick another variant than the scatter's: `dataOf`.)
+      this.createMeshes(
+        bucket,
+        { asset: inst.asset, variant: d.variant } as ScatterInstance,
+        lod,
+        64,
+      );
       if (bucket.lazy) this.fresh++;
     }
     bucket.used = this.commits;
@@ -751,10 +781,9 @@ export class InstanceStreamer {
       }
     }
     if (bucket.tinted) {
-      const t = d.t;
-      bucket.sCol[i * 3] = t;
-      bucket.sCol[i * 3 + 1] = t * (1 + (d.meta.tint ?? 0) * 0.15);
-      bucket.sCol[i * 3 + 2] = t;
+      bucket.sCol[i * 3] = d.t;
+      bucket.sCol[i * 3 + 1] = d.tg;
+      bucket.sCol[i * 3 + 2] = d.tb;
     }
   }
 
@@ -1176,6 +1205,8 @@ export function assetIds(world: World): Set<string> {
     ...(world.stageDef.servicePark ? SERVICE_PARK_ASSETS : []),
     ...world.map.props.map((p) => p.asset),
     ...(world.stageDef.props ?? []).map((p) => p.asset),
+    // The pack models standing in for generated trees near the road.
+    ...Object.values(world.map.heroTrees?.swap ?? {}).map((s) => s.asset),
   ]);
   // Placed by the world itself (gore cushions, catenary masts, pylons, street dressing ...): `prewarm` must cover them
   // too, or their shaders compile when the first one streams in (a 1-4 s freeze on a fresh shader cache).

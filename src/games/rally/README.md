@@ -25,7 +25,7 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 ## Features
 
 - Real-world stages with bridges, junctions, buildings, power lines and city streets (see maps below); seeded procedural
-  vegetation, rocks and props through one instanced asset library, streamed terrain with LODs.
+  vegetation (L-system trees per species with photo leaves and seasons, layered forest stands, patchy meadow grass), rocks and props through one instanced asset library, streamed terrain with LODs.
 - Five tyres (tarmac and gravel in soft and hard, plus mixed) with a tread pattern per compound, printed sidewall lettering and
   dust that builds up over a run; tyre sizes and class per car, suspension and gearing set-ups, with a live 3D set-up screen.
 - Tyre and brake temperature per stage weather (Ajvatovci a hot June morning, Petralica a cool September afternoon): cold tyres
