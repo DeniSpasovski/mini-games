@@ -1,4 +1,8 @@
-import type { BarrierRule, PathBarrierRule } from '../maps/shared/types';
+import type {
+  BarrierRule,
+  PathBarrierRule,
+  SideRoadRail,
+} from '../maps/shared/types';
 import type { StaticCollider } from '../physics/types';
 import type { TerrainSampler } from './heightfield';
 import { newRoadQuery, type Road } from './road';
@@ -17,6 +21,11 @@ export interface BarrierRun {
   /** Distance along the road (or along `path`) at the start / end of the run (m). */
   from: number;
   to: number;
+  /**
+   * Side-road rails: the stretch of the rail line next to `start` (path along) follows this polyline (rail points
+   * x, z, cumulative length; `len` m long) out of a stage-road rail end instead of the path.
+   */
+  bend?: { start: number; dir: 1 | -1; len: number; pts: number[][] };
   /** Set: the run follows this path of the network instead of the stage road. */
   path?: number;
 }
@@ -67,16 +76,48 @@ export function frameAt(
   }
   const net = ctx.net!;
   const L = net.lengths[run.path];
-  net.pointAt(run.path, Math.max(0, along - 1.5), pa);
-  net.pointAt(run.path, Math.min(L, along + 1.5), pb);
-  net.pointAt(run.path, along, pc);
+  const b = run.bend;
+  const bs = b ? ((along - b.start) * b.dir) / b.len : -1;
+  if (b && bs >= 0 && bs <= 1) {
+    // On the bend: return the frame whose barrier point (centre + lateral offset) is the polyline point.
+    const d = bs * b.len;
+    let i = 1;
+    while (i < b.pts.length - 1 && b.pts[i][2] < d) i++;
+    const [x0, z0, d0] = b.pts[i - 1];
+    const [x1, z1, d1] = b.pts[i];
+    const k = d1 > d0 ? (d - d0) / (d1 - d0) : 0;
+    const cx = x0 + (x1 - x0) * k;
+    const cz = z0 + (z1 - z0) * k;
+    const tl = Math.hypot(x1 - x0, z1 - z0) || 1;
+    const tx = ((x1 - x0) / tl) * b.dir;
+    const tz = ((z1 - z0) / tl) * b.dir;
+    const hw = net.halfWidthAt(run.path, Math.min(L, Math.max(0, along)));
+    const lat = run.side * (hw + run.rule.offset);
+    return {
+      x: cx - tz * lat,
+      z: cz + tx * lat,
+      tx,
+      tz,
+      halfWidth: hw,
+      curvature: 0,
+      deck: false,
+      y: NaN,
+    };
+  }
+  // Past an end of the way (a side-road rail's `lead`) the line carries on straight.
+  const a = Math.min(L, Math.max(0, along));
+  net.pointAt(run.path, Math.max(0, a - 1.5), pa);
+  net.pointAt(run.path, Math.min(L, a + 1.5), pb);
+  net.pointAt(run.path, a, pc);
   const tl = Math.hypot(pb.x - pa.x, pb.z - pa.z) || 1;
+  const tx = (pb.x - pa.x) / tl;
+  const tz = (pb.z - pa.z) / tl;
   return {
-    x: pc.x,
-    z: pc.z,
-    tx: (pb.x - pa.x) / tl,
-    tz: (pb.z - pa.z) / tl,
-    halfWidth: net.halfWidthAt(run.path, along),
+    x: pc.x + tx * (along - a),
+    z: pc.z + tz * (along - a),
+    tx,
+    tz,
+    halfWidth: net.halfWidthAt(run.path, a),
     curvature: 0,
     deck: false,
     y: NaN,
@@ -286,6 +327,95 @@ export function pathBarrierRuns(
       }
     }
   });
+  return out;
+}
+
+/** How far either side of the crossing a side-road rail's `join` bends (m). */
+const JOIN_R = 2.5;
+
+/** Runs of `MapDef.sideRoadRails`: each on the way nearest its `from`, starting where it clears the stage road. */
+export function sideRoadRailRuns(
+  net: PathNetwork,
+  road: Road,
+  rules: readonly SideRoadRail[],
+): BarrierRun[] {
+  const out: BarrierRun[] = [];
+  const rq = newRoadQuery();
+  const q = newPathQuery();
+  const ctx: BarrierContext = { road, net };
+  for (const r of rules) {
+    net.query(r.from[0], r.from[1], q);
+    if (!q.found) continue;
+    const path = q.path;
+    let a0 = q.along;
+    net.query(r.to[0], r.to[1], q, undefined, (p) => p === path);
+    const a1 = q.along;
+    const dir = a1 >= a0 ? 1 : -1;
+    // Left of travel from `from` to `to` = right of the way's own direction when that runs the other way.
+    const side: 1 | -1 = (r.side === 'left') === (dir === 1) ? 1 : -1;
+    const run: BarrierRun = {
+      rule: {
+        kind: 'guardrail',
+        side: side === 1 ? 'left' : 'right',
+        offset: r.offset,
+        rusty: r.rusty,
+      },
+      side,
+      from: Math.min(a0, a1),
+      to: Math.max(a0, a1),
+      path,
+    };
+    if (r.join) {
+      // Curve out of the stage-road rail end: from its end point (along its tangent) to the side rail, over the point
+      // where the two rail lines cross; the curve leaves both lines the same distance from that point.
+      const rs = r.join.side === 'left' ? 1 : -1;
+      const f = road.at(r.join.along);
+      const sl = f.halfWidth + r.join.offset;
+      const p0: [number, number] = [f.x + f.tz * rs * sl, f.z - f.tx * rs * sl];
+      const g = frameAt(ctx, run, a0);
+      const gl = side * (g.halfWidth + r.offset);
+      const q0 = [g.x + g.tz * gl, g.z - g.tx * gl];
+      const tqx = g.tx * dir;
+      const tqz = g.tz * dir;
+      // p0 + u * (f.tx, f.tz) = q0 + v * tq  (the stage rail runs on in the direction of travel past its end)
+      const det = f.tx * -tqz - f.tz * -tqx;
+      if (Math.abs(det) < 1e-3) continue;
+      const dx = q0[0] - p0[0];
+      const dz = q0[1] - p0[1];
+      const u = (dx * -tqz - dz * -tqx) / det;
+      const v = (f.tx * dz - f.tz * dx) / det;
+      // Straight on along the road edge, then a small bend (JOIN_R m either side of the crossing) into the side rail.
+      const r0 = Math.min(JOIN_R, Math.abs(u));
+      const X = [p0[0] + f.tx * u, p0[1] + f.tz * u];
+      const pA = [X[0] - f.tx * r0, X[1] - f.tz * r0];
+      const pB = [q0[0] + tqx * (v + r0), q0[1] + tqz * (v + r0)];
+      const pts: number[][] = [[p0[0], p0[1], 0]];
+      const push = (x: number, z: number) => {
+        const [px, pz, pd] = pts[pts.length - 1];
+        pts.push([x, z, pd + Math.hypot(x - px, z - pz)]);
+      };
+      for (let i = 0; i <= 12; i++) {
+        const t = i / 12;
+        const w = 1 - t;
+        push(
+          w * w * pA[0] + 2 * w * t * X[0] + t * t * pB[0],
+          w * w * pA[1] + 2 * w * t * X[1] + t * t * pB[1],
+        );
+      }
+      const len = pts[pts.length - 1][2];
+      a0 = a0 + dir * (v + r0) - dir * len;
+      run.bend = { start: a0, dir, len, pts };
+    } else
+      for (; (a1 - a0) * dir > 0; a0 += 0.5 * dir) {
+        const f = frameAt(ctx, run, a0);
+        const lat = side * (f.halfWidth + r.offset);
+        road.query(f.x + f.tz * lat, f.z - f.tx * lat, rq);
+        if (!rq.found || rq.distance > rq.halfWidth + 1.2) break;
+      }
+    run.from = Math.min(a0, a1);
+    run.to = Math.max(a0, a1);
+    if (run.to - run.from >= 3) out.push(run);
+  }
   return out;
 }
 

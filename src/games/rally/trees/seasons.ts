@@ -44,7 +44,7 @@ const PALETTES: Readonly<
   // Blossom: white and pale pink among the first leaves.
   'Fruit tree': {
     spring: ['#5c6b38', '#606f3a', '#bd9b9f', '#c5c0bd', '#cdcac5'],
-    autumn: ['#415633', '#727b3a', '#a7833a', '#ab6f37', '#9f5437', '#7e3e3a'],
+    autumn: ['#415633', '#727b3a', '#a7833a', '#ab6f37', '#9f5a37', '#80483a'],
   },
   Plane: {
     spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
@@ -81,7 +81,7 @@ const PALETTES: Readonly<
   // Blackthorn / hawthorn blossom in spring, red and brown in autumn.
   Thicket: {
     spring: ['#546438', '#5c6b3a', '#b4b3ab', '#c5c3bd'],
-    autumn: ['#415435', '#7e7241', '#977e3e', '#97643a', '#7e4a3a', '#64443e'],
+    autumn: ['#415435', '#7e7241', '#977e3e', '#97643a', '#7e4e38', '#64483a'],
   },
   // Evergreen cypresses and the juniper: the same colour all year (no entry).
   Locust: {
@@ -90,10 +90,11 @@ const PALETTES: Readonly<
   },
   Bramble: {
     spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
-    autumn: ['#415435', '#645c3e', '#8d583e', '#7e443e', '#643e41'],
+    autumn: ['#415435', '#645c3e', '#8d583e', '#7a4a3a', '#5e4636'],
   },
-  // Its summer palette is the yellow bloom; in autumn only seed pods and green stems are left.
+  // Yellow bloom in spring (May - June); green switches in summer, seed pods among them in autumn.
   Broom: {
+    spring: ['#425730', '#bc9919', '#bf9e19', '#c4a219', '#cbaa21'],
     autumn: ['#475a37', '#4c5838', '#4a4f3a', '#4a4437'],
   },
 };
@@ -131,7 +132,7 @@ export function seasonal(def: SpeciesDef, season: Season): SpeciesDef {
             turn: 0.5 * inside,
             stage: 0.6,
             stages: 0.35,
-            hueSpread: 1.8,
+            hueSpread: 1.3,
             leafy: AUTUMN_LEAVES,
           }
         : broad && season === 'spring'

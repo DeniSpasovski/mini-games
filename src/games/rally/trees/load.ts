@@ -21,6 +21,7 @@ import {
   barkReady,
   barkTexture,
   barkTileSize,
+  coverageMips,
   impostorMaterial,
   primeSpriteTextures,
   spriteMaterial,
@@ -29,7 +30,12 @@ import {
 } from './materials';
 import type { Crown, MeshData, SpriteData, VariantMeshes } from './mesh';
 import { allSeasons, seasonal, seasonOf } from './seasons';
-import { isTreeType, speciesOfType, type SpeciesDef } from './species';
+import {
+  getSpecies,
+  isTreeType,
+  speciesOfType,
+  type SpeciesDef,
+} from './species';
 import { headingAt, packSprite } from './sprite-attr';
 import {
   atlasCacheKey,
@@ -50,6 +56,7 @@ import type {
 } from './worker';
 import { WorkerPool } from '../../../shared/worker-pool';
 import { LEAF_STYLES, type LeafStyle } from './leaftex';
+import { photoAtlas, photoUrls } from './leafphoto';
 import { meshBuffers } from './mesh';
 import { crownProxy, quadSprites } from './proxy';
 import type { TreeLoadStats } from './stats';
@@ -155,6 +162,15 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
   return g;
 }
 
+/** Whether the worker can look `def` up itself (the registry's species in that season), so it need not be sent. */
+function registered(def: SpeciesDef, season: Season): boolean {
+  try {
+    return seasonal(getSpecies(def.name), season) === def;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Generates variants in workers (or inline where there are none): a failed worker is dropped and its pending variants
  * are generated inline, so the stage load never hangs (shared/worker-pool.ts). The leaf atlases of the styles in use
@@ -182,10 +198,13 @@ class Generator {
           reject(e);
         }
       };
+      const season = seasonOf(def);
       const req: Omit<GenerateRequest, 'id'> = {
         species: def.name,
         index,
-        season: seasonOf(def),
+        season,
+        // Not the registry's (a debugger override, a bare species): the worker grows this one.
+        ...(registered(def, season) ? {} : { def }),
       };
       const sent = this.pool.post(req, [], (r) =>
         r ? resolve(r as Timed) : inline(),
@@ -212,20 +231,47 @@ class Generator {
     });
   }
 
-  /** Makes the atlas + mips of every style in a worker and primes `spriteTextures` with them. */
+  /**
+   * Makes the atlas + mips of every style in a worker (a photo style decodes its images there, trees/leafphoto.ts) and
+   * primes `spriteTextures` with them.
+   */
   atlases(styles: LeafStyle[]): Promise<void> {
     return Promise.all(
       styles.map(
         (style) =>
           new Promise<void>((resolve) => {
-            const req: Omit<AtlasRequest, 'id'> = { atlas: style };
+            const urls = photoUrls(style);
+            // No worker: a photo style decodes here; a drawn one `spriteTextures` makes itself.
+            const inline = () => {
+              if (!urls) return resolve();
+              photoAtlas(style, urls)
+                .then((atlas) => {
+                  if (atlas)
+                    primeSpriteTextures(
+                      style,
+                      atlas,
+                      coverageMips(
+                        atlas.albedo,
+                        atlas.width,
+                        atlas.height,
+                        false,
+                        atlas.normal,
+                      ),
+                    );
+                })
+                .catch((err: unknown) =>
+                  console.warn(`trees: leaf photo ${style}:`, err),
+                )
+                .finally(resolve);
+            };
+            const req: Omit<AtlasRequest, 'id'> = { atlas: style, urls };
             const sent = this.pool.post(req, [], (r) => {
-              // Without the worker `spriteTextures` makes them itself.
-              if (r && 'atlas' in r)
+              if (r && 'atlas' in r) {
                 primeSpriteTextures(style, r.atlas, r.mips);
-              resolve();
+                resolve();
+              } else inline();
             });
-            if (!sent) resolve();
+            if (!sent) inline();
           }),
       ),
     ).then(() => undefined);

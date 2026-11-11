@@ -1,4 +1,4 @@
-import { greenInSpring } from '../shared/seasonal-grass';
+import { greenInSpring, seedingGrass } from '../shared/seasonal-grass';
 import {
   buildingsFromData,
   hairpinRails,
@@ -296,6 +296,13 @@ export const galichicaMap: MapDef = {
       minRoadDist: 1,
       scale: [0.7, 1.3],
     },
+    // Seeding grass on the verges, stands of it on the ungrazed slopes (not the grazed pasture).
+    ...seedingGrass({
+      cover: [...DRY, 'trees', 'beech', 'pine'],
+      verge: 380,
+      fallow: 200,
+      fallowCover: ['grass', 'shrub', 'bare'],
+    }),
     // Ferns under the closed beech / oak crowns (dead rust-brown bracken in autumn); limestone bands where the
     // mountainside steepens, past the road's cut faces.
     ...(

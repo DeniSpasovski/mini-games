@@ -1,9 +1,10 @@
 import { meshBuffers } from './mesh';
 import type { Season } from '../season';
 import { seasonal } from './seasons';
-import { getSpecies } from './species';
+import { getSpecies, type SpeciesDef } from './species';
 import { generateVariant } from './variants';
 import { spriteAtlas, type LeafStyle, type SpriteAtlas } from './leaftex';
+import { photoAtlas } from './leafphoto';
 import { coverageMips, type MipLevel } from './materials';
 import {
   getCached,
@@ -21,12 +22,16 @@ export interface GenerateRequest {
   species: string;
   index: number;
   season: Season;
+  /** The definition itself when it is not the registry's (a debugger override, a bare species). */
+  def?: SpeciesDef;
 }
 
 /** The atlas of a leaf style and its mip chains (trees/materials.ts `spriteTextures`): pure pixel work, done here. */
 export interface AtlasRequest {
   id: number;
   atlas: LeafStyle;
+  /** A photo style's images (trees/leafphoto.ts `photoUrls`, resolved on the page). */
+  urls?: [string, string];
 }
 
 export interface AtlasResult {
@@ -77,12 +82,25 @@ async function readCached(id: number, key: string): Promise<void> {
   ]);
 }
 
-/** From the disk cache, else made here and stored (the same pixels: `GENERATOR_VERSION` covers the atlas code). */
-async function sendAtlas(id: number, style: LeafStyle): Promise<void> {
+/**
+ * From the disk cache, else made here and stored (the same pixels: `GENERATOR_VERSION` and the photo's baked mean
+ * cover the atlas code and images). A photo that does not decode falls back to the drawn atlas, not stored.
+ */
+async function sendAtlas(
+  id: number,
+  style: LeafStyle,
+  urls: [string, string] | undefined,
+): Promise<void> {
   const key = atlasCacheKey(style);
   let hit = await getCached<CachedAtlas>(key);
   if (!hit) {
-    const atlas = spriteAtlas(style);
+    const photo = urls
+      ? await photoAtlas(style, urls).catch((err: unknown) => {
+          console.warn(`trees: leaf photo ${style}:`, err);
+          return null;
+        })
+      : null;
+    const atlas = photo ?? spriteAtlas(style);
     const mips = coverageMips(
       atlas.albedo,
       atlas.width,
@@ -92,7 +110,7 @@ async function sendAtlas(id: number, style: LeafStyle): Promise<void> {
     );
     hit = { atlas, mips };
     // Stored before the transfer below detaches the pixels.
-    await putCached(key, hit);
+    if (photo || !urls) await putCached(key, hit);
   }
   const { atlas, mips } = hit;
   const buffers = new Set<ArrayBuffer>([
@@ -113,16 +131,19 @@ scope.onmessage = (e) => {
     return;
   }
   if ('atlas' in e.data) {
-    const { id, atlas: style } = e.data;
-    sendAtlas(id, style).catch((err) =>
+    const { id, atlas: style, urls } = e.data;
+    sendAtlas(id, style, urls).catch((err) =>
       scope.postMessage({ id, error: String(err) }, []),
     );
     return;
   }
-  const { id, species, index, season } = e.data;
+  const { id, species, index, season, def } = e.data;
   try {
     const t0 = performance.now();
-    const g = generateVariant(seasonal(getSpecies(species), season), index);
+    const g = generateVariant(
+      def ?? seasonal(getSpecies(species), season),
+      index,
+    );
     scope.postMessage({ id, ...g, ms: performance.now() - t0 }, [
       ...meshBuffers(g.meshes),
       g.info.capsules.buffer as ArrayBuffer,

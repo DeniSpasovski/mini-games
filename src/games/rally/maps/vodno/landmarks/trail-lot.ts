@@ -29,14 +29,17 @@ import { smoothHeights, unitV, wallRibbon, type WallRun } from './stone-wall';
  * World metres; sizes from the owner's photos (`sources/maps/vodno/NOTES.md`).
  */
 
-/** The block node on the side road, turned along the road (local +x = up the road). */
-export const SIDE_ROAD_BLOCK: Site = { x: 2162.3, z: -38.1, yaw: -1.528 };
+/**
+ * The piles across the side road's mouth (ref-03, owner's satellite ref): 12 m in from the stage road's edge, right behind the
+ * closure barrier and in view from the road, not at the OSM block node 30 m further up. Local +x = towards the stage road.
+ */
+export const SIDE_ROAD_BLOCK: Site = { x: 2161, z: -59.1, yaw: -2.25 };
 /** The piles (ref-03, `maps/shared/piles.ts`): local x along the road, z across it, radius, height, kind. */
 const PILES = new Piles(SIDE_ROAD_BLOCK, [
   [0, -3.7, 2.9, 1.5, 'sand'],
   [0.8, -0.2, 3, 0.55, 'spread'],
   [-0.3, 3, 2.5, 1.3, 'sand'],
-  [2.4, 5.6, 2.3, 0.45, 'spread'],
+  [2.2, 4.3, 1.9, 0.4, 'spread'],
   [3.7, -1.5, 1.9, 0.9, 'stone'],
   [-2.2, 0.9, 1.5, 0.6, 'stone'],
 ]);
@@ -163,30 +166,30 @@ const TRAIL_PINES_SET: [number, number][] = [
  * The plantation round the trail start (ref-14: many slim straight trunks 3-4 m apart): the set pines, then one per free
  * 3.4 m cell of the stand (a pine keeps 3 m from the next, 1.3 m off the path, clear of the posts, tables and the road's
  * bank), where the canopy height model (Meta / WRI, `canopy.json`) reads a stand of 9 m or more (it reads ~12 m here, the
- * photos ~20-22 m: it underestimates tall conifers, so the heights follow it relative to that). World x, z, scale and
- * variant of the generated `tall_black_pine` (~19.5 m at scale 1: scaled to the stand's 18-25 m).
+ * photos ~20-22 m: it underestimates tall conifers, so the heights follow it relative to that). World x, z and scale of
+ * the `tall_black_pine` (scaled to the stand's 18-25 m).
  */
-export const TRAIL_PINES: [number, number, number, number][] = [];
+export const TRAIL_PINES: [number, number, number][] = [];
+/** `tall_black_pine`'s mean height at scale 1 (m; ~17.4 m x its species scale). */
+const TALL_PINE_H = 18;
 /** Oaks and hornbeams standing among the pines (world x, z, asset, scale). */
 export const TRAIL_STAND_OAKS: [number, number, string, number][] = [];
 {
   const chm = new Raster(canopy.height as RasterDef);
-  // A pine: the stand's height (the canopy model's, 1.75 x, 18-25 m) over the tall black pine's own (~19.5 m).
-  const pineAt = (x: number, z: number, k: number): [number, number] => {
+  // A tall black pine: the stand's height (the canopy model's, 1.75 x, 18-25 m) over the species' own (TALL_PINE_H).
+  const pineAt = (x: number, z: number, k: number): number => {
     const u = (j: number) =>
       (hash3(Math.round(x), Math.round(z), k + 10 * j, 7) % 100) / 100;
-    const variant = Math.floor(u(1) * 4);
     const h =
       Math.max(18, Math.min(25, 1.75 * chm.at(x, z))) * (0.92 + 0.16 * u(2));
-    return [h / 19.5, variant];
+    return h / TALL_PINE_H;
   };
   const clear = (x: number, z: number) =>
     trailDistance(x, z) > 1.3 &&
     Math.hypot(x - TRAIL_START.x, z - TRAIL_START.z) > 2.6 &&
     !TRAIL_TABLES.some(([tx, tz]) => Math.hypot(x - tx, z - tz) < 2.3);
   for (const [x, z] of TRAIL_PINES_SET) {
-    const [scale, variant] = pineAt(x, z, 1);
-    TRAIL_PINES.push([x, z, scale, variant]);
+    TRAIL_PINES.push([x, z, pineAt(x, z, 1)]);
   }
   const CELL = 3.4;
   for (let i = 0; i < 10; i++)
@@ -206,8 +209,7 @@ export const TRAIL_STAND_OAKS: [number, number, string, number][] = [];
           0.75 + 0.2 * h(5),
         ]);
       else {
-        const [scale, variant] = pineAt(x, z, 2);
-        TRAIL_PINES.push([x, z, scale, variant]);
+        TRAIL_PINES.push([x, z, pineAt(x, z, 2)]);
       }
     }
 }
@@ -316,7 +318,9 @@ export const TRAIL_LOT_AREAS: Area[] = [
   { site: TRAIL_START, rect: [-2, 9, -2, 2] },
   { site: ISLAND_GAZEBO, r: ISLAND_GAZEBO_APOTHEM + 1 },
   ...ISLAND_TABLES.map(([x, z]) => ({ site: { x, z, yaw: 0 }, r: 2.2 })),
-  { site: SIDE_ROAD_BLOCK, rect: [-4.5, 8, -7.5, 8.5] },
+  { site: SIDE_ROAD_BLOCK, rect: [-4.5, 6.5, -7.5, 8.5] },
+  // the OSM block node these piles stand for: no second barrier there
+  { site: { x: 2162.3, z: -38.1, yaw: 0 }, r: 2 },
   { site: TRAIL_START, r: 2.5 },
   { site: TRAIL_SHELTER, r: TRAIL_SHELTER_APOTHEM + 0.8 },
   ...TRAIL_TABLES.map(([x, z]) => ({ site: { x, z, yaw: 0 }, r: 2.2 })),

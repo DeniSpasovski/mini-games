@@ -32,7 +32,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   (`beam`, `lamps`), wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` / `brakes` / `body`, axle camera `wcam`), debug (`wire`, `hull`, `fallback`),
   specs (numbers, torque / power chart, test-drive links, model credit) and sound (`debug/sound-debug.ts`). Console: `__carViewer`.
 - **Asset debugger** (`pages/asset-debug.ts`): the assets plus the options of the picked kind only (props seed / variant / LOD / instances / gap / wire /
-  bounds / colliders; trees seed / variant / instances / season / leaves; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
+  bounds / colliders; trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
 
 **URL parameters** (any of the play ones skips the menu):
 
@@ -314,6 +314,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `SHEET_GAIN` brings each sheet into the measured colour bands (cards and blade strips alike; a test checks) and `GRASS_CARD_ALPHA` sets the card cut. Keep
   grass at two variants (it draws as a variant set). A stage loads only the sheets its season's assets use (`plantSheetsReady`, `assetIds`); a sheet that
   fails to load is logged and drawn as plain blades.
+  Meadow patches (`world/meadow-patches.ts`, catalog `patches`): a seeded noise field makes the grass yellower / paler or deeper green in 5-30 m
+  drifts (per-instance colour over the fine `tint` jitter) and picks the variant (0 = the drier look). `tall_grass` = knee-high seeding grass (the
+  scans drawn tall, straw stalks, a green base in the lush patches) on uncut verges and in fallow stands, summer and autumn (`seedingGrass`, `maps/shared/seasonal-grass.ts`).
 - **Vineyards** (`engine/vines.ts`): canopy cards painted per season from the trees' lobed leaf sprays (`trees/leaftex.ts`)
   as canes rising from the cordon, colours in the trees' measured bands (`LEAF`); trunks and cordon arms wear the trees'
   scanned cedar bark (`vineBarkMaterial`).
@@ -388,8 +391,25 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   Rock bands: a scatter rule with `outcrop` (asset `rock_outcrop`, two CC0 Poly Haven rock-face scans, `scripts/rocks/bake-outcrops.mjs`)
   grows a row of pieces along the contour from each point (`world/outcrops.ts`): faces down the slope, leant back, open backs
   buried, the row ends where the slope eases under `minSlope` or at the chunk edge (Vodno: the steep spurs).
-- **Forest edges**: `forestEdge()` (`maps/shared/forest-edge.ts`) adds the shrub belt and young trees of a wood along the road (every map).
-  Size ladder: `.claude/reference/trees/Placement.md`.
+- **Generated trees' leaves** (`trees/leaves/<style>.webp` + `-n.webp`, `scripts/trees/bake-leaves.py`): the broadleaf and
+  pine sprays are photo crops of the same LOLIPOP packs' leaf textures (normal + thickness from the pack normal map), decoded
+  in the tree worker (`trees/leafphoto.ts`); node tests, vines and the narrow / juniper styles keep the drawn atlas (`leaftex.ts`).
+- **Hero trees** (`pack_pine` / `pack_oak` / `pack_fir` / `pack_birch` / `pack_maple` / `pack_elm` / `pack_willow` / `pack_lilac` /
+  `pack_bush`, `assets/builders/tree-packs.ts`): CC BY pack models, kept in the catalog but used by no map (every map grows
+  generated trees only; they cost too much). The hooks stay: `MapDef.heroTrees` (a share of a species' scattered trees near
+  the road as a pack kind; the map's `packs` in `maps/index.ts` load them), `realTrees.near`, a scatter rule naming a
+  `pack_*` asset. Size ladder: `.claude/reference/trees/Placement.md`.
+- **Stands** (generated trees; worked example Vodno `map.ts`): woods are layers, not lone trees - an overstorey (Vodno: tall
+  black pines sized by the canopy model's stand height), a 4-10 m broadleaf middle layer and shrub thickets within `UNDER`
+  m of the road, every age in one stand (the age ladder). Scatter tools: `mask.group` (rules on one clump field: mixed
+  thickets; `invert` = the ground between: pine blocks with broadleaf between), `contour` (strips / planting rows along the
+  contour: Vodno's logged slope regrowth), `lean` (stems within `within` m tilt toward the road, also on `realTrees`),
+  `fieldEdge` (within [min, max] m of a field parcel's edge: Ajvatovci hedgerows and poplar lines, Petralica field-edge
+  tree bands; with a `mask` so only some boundaries carry one). `minRoadDist` / `maxRoadDist` past the road query's
+  ~35 m reach use a coarse distance field (`farRoadDist`, to 260 m).
+  `forestEdge()` (`maps/shared/forest-edge.ts`) adds the verge belt: thicket / hazel / bush clumps and leaning young trees.
+  Nothing grows on a rock cut's face, and no tree stands where its crown would hang over one (`ScatterContext.cutAt`,
+  `world.ts`: carved below the land where `rockCutWeightAt` says cut; `CUT_CROWN` toward the road).
 - **Piles** (`maps/shared/piles.ts`): sand / crushed-stone / spread heaps for road closures, depots and sites - shape, scanned
   material (kit keys `sand` / `aggregate`, spill `sandSpill` / `stoneSpill`), weeds, colliders; a landmark builds them into its bucket.
 - **Forest-floor debris** (`forest_stump`, `forest_log`, `forest_trunk`, `forest_branches`, `forest_roots`; `simready.ts`): CC0 Poly

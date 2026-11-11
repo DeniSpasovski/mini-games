@@ -57,8 +57,12 @@ export interface AssetMeta {
   /** Ordered near -> far. Instances beyond the last LOD are culled. */
   lods: LodSpec[];
   colliders?: ColliderSpec[];
+  /** Colliders per variant (index = variant), in place of `colliders`: models of very different trunks (pack trees). */
+  variantColliders?: ColliderSpec[][];
   /** Per-instance colour jitter (0 = none), applied via instanceColor. */
   tint?: number;
+  /** Grass: dry / lush meadow patches from a noise field over the jitter, this strong (0-1; world/meadow-patches.ts). */
+  patches?: number;
   /**
    * Knocked over when the car drives through it (no collider, the car is not slowed): falls down and costs a time
    * penalty (world/breakables.ts). `r` = radius and `h` = height (m, unscaled) of the hit test.
@@ -199,6 +203,214 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 90, castShadow: false }],
   },
   {
+    id: 'pack_pine',
+    name: 'Scots pine (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Scots pines (13, 15 and 31 m) of a CC BY pack: a bare trunk under a few needle clumps, three meshes and the pack billboard far away. Hero trees near the road; solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 45, castShadow: true },
+      { maxDistance: 120, castShadow: true },
+      { maxDistance: 480, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.12, h: 8 }],
+      [{ kind: 'cylinder', r: 0.25, h: 10 }],
+      [{ kind: 'cylinder', r: 0.4, h: 12 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_lilac',
+    name: 'Lilac (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Lilac shrubs and a small tree (2-7 m) of a CC BY pack: the understorey of a car park or a roadside. Drive-through.',
+    variants: 3,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 100, castShadow: false },
+      { maxDistance: 300, castShadow: false },
+    ],
+    tint: 0.1,
+  },
+  {
+    id: 'pack_bush',
+    name: 'Bush (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Bushes of 1-1.6 m of a CC BY pack, three levels of detail. Drive-through.',
+    variants: 3,
+    lods: [
+      { maxDistance: 35, castShadow: false },
+      { maxDistance: 90, castShadow: false },
+      { maxDistance: 240, castShadow: false },
+    ],
+    tint: 0.1,
+  },
+  // Pack oaks, firs, birches, maples, elms and willows: their models are a chunk of their own (`loadTreePacks`, tree-packs.ts).
+  {
+    id: 'pack_oak',
+    name: 'Oak (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Oaks of a CC BY pack, young to old (5, 10, 13, 20 m and a broad forked 21 m field oak), the pack season leaves; three meshes and the pack billboard far away. Solid trunk.',
+    variants: 5,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 350, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.3, h: 8 }],
+    variantColliders: [
+      [],
+      [{ kind: 'cylinder', r: 0.15, h: 5 }],
+      [{ kind: 'cylinder', r: 0.15, h: 6 }],
+      [{ kind: 'cylinder', r: 0.5, h: 8 }],
+      [{ kind: 'cylinder', r: 0.45, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_fir',
+    name: 'Fir (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Young firs of a CC BY pack (4.4, 6.6 and 9.3 m, branches to the ground); three meshes and the pack billboard far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 30, castShadow: true },
+      { maxDistance: 80, castShadow: true },
+      { maxDistance: 220, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.1, h: 3 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.08, h: 2 }],
+      [{ kind: 'cylinder', r: 0.1, h: 3 }],
+      [{ kind: 'cylinder', r: 0.14, h: 4 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_birch',
+    name: 'Birch (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Silver birches of a CC BY pack (10 m: a slim leaning one, a mature one, a broad old one); three meshes and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 35, castShadow: true },
+      { maxDistance: 100, castShadow: true },
+      { maxDistance: 250, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.25, h: 6 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.14, h: 6 }],
+      [{ kind: 'cylinder', r: 0.3, h: 6 }],
+      [{ kind: 'cylinder', r: 0.35, h: 5 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_maple',
+    name: 'Maple (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Maples of a CC BY pack (6, 10, 13.5 and 24 m); three meshes and the pack billboard far away. Solid trunk.',
+    variants: 4,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.2, h: 8 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.08, h: 3 }],
+      [{ kind: 'cylinder', r: 0.16, h: 5 }],
+      [{ kind: 'cylinder', r: 0.17, h: 6 }],
+      [{ kind: 'cylinder', r: 0.37, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_elm',
+    name: 'Elm (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Elms of a CC BY collection (21, 24 and 32 m, open vase-shaped crowns), simplified to three meshes, and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.3, h: 8 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.24, h: 6 }],
+      [{ kind: 'cylinder', r: 0.3, h: 7 }],
+      [{ kind: 'cylinder', r: 0.4, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_willow',
+    name: 'Weeping willow (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Weeping willows of a CC BY collection (10, 14 and 19 m, curtains of hanging shoots), simplified to three meshes, and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.25, h: 3 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.14, h: 2 }],
+      [{ kind: 'cylinder', r: 0.22, h: 3 }],
+      [{ kind: 'cylinder', r: 0.5, h: 3 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'fern',
+    name: 'Fern',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Fern stands (male fern / bracken, ~0.6 m) of shaded oak and beech woods: cards baked from the CC0 Poly Haven fern scan (no collision, detail layer).',
+    variants: 3,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
+    id: 'fern_autumn',
+    name: 'Fern (autumn)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The fern stands as rust-brown dead bracken (autumn): the fern cards recoloured by the bake (no collision, detail layer).',
+    variants: 3,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
     id: 'tall_weeds',
     name: 'Tall weeds',
     category: 'vegetation',
@@ -220,6 +432,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.2,
+    patches: 1,
   },
   {
     id: 'dry_grass',
@@ -233,6 +446,21 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.18,
+    patches: 0.7,
+  },
+  {
+    id: 'tall_grass',
+    name: 'Seeding grass',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Knee-high seeding grass of uncut verges and fallow, straw and green stalks mixed (summer, autumn; detail layer). The grass scans drawn tall.',
+    variants: 2,
+    lods: GRASS_LODS,
+    nearBoost: NEAR_GRASS,
+    nearRoad: GRASS_BLADES_ROAD,
+    tint: 0.16,
+    patches: 0.9,
   },
   {
     id: 'spring_grass',
@@ -246,6 +474,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.16,
+    patches: 0.6,
   },
   // Field crops: cards baked from the CC BY wheat / corn models (engine/crops.ts).
   {
