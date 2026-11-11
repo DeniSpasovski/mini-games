@@ -32,7 +32,7 @@ function settle(terrain: TerrainRenderer, focus: Vector3, budget = 1e9): void {
 
 /**
  * The streamer before tiles merged per detail band (fresh start): chunk -> LOD, and its tile count. It merged
- * 2 x 2 chunks at LOD2 and 4 x 4 at LOD3, and only where the block lies inside the map.
+ * 2 x 2 chunks at LOD2 and 4 x 4 at LOD3 (a block over the map edge counts by its part inside the map).
  */
 function unmerged(
   world: World,
@@ -53,8 +53,17 @@ function unmerged(
   const lods = new Map<string, number>();
   let tiles = 0;
   const visit = (cx: number, cz: number, span: number): void => {
-    const dx = Math.max(cx * cs - f.x, 0, f.x - (cx + span) * cs);
-    const dz = Math.max(cz * cs - f.z, 0, f.z - (cz + span) * cs);
+    if (cx > x1 || cx + span <= x0 || cz > z1 || cz + span <= z0) return;
+    const dx = Math.max(
+      Math.max(cx, x0) * cs - f.x,
+      0,
+      f.x - Math.min(cx + span, x1 + 1) * cs,
+    );
+    const dz = Math.max(
+      Math.max(cz, z0) * cs - f.z,
+      0,
+      f.z - Math.min(cz + span, z1 + 1) * cs,
+    );
     const d = Math.hypot(dx, dz);
     if (d > vd) return;
     if (span === 1) {
@@ -64,11 +73,11 @@ function unmerged(
       return;
     }
     const lod = span === 2 ? 2 : 3;
-    const inMap =
-      cx >= x0 && cx + span - 1 <= x1 && cz >= z0 && cz + span - 1 <= z1;
-    if (inMap && d >= t[lod - 1] * 1.1) {
+    if (d >= t[lod - 1] * 1.1) {
       for (let j = 0; j < span; j++)
-        for (let i = 0; i < span; i++) lods.set(`${cx + i},${cz + j}`, lod);
+        for (let i = 0; i < span; i++)
+          if (cx + i >= x0 && cx + i <= x1 && cz + j >= z0 && cz + j <= z1)
+            lods.set(`${cx + i},${cz + j}`, lod);
       tiles++;
       return;
     }
@@ -81,6 +90,28 @@ function unmerged(
       visit(bx * 4, bz * 4, 4);
   return { lods, tiles };
 }
+
+/** Chunks inside the map (+ margin): a merged tile at the map edge is cut to them. */
+function limits(w: World): { x0: number; x1: number; z0: number; z1: number } {
+  const cs = w.heightfield.chunkSize;
+  const b = w.map.bounds;
+  return {
+    x0: Math.floor((b.minX - RENDER_MARGIN) / cs),
+    x1: Math.floor((b.maxX + RENDER_MARGIN) / cs),
+    z0: Math.floor((b.minZ - RENDER_MARGIN) / cs),
+    z1: Math.floor((b.maxZ + RENDER_MARGIN) / cs),
+  };
+}
+
+const whole = (w: World, t: Tile): boolean => {
+  const l = limits(w);
+  return (
+    t.cx >= l.x0 &&
+    t.cx + t.span - 1 <= l.x1 &&
+    t.cz >= l.z0 &&
+    t.cz + t.span - 1 <= l.z1
+  );
+};
 
 /** Chunk "cx,cz" -> LOD of the tile covering it. */
 function chunkLods(terrain: TerrainRenderer): Map<string, number> {
@@ -207,6 +238,30 @@ describe('terrain tiles', () => {
     terrain.dispose();
   });
 
+  test('blocks over the map edge merge, cut to the map: no strip of single far chunks', () => {
+    const terrain = new TerrainRenderer(world, {
+      viewDistance: vd,
+      lodDistances: [60, 150, 300],
+    });
+    // Near a corner of the map.
+    settle(terrain, new Vector3(b.maxX - 150, 0, b.maxZ - 150));
+    const l = limits(world);
+    let cut = 0;
+    for (const t of tilesOf(terrain).values()) {
+      if (t.lod >= 2) expect(t.span, t.mesh.name).toBeGreaterThan(1);
+      if (whole(world, t)) continue;
+      cut++;
+      const box = t.mesh.geometry.boundingBox!;
+      const p = t.mesh.position;
+      expect(p.x + box.min.x).toBeGreaterThanOrEqual(l.x0 * cs);
+      expect(p.x + box.max.x).toBeLessThanOrEqual((l.x1 + 1) * cs);
+      expect(p.z + box.min.z).toBeGreaterThanOrEqual(l.z0 * cs);
+      expect(p.z + box.max.z).toBeLessThanOrEqual((l.z1 + 1) * cs);
+    }
+    expect(cut).toBeGreaterThan(0);
+    terrain.dispose();
+  });
+
   test('a merged tile holds the same vertices as its chunks at that LOD', () => {
     const terrain = new TerrainRenderer(world, {
       viewDistance: vd,
@@ -222,20 +277,29 @@ describe('terrain tiles', () => {
       ): Mesh['geometry'];
     };
     const seen = new Set<string>();
+    const l = limits(world);
     for (const t of tilesOf(terrain).values()) {
-      const id = `${t.span}:${t.lod}`;
+      // (a tile cut by the map edge is checked as its own kind: only its chunks inside the map)
+      const id = `${t.span}:${t.lod}:${whole(world, t)}`;
       if (t.span === 1 || seen.has(id)) continue;
       seen.add(id);
       const step = 2 ** t.lod;
       const q = 64 / step; // vertex intervals per chunk
-      const n = t.span * q + 1;
+      const i0 = Math.max(0, l.x0 - t.cx);
+      const i1 = Math.min(t.span, l.x1 + 1 - t.cx);
+      const j0 = Math.max(0, l.z0 - t.cz);
+      const j1 = Math.min(t.span, l.z1 + 1 - t.cz);
+      const n = (i1 - i0) * q + 1;
       const g = t.mesh.geometry;
-      for (let j = 0; j < t.span; j++)
-        for (let i = 0; i < t.span; i++) {
+      expect(g.attributes.position.count).toBe(
+        n * ((j1 - j0) * q + 1) + 2 * (n + (j1 - j0) * q + 1),
+      );
+      for (let j = j0; j < j1; j++)
+        for (let i = i0; i < i1; i++) {
           const c = build.buildGeometry(t.cx + i, t.cz + j, 1, t.lod);
           for (let v = 0; v <= q; v++)
             for (let u = 0; u <= q; u++) {
-              const a = (j * q + v) * n + i * q + u;
+              const a = ((j - j0) * q + v) * n + (i - i0) * q + u;
               const b = v * (q + 1) + u;
               expect(g.attributes.position.getY(a)).toBe(
                 c.attributes.position.getY(b),
@@ -308,7 +372,7 @@ describe('terrain tiles', () => {
     // Rebuild every merged tile from its (split) neighbours' data: rebuild it from a one-level-smaller grid.
     let checked = 0;
     for (const t of tilesOf(terrain).values()) {
-      if (t.lod === 0 || t.span === 1) continue;
+      if (t.lod === 0 || t.span === 1 || !whole(world, t)) continue;
       // Pretend the tile is gone, so its four halves must be built from the generator, then merged back.
       const fresh = build.buildGeometry(t.cx, t.cz, t.span, t.lod);
       const halves = t.span / 2;
