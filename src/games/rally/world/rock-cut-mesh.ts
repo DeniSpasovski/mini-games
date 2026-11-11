@@ -49,8 +49,8 @@ const ZONE = 70;
 /** A retaining wall (`walls`, its face `WALL_GAP` in front of the carve's foot): its stone's uv tile (m, the bridge
  * ashlar's), its tone (dark weathered limestone blocks, moss and lichen: the owner's photos) and the green of the moss. */
 const WALL_TILE = 2;
-const WALL_STONE = [0.42, 0.42, 0.4];
-const WALL_MOSS = [0.36, 0.42, 0.3];
+const WALL_STONE = [0.25, 0.25, 0.25];
+const WALL_MOSS = [0.22, 0.3, 0.15];
 
 let material: MeshStandardMaterial | undefined;
 /** The rock face material: the scanned strata (engine/props/cut-face.*.webp, scripts/rocks/bake-cut-face.py), toned by vertex colour. */
@@ -220,8 +220,16 @@ export function* rockCutMeshJob(
         // weathered top of the face, streaked by smaller noise; a little darker in the ledges' shade.
         if (wall) {
           // Dark blocks, a little lighter or greener from stone to stone (moss on the top courses), no strata.
-          const moss = smoothstep(0.2, 0.9, k / (ROWS - 1) + 0.4 * rough);
-          const tone = 0.9 + 0.2 * noise.noise2(r.d / 2.5, y0 / 1.2);
+          // Moss in patches all over the face, thickest along the top courses and in the damp foot.
+          const top = k / (ROWS - 1);
+          const moss = smoothstep(
+            -0.1,
+            0.6,
+            noise.noise2(r.d / 4 + 23, y0 / 1.5) +
+              0.5 * top +
+              0.25 * (1 - smoothstep(0, 0.3, top)),
+          );
+          const tone = 0.85 + 0.3 * noise.noise2(r.d / 2.5, y0 / 1.2);
           for (let c = 0; c < 3; c++)
             col.push(
               tone * (WALL_STONE[c] + (WALL_MOSS[c] - WALL_STONE[c]) * moss),

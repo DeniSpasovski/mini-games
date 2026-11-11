@@ -60,10 +60,10 @@ import { FINISH, ROAD_LENGTH, START } from './stages';
 const BASE_HEIGHT = 349;
 
 /**
- * The approach to the Vidikovec car park (m along the road): a guard rail on the drop at its right up to the lot's
- * wall.
+ * The approach to the Vidikovec car park (m along the road): a rusted guard rail on the drop at its right up to the
+ * lot's wall (`to`), then a galvanised one along the wall to the lot's entrance (`lotRail`).
  */
-const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
+const VIDIKOVEC_RAIL = { from: 2600, to: 2796, lotRail: 2838 };
 /** The dark stone retaining wall on the uphill side opposite the upper half of the Vidikovec lot (`road.rockCuts.walls`):
  * ~1.8 m high, 2 m back from the road edge behind a grass strip with small bushes (the owner's photos). */
 const VIDIKOVEC_WALL = {
@@ -846,15 +846,39 @@ export const vodnoMap: MapDef = {
     }),
   ],
   roadside: [
-    // Small bushes in the grass strip in front of the Vidikovec wall.
+    // The Vidikovec wall (the owner's photos): a near-continuous row of rounded bushes in the grass strip in front of
+    // it, and a fringe of bushes and shrubs along its top, under the trees of the bank.
     {
       asset: 'bush',
-      every: 6,
+      every: 3,
+      count: 2,
+      spread: 1.4,
       side: 'left',
-      offset: 0.9,
-      from: VIDIKOVEC_WALL.from + 3,
-      to: VIDIKOVEC_WALL.to - 3,
-      scale: [0.45, 0.7],
+      offset: 0.5,
+      depth: 0.6,
+      from: VIDIKOVEC_WALL.from + 1,
+      to: VIDIKOVEC_WALL.to - 1,
+      scale: [0.55, 0.85],
+    },
+    {
+      asset: 'bush',
+      every: 3.5,
+      side: 'left',
+      offset: VIDIKOVEC_WALL.offset + 1.7,
+      depth: 0.8,
+      from: VIDIKOVEC_WALL.from,
+      to: VIDIKOVEC_WALL.to,
+      scale: [0.6, 0.95],
+    },
+    {
+      asset: 'thicket_shrub',
+      every: 5,
+      side: 'left',
+      offset: VIDIKOVEC_WALL.offset + 2.4,
+      depth: 1,
+      from: VIDIKOVEC_WALL.from + 2,
+      to: VIDIKOVEC_WALL.to,
+      scale: [0.7, 1],
     },
     // White / red chevrons on the outside of the hairpins.
     {
@@ -986,6 +1010,17 @@ export const vodnoMap: MapDef = {
         skipJunctions: 4,
       } satisfies BarrierRule,
     ].map((rule) => ({ ...rule, rusty: true })),
+    // A galvanised rail along the drop to the lower end of the Vidikovec lot, on from the rusted approach rail to the
+    // lot's entrance (the owner's photos).
+    {
+      kind: 'guardrail',
+      side: 'right',
+      offset: RAIL_OFFSET,
+      from: VIDIKOVEC_RAIL.to,
+      to: VIDIKOVEC_RAIL.lotRail,
+      skipJunctions: 4,
+      rusty: false,
+    } satisfies BarrierRule,
     {
       kind: 'guardrail',
       side: 'left',
