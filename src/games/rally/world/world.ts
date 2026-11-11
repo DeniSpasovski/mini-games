@@ -292,7 +292,7 @@ export class World implements GroundProvider {
               const wall = this.gen.rockCutWall(q.along, q.lateral);
               if (wall) {
                 const face = q.halfWidth + wall.offset;
-                return q.distance > face - 0.4 && q.distance < face + 1.6
+                return q.distance > face - 0.4 && q.distance < face + 2.4
                   ? 1
                   : 0;
               }

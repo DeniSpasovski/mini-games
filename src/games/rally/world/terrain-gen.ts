@@ -130,9 +130,10 @@ export interface CutShape {
 }
 /** Rise per m across of the carve behind a low retaining wall (RoadDef.rockCuts `walls`): the wall mesh stands vertical in
  * front of it (world/rock-cut-mesh.ts), the carve only has to stay behind the face. */
-const WALL_SLOPE = 2;
-/** How far a retaining wall's face (world/rock-cut-mesh.ts) stands in front of the carve's foot (m). */
-export const WALL_GAP = 0.6;
+const WALL_SLOPE = 5;
+/** How far behind a retaining wall's line the carve's foot lies (m): the wall's face (world/rock-cut-mesh.ts) stands 1.2 m in
+ * front of it, so the 1 m terrain grid's ramp up the bank stays hidden behind the stone. */
+export const WALL_GAP = 1.5;
 /** A `solid` wall (RoadDef.cutWalls) is held tighter than the parkway's, so its coping is a narrow strip. */
 export const cutShape = (solid?: boolean): CutShape =>
   solid
