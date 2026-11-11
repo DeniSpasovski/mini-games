@@ -12,7 +12,7 @@ as the backdrop. Map and stage id `vodno`.
 | ![Hairpins](screenshots/hairpins.jpg)      | ![Cross, mast and cable car](screenshots/cross-ridge.jpg)     |
 | the hairpins above the suburb, guard rails | the Millennium Cross, the mast and the cable car on the ridge |
 
-Narrow tarmac with white edge and centre lines, switchbacks and guard rails, oak and hornbeam woods with blocks of black pine plantation (from winter satellite scenes), black locust on the lower slopes;
+Narrow tarmac with white edge and centre lines, switchbacks and guard rails, oak and hornbeam woods with blocks of black pine plantation (from winter satellite scenes), black locust on the lower slopes, the woods in layers with the trees at the road leaning out over it;
 the road widens to three lanes at the first crossroad (a left-turn lane beside the straight-ahead one), with a concrete retaining wall on its right. Locust and walnut trees with bramble
 stand back from the lower road, cypresses stand in the church yards. Side streets meeting
 the stage road are closed with barriers.
@@ -25,11 +25,11 @@ Sredno Vodno one with its flag, lamps, a timber gazebo and watch towers; the Vid
 and rusted guard rails on its approach), the wooden gate past the first crossroad (two log towers, a notice board and a shelter) and two blocks
 of flats behind one street wall on the start street, and a brick-and-concrete hotel behind the side street at the first crossroad (its forecourt on the road, road
 wall, sign boards), and the gravel trail car park at the hairpin above Sredno Vodno with the hiking trail's stone posts, a shelter and
-picnic tables under tall pines, sand and crushed-stone piles closing the side road and a gazebo on the grass island of the hairpin. Rock cuts with
+picnic tables under tall pines, sand and crushed-stone piles closing the side road and a gazebo on the grass island of the hairpin; another gazebo stands on the gravel pull-off at 2.3 km, where the hiking trail leaves. Rock cuts with
 layered faces line the road where it is dug into the hill, stony fill banks and guard rails where it drops away, and the
 OpenStreetMap footpaths, benches, shelters, boards and gates near the road dot the woods. Concrete culverts with headwalls carry
-the gullies under the road: OpenStreetMap maps none here, so they are estimated from the elevation data (where its drainage
-crosses the road in a fold, `culverts.json`). Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
+two gullies under the road (1.7 and 3.3 km): OpenStreetMap maps none here, so they come from the elevation data (`culverts.json`)
+and are kept only where the owner confirmed a real culvert. Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
 slabs (extruded OpenStreetMap footprints).
 
 ```bash
@@ -54,6 +54,7 @@ npm run dev     # /games/rally/?stage=vodno&mute=1
 | Road-cut rock faces                    | [Poly Haven](https://polyhaven.com/a/cliff_side) (Cliff Side scan, toned)                                                                                                                                                                                                                                  | CC0                                                                              |
 | Service park and forest-floor props    | [Poly Haven](https://polyhaven.com/models) (service park table and chairs, generator, jerrycans, power poles: Outdoor Table Chair Set 01, Portable Generator, Metal Jerrycan Green, Modular Electricity Poles; forest floor: Tree Stump 01 / 02, Dead Tree Trunk / 02, Dry Branches Medium 01, Pine Roots) | CC0                                                                              |
 | Grass, weeds and reeds                 | [Poly Haven](https://polyhaven.com/models) (plant scans: Grass Medium 01 / 02, Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02)                                                                                                                                                                    | CC0                                                                              |
+| Tree leaf photos                       | LOLIPOP (Sketchfab account lolipop_1707): the leaf textures of its pine, oak, maple, birch, lilac and bush packs, cut into the generated trees' leaf photos                                                                                                                                                | CC BY 4.0                                                                        |
 
 The baked map files (`*.json`, `buildings.csv`, the stage card in `preview/`) are a derived database of OpenStreetMap and stay
 under the ODbL (`canopy.json` also carries the canopy height maps' CC BY 4.0 attribution). The cross, mast, pylons and all landmark models are procedural (no logos or lettering).

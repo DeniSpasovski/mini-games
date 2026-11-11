@@ -15,6 +15,7 @@ import { STATION_FLAT } from './station';
 import { fieldLinkPads, fieldLotPad, startLotPad } from './service-park';
 import { startRowPads } from './start-row';
 import { forestEdge } from '../shared/forest-edge';
+import { seedingGrass } from '../shared/seasonal-grass';
 
 /**
  * "Ajvatovci Hill" - first real-world stage: Ilinden industrial zone (by the A2 motorway)
@@ -285,6 +286,44 @@ export const ajvatovciMap: MapDef = {
       tilt: 2,
       sink: 0.2,
     },
+    // Hedgerows and tree lines on some field boundaries (the photos ref-09 / ref-11-13): broken shrub hedges with a locust,
+    // oak or walnut every 10-20 m, columnar poplar lines, lone field trees at the parcel edges. Dense in a band ~3 m wide
+    // on the boundary (so the densities are high), within view of the road.
+    ...(
+      [
+        ['thicket_shrub', 110, [0.7, 1.15], 1],
+        ['bush', 60, [0.7, 1.2], 1],
+        ['hazelnut_tree', 18, [0.7, 1.05], 1],
+        ['locust_tree', 10, [0.55, 0.95], 1],
+        ['oak_tree', 4, [0.6, 1], 1],
+        ['poplar_tree', 60, [0.8, 1.1], 2],
+      ] as const
+    ).map(([asset, density, scale, group]): ScatterRule => ({
+      asset,
+      cover: ['crop'],
+      fieldEdge: [0, group === 2 ? 1 : 1.7],
+      density,
+      minRoadDist: 4,
+      maxRoadDist: 180,
+      mask:
+        group === 2
+          ? { scale: 70, threshold: 0.42, group: 22 }
+          : { scale: 55, threshold: 0.18, group: 21 },
+      scale: [scale[0], scale[1]],
+      tilt: 3,
+      sink: 0.15,
+    })),
+    {
+      asset: 'walnut_tree',
+      cover: ['crop'],
+      fieldEdge: [0, 3],
+      density: 0.35,
+      minRoadDist: 6,
+      maxRoadDist: 250,
+      scale: [0.8, 1.2],
+      tilt: 3,
+      sink: 0.15,
+    },
     // Orchards: planted rows along the parcel's long side.
     {
       asset: 'fruit_tree',
@@ -438,6 +477,13 @@ export const ajvatovciMap: MapDef = {
       maxSlope: 0.5,
       scale: [0.7, 1.3],
     },
+    // Tall golden seeding grass on the verges and the fallow (ref-11): summer and autumn.
+    ...seedingGrass({
+      cover: [...WILD, 'orchard', 'trees', 'water'],
+      verge: 450,
+      fallow: 260,
+      fallowCover: ['grass', 'shrub', 'bare'],
+    }),
     ...seasonalGrass({
       asset: 'spring_grass',
       cover: ['crop'],

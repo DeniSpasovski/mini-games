@@ -250,6 +250,7 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-crossroad-hotel',
     'vodno-start-lot',
     'vodno-roadside-gazebo',
+    'vodno-pulloff-gazebo',
     'vodno-trail-lot',
     'vodno-osm-features',
   ];
@@ -435,6 +436,7 @@ describe('vodno car parks', () => {
       'trail_lot',
       'trail_mouth',
       'trail_start',
+      'gazebo_pulloff',
     ]);
   });
 

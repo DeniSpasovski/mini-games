@@ -134,6 +134,25 @@ export const LOT_PADS: PadDef[] = [
       lift: [PAD_LIFT - TRAIL_FALL + SLAB, -9.5],
     },
   },
+  {
+    // The gravel pull-off at ~2 300 m on the left going up (the owner's photos): a gazebo stands on it and hikers park
+    // there; flush with the road's edge, cut into the rising bank behind.
+    name: 'gazebo_pulloff',
+    polygon: [
+      1942.4, -225.2, 1935.7, -226.1, 1927.3, -229.3, 1921.2, -236.1, 1921.4,
+      -244.6, 1926.3, -252.5, 1931.8, -258.6, 1934.7, -263.1, 1936.1, -263.1,
+      1943.7, -225.8,
+    ],
+    // (7 m: a footpath crosses the road 7.5 m off its corner)
+    blend: 7,
+    frontage: [
+      1948.3, -224.3, 1945.2, -232.4, 1942.8, -240.6, 1940.9, -249, 1939.8,
+      -257.5, 1939.7, -266.1,
+    ],
+    // (rising gently away from the road, as the bank behind does: flat at the road's edge, 1.4 m up at the back)
+    ramp: { from: [1938.8, -241.5], to: [1922.9, -237.7], lift: [-0.1, 1.4] },
+    surface: 'gravel',
+  },
 ];
 
 /**

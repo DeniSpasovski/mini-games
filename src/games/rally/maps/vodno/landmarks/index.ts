@@ -632,6 +632,75 @@ export const roadsideGazeboLandmark = landmark({
     }),
 });
 
+/**
+ * The gravel pull-off at ~2 300 m (left going up; `gazebo_pulloff` pad in ../lots.ts): a small timber gazebo with a table
+ * at its back, where the hiking trail leaves (the owner's photos).
+ */
+const PULLOFF: Site = { x: 1943, z: -239.4, yaw: -1.828 };
+const PULLOFF_GAZEBO: Site = { x: 1931.1, z: -225.7, yaw: -1.912 };
+const PULLOFF_GAZEBO_APOTHEM = 1.9;
+/** Trees and bushes round the pull-off (`PULLOFF` frame: x up the road, -z away from it; asset, scale). */
+const PULLOFF_PLANTS: [number, number, string, number][] = [
+  // south of the gravel and round the gazebo, which stands at its south end where the hiking trail passes
+  [-24, -7, 'oak_tree', 0.95],
+  [-19, -12, 'hornbeam_tree', 0.9],
+  [-25, -15, 'oak_tree', 1],
+  [-21, -20, 'oak_tree', 1.05],
+  [-13, -19.5, 'hornbeam_tree', 0.85],
+  [-8, -21.5, 'oak_tree', 0.95],
+  [-4, -19.5, 'hornbeam_tree', 0.8],
+  [-15, -7, 'young_tree', 1],
+  // a wooded island at the back of the gravel, the wood behind it and a clump in the gravel further up
+  [2, -20.5, 'oak_tree', 0.9],
+  [9, -25.5, 'hornbeam_tree', 0.9],
+  [16, -23, 'oak_tree', 1],
+  [21, -17, 'hornbeam_tree', 0.85],
+  [13, -12, 'young_tree', 1],
+  // the north end, where the gravel narrows to the verge
+  [25, -9.5, 'oak_tree', 0.9],
+  [28, -6, 'hornbeam_tree', 0.85],
+  [-11, -10, 'bush', 1],
+  [-17, -5, 'bush', 1],
+  [19, -12, 'bush', 1],
+  [4, -22.5, 'bush', 1],
+  [12, -20, 'bush', 1],
+];
+export const pulloffGazeboLandmark = landmark({
+  id: 'vodno-pulloff-gazebo',
+  // the gravel (local +x = up the road, -z = away from it) and the gazebo
+  areas: [
+    { site: PULLOFF, rect: [-13, 24, -15, -3] },
+    { site: PULLOFF_GAZEBO, r: 3 },
+  ],
+  // Broadleaf trees round the gravel and close behind the gazebo, a couple at its edge by the road, bushes between (the
+  // owner's photos: the pull-off is a clearing in the wood).
+  plants: PULLOFF_PLANTS.map(([x, z, asset, scale]) => ({
+    asset,
+    site: PULLOFF,
+    x,
+    z,
+    scale,
+  })),
+  colliders: (g) => [
+    cylinderCollider(
+      PULLOFF_GAZEBO,
+      0,
+      0,
+      base(g, PULLOFF_GAZEBO),
+      PULLOFF_GAZEBO_APOTHEM * 1.05,
+      3,
+    ),
+  ],
+  build: (at) =>
+    gazebo(at(PULLOFF_GAZEBO, 'pulloff-gazebo'), 0, 0, 0, 0, {
+      apothem: PULLOFF_GAZEBO_APOTHEM,
+      roof: '#2f4a33',
+      roofKey: 'sheet',
+      open: [2],
+      tables: 1,
+    }),
+});
+
 /** The big hairpin (~2 000 m; its car park and trail start at ~1 830 m): the closed side road's gravel piles, the hikers' car park and the trail start (`trail-lot.ts`). */
 const AT_WORLD: Site = { x: 0, z: 0, yaw: 0 };
 export const trailLotLandmark = landmark({
@@ -642,9 +711,8 @@ export const trailLotLandmark = landmark({
   plants: [
     // Tall black pines (the owner's photo: ~20-25 m, straight, close together), a few oaks among them, over a low
     // hornbeam / oak understorey.
-    ...TRAIL_PINES.map(([x, z, scale, variant]) => ({
+    ...TRAIL_PINES.map(([x, z, scale]) => ({
       asset: 'tall_black_pine',
-      variant,
       site: AT_WORLD,
       x,
       z,
@@ -710,6 +778,7 @@ export const VODNO_LANDMARKS: Landmark[] = [
   hotelLandmark,
   startLotLandmark,
   roadsideGazeboLandmark,
+  pulloffGazeboLandmark,
   trailLotLandmark,
 ];
 export { VODNO_FLATS } from './sites';

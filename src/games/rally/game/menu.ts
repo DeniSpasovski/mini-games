@@ -193,6 +193,22 @@ const NPC_CARS: SourceLink[] = [
 
 const PLANTS: SourceLink[] = [
   {
+    label:
+      'Oak, maple, birch, fir, bush, lilac and pine packs (LOLIPOP, Sketchfab)',
+    url: 'https://sketchfab.com/lolipop_1707',
+    note: 'the leaf and needle sprays of the generated trees, and catalog model trees and shrubs - CC BY 4.0',
+  },
+  {
+    label: 'High Detail Elm Tree Collection (Jagobo, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/high-detail-elm-tree-collection-0fee36ee370244688c91ab430f87b039',
+    note: 'catalog elms, converted and simplified - CC BY 4.0',
+  },
+  {
+    label: 'Rigged & Animated Weeping Willows (Jagobo, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/rigged-animated-weeping-willows-c315c039042240dbbc0c2704f7cec83c',
+    note: 'catalog weeping willows, converted and simplified - CC BY 4.0',
+  },
+  {
     label: 'Realistic Wheat (Graphetta, Sketchfab)',
     url: 'https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b',
     note: 'wheat fields, green in spring - CC BY 4.0',
