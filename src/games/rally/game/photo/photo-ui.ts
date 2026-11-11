@@ -1,12 +1,18 @@
 /**
  * Photo mode UI (STYLEGUIDE.md "Photo mode"): the lens panel on the left (focal length, aperture, focus, exposure,
- * roll), the actions bottom right (Take photo, Hide, Reset view, Back), a PHOTO plate top right. The view orbits by
+ * roll, motion blur and what it keeps sharp), the actions bottom right (Take photo, Hide, Reset view, Back), a PHOTO plate top right. The view orbits by
  * drag / one finger, pans by right-drag / two fingers, zooms by wheel / pinch; keys and pad too (see `key`, `pollPad`).
  * Pictures are saved as JPEG downloads.
  */
 import './photo.css';
 import type { RallyGame } from '../rally-game';
-import { F_STOPS, FOCAL_MAX, FOCAL_MIN, type PhotoMode } from './photo-mode';
+import {
+  F_STOPS,
+  FOCAL_MAX,
+  FOCAL_MIN,
+  type PhotoMode,
+  SHUTTERS,
+} from './photo-mode';
 
 /** Focus slider range (m, log scale). */
 const FOCUS_MIN = 0.5;
@@ -57,6 +63,10 @@ export class PhotoUi {
           <input type="range" data-ref="ev" min="-2" max="2" step="0.1" aria-label="Exposure"></label>
         <label class="ph-row"><span>Roll</span><b data-ref="rollVal"></b>
           <input type="range" data-ref="roll" min="-30" max="30" step="1" aria-label="Roll"></label>
+        <label class="ph-row"><span>Motion blur</span><b data-ref="shutterVal"></b>
+          <input type="range" data-ref="shutter" min="0" max="${SHUTTERS.length - 1}" step="1" aria-label="Motion blur (shutter time)"></label>
+        <div class="ph-row ph-follow" data-ref="followRow"><span>Sharp</span>
+          <span class="ph-chips"><button class="ph-af" data-follow="car" title="The camera pans with the car: the background streaks">Car</button><button class="ph-af" data-follow="ground" title="The camera holds still: the car streaks">Background</button></span></div>
       </div>
       <div class="ph-actions" data-ref="actions">
         <button class="menu-btn small" data-a="hide">Hide</button>
@@ -132,6 +142,16 @@ export class PhotoUi {
     (r.fStop as HTMLInputElement).value = String(nearestStop(s.fStop));
     (r.ev as HTMLInputElement).value = String(s.ev);
     (r.roll as HTMLInputElement).value = String(s.roll);
+    (r.shutter as HTMLInputElement).value = String(
+      Math.max(0, SHUTTERS.indexOf(s.shutter)),
+    );
+    r.shutterVal.textContent = s.shutter
+      ? `1/${Math.round(1 / s.shutter)} s`
+      : 'Off';
+    r.followRow.classList.toggle('off', !s.shutter);
+    r.followRow
+      .querySelectorAll<HTMLElement>('[data-follow]')
+      .forEach((b) => b.classList.toggle('on', b.dataset.follow === s.follow));
     this.syncFocus();
     r.focalVal.textContent = `${Math.round(s.focal)} mm`;
     r.fStopVal.textContent = `f/${s.fStop}`;
@@ -180,6 +200,9 @@ export class PhotoUi {
       case 'roll':
         s.roll = v;
         break;
+      case 'shutter':
+        s.shutter = SHUTTERS[v];
+        break;
     }
     this.sync();
   }
@@ -188,6 +211,11 @@ export class PhotoUi {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('button');
     const p = this.photo;
     if (!btn || !p) return;
+    if (btn.dataset.follow) {
+      p.settings.follow = btn.dataset.follow as 'car' | 'ground';
+      this.sync();
+      return;
+    }
     switch (btn.dataset.a) {
       case 'af':
         p.settings.autoFocus = true;
@@ -216,7 +244,7 @@ export class PhotoUi {
     this.el.classList.toggle('clean', on);
   }
 
-  /** Take the picture: the next frame as a JPEG download. */
+  /** Take the picture: the next frame, rendered at up to 4K (`RallyGame.takePhoto`), as a JPEG download. */
   private async shoot(): Promise<void> {
     if (this.busy) return;
     this.busy = true;
@@ -234,7 +262,10 @@ export class PhotoUi {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    this.toast(`Photo saved · ${(blob.size / 1e6).toFixed(1)} MB`);
+    const { width, height } = this.game.photoSize;
+    this.toast(
+      `Photo saved · ${width} × ${height} · ${(blob.size / 1e6).toFixed(1)} MB`,
+    );
   }
 
   private toast(text: string): void {

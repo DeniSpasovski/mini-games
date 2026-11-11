@@ -64,11 +64,13 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 
 - **Camera** (`photo-mode.ts`): free orbit around the car's middle (full turn, pitch, distance 1.6-40 m, pan up to 15 m), kept above the ground; starts
   from the game's view. Lens: focal length 16-200 mm on a 35 mm full frame (= field of view), aperture f/1.4-f/22, focus (auto on the orbit point, or set),
-  exposure ±2 EV, roll ±30°.
+  exposure ±2 EV, roll ±30°, motion blur (shutter Off ... 1/8 s) keeping the **car** sharp (the camera pans with it) or the **background** (the camera holds still).
 - **Render** (`engine/post-fx.ts` `PHOTO`): thin-lens depth of field on the HDR image (circle of confusion `f² / (N (s - f)) · |z - s| / z`, 64 gather taps,
   max 2.5 % of the height; a sharp nearer pixel never bleeds into the blur behind it) and exposure, before the bloom; lens drops off. Pages without the
-  High effects make a `PostFx` for photo mode only. Full render scale while open.
-- **Take photo**: the next frame as a JPEG download (`gravel-rally-<stage>-<date>-<time>.jpg`).
+  High effects make a `PostFx` for photo mode only.
+- **Motion blur** (`RallyGame.posePhotoSample`, `PostFx.render(samples, pose)`): the scene drawn 8 times per frame (32 for the picture) across the
+  shutter, the car moved by its velocity, turned by its rotation, wheels spun by their speed (full tyre detail), averaged before the depth of field. Full render scale while open.
+- **Take photo**: the next frame rendered at up to 3840 px on the long edge (`PHOTO_LONG_EDGE`, at most 3x the screen, within the GPU's limits), as a JPEG download (`gravel-rally-<stage>-<date>-<time>.jpg`).
 
 ## Controls
 

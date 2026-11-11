@@ -112,6 +112,14 @@
   border-color: var(--ui-accent);
   color: var(--ui-on-accent);
 }
+.ph-chips {
+  grid-column: 2 / -1;
+  display: flex;
+  gap: 4px;
+}
+.ph-follow.off .ph-chips {
+  opacity: 0.45;
+}
 .ph-row:has(.ph-af) > b {
   grid-row: 1;
 }

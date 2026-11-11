@@ -11,6 +11,18 @@ import { type PhotoLens, SENSOR_MM } from '../../engine/post-fx';
 
 /** Aperture stops offered (f-number). */
 export const F_STOPS = [1.4, 2, 2.8, 4, 5.6, 8, 11, 16, 22];
+/** Shutter times offered for motion blur (s); 0 = off (a frozen instant). */
+export const SHUTTERS = [
+  0,
+  1 / 1000,
+  1 / 500,
+  1 / 250,
+  1 / 125,
+  1 / 60,
+  1 / 30,
+  1 / 15,
+  1 / 8,
+];
 /** Focal length range (mm, 35 mm full frame). */
 export const FOCAL_MIN = 16;
 export const FOCAL_MAX = 200;
@@ -31,6 +43,13 @@ export interface PhotoSettings extends PhotoLens {
   autoFocus: boolean;
   /** Camera roll (degrees, + = clockwise). */
   roll: number;
+  /** Shutter time for motion blur (s); 0 = off. */
+  shutter: number;
+  /**
+   * What stays sharp in the motion blur: 'car' = the camera pans with the car (the ground streaks), 'ground' = the
+   * camera holds still (the car streaks).
+   */
+  follow: 'car' | 'ground';
 }
 
 const _v = new Vector3();
@@ -52,6 +71,8 @@ export class PhotoMode {
     ev: 0,
     autoFocus: true,
     roll: 0,
+    shutter: 0,
+    follow: 'car',
   };
   yaw = 0;
   pitch = 0.15;

@@ -1,5 +1,6 @@
 import {
   AddEquation,
+  Color,
   CustomBlending,
   DepthTexture,
   HalfFloatType,
@@ -68,6 +69,8 @@ const SANITIZE = /* glsl */ `
   // bilinear upscale inside it.
   uniform vec2 uvScale;
   uniform vec2 uvMax;
+  // Share of this image in a motion blur sum (\`render\` with samples); 1 otherwise.
+  uniform float weight;
   varying vec2 vUv;
   // Display mode: the target holds the finished picture (sRGB, tone mapped); back to an HDR estimate by the inverse of
   // c / (1 + max(c)) (hue kept; ENCODE undoes it exactly).
@@ -85,7 +88,7 @@ const SANITIZE = /* glsl */ `
     vec2 uv = min( vUv * uvScale, uvMax );
     vec4 c = texture2D( tDiffuse, uv );
     if ( ok( c.rgb ) ) {
-      gl_FragColor = vec4( min( toHdr( c.rgb ), vec3( 2000.0 ) ), c.a );
+      gl_FragColor = vec4( min( toHdr( c.rgb ), vec3( 2000.0 ) ), c.a ) * weight;
       return;
     }
     vec2 px = 1.0 / vec2( textureSize( tDiffuse, 0 ) );
@@ -96,7 +99,7 @@ const SANITIZE = /* glsl */ `
       vec3 s = texture2D( tDiffuse, uv + o ).rgb;
       if ( ok( s ) ) { sum += s; n += 1.0; }
     }
-    gl_FragColor = vec4( n > 0.0 ? min( toHdr( sum / n ), vec3( 2000.0 ) ) : vec3( 0.0 ), 1.0 );
+    gl_FragColor = vec4( n > 0.0 ? min( toHdr( sum / n ), vec3( 2000.0 ) ) : vec3( 0.0 ), 1.0 ) * weight;
   }`;
 
 /** Display mode, last pass: the HDR estimate back to the picture (exact inverse of SANITIZE's decode). */
@@ -327,7 +330,10 @@ export class PostFx {
     decode: { value: 0 },
     uvScale: { value: new Vector2(1, 1) },
     uvMax: { value: new Vector2(1, 1) },
+    weight: { value: 1 },
   });
+  /** SANITIZE added onto the target (motion blur: the sum of the shutter's images). */
+  private readonly sanitizeAdd: ShaderMaterial;
   /** Render scale: the scene is drawn into this share of the full-size target (a viewport, no resize). */
   private scale = 1;
   /** Depth uv scale handed to the AO's shaders (`scaledDepth`). */
@@ -419,6 +425,14 @@ export class PostFx {
       t.texture.minFilter = t.texture.magFilter = LinearFilter;
       this.mips.push(t);
     }
+    this.sanitizeAdd = this.sanitize.clone();
+    this.sanitizeAdd.uniforms = this.sanitize.uniforms;
+    this.sanitizeAdd.blending = CustomBlending;
+    this.sanitizeAdd.blendEquation = AddEquation;
+    this.sanitizeAdd.blendSrc = OneFactor;
+    this.sanitizeAdd.blendDst = OneFactor;
+    this.sanitizeAdd.blendSrcAlpha = OneFactor;
+    this.sanitizeAdd.blendDstAlpha = OneFactor;
     this.up.blending = CustomBlending;
     this.up.blendEquation = AddEquation;
     this.up.blendSrc = OneFactor;
@@ -490,6 +504,7 @@ export class PostFx {
   }
 
   private readonly onResize = (): void => this.resize();
+  private readonly clearColor = new Color();
 
   private resize(): void {
     const size = this.renderer.getDrawingBufferSize(new Vector2());
@@ -524,15 +539,38 @@ export class PostFx {
     [this.a, this.b] = [this.b, this.a];
   }
 
-  render(): void {
+  /**
+   * Draw the scene and the effects to the screen. Photo mode motion blur: `samples` > 1 draws the scene that many times
+   * across the shutter (`pose(t)` moves the car / camera to t in -0.5..0.5 of it) and averages them; the depth of
+   * field then reads the last image's depth.
+   */
+  render(samples = 1, pose?: (t: number) => void): void {
     const r = this.renderer;
     const autoClear = r.autoClear;
-    r.setRenderTarget(this.scene);
-    r.render(this.world, this.camera);
-    r.autoClear = false;
-
     this.sanitize.uniforms.tDiffuse.value = this.scene.texture;
-    this.pass(this.sanitize, this.a);
+    if (samples > 1 && pose) {
+      const clear = r.getClearAlpha();
+      const color = r.getClearColor(this.clearColor);
+      r.setRenderTarget(this.a);
+      r.setClearColor(0x000000, 0);
+      r.clear();
+      r.setClearColor(color, clear);
+      this.sanitize.uniforms.weight.value = 1 / samples;
+      for (let i = 0; i < samples; i++) {
+        pose((i + 0.5) / samples - 0.5);
+        r.autoClear = autoClear;
+        r.setRenderTarget(this.scene);
+        r.render(this.world, this.camera);
+        r.autoClear = false;
+        this.pass(this.sanitizeAdd, this.a);
+      }
+      this.sanitize.uniforms.weight.value = 1;
+    } else {
+      r.setRenderTarget(this.scene);
+      r.render(this.world, this.camera);
+      r.autoClear = false;
+      this.pass(this.sanitize, this.a);
+    }
 
     if (this.opts.ao) {
       this.gtao.render(r, this.b, this.a, 0, false);
@@ -615,6 +653,7 @@ export class PostFx {
     for (const t of [this.scene, this.a, this.b, ...this.mips]) t.dispose();
     for (const m of [
       this.sanitize,
+      this.sanitizeAdd,
       this.encode,
       this.down,
       this.up,

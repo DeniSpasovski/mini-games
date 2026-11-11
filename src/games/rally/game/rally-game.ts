@@ -2,6 +2,7 @@ import {
   Color,
   type Object3D,
   PerspectiveCamera,
+  Quaternion,
   Scene,
   Vector2,
   Vector3,
@@ -230,6 +231,12 @@ const GLARE =
   new URLSearchParams(location.search).get('glare') !== '0';
 /** Road spray on hard ground (lit like the dust). */
 const SPRAY_COLOR = 0xd4d9de;
+/** Take photo renders its frame with this long edge (px; 4K UHD), at most PHOTO_MAX_UPSCALE x the screen's resolution. */
+const PHOTO_LONG_EDGE = 3840;
+const PHOTO_MAX_UPSCALE = 3;
+/** Motion blur images per frame: while framing the shot / for the picture. */
+const PHOTO_PREVIEW_SAMPLES = 8;
+const PHOTO_SAMPLES = 32;
 /** The replay keeps recording this long after the finish line (s): the car braking to a stop on the run-off. */
 const REPLAY_TAIL = 6;
 
@@ -374,6 +381,10 @@ export class RallyGame {
   private photoScale = 1;
   /** A picture asked for: taken right after the next frame's render. */
   private photoShot?: (b: Blob | null) => void;
+  /** Pixel ratio to put back after a picture's high resolution frame (0 = none pending). */
+  private photoRatio = 0;
+  /** Size of the last picture (px). */
+  photoSize = { width: 0, height: 0 };
   /** Called when a replay opens / closes (the page swaps its overlays). */
   onReplayChange?: (on: boolean) => void;
   /** Called when the finished run's replay is encoded (and saved, ranked runs). */
@@ -902,9 +913,7 @@ export class RallyGame {
   private upWait = 15000;
   private lastUp = -Infinity;
   private gpuTimer:
-    | { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number }
-    | null
-    | undefined;
+    { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null | undefined;
 
   /** Fewer pixels (the post effects and particles follow the 'resized' event). */
   private setRenderScale(scale: number): void {
@@ -1540,7 +1549,64 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     if (this.watching) this.watching.director.snap();
   }
 
-  /** The next frame as a JPEG (photo mode's Take photo). */
+  /** Photo mode motion blur: the shutter time (s) when there is motion to blur, else 0. */
+  private photoMotion(): number {
+    const s = this.photo!.settings.shutter;
+    if (s <= 0) return 0;
+    const v = this.vehicle;
+    const moving =
+      v.velocity.lengthSq() > 0.01 ||
+      v.angularVelocity.lengthSq() > 1e-4 ||
+      v.wheels.some((w) => Math.abs(w.omega) > 0.5);
+    return moving ? s : 0;
+  }
+
+  private readonly photoBase = {
+    pos: new Vector3(),
+    quat: new Quaternion(),
+    cam: new Vector3(),
+    spin: [0, 0, 0, 0],
+    saved: false,
+  };
+  private readonly photoQ = new Quaternion();
+  private readonly photoAxis = new Vector3();
+
+  /**
+   * One image of the motion blur: the car moved `dt` s along its velocity, turned by its rotation and the wheels
+   * spun; the camera pans with it when the car is to stay sharp. `null` puts everything back.
+   */
+  private posePhotoSample(dt: number | null): void {
+    const b = this.photoBase;
+    const root = this.model.root;
+    const cam = this.camera;
+    if (!b.saved) {
+      b.pos.copy(root.position);
+      b.quat.copy(root.quaternion);
+      b.cam.copy(cam.position);
+      for (let i = 0; i < 4; i++) b.spin[i] = this.model.wheelSpin[i];
+      b.saved = true;
+    }
+    const v = this.vehicle;
+    const t = dt ?? 0;
+    root.position.copy(b.pos).addScaledVector(v.velocity, t);
+    const w = v.angularVelocity.length();
+    if (w > 1e-6 && t !== 0) {
+      this.photoQ.setFromAxisAngle(
+        this.photoAxis.copy(v.angularVelocity).divideScalar(w),
+        w * t,
+      );
+      root.quaternion.copy(b.quat).premultiply(this.photoQ);
+    } else root.quaternion.copy(b.quat);
+    for (let i = 0; i < 4; i++)
+      this.model.wheelSpin[i] = b.spin[i] + v.wheels[i].omega * t;
+    this.model.syncWheels();
+    cam.position.copy(b.cam);
+    if (this.photo?.settings.follow === 'car')
+      cam.position.addScaledVector(v.velocity, t);
+    if (dt === null) b.saved = false;
+  }
+
+  /** The next frame as a JPEG, rendered at up to PHOTO_LONG_EDGE px (photo mode's Take photo). */
   takePhoto(): Promise<Blob | null> {
     return new Promise((resolve) => {
       const prev = this.photoShot;
@@ -1945,7 +2011,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       this.updateParticleScale();
     // Tyre detail (tyre-lod.ts): full tread at rest / close, smeared tread at speed, cheap tyres far from the camera.
     // In a replay the wheels turn at the playback rate: paused (photo) = full detail, slow motion = less smear.
-    const playback = replay ? (dt > 0 ? fdt / dt : 0) : 1;
+    // Photo mode: full detail (its own motion blur spins the real tread).
+    const playback = this.photo ? 0 : replay ? (dt > 0 ? fdt / dt : 0) : 1;
     this.model.setTyreLod(
       v.speed * 3.6 * playback,
       this.camera.position.distanceTo(this.renderPos),
@@ -2154,15 +2221,46 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ? 0
         : 1 - 0.7 * (this.env.def.cloudCoverage ?? 0.4),
     );
+    // Back to the screen's resolution after a picture (a resize clears the canvas, so not in the picture's frame).
+    if (this.photoRatio && !this.photoShot) {
+      this.renderer.setPixelRatio(this.photoRatio);
+      this.photoRatio = 0;
+      this.renderer.domElement.dispatchEvent(new CustomEvent('resized'));
+    }
+    // A picture: this one frame at up to PHOTO_LONG_EDGE px (the post targets follow the 'resized' event).
+    if (this.photoShot && !this.photoRatio) {
+      const r = this.renderer;
+      const c = r.domElement;
+      const gl = r.getContext();
+      const max = Math.min(
+        PHOTO_LONG_EDGE,
+        gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number,
+        gl.getParameter(gl.MAX_TEXTURE_SIZE) as number,
+      );
+      const k = Math.min(PHOTO_MAX_UPSCALE, max / Math.max(c.width, c.height));
+      if (k > 1.05) {
+        this.photoRatio = r.getPixelRatio();
+        r.setPixelRatio(this.photoRatio * k);
+        c.dispatchEvent(new CustomEvent('resized'));
+      }
+    }
     const post = this.photo ? (this.post ?? this.photoPost) : this.post;
     post?.set({ photo: this.photo ? this.photo.lens : null });
-    if (post?.active) post.render();
+    const blur = this.photo ? this.photoMotion() : 0;
+    if (post && blur > 0)
+      post.render(this.photoShot ? PHOTO_SAMPLES : PHOTO_PREVIEW_SAMPLES, (t) =>
+        this.posePhotoSample(t * blur),
+      );
+    else if (post?.active) post.render();
     else this.renderer.render(this.scene, this.camera);
+    if (blur > 0) this.posePhotoSample(null);
     if (this.photoShot) {
       // Read the canvas in the same task as its render (no preserveDrawingBuffer needed).
       const done = this.photoShot;
       this.photoShot = undefined;
-      this.renderer.domElement.toBlob(done, 'image/jpeg', 0.95);
+      const c = this.renderer.domElement;
+      this.photoSize = { width: c.width, height: c.height };
+      c.toBlob(done, 'image/jpeg', 0.95);
     }
     if (timed) gl.endQuery(this.gpuTimer!.TIME_ELAPSED_EXT);
     this.perf?.gpuEnd();
