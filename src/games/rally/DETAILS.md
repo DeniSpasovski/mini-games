@@ -381,7 +381,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Culverts** (`MapDef.culverts` = `maps/<id>/culverts.json`, baked by `scripts/realmap/culverts.py`; `world/culverts.ts`,
   `culvert-mesh.ts`): where a drainage line of the elevation data crosses the stage road, a concrete pipe with a headwall, wing walls
   and an apron at both ends, the gully carved to and from it (`TerrainGen` after `carveRoad`, never on the road or its verge: no
-  times bump), a few stones at the outlet. Sized and placed against the carved ground on first use (`gen.culverts`).
+  times bump), a few stones at the outlet. Sized and placed against the carved ground on first use (`gen.culverts`). In rain they run
+  (`world/culvert-water.ts`): one muddy ribbon through each pipe, over the apron and down the gully, one draw call, built at full flow
+  and lowered by the weather in the shader (nothing drawn when dry; a trickle stays after the rain). Looks only.
 - **Natural ground** (opt-in, `TerrainDef`): `talus` paints bare stony ground on natural slopes in its `slope` range (judged on
   the elevation data, `paintTalus`, cached on a 4 m lattice; coarse far terrain tiles paint the face only) and scree up to
   `reach` m below them, less under a closed canopy; `streamBeds` lists the

@@ -282,7 +282,7 @@ export function getMaterial(id: MaterialId): Material {
     case 'outcrop': {
       // Rock bands of steep hillsides (builders/outcrops.ts): two Poly Haven rock-face scans in their own colour and
       // normal maps side by side (engine/props/outcrop.*.webp, scripts/rocks/bake-outcrops.mjs); lit like the ground.
-      const map = imageTexture(outcropColorUrl, 2048, 1024, 'outcrop');
+      const map = imageTexture(outcropColorUrl, 1024, 512, 'outcrop');
       const normalMap = imageTexture(
         outcropNormalUrl,
         1024,

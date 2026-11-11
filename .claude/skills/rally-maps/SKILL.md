@@ -117,10 +117,18 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
 2. Bake: `python scripts/realmap/bake.py scripts/realmap/<id>.json --preview` (needs numpy, scipy, Pillow,
    opencv-python; downloads are cached in `scripts/realmap/.cache/`). It prints route length, control point
    spacing, min corner radius, self-proximity; `--preview` writes a land cover + roads PNG (north up).
+   Real-data passes, each only when the map needs it, always in this order (each reads the one before; keep the route
+   fixed, diff `data.json` after every step): `bake.py` -> `leaf_type.py` (evergreen / mixed / broadleaf woods) ->
+   `canopy.py` (`canopy.json`: tree positions and heights from the Meta / WRI canopy height map; set `canopyHeight.tile`,
+   the script header says how) -> `horizon.py` (+ `rivers.py`) -> `culverts.py`. `features.py` runs inside `bake.py` (or alone).
+   Commit the baked files with the config and list each source + licence in the map DETAILS.md + README table.
 3. Map file: `terrain.heightmap` (+ `offset` so the start is near y = 0, small noise `layers` for detail,
    `edgeRise: 0`), `landcover` (+ `splat` weights per cover, `fields` patchwork), `paths`, `road.points` from
-   `data.route` (widths per section), `geo`, `credits: data.meta.sources`.
-4. Scatter by cover class: `cover: ['pine']`; orchards `rows: { spacing, rowSpacing }` (row angle per zone);
+   `data.route` (widths per section), `geo`, `credits: data.meta.sources`, `country` (`'mk'` / `'us'`: the only flag fans wave).
+4. Trees touching the road: never thin out the forest or push whole stands back. `treeSetback` keeps solid trees off the
+   edge along one stretch; `treeCrownClear` (metres, Vodno 1.5) re-poses the few trees whose low limbs (< 4 m) overhang the road
+   (the owner rejected removing trees and moving 76: fewer than ~20 should change) - count them in the PR and look at them in game.
+   Scatter by cover class: `cover: ['pine']`; orchards `rows: { spacing, rowSpacing }` (row angle per zone);
    `minPathDist` keeps trees off other roads / canals (default 1.5 m solid, 0.4 m grass). Other roads are carved
    flat on their own smoothed height line (`PATH_PROFILE` per OSM kind in `world/terrain-gen.ts`); a new road kind
    that should be smoother / steeper gets a row there. `tests/rally/side-roads.test.ts` checks them. Water ways
@@ -135,7 +143,9 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    worked example `maps/petralica/DETAILS.md` "Valley creek". Culverts (OSM has none on country roads):
    `python scripts/realmap/culverts.py <config> --preview <png>` -> `maps/<id>/culverts.json` (drainage of the baked height grid,
    a culvert where a fold's catchment peaks on the route; thresholds in its header), `culverts` in `map.ts`; check with the map
-   viewer `drain=1` and in game - the road heights must not change (rally DETAILS "Culverts"). Lakes /
+   viewer `drain=1` and in game - the road heights must not change (rally DETAILS "Culverts"). They are an estimate from the elevation data; for now only Vodno keeps them (README says "estimated from the elevation data"). In rain they run by themselves
+   (`culvert-water.ts`): look at each inlet with `weather=rain_heavy` and dry, from the side and low (no see-through gap
+   between wing wall and ground hole, water only inside the pipe line). Lakes /
    ponds / reservoirs come from the baker (`data.lakes`): set `lakes: data.lakes` in `map.ts`. To add them to an
    already baked map without renumbering its buildings, bake to a temp `out` and copy only `lakes` into its data.json. Roadside `minRadius` keeps solid props out of hairpins.
    Junctions: side roads are joined to the stage road automatically (`world/junctions.ts`); add
@@ -284,6 +294,28 @@ Single buildings away from the stage road (example `maps/ajvatovci/hilltop/`: ch
 OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`hilltop/build/shapes.ts`: the kit's
 `Frame` with its own `origin`, walls with real openings, tiled roof planes), ground levelled with named `flatAreas`
 (pads need a stage-road frontage) - keep their blend rim off the road (`tests/rally/hilltop.test.ts`).
+
+## Detail pass and review (lessons from Vodno)
+
+After the road is proven and the world is up, add detail one topic at a time (rock cuts and fill banks, rails, forest edge and
+floor, foot paths, car parks, landmarks, culverts) and look at each against real references before the next. Vodno's detail PR
+(122 files) only landed after these were learned:
+
+- **Real data first, estimates labelled.** Tree positions / sizes from the canopy map, woods by leaf type, paths and furniture from
+  OSM, culverts from the DEM. Anything inferred (culverts, traced road parts, DEM streams) is said so in README + DETAILS.md. In-game and README text describes the place for players, never how it was built.
+- **Wording:** landmark models and car parks that we drew are "ai-generated" (never "hand-modelled" / "hand-built").
+- **Where a new part meets the road is where it fails.** Check edge, ditch, verge, rails, paint, junction mouths and, for ground
+  holes (culverts, lots), the gap between wall and terrain, from the road and from the side. Rails stand on the verge, not on the
+  slope; a lot's mouth is a graded pad with the ditch filled and the apron a few cm over the ground (Vodno `car-parks.ts` `Lot.mouth` + the `trail_mouth` pad in `lots.ts`); sand spills stop at the bank.
+- **Shared engine code in a map PR changes every map.** A tweak to wet shading, trees, tarmac wear or the ground (Vodno's did)
+  needs a look at one shot per other map, and a line in the PR. Foliage / species work belongs to its own PR: Vodno's restyled
+  species and photo-leaf code were taken out of the map PR and kept generated.
+- **Heavy hero assets need a stage-start check.** pack hero trees and photo leaves froze the Vodno stage start and were moved out of the PR; measure the first frame of the stage and the draw calls before keeping one. Every new in-game credit link needs the
+  owner's pick (see AGENTS.md); data-source links for the map itself are added automatically.
+- **Perf:** an early Vodno probe (headless, High) read 4-5.5 M triangles and 500-630 draw calls along the stage, 55-60 % of it trees
+  (thinning the roadside pines gained only 6 %). Measure with a probe before cutting anything; the owner times it on his devices.
+- **Cloud shots:** software GL is slow. Open the map viewer, wait for the LOADING text to vanish, then take the shot with a long
+  timeout; `weather=`, `tod=`, `drain=1` and `look(...)` get you to the spot. Hand the owner console lines per spot (above).
 
 ## New map checklist
 

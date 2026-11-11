@@ -125,6 +125,8 @@ export interface MapDef {
   cityStreets?: CityStreets;
   /** Barriers along the OTHER carriageways (paths of the given OSM kinds): the same wall / rail as the stage road. */
   pathBarriers?: PathBarrierRule;
+  /** Guard rails along a stretch of a side road (world/barriers.ts `sideRoadRailRuns`): one stage-road rail running on up it. */
+  sideRoadRails?: SideRoadRail[];
   /**
    * Roads that run in the divided highway's cut beside its carriageways, parallel to the stage road (OSM maps them
    * as ordinary streets: the sunken inner Union Turnpike lanes beside the Jackie). They are treated as carriageways:
@@ -1217,6 +1219,26 @@ export interface StreetDressing {
  * a Jersey wall on the median side (another carriageway / the stage road within reach), a guard rail on
  * the outer side, broken where another road joins (ramp mouths, merges) or lies under the barrier.
  */
+/**
+ * A guard rail on the road-network way nearest `from`, between the points of that way nearest `from` and `to`, on `side`
+ * of travel from `from` to `to`. It starts where it clears the stage road (whose own rails run there), or curves out of
+ * a stage-road rail end (`join`).
+ */
+export interface SideRoadRail {
+  from: [number, number];
+  to: [number, number];
+  side: 'left' | 'right';
+  /** Distance from the way's edge to the rail centre line (m). */
+  offset: number;
+  /**
+   * Curve out of the end of a stage-road rail (its `along`, `side`, `offset`) into this one, so the two read as one
+   * rail round the corner of the junction.
+   */
+  join?: { along: number; side: 'left' | 'right'; offset: number };
+  /** Weathered, rusted brown steel instead of galvanised. */
+  rusty?: boolean;
+}
+
 export interface PathBarrierRule {
   /** OSM kinds, e.g. ['motorway']. */
   kinds: string[];

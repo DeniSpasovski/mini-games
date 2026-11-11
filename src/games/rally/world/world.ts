@@ -26,6 +26,7 @@ import {
   barrierColliders,
   barrierRuns,
   pathBarrierRuns,
+  sideRoadRailRuns,
   type BarrierRun,
 } from './barriers';
 import { newPathQuery } from './real-data';
@@ -458,6 +459,10 @@ export class World implements GroundProvider {
             onLaneWall(x, z),
           (pi) => this.gen.isParkwayLane(pi),
         ),
+      );
+    if (map.sideRoadRails && this.gen.paths)
+      this.barrierRuns.push(
+        ...sideRoadRailRuns(this.gen.paths, this.road, map.sideRoadRails),
       );
     for (const c of barrierColliders(
       { road: this.road, net: this.gen.paths },

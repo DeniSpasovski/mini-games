@@ -28,7 +28,7 @@ import { GATE_PAD } from './landmarks/gate';
 import { BUILDING_PAD, HOTEL_PAD } from './landmarks/hotel';
 import { LOWER_NODE } from './landmarks/sites';
 import { BLOCK_PADS } from './landmarks/start-blocks';
-import { TRAIL_PATH } from './landmarks/trail-lot';
+import { SIDE_ROAD_BLOCK, TRAIL_PATH } from './landmarks/trail-lot';
 import {
   CROSSROAD_BANK,
   laneExtra,
@@ -269,7 +269,8 @@ export const vodnoMap: MapDef = {
     path: [6, 1.5],
     footway: [6, 1.5],
   },
-  // Culverts where the elevation data says water crosses the road (scripts/realmap/culverts.py; OSM has none here).
+  // Culverts where the elevation data says water crosses the road (scripts/realmap/culverts.py; OSM has none here),
+  // kept only where the owner confirmed one on the ground (1.7 and 3.3 km).
   culverts: culverts as CulvertsDef,
   pylons: data.pylons as [number, number][],
   powerLines: data.powerLines as number[][],
@@ -961,6 +962,18 @@ export const vodnoMap: MapDef = {
       rusty: false,
     } satisfies BarrierRule,
   ],
+  // The 2000 m hairpin's rail (ending at 1994 m) curves round into the closed side road and runs up its edge to the sand
+  // piles (ref-03).
+  sideRoadRails: [
+    {
+      from: [2151.2, -69.2],
+      to: [SIDE_ROAD_BLOCK.x, SIDE_ROAD_BLOCK.z],
+      side: 'left',
+      offset: RAIL_OFFSET,
+      join: { along: 1994, side: 'left', offset: RAIL_OFFSET },
+      rusty: true,
+    },
+  ],
   // Galvanised rails (ref-07 / ref-12) wherever the fill bank / the valley side drops more than 2 m within 3 m of the
   // verge (world/drop-rails.ts; the map's own rails above win).
   dropRails: { minDrop: 2, rusty: false, offset: RAIL_OFFSET },
@@ -977,6 +990,7 @@ export const vodnoMap: MapDef = {
     'vodno-crossroad-hotel',
     'vodno-start-lot',
     'vodno-roadside-gazebo',
+    'vodno-pulloff-gazebo',
     'vodno-trail-lot',
     // OSM's park furniture, gates and fences along the stage (data.json features), where no landmark above models them
     'vodno-osm-features',

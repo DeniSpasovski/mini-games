@@ -25,11 +25,11 @@ Sredno Vodno one with its flag, lamps, a timber gazebo and watch towers; the Vid
 and rusted guard rails on its approach), the wooden gate past the first crossroad (two log towers, a notice board and a shelter) and two blocks
 of flats behind one street wall on the start street, and a brick-and-concrete hotel behind the side street at the first crossroad (its forecourt on the road, road
 wall, sign boards), and the gravel trail car park at the hairpin above Sredno Vodno with the hiking trail's stone posts, a shelter and
-picnic tables under tall pines, sand and crushed-stone piles closing the side road and a gazebo on the grass island of the hairpin. Rock cuts with
+picnic tables under tall pines, sand and crushed-stone piles closing the side road and a gazebo on the grass island of the hairpin; another gazebo stands on the gravel pull-off at 2.3 km, where the hiking trail leaves. Rock cuts with
 layered faces line the road where it is dug into the hill, stony fill banks and guard rails where it drops away, and the
 OpenStreetMap footpaths, benches, shelters, boards and gates near the road dot the woods. Concrete culverts with headwalls carry
-the gullies under the road: OpenStreetMap maps none here, so they are estimated from the elevation data (where its drainage
-crosses the road in a fold, `culverts.json`). Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
+two gullies under the road (1.7 and 3.3 km): OpenStreetMap maps none here, so they come from the elevation data (`culverts.json`)
+and are kept only where the owner confirmed a real culvert. Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
 slabs (extruded OpenStreetMap footprints).
 
 ```bash

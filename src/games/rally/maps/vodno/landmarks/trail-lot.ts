@@ -29,14 +29,17 @@ import { smoothHeights, unitV, wallRibbon, type WallRun } from './stone-wall';
  * World metres; sizes from the owner's photos (`sources/maps/vodno/NOTES.md`).
  */
 
-/** The block node on the side road, turned along the road (local +x = up the road). */
-export const SIDE_ROAD_BLOCK: Site = { x: 2162.3, z: -38.1, yaw: -1.528 };
+/**
+ * The piles across the side road's mouth (ref-03, owner's satellite ref): 12 m in from the stage road's edge, right behind the
+ * closure barrier and in view from the road, not at the OSM block node 30 m further up. Local +x = towards the stage road.
+ */
+export const SIDE_ROAD_BLOCK: Site = { x: 2161, z: -59.1, yaw: -2.25 };
 /** The piles (ref-03, `maps/shared/piles.ts`): local x along the road, z across it, radius, height, kind. */
 const PILES = new Piles(SIDE_ROAD_BLOCK, [
   [0, -3.7, 2.9, 1.5, 'sand'],
   [0.8, -0.2, 3, 0.55, 'spread'],
   [-0.3, 3, 2.5, 1.3, 'sand'],
-  [2.4, 5.6, 2.3, 0.45, 'spread'],
+  [2.2, 4.3, 1.9, 0.4, 'spread'],
   [3.7, -1.5, 1.9, 0.9, 'stone'],
   [-2.2, 0.9, 1.5, 0.6, 'stone'],
 ]);
@@ -315,7 +318,9 @@ export const TRAIL_LOT_AREAS: Area[] = [
   { site: TRAIL_START, rect: [-2, 9, -2, 2] },
   { site: ISLAND_GAZEBO, r: ISLAND_GAZEBO_APOTHEM + 1 },
   ...ISLAND_TABLES.map(([x, z]) => ({ site: { x, z, yaw: 0 }, r: 2.2 })),
-  { site: SIDE_ROAD_BLOCK, rect: [-4.5, 8, -7.5, 8.5] },
+  { site: SIDE_ROAD_BLOCK, rect: [-4.5, 6.5, -7.5, 8.5] },
+  // the OSM block node these piles stand for: no second barrier there
+  { site: { x: 2162.3, z: -38.1, yaw: 0 }, r: 2 },
   { site: TRAIL_START, r: 2.5 },
   { site: TRAIL_SHELTER, r: TRAIL_SHELTER_APOTHEM + 0.8 },
   ...TRAIL_TABLES.map(([x, z]) => ({ site: { x, z, yaw: 0 }, r: 2.2 })),
