@@ -644,7 +644,8 @@ export function dustyTyre(
     : [base as MeshStandardMaterial, null];
   const clean = rubberColor();
   const roughness = rubberBase.roughness;
-  const white = new Color(1, 1, 1);
+  // The print's own (dim) colour; dust lerps it toward the dust.
+  const print = letterBase ? letterBase.color.clone() : new Color(1, 1, 1);
   const target = new Color();
   const dustTarget = (color: Color) =>
     baked
@@ -703,7 +704,7 @@ export function dustyTyre(
         r.color.copy(clean).lerp(target, level);
         r.roughness = roughness + (1 - roughness) * level;
       }
-      letters.color.copy(white).lerp(color, level * 0.6);
+      letters.color.copy(print).lerp(color, level * 0.6);
     },
     dispose() {
       for (const r of rubbers) r.dispose();

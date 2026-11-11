@@ -21,6 +21,8 @@ import wordmarkUrl from '../../wordmark.svg';
 const W = 3200;
 const H = 80;
 const FONT = 'TyreSidewall';
+/** Print brightness (multiplies the strip): the lettering reads, but only just, like old paint on a dusty tyre. */
+const PRINT_DIM = 0x7a7a7a;
 const LOGO_ASPECT = 5237 / 1020; // wordmark.svg viewBox
 
 let logo: HTMLImageElement | null = null;
@@ -159,8 +161,11 @@ export function sidewallMaterial(c: TyreId): MeshStandardMaterial {
   let m = materials.get(c);
   if (m) return m;
   m = new MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.7,
+    // Faded print on black rubber: dark multiplier on the strip, fully rough and no sky reflection, so it never shines.
+    color: PRINT_DIM,
+    roughness: 1,
+    metalness: 0,
+    envMapIntensity: 0,
     transparent: true,
     depthWrite: false,
     polygonOffset: true,
