@@ -846,13 +846,11 @@ export const vodnoMap: MapDef = {
     }),
   ],
   roadside: [
-    // The Vidikovec wall (the owner's photos): a near-continuous row of rounded bushes in the grass strip in front of
-    // it, and a fringe of bushes and shrubs along its top, under the trees of the bank.
+    // The Vidikovec wall (the owner's photos): a few rounded bushes in the grass strip in front of it, and a thick fringe
+    // of bushes and shrubs along its top, under the trees of the bank.
     {
       asset: 'bush',
-      every: 3,
-      count: 2,
-      spread: 1.4,
+      every: 7,
       side: 'left',
       offset: 0.5,
       depth: 0.6,
@@ -862,17 +860,19 @@ export const vodnoMap: MapDef = {
     },
     {
       asset: 'bush',
-      every: 3.5,
+      every: 1.6,
+      count: 2,
+      spread: 1.2,
       side: 'left',
       offset: VIDIKOVEC_WALL.offset + 1.7,
-      depth: 0.8,
+      depth: 1.2,
       from: VIDIKOVEC_WALL.from,
       to: VIDIKOVEC_WALL.to,
       scale: [0.6, 0.95],
     },
     {
       asset: 'thicket_shrub',
-      every: 5,
+      every: 2.5,
       side: 'left',
       offset: VIDIKOVEC_WALL.offset + 2.4,
       depth: 1,
