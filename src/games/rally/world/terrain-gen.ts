@@ -128,6 +128,11 @@ export interface CutShape {
   margin: number;
   over: number;
 }
+/** Rise per m across of the carve behind a low retaining wall (RoadDef.rockCuts `walls`): the wall mesh stands vertical in
+ * front of it (world/rock-cut-mesh.ts), the carve only has to stay behind the face. */
+const WALL_SLOPE = 2;
+/** How far a retaining wall's face (world/rock-cut-mesh.ts) stands in front of the carve's foot (m). */
+export const WALL_GAP = 0.6;
 /** A `solid` wall (RoadDef.cutWalls) is held tighter than the parkway's, so its coping is a narrow strip. */
 export const cutShape = (solid?: boolean): CutShape =>
   solid
@@ -2243,16 +2248,46 @@ export class TerrainGenerator {
    * 0..1: how much of a rock cut (RoadDef.rockCuts) the stage road's bank is at (x, z), the land `rise` m above the
    * road `along` m along it (0 = the gentle embankment). Mouths of other roads keep the bank; foot ways do not.
    */
-  rockCutWeightAt(x: number, z: number, rise: number, along: number): number {
+  rockCutWeightAt(
+    x: number,
+    z: number,
+    rise: number,
+    along: number,
+    side = 0,
+  ): number {
     const rc = this.map.road.rockCuts;
     if (!rc || !(rise > rc.minRise)) return 0;
-    if (rc.exclude?.some(([a, b]) => along > a && along < b)) return 0;
+    if (
+      !this.rockCutWall(along, side) &&
+      rc.exclude?.some(([a, b]) => along > a && along < b)
+    )
+      return 0;
     let w = smoothstep(rc.minRise, rc.minRise + 1.5, rise);
     if (this.paths) {
       const pq = this.paths.query(x, z, this.pq, undefined, this.roadOnGround);
       if (pq.found) w *= smoothstep(3, 14, pq.distance - pq.halfWidth);
     }
     return w;
+  }
+
+  /** The low retaining wall (RoadDef.rockCuts `walls`) holding the cut `along` m along the road on `side` (+1 left), if any. */
+  rockCutWall(along: number, side: number) {
+    return this.map.road.rockCuts?.walls?.find(
+      (w) => w.side === Math.sign(side) && along >= w.from && along <= w.to,
+    );
+  }
+
+  /**
+   * Lateral offset (m from the centreline) where the rock cut's carve leaves the road level, `along` m along on `side`: the
+   * verge + `foot`, or for a retaining wall its `offset` + the gap the wall mesh stands in front of the carve
+   * (world/rock-cut-mesh.ts `WALL_GAP`).
+   */
+  rockCutFoot(hw: number, along: number, side: number): number {
+    const r = this.map.road;
+    const wall = this.rockCutWall(along, side);
+    return wall
+      ? hw + wall.offset + WALL_GAP
+      : hw + r.shoulder + r.rockCuts!.foot;
   }
 
   /**
@@ -2396,13 +2431,15 @@ export class TerrainGenerator {
     }
     // A rock cut: the land rises steeply from its foot (world/rock-cut-mesh.ts lays the face on it).
     const rise = base - q.height;
-    const rw = this.rockCutWeightAt(x, z, rise, q.along);
+    const rw = this.rockCutWeightAt(x, z, rise, q.along, q.lateral);
     if (rw > 0) {
       const rc = r.rockCuts!;
-      const foot = hw + r.shoulder + rc.foot;
+      const foot = this.rockCutFoot(hw, q.along, q.lateral);
+      // A low retaining wall (`walls`): a near-vertical face of its height, the rest a grassed bank above.
+      const wall = this.rockCutWall(q.along, q.lateral);
       // The face up to `maxFace`, the rest of a deeper cut laid back as an earth bank above it.
-      const face = Math.min(rise, rc.maxFace);
-      const top = foot + face / rc.slope;
+      const face = Math.min(rise, wall ? wall.height : rc.maxFace);
+      const top = foot + face / (wall ? WALL_SLOPE : rc.slope);
       const cut =
         q.height +
         face * smoothstep(foot, top, d) +
@@ -2754,8 +2791,16 @@ export class TerrainGenerator {
     if (edge < sh || edge > sh + rc.foot + 2.5) return;
     const q = this.road.query(x, z, this.sq);
     if (!q.found) return;
+    // (a retaining wall's foot is the grass verge)
+    if (this.rockCutWall(q.along, q.lateral)) return;
     const w =
-      this.rockCutWeightAt(x, z, this.naturalHeight(x, z) - q.height, q.along) *
+      this.rockCutWeightAt(
+        x,
+        z,
+        this.naturalHeight(x, z) - q.height,
+        q.along,
+        q.lateral,
+      ) *
       smoothstep(sh, sh + 0.8, edge) *
       (1 - smoothstep(sh + rc.foot + 0.5, sh + rc.foot + 2.5, edge));
     if (w <= 0) return;

@@ -42,7 +42,7 @@ import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
 import { SKYLINE } from './skyline';
 import { START_SIDEWALKS, startBuildings, startStreets } from './start-area';
 import { START_LOT_PAD } from './landmarks/start-lot';
-import { FINISH, START } from './stages';
+import { FINISH, ROAD_LENGTH, START } from './stages';
 
 /**
  * "Vodno Hillclimb" - Mount Vodno above Skopje (North Macedonia): the 4 km hillclimb from the Vodno neighbourhood up the
@@ -60,10 +60,21 @@ import { FINISH, START } from './stages';
 const BASE_HEIGHT = 349;
 
 /**
- * The approach to the Vidikovec car park (m along the road): a guard rail on the drop at its right up to the lot's
- * wall.
+ * The approach to the Vidikovec car park (m along the road): a rusted guard rail on the drop at its right up to the
+ * lot's wall (`to`), then a galvanised one along the wall to the lot's entrance (`lotRail`).
  */
-const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
+const VIDIKOVEC_RAIL = { from: 2600, to: 2796, lotRail: 2838 };
+/** The dark stone retaining wall on the uphill side opposite the upper half of the Vidikovec lot (`road.rockCuts.walls`):
+ * ~1.8 m high, 2 m back from the road edge behind a grass strip with small bushes (the owner's photos). */
+const VIDIKOVEC_WALL = {
+  from: 2860,
+  to: 2928,
+  side: 1,
+  height: 1.8,
+  offset: 2,
+} as const;
+/** The one real rock cut of the road: the big hairpin blasted through a spur (m along, `road.rockCuts`). */
+const ROCK_CUT: [number, number] = [1985, 2125];
 /** Guard rails stand on the 0.6 m verge (`road.shoulder`), not past it on the falling slope (posts hanging in the air). */
 const RAIL_OFFSET = 0.4;
 
@@ -311,8 +322,21 @@ export const vodnoMap: MapDef = {
       range: WALL_RANGE,
       solid: true,
     },
-    // The hill road is blasted into the slope: layered shale faces wherever the land stands 3 m above the road.
-    rockCuts: { minRise: 3, slope: 1.3, foot: 1.2, maxFace: 7 },
+    // Layered shale faces where the land stands 3 m above the road - only at the big hairpin (the owner's photos). Elsewhere
+    // the ~30 m elevation data (a surface model: tree tops) lies metres above the road where the real banks are low and
+    // green: no faked cliffs there. At Vidikovec the uphill bank is held by a low dark stone wall along the upper half of
+    // the lot.
+    rockCuts: {
+      minRise: 3,
+      slope: 1.3,
+      foot: 1.2,
+      maxFace: 7,
+      exclude: [
+        [0, ROCK_CUT[0]],
+        [ROCK_CUT[1], ROAD_LENGTH],
+      ],
+      walls: [VIDIKOVEC_WALL],
+    },
     // ... and its spoil tipped over the valley side: a straight bank of rock and earth from the verge's rim.
     fills: { minDrop: 1.5, slope: 0.8 },
     // The big hairpin (2 000 m): the road is blasted through a spur the 30 m elevation data smooths to ~2 m - a 6-8 m
@@ -822,6 +846,40 @@ export const vodnoMap: MapDef = {
     }),
   ],
   roadside: [
+    // The Vidikovec wall (the owner's photos): a few rounded bushes in the grass strip in front of it, and a thick fringe
+    // of bushes and shrubs along its top, under the trees of the bank.
+    {
+      asset: 'bush',
+      every: 7,
+      side: 'left',
+      offset: 0.5,
+      depth: 0.6,
+      from: VIDIKOVEC_WALL.from + 1,
+      to: VIDIKOVEC_WALL.to - 1,
+      scale: [0.55, 0.85],
+    },
+    {
+      asset: 'bush',
+      every: 1.6,
+      count: 2,
+      spread: 1.2,
+      side: 'left',
+      offset: VIDIKOVEC_WALL.offset + 1.7,
+      depth: 1.2,
+      from: VIDIKOVEC_WALL.from,
+      to: VIDIKOVEC_WALL.to,
+      scale: [0.6, 0.95],
+    },
+    {
+      asset: 'thicket_shrub',
+      every: 2.5,
+      side: 'left',
+      offset: VIDIKOVEC_WALL.offset + 2.4,
+      depth: 1,
+      from: VIDIKOVEC_WALL.from + 2,
+      to: VIDIKOVEC_WALL.to,
+      scale: [0.7, 1],
+    },
     // White / red chevrons on the outside of the hairpins.
     {
       asset: 'chevron_sign',
@@ -952,6 +1010,17 @@ export const vodnoMap: MapDef = {
         skipJunctions: 4,
       } satisfies BarrierRule,
     ].map((rule) => ({ ...rule, rusty: true })),
+    // A galvanised rail along the drop to the lower end of the Vidikovec lot, on from the rusted approach rail to the
+    // lot's entrance (the owner's photos).
+    {
+      kind: 'guardrail',
+      side: 'right',
+      offset: RAIL_OFFSET,
+      from: VIDIKOVEC_RAIL.to,
+      to: VIDIKOVEC_RAIL.lotRail,
+      skipJunctions: 4,
+      rusty: false,
+    } satisfies BarrierRule,
     {
       kind: 'guardrail',
       side: 'left',
