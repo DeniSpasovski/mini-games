@@ -1073,6 +1073,8 @@ export interface ScatterRule {
   fieldEdge?: [number, number];
   /** Keep away from `paths` (other roads / canals) edges (m). Default 1.5 for solid assets, 0.4 otherwise. */
   minPathDist?: number;
+  /** May stand in the water of canals / drains (reeds, cattails); roads and paths still keep it off. */
+  inChannel?: boolean;
   /** Only this far from the EDGE of a canal / drain / river [min, max] (m, max <= 10): willows, reeds. */
   channelDist?: [number, number];
   /**
@@ -1389,6 +1391,11 @@ export interface EnvironmentDef {
    * grass and young crops in spring, dry olive and stubble in autumn. `mapInSeason` (maps/shared/season-map.ts) puts
    * the season's tint into `groundTint`, so every consumer reads one field.
    */
+  /**
+   * Murky channel water (0 = the clear default, 1 = silty olive-brown, opaque): slow, weedy canals and drains
+   * (world/water-mesh.ts). Lakes and culverts keep their own look.
+   */
+  waterMurk?: number;
   groundTints?: Partial<Record<Season, GroundTint>>;
   /**
    * Colour grade after tone mapping (engine/grade.ts); missing = none (the plain tone-mapped image). Off at night and

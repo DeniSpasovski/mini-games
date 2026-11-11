@@ -153,11 +153,11 @@ function tallCards(
 /**
  * Reeds (canal and drain banks): cards of the reeds sheet, baked from CC BY reed and cattail models; the last variant
  * is a cattail stand. `green` = the summer stand, `dry` = straw (autumn, and last year's stems standing in spring),
- * `young` = the new green shoots of spring (0.4 - 1 m).
+ * `young` = the new green shoots of spring (0.8 - 1.4 m, the water hides their foot).
  */
 function reedStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
   const height: [number, number] =
-    look === 'young' ? [0.5, 1.0] : look === 'dry' ? [1.8, 2.5] : [1.7, 2.3];
+    look === 'young' ? [0.8, 1.4] : look === 'dry' ? [1.8, 2.5] : [1.7, 2.3];
   const material: MaterialId =
     look === 'dry' ? 'foliage_card_reeds_dry' : 'foliage_card_reeds';
   return ({ seed, variant }) => {
@@ -186,6 +186,41 @@ function reedStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
 export const reeds = reedStand('green');
 export const reedsDry = reedStand('dry');
 export const reedsYoung = reedStand('young');
+
+/**
+ * Cattail stands (Typha): the cells of the cattail clumps (green blades, brown spikes), standing in the water of canals
+ * and drains. `dry` = the same clumps gone to straw (autumn); `young` = the spring shoots (the spikes of the year
+ * before stand among them, so the cells are the same, drawn lower).
+ */
+function cattailStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
+  const height: [number, number] = look === 'young' ? [0.7, 1.2] : [1.3, 1.9];
+  return ({ seed }) => {
+    const rng = new Rng(seed);
+    const h = rng.range(...height);
+    return {
+      parts: [
+        {
+          geometry: plantCards(
+            rng,
+            'reeds',
+            CELLS.cattails,
+            h * 0.5,
+            h,
+            3,
+            0.6,
+          ),
+          material: getMaterial(
+            look === 'dry' ? 'foliage_card_reeds_dry' : 'foliage_card_reeds',
+          ),
+        },
+      ],
+    };
+  };
+}
+
+export const cattails = cattailStand('green');
+export const cattailsDry = cattailStand('dry');
+export const cattailsYoung = cattailStand('young');
 
 /**
  * Thistles of the canal banks (cells 0.8 x 1.6 m, a clump of two or three plants each): the straw stand with pale heads

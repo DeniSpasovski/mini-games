@@ -7,10 +7,13 @@ import {
   MeshStandardMaterial,
   ShapeUtils,
   Vector2,
+  Vector3,
   type Scene,
 } from 'three';
 import { getTexture } from '../engine/textures';
 import { addWorldUniforms } from '../engine/world-shading';
+import { mapSeason } from '../maps/shared/climate';
+import type { Season } from '../season';
 import type { World } from './world';
 
 /**
@@ -39,6 +42,16 @@ const LAKE_DEPTH = 3;
 const CLEAR = 0.9;
 
 const materials = new Map<string, MeshStandardMaterial>();
+/**
+ * Colour (linear) of murky channel water by season: brown silt in spring, algae- and duckweed-green in the warm
+ * summer, grey-brown in autumn. Set per world (`waterMeshJob`).
+ */
+const MURK_TINT: Record<Season, [number, number, number]> = {
+  spring: [0.11, 0.09, 0.05],
+  summer: [0.065, 0.085, 0.03],
+  autumn: [0.1, 0.09, 0.06],
+};
+const murkTint = { value: new Vector3(...MURK_TINT.summer) };
 const time = { value: 0 };
 /** How much the culverts run, 0..1 (world/culvert-water.ts sets it): their water sinks to nothing and is not drawn at 0. */
 export const culvertFlow = { value: 0 };
@@ -51,28 +64,43 @@ export const culvertFlow = { value: 0 };
 export function getWaterMaterial(
   flow = false,
   culvert = false,
+  murky = false,
 ): MeshStandardMaterial {
-  const key = culvert ? 'culvert' : flow ? 'flow' : 'still';
+  const key = culvert
+    ? 'culvert'
+    : flow
+      ? murky
+        ? 'flow-murky'
+        : 'flow'
+      : 'still';
   let material = materials.get(key);
   if (!material) {
     const normalMap = getTexture('water_normal').clone();
     normalMap.needsUpdate = true;
     material = new MeshStandardMaterial({
       color: new Color(culvert ? 0x5a4630 : 0x26382c),
-      roughness: culvert ? 0.25 : 0.14,
+      roughness: culvert ? 0.25 : murky ? 0.3 : 0.14,
       metalness: 0,
       normalMap,
-      envMapIntensity: culvert ? 0.12 : flow ? 0.2 : 0.4,
+      envMapIntensity: culvert ? 0.12 : murky ? 0.1 : flow ? 0.2 : 0.4,
       transparent: true,
     });
     material.normalScale.set(culvert ? 0.45 : 0.18, culvert ? 0.45 : 0.18);
-    material.name = culvert ? 'water_culvert' : flow ? 'water_flow' : 'water';
+    material.name = culvert
+      ? 'water_culvert'
+      : flow
+        ? murky
+          ? 'water_flow_murky'
+          : 'water_flow'
+        : 'water';
     if (flow) material.defines = { WATER_FLOW: 1 };
+    if (murky) Object.assign((material.defines ??= {}), { WATER_MURKY: 1 });
     if (culvert) Object.assign((material.defines ??= {}), { CULVERT: 1 });
     material.onBeforeCompile = (sh) => {
       addWorldUniforms(sh);
       sh.uniforms.uWaterTime = time;
       sh.uniforms.uCulvertFlow = culvertFlow;
+      sh.uniforms.uMurkTint = murkTint;
       sh.vertexShader = sh.vertexShader
         .replace(
           '#include <common>',
@@ -119,6 +147,7 @@ export function getWaterMaterial(
           varying float vDepth;
           varying vec3 vWp;
           uniform float uWaterTime;
+          uniform vec3 uMurkTint;
           #ifdef CULVERT
           varying float vTurb;
           uniform float uCulvertFlow;
@@ -132,6 +161,12 @@ export function getWaterMaterial(
           vec3 wsBed = vec3( 0.30, 0.29, 0.23 );
           diffuseColor.rgb = mix( wsBed, diffuseColor.rgb * 0.8, dk );
           diffuseColor.a = smoothstep( 0.0, 0.12, vDepth ) * mix( 0.35, 1.0, dk );
+          #ifdef WATER_MURKY
+          // Silt and algae: an opaque olive-brown that hides the bed and the stems below the surface.
+          vec3 wsMurk = mix( uMurkTint * 1.25, uMurkTint * 0.7, dk );
+          diffuseColor.rgb = mix( diffuseColor.rgb, wsMurk, 0.92 );
+          diffuseColor.a = smoothstep( 0.0, 0.1, vDepth ) * mix( 0.9, 1.0, dk );
+          #endif
           #ifdef CULVERT
           // Storm run-off: opaque brown-grey silt water, lighter where it is thin and where it churns.
           diffuseColor.rgb = mix( vec3( 0.26, 0.2, 0.13 ), diffuseColor.rgb, smoothstep( 0.0, 0.3, vDepth ) );
@@ -146,6 +181,9 @@ export function getWaterMaterial(
             float wsFoam = ( 0.3 + 0.7 * vTurb ) * smoothstep( 0.52, 0.78, wsFn ) * smoothstep( 0.0, 0.05, vDepth ) * 0.8 + ( 1.0 - smoothstep( 0.0, 0.035, vDepth ) ) * smoothstep( 0.0, 0.01, vDepth ) * smoothstep( 0.3, 0.6, wsFn ) * 0.5;
             #else
             float wsFoam = ( 1.0 - smoothstep( 0.03, 0.3, vDepth ) ) * smoothstep( 0.35, 0.7, wsFn ) + ( 1.0 - smoothstep( 0.2, 0.9, vDepth ) ) * smoothstep( 0.78, 0.9, wsFn ) * 0.5;
+            #endif
+            #ifdef WATER_MURKY
+            wsFoam *= 0.4;
             #endif
             diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.78, 0.8, 0.78 ), wsFoam * 0.85 );
             diffuseColor.a = max( diffuseColor.a, wsFoam * 0.9 );
@@ -176,7 +214,13 @@ export function getWaterMaterial(
         );
     };
     material.customProgramCacheKey = () =>
-      culvert ? 'water-culvert-1' : flow ? 'water-flow-2' : 'water-2';
+      culvert
+        ? 'water-culvert-1'
+        : flow
+          ? murky
+            ? 'water-flow-murky-1'
+            : 'water-flow-2'
+          : 'water-2';
     materials.set(key, material);
   }
   return material;
@@ -201,6 +245,8 @@ export function* waterMeshJob(
   const gen = world.gen;
   const net = gen.channels;
   const lakes = gen.lakes;
+  const murky = (world.map.environment.waterMurk ?? 0) > 0;
+  murkTint.value.set(...MURK_TINT[mapSeason(world.map.environment)]);
   if (!net && !lakes) return undefined;
   type Tile = { pos: number[]; uv: number[]; depth: number[]; idx: number[] };
   // Channels (flowing) and lakes (still) per tile.
@@ -285,7 +331,11 @@ export function* waterMeshJob(
   const group = new Group();
   group.name = 'water';
   for (const [key, t] of tiles) {
-    const mat = getWaterMaterial(key.endsWith(',1'));
+    const mat = getWaterMaterial(
+      key.endsWith(',1'),
+      false,
+      key.endsWith(',1') && murky,
+    );
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(new Float32Array(t.pos), 3));
     g.setAttribute('uv', new BufferAttribute(new Float32Array(t.uv), 2));

@@ -791,7 +791,8 @@ export class ScatterField {
         )
           continue;
         if (rule.maxRoadDist !== undefined && rd > rule.maxRoadDist) continue;
-        if (minPath > -Infinity && this.nearPath(x, z, minPath)) continue;
+        if (minPath > -Infinity && this.nearPath(x, z, minPath, rule.inChannel))
+          continue;
         // Toward the stage road from here (unit, xz): trees lean that way, and their crowns must not hang over a cut.
         let towardX = 0;
         let towardZ = 0;
@@ -852,7 +853,7 @@ export class ScatterField {
               return (
                 (!pq.found ||
                   pq.distance - pq.halfWidth >= (rule.minRoadDist ?? 0)) &&
-                !this.nearPath(px, pz, minPath)
+                !this.nearPath(px, pz, minPath, rule.inChannel)
               );
             },
             out,
@@ -1015,14 +1016,23 @@ export class ScatterField {
   }
 
   private lq = newLakeQuery();
-  private nearPath(x: number, z: number, minDist: number): boolean {
+  private nearPath(
+    x: number,
+    z: number,
+    minDist: number,
+    inChannel = false,
+  ): boolean {
     // Lakes: nothing grows in the water (grass stops at the shore).
     if (
       this.ctx.lakes?.query(x, z, this.lq) &&
       this.lq.sd < Math.max(minDist, 0.5)
     )
       return true;
-    for (const net of [this.ctx.paths, this.ctx.channels]) {
+    // `inChannel`: reeds and cattails stand in the water of canals and drains (roads and paths still keep them off).
+    for (const net of [
+      this.ctx.paths,
+      inChannel ? undefined : this.ctx.channels,
+    ]) {
       if (!net) continue;
       const pq = net.query(x, z, this.pq);
       if (pq.found && pq.distance - pq.halfWidth < minDist) return true;

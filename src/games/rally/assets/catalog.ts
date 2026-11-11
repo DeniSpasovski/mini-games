@@ -183,6 +183,36 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 140, castShadow: false }],
   },
   {
+    id: 'cattails',
+    name: 'Cattails',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Cattail (Typha) stands for the water of canals and drains: green blades with brown spikes, cards of the reed sheet (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'cattails_dry',
+    name: 'Cattails (dry)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The cattail stands gone to straw (autumn): the cattail cards recoloured (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'cattails_young',
+    name: 'Cattails (young)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'New cattail shoots of spring (0.7-1.2 m) among the spikes of the year before: the cattail cards drawn short (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
     id: 'reeds_dry',
     name: 'Reeds (dry)',
     category: 'vegetation',
@@ -198,7 +228,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     category: 'vegetation',
     fade: true,
     description:
-      'New reed shoots of spring (0.4-1 m): the reed cards drawn short (no collision, detail layer only).',
+      'New reed shoots of spring (0.8-1.4 m): the reed cards drawn short (no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 140, castShadow: false }],
   },

@@ -70,9 +70,11 @@ const seasonalGrass = (r: ScatterRule): ScatterRule[] => [
  */
 const canalGrowth = (): ScatterRule[] => {
   const bed = {
-    channelDist: [-4, 5] as [number, number],
+    channelDist: [-6, 5] as [number, number],
     detail: true,
     minRoadDist: 1.5,
+    // Reeds grow out of the water too (the stems stand in the channel, as in the photos).
+    inChannel: true,
     minPathDist: 0.3,
     scale: [0.8, 1.3] as [number, number],
   };
@@ -103,12 +105,19 @@ const canalGrowth = (): ScatterRule[] => {
     // Summer: green reeds and cattails, tall straw thistles.
     { ...bed, asset: 'reeds', density: 1000, season: ['summer'] },
     { ...bank, asset: 'thistle', density: 170, season: ['summer'] },
+    // Cattails (Typha) stand in the water in every season: green with brown spikes in summer, new shoots among the
+    // spikes of the year before in spring, straw in autumn.
+    { ...bed, asset: 'cattails', density: 420, season: ['summer'] },
+    { ...bed, asset: 'cattails_young', density: 380, season: ['spring'] },
+    { ...bed, asset: 'cattails_dry', density: 380, season: ['autumn'] },
+    // Nettles (Urtica) and other tall weeds of the nutrient-rich banks, every season (green / dried cards).
+    { ...slope, asset: 'tall_weeds', density: 60 },
     // Autumn: straw reeds, grey-brown dead thistles.
     { ...bed, asset: 'reeds_dry', density: 900, season: ['autumn'] },
     { ...bank, asset: 'thistle_dead', density: 140, season: ['autumn'] },
     // Spring: last year's stems standing (thinner) with the new shoots, young thistles.
-    { ...bed, asset: 'reeds_dry', density: 380, season: ['spring'] },
-    { ...bed, asset: 'reeds_young', density: 650, season: ['spring'] },
+    { ...bed, asset: 'reeds_dry', density: 170, season: ['spring'] },
+    { ...bed, asset: 'reeds_young', density: 900, season: ['spring'] },
     { ...bank, asset: 'thistle_young', density: 150, season: ['spring'] },
     { ...bank, asset: 'thistle_dead', density: 16, season: ['spring'] },
     // The banks themselves: grass over the bare slope (fresh in spring, straw in summer, both in autumn).
