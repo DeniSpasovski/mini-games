@@ -9,6 +9,7 @@ import {
   ORIGIN,
   ROAD,
   roadLine,
+  roadZ,
   SIDEWALK_BACK,
   SOUTH_FENCE,
   STREET_X,
@@ -20,6 +21,7 @@ import { yardTop } from './yard-surfaces';
 import { buildStartRow } from './build';
 import { startRowInstances } from './plantings';
 import {
+  APRON_BACK,
   apronLine,
   CURBS_FROM,
   fenceRuns,
@@ -205,6 +207,18 @@ const areas = () => {
     ...getYards().map((y) => y.polygon.map((p): Corner => [p.x, p.y])),
     ...footprints().map((f) => f.corners),
     ...replacedOutlines(),
+    // The driveway aprons (build/street.ts): paving, no grass through it.
+    ...(['north', 'south'] as const).flatMap((side) =>
+      gates()[side].map(([x0, x1]): Corner[] => {
+        const front = side === 'north' ? ROAD.half : -ROAD.half;
+        return [
+          [x0, roadZ(x0, front)],
+          [x1, roadZ(x1, front)],
+          [x1, roadZ(x1, APRON_BACK[side])],
+          [x0, roadZ(x0, APRON_BACK[side])],
+        ];
+      }),
+    ),
   ];
   const polygons = outlines.map((c) => {
     const pts = flat(c);
