@@ -199,7 +199,9 @@ function surfaceFadeMesh(world: World, line: Float32Array): Mesh | null {
         const z = s.z - s.tx * lat;
         const deck = onBridge ? world.gen.deckHeightAt(x, z) : NaN;
         pos.push(x, (Number.isNaN(deck) ? hf.height(x, z) : deck) + 0.025, z);
-        hf.normal(x, z, nTmp);
+        // (on a deck the ground below is the channel / street under it: its slopes are not the road's)
+        if (Number.isNaN(deck)) hf.normal(x, z, nTmp);
+        else nTmp.set(0, 1, 0);
         nor.push(nTmp.x, nTmp.y, nTmp.z);
         uv.push(1 - (a + 1.04) / 2.08, d / texLength('road'));
         grX.push(lat - ln, s.halfWidth - Math.abs(lat), ln);
@@ -731,7 +733,9 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
           : NaN;
         pos[v * 3 + 1] = (Number.isNaN(deck) ? hf.height(x, z) : deck) + 0.02;
         pos[v * 3 + 2] = z;
-        hf.normal(x, z, nTmp);
+        // (on a deck the ground below is the channel / street under it: its slopes are not the road's)
+        if (Number.isNaN(deck)) hf.normal(x, z, nTmp);
+        else nTmp.set(0, 1, 0);
         nor[v * 3] = nTmp.x;
         nor[v * 3 + 1] = nTmp.y;
         nor[v * 3 + 2] = nTmp.z;

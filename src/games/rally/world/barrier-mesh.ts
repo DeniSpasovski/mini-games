@@ -15,6 +15,7 @@ import {
 } from './barriers';
 import type { TerrainSampler } from './heightfield';
 import type { World } from './world';
+import { bridgeMaterials } from './bridge-mesh';
 
 /**
  * Continuous barriers: the cross section of a New Jersey wall / steel guard rail swept along the road
@@ -267,6 +268,238 @@ function post(
   }
 }
 
+/** Small slab-bridge kerb (kind 'kerb'): from the road edge + 5 cm out to the deck edge (rule offset 0.45), o < 0 = inward. */
+const KERB_IN = -0.4;
+const KERB_H = 0.28;
+const KERB_TS = 4;
+/** Painted pipe railing on a kerb: posts on its outer half, two rails (m above the kerb top). */
+const PIPE_O = -0.12;
+const PIPE_R = 0.03;
+const POST_R = 0.035;
+const RAIL_HI = 0.75;
+const RAIL_LO = 0.38;
+const POST_GAP = 2;
+/** Linear vertex colours: the faded mustard yellow paint, where it chipped off (rust / bare grey). */
+const PAINT: [number, number, number] = [0.6, 0.45, 0.035];
+const RUST: [number, number, number] = [0.2, 0.075, 0.025];
+const BARE: [number, number, number] = [0.3, 0.29, 0.26];
+
+/** Deterministic 0..1 hash of a number. */
+function hash1(n: number): number {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** Chipped paint colour of the piece of a pipe at `key`: mostly paint, some rust or bare steel, a slight fade. */
+function chipped(key: number): [number, number, number] {
+  const h = hash1(key);
+  const f = 0.85 + 0.2 * hash1(key + 7.3);
+  if (h < 0.1) return RUST;
+  if (h < 0.17) return BARE;
+  if (h < 0.3) {
+    // Paint half gone: between paint and rust.
+    return [
+      (PAINT[0] + RUST[0]) / 2,
+      (PAINT[1] + RUST[1]) / 2,
+      (PAINT[2] + RUST[2]) / 2,
+    ];
+  }
+  return [PAINT[0] * f, PAINT[1] * f, PAINT[2] * f];
+}
+
+/** Octagon around (oc, yc) in profile space. */
+function tube(oc: number, yc: number, r: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
+    out.push([oc + Math.cos(a) * r, yc + Math.sin(a) * r]);
+  }
+  return out;
+}
+
+/** Vertical round post (octagon) at lateral `o` of `row`, from y0 to y1. */
+function roundPost(
+  acc: Acc,
+  row: Row,
+  o: number,
+  r: number,
+  y0: number,
+  y1: number,
+  color: [number, number, number],
+): void {
+  const cx = row.x + row.ox * o;
+  const cz = row.z + row.oz * o;
+  const v0 = acc.pos.length / 3;
+  for (let k = 0; k <= 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const nx = Math.cos(a);
+    const nz = Math.sin(a);
+    for (const y of [y0, y1]) {
+      acc.pos.push(cx + nx * r, y, cz + nz * r);
+      acc.nor.push(nx, 0, nz);
+      acc.col.push(...color);
+      acc.uv.push(0, 0);
+    }
+  }
+  for (let k = 0; k < 8; k++) {
+    const q = v0 + k * 2;
+    acc.idx.push(q, q + 1, q + 3, q, q + 3, q + 2);
+  }
+  // Cap.
+  const c0 = acc.pos.length / 3;
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    acc.pos.push(cx + Math.cos(a) * r, y1, cz + Math.sin(a) * r);
+    acc.nor.push(0, 1, 0);
+    acc.col.push(...color);
+    acc.uv.push(0, 0);
+  }
+  for (let k = 1; k < 7; k++) acc.idx.push(c0, c0 + k + 1, c0 + k);
+}
+
+/** One horizontal pipe swept along `rows`, in pieces of its own chipped colour. */
+function pipe(
+  acc: Acc,
+  rows: Row[],
+  oc: number,
+  yc: number,
+  seed: number,
+): void {
+  const prof = tube(oc, yc, PIPE_R);
+  for (let i = 0; i < rows.length - 1; i++) {
+    const seg = [rows[i], rows[i + 1]];
+    const col = chipped(seed + Math.round(rows[i].d * 4));
+    for (let k = 0; k < prof.length; k++)
+      strip(
+        acc,
+        seg,
+        prof[k],
+        prof[(k + 1) % prof.length],
+        convexNormal(prof, k),
+        col,
+        () => [0, 0],
+      );
+  }
+  for (const [row, dir] of [
+    [rows[0], -1],
+    [rows[rows.length - 1], 1],
+  ] as const)
+    cap(acc, row, prof, dir, chipped(seed + row.d));
+}
+
+/**
+ * A small slab bridge's kerb (kind 'kerb'): a low weathered concrete beam along the deck edge, a dark crack where it
+ * meets the asphalt, and (rule.rail) a chipped yellow pipe railing on it - whole, or what is left of one.
+ */
+function kerb(
+  kerbAcc: Acc,
+  paintAcc: Acc,
+  rows: Row[],
+  fine: Row[],
+  run: BarrierRun,
+  first: boolean,
+  last: boolean,
+): void {
+  // The inner face reaches a little below the deck line: the crowned asphalt is lower at its edge.
+  const prof: [number, number][] = [
+    [KERB_IN, -0.06],
+    [0, 0],
+    [0, KERB_H],
+    [KERB_IN + 0.02, KERB_H],
+    [KERB_IN, KERB_H - 0.02],
+  ];
+  const uvOf = (r: Row, dy: number): [number, number] => [
+    r.d / KERB_TS,
+    dy / KERB_TS,
+  ];
+  // Weathered concrete, a little darker per piece (stains) - one strip per row pair.
+  for (let i = 0; i < rows.length - 1; i++) {
+    const seg = [rows[i], rows[i + 1]];
+    const t = 0.6 + 0.12 * hash1(rows[i].d + run.side * 31);
+    const col: [number, number, number] = [t, t * 0.98, t * 0.93];
+    for (let k = 1; k < prof.length; k++) {
+      const a = prof[k];
+      const b = prof[(k + 1) % prof.length];
+      strip(kerbAcc, seg, a, b, convexNormal(prof, k), col, uvOf);
+    }
+    // The outer face runs down over the deck fascia a little (no seam line at road level).
+    strip(kerbAcc, seg, [0, -0.15], [0, 0], [1, 0], col, uvOf);
+  }
+  // The crack along the kerb foot: a dark band on the asphalt.
+  strip(
+    kerbAcc,
+    rows,
+    [KERB_IN - 0.05, 0.012],
+    [KERB_IN, 0.012],
+    [0, 1],
+    [0.12, 0.11, 0.1],
+    uvOf,
+  );
+  if (first) cap(kerbAcc, rows[0], prof, -1, [0.62, 0.6, 0.56]);
+  if (last) cap(kerbAcc, rows[rows.length - 1], prof, 1, [0.62, 0.6, 0.56]);
+  const rail = run.rule.rail;
+  if (!rail) return;
+  const seed = run.side * 1000 + run.from;
+  const base = KERB_H;
+  // Posts every 2 m from 0.4 m in, the last one 0.4 m short of the end.
+  const span = fine[fine.length - 1].d - fine[0].d;
+  const n = Math.max(1, Math.round((span - 0.8) / POST_GAP));
+  const posts: Row[] = [];
+  for (let k = 0; k <= n; k++) {
+    const d = fine[0].d + 0.4 + ((span - 0.8) * k) / n;
+    posts.push(
+      fine.reduce((b, r) => (Math.abs(r.d - d) < Math.abs(b.d - d) ? r : b)),
+    );
+  }
+  if (rail === 'pipe') {
+    posts.forEach((p, k) =>
+      roundPost(
+        paintAcc,
+        p,
+        PIPE_O,
+        POST_R,
+        p.y + base,
+        p.y + base + RAIL_HI + 0.02,
+        chipped(seed + k * 3.7),
+      ),
+    );
+    const along = fine.filter(
+      (r) => r.d >= posts[0].d - 0.05 && r.d <= posts[n].d + 0.05,
+    );
+    pipe(paintAcc, along, PIPE_O, base + RAIL_HI, seed);
+    pipe(paintAcc, along, PIPE_O, base + RAIL_LO, seed + 500);
+  } else {
+    // Broken: the first two posts stand with one pipe between them, snapped off past the second; the rest are stubs.
+    posts.forEach((p, k) => {
+      if (k < 2)
+        roundPost(
+          paintAcc,
+          p,
+          PIPE_O,
+          POST_R,
+          p.y + base,
+          p.y + base + RAIL_HI + 0.02,
+          chipped(seed + k * 3.7),
+        );
+      else
+        roundPost(
+          paintAcc,
+          p,
+          PIPE_O,
+          POST_R,
+          p.y + base,
+          p.y + base + 0.06,
+          RUST,
+        );
+    });
+    if (posts.length > 1) {
+      const end = posts[1].d + 0.6;
+      const along = fine.filter((r) => r.d >= posts[0].d - 0.05 && r.d <= end);
+      pipe(paintAcc, along, PIPE_O, base + RAIL_HI, seed);
+    }
+  }
+}
+
 function toMesh(a: Acc, mat: MeshStandardMaterial): Mesh {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(a.pos), 3));
@@ -321,6 +554,13 @@ export function* barrierMeshJob(
     metalness: 0.1,
     side: DoubleSide,
   });
+  // Kerbs: the bridge deck's concrete; their railings: painted steel (vertex colour), not shiny.
+  const kerbMat = bridgeMaterials().concrete;
+  const paintMat = new MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.7,
+    metalness: 0.15,
+  });
   const ctx: BarrierContext = { road: world.road, net: world.gen.paths };
   const white: [number, number, number] = [1, 1, 1];
   const steel: [number, number, number] = [0.62, 0.64, 0.66];
@@ -344,6 +584,26 @@ export function* barrierMeshJob(
     for (let from = run.from; from < run.to - 0.5; from += PIECE) {
       const to = Math.min(run.to, from + PIECE);
       const rows = rowsOf(ctx, world.analytic, run, from, to);
+      if (run.rule.kind === 'kerb') {
+        const fine: Row[] = [];
+        for (let d = from; d < to; d += 0.25)
+          fine.push(rowsOf(ctx, world.analytic, run, d, d + 0.01)[0]);
+        fine.push(rows[rows.length - 1]);
+        // Kerb pieces in 1 m rows (stains), the railing on the fine rows.
+        const kr: Row[] = fine.filter((_, i) => i % 4 === 0);
+        if (kr[kr.length - 1] !== fine[fine.length - 1])
+          kr.push(fine[fine.length - 1]);
+        kerb(
+          tileAcc('kerb', rows[0].x, rows[0].z, kerbMat),
+          tileAcc('paint', rows[0].x, rows[0].z, paintMat),
+          kr,
+          fine,
+          run,
+          from === run.from,
+          to === run.to,
+        );
+        continue;
+      }
       const rusty = run.rule.kind === 'guardrail' && !!run.rule.rusty;
       const acc = tileAcc(
         rusty ? 'rust' : run.rule.kind,
