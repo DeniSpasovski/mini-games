@@ -126,6 +126,11 @@ export interface MapDef {
    * meets a wider / narrower way). Default false: the deck keeps one width, railings run parallel end to end.
    */
   bridgeCorners?: boolean;
+  /**
+   * The stage road's bridge spans are small slab bridges over a ditch: a solid 0.7 m slab (no girders / beams) and no
+   * wing walls (the banks slope up to it).
+   */
+  stageSpanSlab?: boolean;
   /** Overhead guide signs on steel gantries (highway maps): exit signs from the ramps + hand-placed boards (world/overhead-signs.ts). */
   overheadSigns?: OverheadSignDef;
   /**
@@ -1071,7 +1076,8 @@ export interface DropRails {
 
 /** A continuous roadside barrier (world/barriers.ts + barrier-mesh.ts). */
 export interface BarrierRule {
-  kind: 'jersey' | 'guardrail';
+  /** `kerb`: a low concrete edge beam on a small slab bridge (the collider stays a Jersey's). */
+  kind: 'jersey' | 'guardrail' | 'kerb';
   side: 'left' | 'right' | 'both';
   /** Distance from the road edge to the barrier centre line (m). */
   offset: number;
@@ -1084,6 +1090,11 @@ export interface BarrierRule {
   skipJunctions?: number;
   /** Guard rail only: weathered, rusted brown steel instead of galvanised. */
   rusty?: boolean;
+  /**
+   * Kerb only: a painted (yellow, chipped) two-pipe railing on it; `pipe_broken` = what is left of one (two posts
+   * and one pipe at the start of the run, the other posts cut off).
+   */
+  rail?: 'pipe' | 'pipe_broken';
 }
 
 /**
