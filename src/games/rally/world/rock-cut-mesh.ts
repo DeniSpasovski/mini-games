@@ -9,6 +9,7 @@ import { Noise2D, smoothstep } from '../../../shared/noise';
 import { imageTexture } from '../engine/image-texture';
 import colorUrl from '../engine/props/cut-face.color.webp';
 import normalUrl from '../engine/props/cut-face.normal.webp';
+import { bridgeMaterials } from './bridge-mesh';
 import { newRoadQuery } from './road';
 import type { World } from './world';
 
@@ -17,7 +18,8 @@ import type { World } from './world';
  * road (terrain-gen `rockCutWeightAt`), a continuous ribbon of layered rock is laid on it, from the scree at its foot to
  * the land on top - one ribbon per run of face along the road, never a row of boxes. The ribbon follows the carved
  * ground (sampled across the face) a little proud of it, with ledges along the strata; its first and last rows tuck into
- * the ground. The terrain under it is the collider.
+ * the ground. On a `walls` stretch the face is a low retaining wall instead: the same ribbon, flat, in dark coursed stone.
+ * The terrain under it is the collider.
  */
 
 /** Road samples (m). */
@@ -43,6 +45,12 @@ const GROUND_ROCK = [0.92, 0.97, 1.06];
 const END_TAPER = 5;
 /** Length of a stretch of one tone along the road (m). */
 const ZONE = 70;
+/** A retaining wall (`walls`): how far it stands proud of the carve (m), its stone's uv tile (m, the bridge ashlar's), its
+ * tone (dark weathered limestone blocks, moss and lichen: the owner's photos) and the green of the moss streaks. */
+const WALL_PROUD = 0.1;
+const WALL_TILE = 2;
+const WALL_STONE = [0.42, 0.42, 0.4];
+const WALL_MOSS = [0.36, 0.42, 0.3];
 
 let material: MeshStandardMaterial | undefined;
 /** The rock face material: the scanned strata (engine/props/cut-face.*.webp, scripts/rocks/bake-cut-face.py), toned by vertex colour. */
@@ -76,6 +84,8 @@ interface Section {
   /** Lateral offsets of the foot and the top of the face (signed: + = left of travel). */
   lo: number;
   hi: number;
+  /** A low retaining wall (RoadDef.rockCuts `walls`), not rock. */
+  wall: boolean;
 }
 
 export function* rockCutMeshJob(
@@ -98,8 +108,11 @@ export function* rockCutMeshJob(
     const foot = p.halfWidth + def.shoulder + rc.foot;
     // Is this stretch a rock cut at all (the carve's own weight, half-way up a typical face)?
     const [mx, mz] = lat(foot + 2);
-    if (gen.rockCutWeightAt(mx, mz, gen.naturalHeight(mx, mz) - p.y, d) < 0.5)
+    if (
+      gen.rockCutWeightAt(mx, mz, gen.naturalHeight(mx, mz) - p.y, d, s) < 0.5
+    )
       return null;
+    const wall = !!gen.rockCutWall(d, s);
     // March up the face to where the carve meets the land again (the natural slope above is not cut).
     const h = (l: number) => {
       const [x, z] = lat(l);
@@ -131,7 +144,8 @@ export function* rockCutMeshJob(
       tx: p.tx,
       tz: p.tz,
       lo: (foot - 0.3) * s,
-      hi: (top + 0.4) * s,
+      hi: (top + (wall ? 0.15 : 0.4)) * s,
+      wall,
     };
   };
 
@@ -149,6 +163,7 @@ export function* rockCutMeshJob(
     const uv: number[] = [];
     const idx: number[] = [];
     const n = run.length;
+    const wall = run[0].wall;
     run.forEach((r, i) => {
       // Ends of a run taper into the ground, their tone easing to the ground's rock so the face has no hard edge there.
       const end = Math.min(
@@ -181,13 +196,28 @@ export function* rockCutMeshJob(
             );
         const rough = noise.noise2(r.d / 3.5 + 40, y0 / 1.7);
         const inner = k > 0 && k < ROWS - 1;
-        const out = inner
-          ? (PROUD + LEDGE * strata + 0.12 * rough) * end - 0.05 * (1 - end)
-          : -0.08;
+        const out = wall
+          ? inner
+            ? WALL_PROUD * end
+            : -0.05
+          : inner
+            ? (PROUD + LEDGE * strata + 0.12 * rough) * end - 0.05 * (1 - end)
+            : -0.08;
         const l = ls[k] + nl * out;
         pos.push(r.x + r.tz * l, y0 + ny * out, r.z - r.tx * l);
         // Tone: a stretch of silver-grey schist, yellow ochre or rust (large noise along the road), warmer towards the
         // weathered top of the face, streaked by smaller noise; a little darker in the ledges' shade.
+        if (wall) {
+          // Dark blocks, a little lighter or greener from stone to stone (moss on the top courses), no strata.
+          const moss = smoothstep(0.2, 0.9, k / (ROWS - 1) + 0.4 * rough);
+          const tone = 0.9 + 0.2 * noise.noise2(r.d / 2.5, y0 / 1.2);
+          for (let c = 0; c < 3; c++)
+            col.push(
+              tone * (WALL_STONE[c] + (WALL_MOSS[c] - WALL_STONE[c]) * moss),
+            );
+          uv.push(r.d / WALL_TILE, y0 / WALL_TILE);
+          continue;
+        }
         const shade = 0.8 + 0.2 * strata;
         const top = k / (ROWS - 1);
         const warm = smoothstep(
@@ -223,9 +253,12 @@ export function* rockCutMeshJob(
     geo.setIndex(idx);
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
-    const mesh = new Mesh(geo, rockCutMaterial());
+    const mesh = new Mesh(
+      geo,
+      wall ? bridgeMaterials().stone : rockCutMaterial(),
+    );
     mesh.receiveShadow = true;
-    mesh.name = 'rock-cut';
+    mesh.name = wall ? 'rock-cut-wall' : 'rock-cut';
     group.add(mesh);
   };
 
@@ -239,6 +272,8 @@ export function* rockCutMeshJob(
     };
     for (let d = 0; d <= road.length; d += STEP) {
       const sec = section(d, s);
+      // (a wall and a rock face are separate runs)
+      if (sec && run.length && run[run.length - 1].wall !== sec.wall) flush();
       if (!sec) flush();
       else {
         run.push(sec);

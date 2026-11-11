@@ -287,9 +287,22 @@ export class World implements GroundProvider {
               const nat = this.gen.naturalHeight(x, z);
               const depth = nat - this.gen.height(x, z);
               if (depth < 0.4) return 0;
+              // Behind a low retaining wall the bank above it is grassed and wooded: only the wall's own strip is clear.
+              const wall = this.gen.rockCutWall(q.along, q.lateral);
+              if (
+                wall &&
+                q.distance >
+                  q.halfWidth + map.road.shoulder + map.road.rockCuts!.foot + 1
+              )
+                return 0;
               return (
-                this.gen.rockCutWeightAt(x, z, nat - q.height, q.along) *
-                Math.min(1, (depth - 0.4) / 0.8)
+                this.gen.rockCutWeightAt(
+                  x,
+                  z,
+                  nat - q.height,
+                  q.along,
+                  q.lateral,
+                ) * Math.min(1, (depth - 0.4) / 0.8)
               );
             }
           : undefined,

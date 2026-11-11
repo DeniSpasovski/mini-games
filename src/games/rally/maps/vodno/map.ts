@@ -42,7 +42,7 @@ import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
 import { SKYLINE } from './skyline';
 import { START_SIDEWALKS, startBuildings, startStreets } from './start-area';
 import { START_LOT_PAD } from './landmarks/start-lot';
-import { FINISH, START } from './stages';
+import { FINISH, ROAD_LENGTH, START } from './stages';
 
 /**
  * "Vodno Hillclimb" - Mount Vodno above Skopje (North Macedonia): the 4 km hillclimb from the Vodno neighbourhood up the
@@ -64,6 +64,8 @@ const BASE_HEIGHT = 349;
  * wall.
  */
 const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
+/** The one real rock cut of the road: the big hairpin blasted through a spur (m along, `road.rockCuts`). */
+const ROCK_CUT: [number, number] = [1985, 2125];
 /** Guard rails stand on the 0.6 m verge (`road.shoulder`), not past it on the falling slope (posts hanging in the air). */
 const RAIL_OFFSET = 0.4;
 
@@ -311,8 +313,21 @@ export const vodnoMap: MapDef = {
       range: WALL_RANGE,
       solid: true,
     },
-    // The hill road is blasted into the slope: layered shale faces wherever the land stands 3 m above the road.
-    rockCuts: { minRise: 3, slope: 1.3, foot: 1.2, maxFace: 7 },
+    // Layered shale faces where the land stands 3 m above the road - only at the big hairpin (the owner's photos). Elsewhere
+    // the ~30 m elevation data (a surface model: tree tops) lies metres above the road where the real banks are low and
+    // green: no faked cliffs there. At Vidikovec the uphill bank is held by a low dark stone wall along the upper half of
+    // the lot.
+    rockCuts: {
+      minRise: 3,
+      slope: 1.3,
+      foot: 1.2,
+      maxFace: 7,
+      exclude: [
+        [0, ROCK_CUT[0]],
+        [ROCK_CUT[1], ROAD_LENGTH],
+      ],
+      walls: [{ from: 2860, to: 2928, side: 1, height: 1.8 }],
+    },
     // ... and its spoil tipped over the valley side: a straight bank of rock and earth from the verge's rim.
     fills: { minDrop: 1.5, slope: 0.8 },
     // The big hairpin (2 000 m): the road is blasted through a spur the 30 m elevation data smooths to ~2 m - a 6-8 m

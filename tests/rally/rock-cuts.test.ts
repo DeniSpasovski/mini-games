@@ -15,7 +15,7 @@ describe('Vodno rock cuts', () => {
     let r = job.next();
     while (!r.done) r = job.next();
     const meshes = (r.value?.children ?? []) as Mesh[];
-    expect(meshes.length).toBeGreaterThan(5);
+    expect(meshes.length).toBeGreaterThan(0);
     const edge = vodnoMap.road.shoulder;
     for (const m of meshes) {
       const p = (m.geometry as BufferGeometry).attributes.position;
@@ -30,7 +30,7 @@ describe('Vodno rock cuts', () => {
   test('the carve is a steep face only where the land stands high above the road', () => {
     // On the road and with a shallow bank there is no cut.
     expect(world.gen.rockCutWeightAt(0, 0, 1, 1000)).toBe(0);
-    const p = world.road.at(1110);
+    const p = world.road.at(2050);
     const lat = (l: number) => [p.x + p.tz * l, p.z - p.tx * l] as const;
     const rise = (l: number) => {
       const [x, z] = lat(l);
@@ -48,6 +48,34 @@ describe('Vodno rock cuts', () => {
       );
     }
     expect(steep).toBeGreaterThan(1);
+  });
+
+  test('rock faces only at the hairpin, a low stone wall at Vidikovec, none elsewhere', () => {
+    const job = rockCutMeshJob(world);
+    let r = job.next();
+    while (!r.done) r = job.next();
+    const [from, to] = [1985, 2125];
+    const wall = vodnoMap.road.rockCuts!.walls![0];
+    for (const m of (r.value?.children ?? []) as Mesh[]) {
+      const p = (m.geometry as BufferGeometry).attributes.position;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 0; i < p.count; i++) {
+        world.road.query(p.getX(i), p.getZ(i), q);
+        if (m.name === 'rock-cut') {
+          expect(q.along).toBeGreaterThan(from - 15);
+          expect(q.along).toBeLessThan(to + 15);
+        } else {
+          expect(q.along).toBeGreaterThan(wall.from - 5);
+          expect(q.along).toBeLessThan(wall.to + 5);
+          lo = Math.min(lo, p.getY(i) - world.road.at(q.along).y);
+          hi = Math.max(hi, p.getY(i) - world.road.at(q.along).y);
+        }
+      }
+      // The wall is about its height above the road, not a cliff.
+      if (m.name === 'rock-cut-wall')
+        expect(hi - Math.max(lo, 0)).toBeLessThan(wall.height + 1);
+    }
   });
 
   test('the trail lot colliders stay off the stage road', () => {

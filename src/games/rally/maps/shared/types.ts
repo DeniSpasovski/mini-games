@@ -773,6 +773,12 @@ export interface RoadDef {
     foot: number;
     maxFace: number;
     exclude?: [number, number][];
+    /**
+     * Stretches where the cut is held by a low masonry retaining wall instead of a rock face (even inside `exclude`):
+     * on `side` (+1 left of travel, -1 right) from `from` to `to` m along, a near-vertical face of at most `height` m
+     * laid as dark coursed stone, the rest of the cut a grassed bank above it (trees and bushes grow there).
+     */
+    walls?: { from: number; to: number; side: 1 | -1; height: number }[];
   };
   /**
    * Fill banks on the valley side (the mirror of `rockCuts`): where the land beside the road lies more than `minDrop` m
