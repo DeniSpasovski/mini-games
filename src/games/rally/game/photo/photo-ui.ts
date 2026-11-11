@@ -248,6 +248,11 @@ export class PhotoUi {
   private async shoot(): Promise<void> {
     if (this.busy) return;
     this.busy = true;
+    // A big picture with motion blur takes a moment: the note shows before that frame starts.
+    this.toast('Taking photo…');
+    await new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(r)),
+    );
     const blob = await this.game.takePhoto();
     this.busy = false;
     const flash = this.refs.flash;

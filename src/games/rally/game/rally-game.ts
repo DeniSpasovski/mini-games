@@ -235,8 +235,13 @@ const SPRAY_COLOR = 0xd4d9de;
 const PHOTO_LONG_EDGE = 3840;
 const PHOTO_MAX_UPSCALE = 3;
 /** Motion blur images per frame: while framing the shot / for the picture. */
-const PHOTO_PREVIEW_SAMPLES = 8;
-const PHOTO_SAMPLES = 32;
+/**
+ * Motion blur images: enough that the longest streak is drawn in steps of PHOTO_STEP_PX (picture) or
+ * PHOTO_PREVIEW_STEP_PX (while framing the shot), within these limits.
+ */
+const PHOTO_SAMPLES = { min: 4, preview: 16, picture: 160 };
+const PHOTO_STEP_PX = 2;
+const PHOTO_PREVIEW_STEP_PX = 8;
 /** The replay keeps recording this long after the finish line (s): the car braking to a stop on the run-off. */
 const REPLAY_TAIL = 6;
 
@@ -1561,6 +1566,29 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     return moving ? s : 0;
   }
 
+  /**
+   * Motion blur images for this frame: the longest streak (the car's speed, its turn over ~2.5 m, at the orbit
+   * distance; the wheel rims move about as fast) in px over the step size.
+   */
+  private photoSamples(shutter: number): number {
+    const v = this.vehicle;
+    const cam = this.camera;
+    const h = this.renderer.domElement.height;
+    const fpx = h / (2 * Math.tan((cam.fov * Math.PI) / 360));
+    const d = Math.max(1, cam.position.distanceTo(this.model.root.position));
+    const speed = Math.max(
+      v.velocity.length(),
+      v.angularVelocity.length() * 2.5,
+    );
+    const px = ((speed * shutter) / d) * fpx;
+    const shot = !!this.photoShot;
+    const n = Math.ceil(px / (shot ? PHOTO_STEP_PX : PHOTO_PREVIEW_STEP_PX));
+    return Math.max(
+      PHOTO_SAMPLES.min,
+      Math.min(shot ? PHOTO_SAMPLES.picture : PHOTO_SAMPLES.preview, n),
+    );
+  }
+
   private readonly photoBase = {
     pos: new Vector3(),
     quat: new Quaternion(),
@@ -2248,7 +2276,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     post?.set({ photo: this.photo ? this.photo.lens : null });
     const blur = this.photo ? this.photoMotion() : 0;
     if (post && blur > 0)
-      post.render(this.photoShot ? PHOTO_SAMPLES : PHOTO_PREVIEW_SAMPLES, (t) =>
+      post.render(this.photoSamples(blur), (t) =>
         this.posePhotoSample(t * blur),
       );
     else if (post?.active) post.render();
