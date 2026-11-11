@@ -45,9 +45,9 @@ const GROUND_ROCK = [0.92, 0.97, 1.06];
 const END_TAPER = 5;
 /** Length of a stretch of one tone along the road (m). */
 const ZONE = 70;
-/** A retaining wall (`walls`): how far it stands proud of the carve (m), its stone's uv tile (m, the bridge ashlar's), its
- * tone (dark weathered limestone blocks, moss and lichen: the owner's photos) and the green of the moss streaks. */
-const WALL_PROUD = 0.1;
+/** A retaining wall (`walls`): how far its face stands in front of the carve's foot (m), its stone's uv tile (m, the bridge
+ * ashlar's), its tone (dark weathered limestone blocks, moss and lichen: the owner's photos) and the green of the moss. */
+const WALL_FRONT = 0.3;
 const WALL_TILE = 2;
 const WALL_STONE = [0.42, 0.42, 0.4];
 const WALL_MOSS = [0.36, 0.42, 0.3];
@@ -172,11 +172,25 @@ export function* rockCutMeshJob(
       );
       const ys: number[] = [];
       const ls: number[] = [];
-      for (let k = 0; k < ROWS; k++) {
-        const l = r.lo + ((r.hi - r.lo) * k) / (ROWS - 1);
-        ls.push(l);
-        ys.push(gen.height(r.x + r.tz * l, r.z - r.tx * l));
-      }
+      const at = (l: number) => gen.height(r.x + r.tz * l, r.z - r.tx * l);
+      if (wall) {
+        // A wall is a vertical face standing WALL_FRONT m in front of the carve's foot (the 1 m terrain grid can't hold a
+        // sheer step: its triangles would poke through a face laid on the carve), from just below the verge to the
+        // carve's top, then a flat coping back to the bank.
+        const face = r.lo - WALL_FRONT * s;
+        const yb = at(face) - 0.3;
+        const yt = at(r.hi);
+        for (let k = 0; k < ROWS; k++) {
+          const last = k === ROWS - 1;
+          ls.push(last ? r.hi : face);
+          ys.push(last ? yt + 0.05 : yb + ((yt - yb) * k) / (ROWS - 2));
+        }
+      } else
+        for (let k = 0; k < ROWS; k++) {
+          const l = r.lo + ((r.hi - r.lo) * k) / (ROWS - 1);
+          ls.push(l);
+          ys.push(at(l));
+        }
       for (let k = 0; k < ROWS; k++) {
         // Outward normal of the face in the cross-section (towards the road and up).
         const k0 = Math.max(0, k - 1);
@@ -197,9 +211,7 @@ export function* rockCutMeshJob(
         const rough = noise.noise2(r.d / 3.5 + 40, y0 / 1.7);
         const inner = k > 0 && k < ROWS - 1;
         const out = wall
-          ? inner
-            ? WALL_PROUD * end
-            : -0.05
+          ? 0
           : inner
             ? (PROUD + LEDGE * strata + 0.12 * rough) * end - 0.05 * (1 - end)
             : -0.08;

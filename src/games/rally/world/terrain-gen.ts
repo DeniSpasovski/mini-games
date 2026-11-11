@@ -128,8 +128,9 @@ export interface CutShape {
   margin: number;
   over: number;
 }
-/** Rise per m across of a low retaining wall on a rock cut stretch (RoadDef.rockCuts `walls`): near vertical, a slight batter. */
-const WALL_SLOPE = 5;
+/** Rise per m across of the carve behind a low retaining wall (RoadDef.rockCuts `walls`): the wall mesh stands vertical in
+ * front of it (world/rock-cut-mesh.ts), the carve only has to stay behind the face. */
+const WALL_SLOPE = 2;
 /** A `solid` wall (RoadDef.cutWalls) is held tighter than the parkway's, so its coping is a narrow strip. */
 export const cutShape = (solid?: boolean): CutShape =>
   solid
