@@ -207,8 +207,8 @@ repository).
 
 ### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*`)
 
-Roadside model trees and shrubs (Vodno's pines, lilac and bush understorey; the oaks, firs, birches, maples, elms and
-willows where a map places them) are a few models of seven CC BY 4.0 packs by LOLIPOP (Sketchfab account lolipop_1707) and
+Model trees and shrubs kept in the asset catalog (asset debug page; no map places them now: the stages use the generated
+trees, whose leaf photos are credited under "Tree leaf photos") are a few models of seven CC BY 4.0 packs by LOLIPOP (Sketchfab account lolipop_1707) and
 two CC BY 4.0 collections by Jagobo: their own triangles, normals, uvs and textures, three levels of detail and the packs'
 far billboards (the birches', elms' and willows' cards rendered from the model); the elms and willows converted and
 simplified (bark simplified, leaf cards thinned, the willows' rig dropped for its rest pose); the textures shrunk and

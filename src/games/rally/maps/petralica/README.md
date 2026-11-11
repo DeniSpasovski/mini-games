@@ -1,7 +1,7 @@
 # Petralica
 
 Real-world mountain stage in Rankovce municipality, north-east North Macedonia: from Ginovci village across the E-871 road, up the valley on a
-straight road through fields to Petralica village, then a twisty climb through oak woods and open pasture to the
+straight road through fields (tree bands along their edges and the brook) to Petralica village, then a twisty climb through oak woods and open pasture to the
 finish high on the mountain. 9.64 km, 478 m -> 1040 m above sea level, asphalt first and gravel from about 4.8 km. Map id `petralica`,
 stage 2.
 
@@ -35,7 +35,7 @@ npm run dev     # /games/rally/?stage=petralica&spawn=7500
 | Hay bale texture       | ["Hay bales"](https://sketchfab.com/3d-models/hay-bales-9a9f28d0e59a43e49d860912c47b8767) by Abby Crawford (Sketchfab)                                                                     | CC BY 4.0                                                                                                                           |
 | Village props          | [Poly Haven](https://polyhaven.com/models) (village benches, dustbins, utility cabinets, picnic tables: Modular Street Seating, Metal Trash Can, Utility Box 01 / 02, Wooden Picnic Table) | CC0                                                                                                                                 |
 | Grass, weeds and reeds | [Poly Haven](https://polyhaven.com/models) (plant scans: Grass Medium 01 / 02, Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02)                                                    | CC0                                                                                                                                 |
-| Pack trees and shrubs  | LOLIPOP (Sketchfab account lolipop_1707): pine, oak, maple, lilac and bush packs; the generated trees' leaf photos                                                                         | CC BY 4.0                                                                                                                           |
+| Tree leaf photos       | LOLIPOP (Sketchfab account lolipop_1707): the leaf textures of its pine, oak, maple, birch, lilac and bush packs, cut into the generated trees' leaf photos                                | CC BY 4.0                                                                                                                           |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of OpenStreetMap and stay under the ODbL. Dataset citation: European Space
 Agency (2024). Copernicus Global Digital Elevation Model. Distributed by OpenTopography.
