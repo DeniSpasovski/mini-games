@@ -46,8 +46,10 @@ import { TreeStatsOverlay } from '../trees/overlay';
 import { worldToGeo } from '../world/real-data';
 import { newRoadQuery } from '../world/road';
 import { buildRoadMeshSliced } from '../world/road-mesh';
+import { batchRoad } from '../world/static-batch';
 import { getTerrainMaterial } from '../world/terrain-material';
-import { canopyTone } from '../world/far-forest';
+import { canopyTone, FarForest, forestColor } from '../world/far-forest';
+import { setForest } from '../engine/world-shading';
 import { Horizon } from '../world/horizon';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { RENDER_MARGIN, World } from '../world/world';
@@ -113,6 +115,10 @@ const state = readUrlState(DEFAULTS);
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
 /** Start / split / finish / distance labels: the display face (italic, as the HUD plates). */
 const LABEL_FONT = 'italic 700 40px "Barlow Condensed", sans-serif';
+/** Streaming time per frame (ms): terrain, then objects, then the tree job get what is left. */
+const STREAM_MS = 6;
+/** The tree job's slice of it (ms). */
+const TREE_JOB_MS = 2;
 // An old `map=<stage id>` link (or a map with several stages): the URL now names the map and its stage.
 sync();
 track('rally', 'select_content', {
@@ -150,28 +156,36 @@ void loadMap(state.map).then(async (map) => {
   center.y = world.analytic.height(center.x, center.z);
 
   // --- world rendering -----------------------------------------------------------------
+  const viewDistance = size + RENDER_MARGIN * 2;
   const terrain = new TerrainRenderer(world, {
-    viewDistance: size + RENDER_MARGIN * 2,
+    viewDistance,
     lodDistances: [120, 260, 520],
   });
   scene.add(terrain.group);
   let horizon: Horizon | undefined;
   if (map.horizon) {
     horizon = new Horizon(world, map.horizon);
-    horizon.setCutoff(size + RENDER_MARGIN * 2);
+    horizon.setCutoff(viewDistance);
     scene.add(horizon.group);
   }
   const road = await buildRoadMeshSliced(
     world,
     () => new Promise((r) => setTimeout(r)),
   );
+  // One multi-draw per material, as in the game: unbatched the road's tiles were ~1,100 draw calls on Ajvatovci.
+  batchRoad(road);
   scene.add(road);
   const quality = loadQuality();
+  // The game's object distances (InstanceStreamer in game/rally-game.ts): the viewer drew them 2.5-4x farther, up to
+  // 14 M scatter triangles a frame from 120 m up.
   const streamer = new InstanceStreamer(world, {
-    lodScale: Math.max(2.5, quality.lodScale * 3),
+    lodScale: quality.lodScale,
     detailDensity: 0,
+    maxDistance: viewDistance,
+    // People close up are built off the main thread, as in the game: built here they were 100-450 ms hitches.
+    prefetch: true,
     rebuildDistance: 25,
-    budgetMs: 8,
+    budgetMs: STREAM_MS,
   });
   streamer.group.visible = state.scatter;
   scene.add(streamer.group);
@@ -179,19 +193,35 @@ void loadMap(state.map).then(async (map) => {
     TreeLibrary.speciesOf(world.placedAssets(), season),
     renderer,
   );
-  // The land beyond the map: its woods in the stage's crown colour.
-  horizon?.setForest(canopyTone(treeLibrary, world));
+  // Trees as in the game (game/rally-game.ts) out to its forest distance, then its far trees and canopy shell: every
+  // tree on the map drawn one by one (500 k impostors on Galichica's overview) was most of the viewer's frame. Not the
+  // game's impostor-only trees far from the road (`fakeFrom`) nor its coarser levels on medium: seen from above, the
+  // impostors read as blobs.
   const trees = new TreeRenderer(world, treeLibrary, {
-    // The game's tree levels (their thresholds already reach far: trees/species.ts DEFAULT_LOD).
     lodScale: quality.lodScale,
-    maxDistance: size + RENDER_MARGIN * 2,
-    shadowDistance: quality.shadowExtent * 2 + 10,
+    // The job still visits the whole map: its scatter fills the far forest's canopy map.
+    maxDistance: viewDistance,
+    forestDistance: quality.forestDistance,
+    shadowDistance: quality.treeShadowDistance,
     rebuildDistance: 25,
-    budgetMs: 8,
+    budgetMs: TREE_JOB_MS,
   });
   trees.group.visible = state.scatter;
   scene.add(trees.group);
   trees.attachRenderer(renderer);
+  const farForest = new FarForest(
+    world,
+    treeLibrary,
+    quality.forestDistance,
+    viewDistance,
+    renderer.extensions.has('EXT_color_buffer_float') ||
+      renderer.extensions.has('EXT_color_buffer_half_float'),
+  );
+  farForest.renderer = renderer;
+  trees.group.add(farForest.mesh);
+  if (farForest.farTrees) trees.group.add(farForest.farTrees);
+  horizon?.setForest(canopyTone(treeLibrary, world), farForest.canopy);
+  setForest(forestColor(treeLibrary), quality.forestDistance);
   const treeStats = new TreeStatsOverlay(
     renderer.domElement.parentElement ?? document.body,
     trees,
@@ -829,10 +859,19 @@ void loadMap(state.map).then(async (map) => {
       t,
       0.5,
     );
-    // Big budget while catching up (tool page: a few long frames are fine).
-    terrain.update(focus, terrain.pending > 20 ? 30 : 8, above * 0.8);
-    streamer.update(t);
+    // Terrain, objects and trees share one frame's budget (STREAM_MS): each with its own 8-30 ms they took 20-30 ms
+    // of every frame while the camera moved. A bit more while the terrain catches up after a jump.
+    const t0 = performance.now();
+    terrain.update(focus, terrain.pending > 20 ? 8 : 3, above * 0.8);
+    streamer.update(t, Math.max(1, STREAM_MS - (performance.now() - t0)));
+    trees.setJobBudget(
+      Math.min(
+        TREE_JOB_MS,
+        Math.max(0.5, STREAM_MS - (performance.now() - t0)),
+      ),
+    );
     trees.update(camera);
+    farForest.update(camera.position);
     treeStats.update();
     // A few times a second (the counters change while streaming; `info` only touches changed values).
     const now = performance.now();
@@ -865,6 +904,7 @@ void loadMap(state.map).then(async (map) => {
     terrain.update(new Vector3(t.x, 0, t.z), 30, 0);
     for (let i = 0; i < 6; i++) streamer.update(t);
     trees.updateNow(camera);
+    farForest.fillNow(camera.position);
   }
   await renderer.compileAsync(scene, camera);
   shell.paused = false;
@@ -899,6 +939,7 @@ void loadMap(state.map).then(async (map) => {
     // The instance streamer builds its chunks over several updates.
     for (let i = 0; i < 80; i++) streamer.update(controls.target);
     trees.updateNow(camera);
+    farForest.fillNow(camera.position);
     return n;
   }
 

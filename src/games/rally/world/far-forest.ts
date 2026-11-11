@@ -107,6 +107,16 @@ export const TINT_RANGE = 2;
  *   the other side of the same 8x8 dither (world/lod-fade.ts `BAYER_DITHER_8`); the shell takes the other side of the far
  *   trees' dissolve the same way.
  */
+/** The far forest's colour on the ground: the stage's foliage, darker (a canopy seen from afar is mostly shade). */
+export function forestColor(lib: TreeLibrary): Color {
+  const c = new Color(0, 0, 0);
+  const all = lib.all();
+  for (const v of all) c.add(new Color(...v.info.foliageColor));
+  if (all.length) c.multiplyScalar(0.55 / all.length);
+  else c.set(0x26341c);
+  return c;
+}
+
 /**
  * The stage's mean crown colour as the far forest draws it (linear): for the land beyond the map (world/horizon.ts
  * `setForest`), so its woods take the season's colour too.
