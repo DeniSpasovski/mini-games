@@ -516,13 +516,18 @@ export class TerrainRenderer {
     if (lod === 0) {
       const c = this.world.heightfield.chunk(cx, cz);
       const row = CHUNK_CELLS + 1;
+      // (the cut under the road slabs: drawn only, world/road-slab.ts)
+      const sink = this.world.gen.sink;
+      const x0 = cx * this.cs;
+      const z0 = cz * this.cs;
       for (let j = 0; j < n; j++) {
         for (let i = 0; i < n; i++) {
           const v = j * n + i;
           const gi = i * step;
           const gj = j * step;
           pos[v * 3] = gi * cell;
-          pos[v * 3 + 1] = c.h(gi, gj);
+          pos[v * 3 + 1] =
+            c.h(gi, gj) - (sink ? sink(x0 + gi * cell, z0 + gj * cell) : 0);
           pos[v * 3 + 2] = gj * cell;
           const s = gj * row + gi;
           nor[v * 3] = c.normals[s * 3];
@@ -672,7 +677,7 @@ export class TerrainGrid {
     for (let j = j0; j < j1; j++) {
       for (let i = 0; i < m; i++) {
         const k = j * m + i;
-        hs[k] = gen.height(this.x0 + (i - 1) * d, this.z0 + (j - 1) * d);
+        hs[k] = gen.meshHeight(this.x0 + (i - 1) * d, this.z0 + (j - 1) * d);
         const q = gen.lastRoad;
         rd[k] = q.found ? q.distance : Infinity;
         rh[k] = q.halfWidth;
