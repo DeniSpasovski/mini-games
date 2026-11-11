@@ -6,10 +6,10 @@ narrow tarmac with a loose gravel film, in spring colours. Map id `ajvatovci`, s
 
 ![Start street](screenshots/start-street.jpg)
 
-|                                                       |                                         |
-| ----------------------------------------------------- | --------------------------------------- |
-| ![Farmland road](screenshots/farmland-road.jpg)       | ![Hill road](screenshots/hill-road.jpg) |
-| the farmland road (vineyards, hedgerows, power lines) | switchbacks up Ajvatovci Hill           |
+|                                                 |                                         |
+| ----------------------------------------------- | --------------------------------------- |
+| ![Farmland road](screenshots/farmland-road.jpg) | ![Hill road](screenshots/hill-road.jpg) |
+| the farmland road (vineyards, power lines)      | switchbacks up Ajvatovci Hill           |
 
 ![The farmland road at night](screenshots/night.jpg)
 

@@ -286,44 +286,6 @@ export const ajvatovciMap: MapDef = {
       tilt: 2,
       sink: 0.2,
     },
-    // Hedgerows and tree lines on some field boundaries (the photos ref-09 / ref-11-13): broken shrub hedges with a locust,
-    // oak or walnut every 10-20 m, columnar poplar lines, lone field trees at the parcel edges. Dense in a band ~3 m wide
-    // on the boundary (so the densities are high), within view of the road.
-    ...(
-      [
-        ['thicket_shrub', 110, [0.7, 1.15], 1],
-        ['bush', 60, [0.7, 1.2], 1],
-        ['hazelnut_tree', 18, [0.7, 1.05], 1],
-        ['locust_tree', 10, [0.55, 0.95], 1],
-        ['oak_tree', 4, [0.6, 1], 1],
-        ['poplar_tree', 60, [0.8, 1.1], 2],
-      ] as const
-    ).map(([asset, density, scale, group]): ScatterRule => ({
-      asset,
-      cover: ['crop'],
-      fieldEdge: [0, group === 2 ? 1 : 1.7],
-      density,
-      minRoadDist: 4,
-      maxRoadDist: 180,
-      mask:
-        group === 2
-          ? { scale: 70, threshold: 0.42, group: 22 }
-          : { scale: 55, threshold: 0.18, group: 21 },
-      scale: [scale[0], scale[1]],
-      tilt: 3,
-      sink: 0.15,
-    })),
-    {
-      asset: 'walnut_tree',
-      cover: ['crop'],
-      fieldEdge: [0, 3],
-      density: 0.35,
-      minRoadDist: 6,
-      maxRoadDist: 250,
-      scale: [0.8, 1.2],
-      tilt: 3,
-      sink: 0.15,
-    },
     // Orchards: planted rows along the parcel's long side.
     {
       asset: 'fruit_tree',
@@ -618,8 +580,18 @@ export const ajvatovciMap: MapDef = {
       spread: 18,
     },
   ],
-  // Concrete parapets on the canal bridge deck.
-  barriers: [{ kind: 'jersey', side: 'both', offset: 0.45, onBridge: true }],
+  // The canal bridge: low concrete kerbs; a chipped yellow pipe railing on the right, on the left only two posts and
+  // one pipe are left of it.
+  barriers: [
+    { kind: 'kerb', side: 'right', offset: 0.45, onBridge: true, rail: 'pipe' },
+    {
+      kind: 'kerb',
+      side: 'left',
+      offset: 0.45,
+      onBridge: true,
+      rail: 'pipe_broken',
+    },
+  ],
   // The A2 motorway at the start: its carriageways get a Jersey median wall and an outer guard rail.
   pathBarriers: {
     kinds: ['motorway'],
@@ -630,6 +602,8 @@ export const ajvatovciMap: MapDef = {
   },
   // The A2 overpasses and the small street bridges are modern concrete bridges with steel railings (not stone).
   bridgeStyle: 'concrete',
+  // The canal bridge on the stage is a small slab over the ditch: the reedy banks slope up to it, no wing walls.
+  stageSpanSlab: true,
   // Marshals / onlookers behind the closed junction mouths.
   // Benches, dustbins and utility cabinets along the village street.
   streetDressing: {

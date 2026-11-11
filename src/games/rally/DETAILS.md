@@ -404,9 +404,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   m of the road, every age in one stand (the age ladder). Scatter tools: `mask.group` (rules on one clump field: mixed
   thickets; `invert` = the ground between: pine blocks with broadleaf between), `contour` (strips / planting rows along the
   contour: Vodno's logged slope regrowth), `lean` (stems within `within` m tilt toward the road, also on `realTrees`),
-  `fieldEdge` (within [min, max] m of a field parcel's edge: Ajvatovci hedgerows and poplar lines, Petralica field-edge
-  tree bands; with a `mask` so only some boundaries carry one). `minRoadDist` / `maxRoadDist` past the road query's
-  ~35 m reach use a coarse distance field (`farRoadDist`, to 260 m).
+  `fieldEdge` (within [min, max] m of a field parcel's edge: Petralica field-edge tree bands; with a `mask` so only some
+  boundaries carry one). `minRoadDist` / `maxRoadDist` past the road query's ~35 m reach use a coarse distance field
+  (`farRoadDist`, to 260 m).
   `forestEdge()` (`maps/shared/forest-edge.ts`) adds the verge belt: thicket / hazel / bush clumps and leaning young trees.
   Nothing grows on a rock cut's face, and no tree stands where its crown would hang over one (`ScatterContext.cutAt`,
   `world.ts`: carved below the land where `rockCutWeightAt` says cut; `CUT_CROWN` toward the road).
@@ -648,6 +648,8 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
 - Per-instance caches live on the instance (`ScatterInstance.streamed`), never in a `WeakMap` over every scatter
   instance: one with 300k+ entries made 30-50 ms GC pauses.
 - Big GPU uploads go up in row bands (`copyTextureToTexture`), never whole while driving.
+- Many small texture updates a frame (the trees' `TreePool.flush`) call `texSubImage2D` with a tight piece of the
+  array each: unpacking with skipped rows of a big array is slow in Firefox.
 - Never write into a buffer the GPU drew from last frame: rotate copies (`COPIES` in game/tyre-marks.ts,
   world/far-shadow.ts) and upload only the used range. A buffer drawn but never written turns static on ANGLE / D3D11 and
   its next write waits for the GPU: the tyre marks re-upload one quad every frame.
@@ -662,7 +664,10 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   tiles): writes into its shared buffers stall ANGLE / D3D11.
 - Tree batches: one `multiDrawElementsInstancedWEBGL` per material and part (`trees/multi-draw.ts`), per-tree data in a
   float texture (`TreePool`); `?multidraw=0` draws one call per batch.
-- Terrain tiles merge per LOD band and reuse released geometry (`terrain-renderer.ts`, `SPARE_TILES`).
+- Terrain tiles merge per LOD band and reuse released geometry (`terrain-renderer.ts`, `MERGE`, `SPARE_TILES`). A block
+  over the map edge merges too, cut to the map (`grid`): never a strip of single chunks along the edge.
+- A `discard` goes in its own material variant, used only where it is needed: the near terrain's culvert holes
+  (`getTerrainMaterial(far, holes)`) draw on the tiles a culvert stands on; a warm-up mesh compiles the variant at load.
 - Many materials = many draws: use a texture array (`engine/texture-array.ts`). A custom shader scales
   `envMapIntensity`, never replaces it.
 - Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).

@@ -88,6 +88,12 @@ const RADIUS: Record<string, number> = {
   tree: 0.5,
 };
 
+/** The largest `RADIUS` and the cell size (m) of the grid `occupies` looks the spots up in. */
+const MAX_RADIUS = Math.max(...Object.values(RADIUS));
+const CELL = 16;
+const cellKey = (cx: number, cz: number): number =>
+  (cx + 32768) * 65536 + (cz + 32768);
+
 export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
   const f = map.features ?? { points: [], lines: [] };
   const taken = (x: number, z: number): boolean =>
@@ -172,13 +178,41 @@ export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
       return [{ kind, x, z, yaw, r: RADIUS[kind] }];
     }));
 
+  // Spot indices by grid cell: scatter asks for every candidate (grass included).
+  let cells: Map<number, number[]> | undefined;
+  const spotCells = (): Map<number, number[]> => {
+    if (cells) return cells;
+    cells = new Map();
+    spots().forEach(([px, pz], i) => {
+      const k = cellKey(Math.floor(px / CELL), Math.floor(pz / CELL));
+      const list = cells!.get(k);
+      if (list) list.push(i);
+      else cells!.set(k, [i]);
+    });
+    return cells;
+  };
+
   return {
     id: 'vodno-osm-features',
-    occupies: (x, z, margin) =>
-      spots().some(
-        ([px, pz], i) =>
-          Math.hypot(x - px, z - pz) < RADIUS[points[i][0]] + margin,
-      ),
+    occupies: (x, z, margin) => {
+      const grid = spotCells();
+      const all = spots();
+      const reach = MAX_RADIUS + margin;
+      const cx1 = Math.floor((x + reach) / CELL);
+      const cz1 = Math.floor((z + reach) / CELL);
+      for (let cz = Math.floor((z - reach) / CELL); cz <= cz1; cz++)
+        for (let cx = Math.floor((x - reach) / CELL); cx <= cx1; cx++) {
+          const list = grid.get(cellKey(cx, cz));
+          if (!list) continue;
+          for (const i of list)
+            if (
+              Math.hypot(x - all[i][0], z - all[i][1]) <
+              RADIUS[points[i][0]] + margin
+            )
+              return true;
+        }
+      return false;
+    },
     replaces: () => false,
     colliders(ground: TerrainSampler): StaticCollider[] {
       const out: StaticCollider[] = [];

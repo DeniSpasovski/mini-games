@@ -781,8 +781,11 @@ describe('vodno car park surroundings', () => {
     expect(
       rusty.some((b) => b.side === 'right' && b.from === 2600 && b.to === 2796),
     ).toBe(true);
-    // The one galvanised rail: the left side after the first crossroad.
-    expect(rails.filter((b) => !b.rusty).map((b) => b.side)).toEqual(['left']);
+    // The galvanised rails: on along the Vidikovec lot's wall to its entrance, the left side after the first crossroad.
+    expect(rails.filter((b) => !b.rusty).map((b) => [b.side, b.from])).toEqual([
+      ['right', 2796],
+      ['left', 500],
+    ]);
     // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is.
     expect(map.road.texture).toBe('road_tarmac_lines');
     expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([

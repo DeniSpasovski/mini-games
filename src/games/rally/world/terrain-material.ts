@@ -41,6 +41,7 @@ import type { GroundMoisture } from './ground-moisture';
  */
 let shared: MeshStandardMaterial | undefined;
 let sharedFar: MeshStandardMaterial | undefined;
+let sharedHoles: MeshStandardMaterial | undefined;
 let sharedUniforms: Record<string, { value: unknown }> | undefined;
 
 /** Ripe wheat. */
@@ -56,8 +57,16 @@ const NEUTRAL_MOISTURE = new DataTexture(
 );
 NEUTRAL_MOISTURE.needsUpdate = true;
 
-export function getTerrainMaterial(far = false): MeshStandardMaterial {
-  if (far ? sharedFar : shared) return (far ? sharedFar : shared)!;
+/**
+ * `far`: the coarse tiles (no second taps, relief or specular). `holes`: the near tiles a culvert end stands on
+ * (`setCulvertHoles`); only they carry the `discard`, which costs every other near tile its early depth test.
+ */
+export function getTerrainMaterial(
+  far = false,
+  holes = false,
+): MeshStandardMaterial {
+  const made = far ? sharedFar : holes ? sharedHoles : shared;
+  if (made) return made;
   const mat = new MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.96,
@@ -97,6 +106,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
   mat.defines = {
     RALLY_GROUND: 1,
     ...(far ? { TERRAIN_FAR: 1 } : {}),
+    ...(holes && !far ? { TERRAIN_HOLES: 1 } : {}),
     HB_K: '0.15',
     HB_D: '0.25',
     GY_SOIL: GROUND_LAYER.soil.toFixed(1),
@@ -202,7 +212,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
       .replace(
         '#include <clipping_planes_fragment>',
         `#include <clipping_planes_fragment>
-        #ifndef TERRAIN_FAR
+        #ifdef TERRAIN_HOLES
         // No ground between a culvert end's wing walls (the walls, apron and headwall close the hole).
         for (int i = 0; i < ${CULVERT_HOLES}; i++) {
           if (i >= uCulvertN) break;
@@ -377,8 +387,13 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
       );
   };
   mat.customProgramCacheKey = () =>
-    far ? 'rally-terrain-far-v9' : 'rally-terrain-v14';
+    far
+      ? 'rally-terrain-far-v9'
+      : holes
+        ? 'rally-terrain-holes-v14'
+        : 'rally-terrain-v14';
   if (far) sharedFar = mat;
+  else if (holes) sharedHoles = mat;
   else shared = mat;
   return mat;
 }

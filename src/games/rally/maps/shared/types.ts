@@ -145,6 +145,11 @@ export interface MapDef {
    * meets a wider / narrower way). Default false: the deck keeps one width, railings run parallel end to end.
    */
   bridgeCorners?: boolean;
+  /**
+   * The stage road's bridge spans are small slab bridges over a ditch: a solid 0.7 m slab (no girders / beams) and no
+   * wing walls (the banks slope up to it).
+   */
+  stageSpanSlab?: boolean;
   /** Overhead guide signs on steel gantries (highway maps): exit signs from the ramps + hand-placed boards (world/overhead-signs.ts). */
   overheadSigns?: OverheadSignDef;
   /**
@@ -773,6 +778,19 @@ export interface RoadDef {
     foot: number;
     maxFace: number;
     exclude?: [number, number][];
+    /**
+     * Stretches where the cut is held by a low masonry retaining wall instead of a rock face (even inside `exclude`):
+     * on `side` (+1 left of travel, -1 right) from `from` to `to` m along, a vertical face of at most `height` m standing
+     * `offset` m from the road edge (a level grass strip in front), laid as dark coursed stone, the rest of the cut a
+     * grassed bank above it (trees and bushes grow there).
+     */
+    walls?: {
+      from: number;
+      to: number;
+      side: 1 | -1;
+      height: number;
+      offset: number;
+    }[];
   };
   /**
    * Fill banks on the valley side (the mirror of `rockCuts`): where the land beside the road lies more than `minDrop` m
@@ -1123,7 +1141,8 @@ export interface DropRails {
 
 /** A continuous roadside barrier (world/barriers.ts + barrier-mesh.ts). */
 export interface BarrierRule {
-  kind: 'jersey' | 'guardrail';
+  /** `kerb`: a low concrete edge beam on a small slab bridge (the collider stays a Jersey's). */
+  kind: 'jersey' | 'guardrail' | 'kerb';
   side: 'left' | 'right' | 'both';
   /** Distance from the road edge to the barrier centre line (m). */
   offset: number;
@@ -1136,6 +1155,11 @@ export interface BarrierRule {
   skipJunctions?: number;
   /** Guard rail only: weathered, rusted brown steel instead of galvanised. */
   rusty?: boolean;
+  /**
+   * Kerb only: a painted (yellow, chipped) two-pipe railing on it; `pipe_broken` = what is left of one (two posts
+   * and one pipe at the start of the run, the other posts cut off).
+   */
+  rail?: 'pipe' | 'pipe_broken';
 }
 
 /**
