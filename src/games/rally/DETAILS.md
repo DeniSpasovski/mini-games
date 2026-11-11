@@ -74,7 +74,8 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 - **Menus** (`game/menu.ts`): welcome -> **select stage** (route outline of the stage and 150 m either side, orbiting 3D view of
   the stage, length, splits, best time; every stage shows a pre-baked stage card, `tools/stage-card.ts`, cropped to the stage +
   500 m and re-baked with `?bakecard=<stage id>&season=all` / `?bakecards=1&season=all` only when asked, one picture per
-  season; `stageCardHash` covers only what the card draws, so text edits need no re-bake) -> **select car** ->
+  season, each with a small copy in the JSON that shows until the full picture has loaded; `stageCardHash` covers only
+  what the card draws, so text edits need no re-bake) -> **select car** ->
   **Start stage** with the recommended set-up, or **Setup car** (small button left of the livery picker). The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
@@ -179,6 +180,10 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 
 - **Light:** the sun follows `timeOfDay` (or `sunElevation` / `sunAzimuth`); a lower sun is warmer and dimmer (raise `exposure`).
   Cool sky fill + warm ground bounce; a PMREM of the sky gives paint, glass and water reflections.
+- **Sun against sky** (`DAY_LIGHT` in `engine/environment.ts`): on flat ground the sky gives about a third of the sun's
+  light, so cast shadows are dark; faces turned from the sun get the ground's bounce (the hemisphere light's ground
+  colour). Only the env map's diffuse share is cut (`envDiffuse`, `wsEnvCut`); reflections keep `envIntensity`. Under a
+  cloud deck it eases back to the full sky. The studio uses `CLASSIC_LIGHT` (sky at three quarters of the sun); `?look=classic` shows it in game.
 - **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
   (`SUN_TERMS`, `SUN_SHADOW`):
   - the sun's shadow map ahead of the camera (`quality.shadowExtent`, snapped to texels), every frame. Trees cast into

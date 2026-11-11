@@ -86,6 +86,25 @@ const TONE: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_plain_kerbed: 0.6,
 };
 
+/**
+ * Colour over the baked tile: the country roads' tiles are a pale blue-grey, as bright in the sun as the meadow beside
+ * them; real asphalt is the darkest thing in a field and a little warm.
+ */
+const TINT: Partial<Record<RoadSurfaceId, readonly [number, number, number]>> =
+  Object.fromEntries(
+    (
+      [
+        'road_tarmac',
+        'road_tarmac_kerbed',
+        'road_tarmac_junction',
+        'road_tarmac_plain_junction',
+        'road_tarmac_lines',
+        'road_tarmac_plain',
+        'road_tarmac_plain_kerbed',
+      ] as const
+    ).map((id) => [id, [0.78, 0.76, 0.73] as const]),
+  );
+
 /** Constants of the wear shader (world/road-wear.ts): the terrain's soil and gravel layers, dust / mud / rubber tones. */
 const WEAR_DEFINES = [
   `#define RW_SOIL_LAYER ${GROUND_LAYER.soil.toFixed(1)}`,
@@ -254,7 +273,7 @@ export function applyRoadSurface(
     m.normalMap = s.normal;
     m.normalScale = new Vector2(1, 1);
     m.roughness = 1;
-    m.color.setScalar(1);
+    m.color.setRGB(...(TINT[id] ?? [1, 1, 1]));
     const scale = { value: new Vector2(6, ROAD_SURFACE_LEN[id]) };
     const jLen = { value: junction ? ROAD_SURFACE_LEN[junction] : 1 };
     const patch = { value: PATCHES[id] ?? 0 };
