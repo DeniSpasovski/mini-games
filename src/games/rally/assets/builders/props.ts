@@ -644,21 +644,58 @@ export const chevronSign: AssetBuilder = ({ variant, lod }) => {
   };
 };
 
-/** Village street lamp: galvanised pole, short arm, cobra head over the road (+Z = road side). */
+/**
+ * Village street lamp: a tapered galvanised pole on a base flange (service door at knee height), an arm bent out over
+ * the road (+Z = road side) and a flat LED head with its lens underneath.
+ */
 export const streetLamp: AssetBuilder = ({ seed, lod }) => {
   const rng = new Rng(seed);
   const H = rng.range(7.5, 8.5);
+  const ZINC = '#a9aeb2';
+  const HEAD = '#70767b';
+  const near = lod === 0;
   const parts: BufferGeometry[] = [];
-  const pole = new CylinderGeometry(0.06, 0.1, H, lod === 0 ? 8 : 5);
+  const pole = new CylinderGeometry(0.05, 0.1, H, near ? 8 : 5);
   pole.translate(0, H / 2, 0);
-  parts.push(cylindricalUV(paint(pole, '#a9aeb2', rng, 0.03), 0.5, 2));
-  const arm = new CylinderGeometry(0.04, 0.04, 1.4, 5);
-  arm.rotateX(Math.PI / 2 - 0.2);
-  arm.translate(0, H + 0.1, 0.62);
-  parts.push(paint(arm, '#a9aeb2'));
-  parts.push(box(0.32, 0.12, 0.62, 0, H + 0.2, 1.4, '#8f9599'));
+  parts.push(cylindricalUV(paint(pole, ZINC, rng, 0.03), 0.5, 2));
+  // The arm: straight pieces along a bend from the pole top to the head (one piece far off).
+  const bend: [number, number][] = near
+    ? [
+        [H - 0.06, 0],
+        [H + 0.14, 0.2],
+        [H + 0.23, 0.55],
+        [H + 0.25, 1.1],
+      ]
+    : [
+        [H - 0.06, 0],
+        [H + 0.25, 1.1],
+      ];
+  for (let i = 1; i < bend.length; i++) {
+    const [y0, z0] = bend[i - 1];
+    const [y1, z1] = bend[i];
+    const piece = new CylinderGeometry(
+      0.04,
+      0.045,
+      Math.hypot(y1 - y0, z1 - z0) + 0.04,
+      6,
+    );
+    piece.rotateX(Math.atan2(z1 - z0, y1 - y0));
+    piece.translate(0, (y0 + y1) / 2, (z0 + z1) / 2);
+    parts.push(paint(piece, ZINC));
+  }
+  parts.push(box(0.3, 0.08, 0.66, 0, H + 0.24, 1.42, HEAD));
+  if (near) {
+    const flange = new CylinderGeometry(0.17, 0.17, 0.03, 8);
+    flange.translate(0, 0.015, 0);
+    parts.push(paint(flange, ZINC));
+    parts.push(
+      box(0.09, 0.3, 0.02, 0, 0.75, 0.095, '#959a9e'),
+      box(0.16, 0.1, 0.24, 0, H + 0.25, 1.0, HEAD),
+      box(0.22, 0.03, 0.4, 0, H + 0.295, 1.46, HEAD),
+    );
+  }
   // The lens glows at night (its own material, also on the far LOD: a village's lamps show from afar).
-  const lens = box(0.24, 0.03, 0.48, 0, H + 0.13, 1.4, '#ffdc9a');
+  const lens = box(0.24, 0.03, 0.5, 0, H + 0.19, 1.44, '#ffdc9a');
   return {
     parts: [
       { geometry: merge(parts), material: getMaterial('props') },
