@@ -33,6 +33,10 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'foliage_card_weeds'
   | 'foliage_card_reeds'
+  | 'foliage_card_reeds_dry'
+  | 'foliage_card_thistle'
+  | 'foliage_card_thistle_young'
+  | 'foliage_card_thistle_dead'
   | 'foliage_card_ferns'
   | 'foliage_card_ferns_autumn'
   | 'grass_blade'
@@ -143,6 +147,10 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card_spring',
   'foliage_card_weeds',
   'foliage_card_reeds',
+  'foliage_card_reeds_dry',
+  'foliage_card_thistle',
+  'foliage_card_thistle_young',
+  'foliage_card_thistle_dead',
   'foliage_card_ferns',
   'foliage_card_ferns_autumn',
 ];
@@ -236,6 +244,40 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 1,
       });
       break;
+    case 'foliage_card_reeds_dry': {
+      // The same reed sheet gone to straw (autumn, last year's stems in spring): the colour gain turns green to tan.
+      const [r, g, b] = cardColor('reeds');
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet('reeds'),
+        color: new Color(r * 2.4, g * 1.12, b * 0.5),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    }
+    case 'foliage_card_thistle':
+    case 'foliage_card_thistle_young':
+    case 'foliage_card_thistle_dead': {
+      // Thistle stands of the canal banks (engine/plants/thistle-*.webp): straw with pale heads (summer), young
+      // green plants (spring), grey-brown skeletons (autumn).
+      const sheet =
+        id === 'foliage_card_thistle'
+          ? 'thistle-dry'
+          : id === 'foliage_card_thistle_young'
+            ? 'thistle-green'
+            : 'thistle-autumn';
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet(sheet),
+        color: new Color(...cardColor(sheet)),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    }
     case 'foliage_card_ferns':
     case 'foliage_card_ferns_autumn': {
       // Fern stands of the shaded woods, green / dead bracken (engine/plants/ferns*.webp).

@@ -152,28 +152,79 @@ function tallCards(
 
 /**
  * Reeds (canal and drain banks): cards of the reeds sheet, baked from CC BY reed and cattail models; the last variant
- * is a cattail stand.
+ * is a cattail stand. `green` = the summer stand, `dry` = straw (autumn, and last year's stems standing in spring),
+ * `young` = the new green shoots of spring (0.4 - 1 m).
  */
-export const reeds: AssetBuilder = ({ seed, variant }) => {
-  const rng = new Rng(seed);
-  const h = rng.range(1.7, 2.3);
-  return {
-    parts: [
-      {
-        geometry: plantCards(
-          rng,
-          'reeds',
-          variant === 2 ? CELLS.cattails : CELLS.reeds,
-          h * 0.5,
-          h,
-          3,
-          0.6,
-        ),
-        material: getMaterial('foliage_card_reeds'),
-      },
-    ],
+function reedStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
+  const height: [number, number] =
+    look === 'young' ? [0.5, 1.0] : look === 'dry' ? [1.8, 2.5] : [1.7, 2.3];
+  const material: MaterialId =
+    look === 'dry' ? 'foliage_card_reeds_dry' : 'foliage_card_reeds';
+  return ({ seed, variant }) => {
+    const rng = new Rng(seed);
+    const h = rng.range(...height);
+    return {
+      parts: [
+        {
+          geometry: plantCards(
+            rng,
+            'reeds',
+            // The straw stand has no cattails: their green grass base would stay green.
+            variant === 2 && look !== 'dry' ? CELLS.cattails : CELLS.reeds,
+            h * 0.5,
+            h,
+            3,
+            0.6,
+          ),
+          material: getMaterial(material),
+        },
+      ],
+    };
   };
-};
+}
+
+export const reeds = reedStand('green');
+export const reedsDry = reedStand('dry');
+export const reedsYoung = reedStand('young');
+
+/**
+ * Thistles of the canal banks (cells 0.8 x 1.6 m, a clump of two or three plants each): the straw stand with pale heads
+ * (summer), young green plants and rosettes (spring), grey-brown skeletons (autumn).
+ */
+function thistleStand(
+  sheet: 'thistle-dry' | 'thistle-green' | 'thistle-autumn',
+  material: MaterialId,
+  height: [number, number],
+): AssetBuilder {
+  return ({ seed }) => {
+    const rng = new Rng(seed);
+    const h = rng.range(...height);
+    return {
+      parts: [
+        {
+          geometry: plantCards(rng, sheet, [0, 1, 2, 3], h * 0.5, h, 3, 0.75),
+          material: getMaterial(material),
+        },
+      ],
+    };
+  };
+}
+
+export const thistle = thistleStand(
+  'thistle-dry',
+  'foliage_card_thistle',
+  [1.3, 1.8],
+);
+export const thistleYoung = thistleStand(
+  'thistle-green',
+  'foliage_card_thistle_young',
+  [0.7, 1.1],
+);
+export const thistleDead = thistleStand(
+  'thistle-autumn',
+  'foliage_card_thistle_dead',
+  [1.2, 1.7],
+);
 
 /**
  * Ferns of the shaded woods (male fern / bracken): three crossed cards of the fern sheet (2.4 x 1.2 m cells, the stand

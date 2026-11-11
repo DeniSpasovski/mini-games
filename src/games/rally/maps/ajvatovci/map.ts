@@ -62,6 +62,66 @@ const seasonalGrass = (r: ScatterRule): ScatterRule[] => [
   { ...r, asset: 'dry_grass', density: r.density * 0.35, season: ['autumn'] },
 ];
 
+/**
+ * The canal and drain growth by season (ref photos of the bridge canal: July thicket, November straw). Spring: last
+ * year's straw stems standing with the new green shoots through them, young thistles and rosettes; summer: green reed beds
+ * and cattails, tall straw-brown thistles with pale heads; autumn: straw reeds, grey-brown dead thistles. Shrubs
+ * (box elder / elder-like bushes) green in spring and summer, yellowing in autumn (the pack bushes' season tints).
+ */
+const canalGrowth = (): ScatterRule[] => {
+  const bed = {
+    channelDist: [-4, 5] as [number, number],
+    detail: true,
+    minRoadDist: 1.5,
+    minPathDist: 0.3,
+    scale: [0.8, 1.3] as [number, number],
+  };
+  const bank = {
+    channelDist: [0.8, 7] as [number, number],
+    detail: true,
+    minRoadDist: 1.5,
+    minPathDist: 0.3,
+    mask: { scale: 22, threshold: 0.02 },
+    scale: [0.95, 1.4] as [number, number],
+  };
+  const slope = {
+    channelDist: [0.3, 6] as [number, number],
+    detail: true,
+    minRoadDist: 1,
+    minPathDist: 0.3,
+    scale: [0.8, 1.3] as [number, number],
+  };
+  const shrub = {
+    channelDist: [0.8, 6] as [number, number],
+    minRoadDist: 3,
+    minPathDist: 0.8,
+    mask: { scale: 30, threshold: 0.0 },
+    scale: [0.8, 1.4] as [number, number],
+    sink: 0.05,
+  };
+  return [
+    // Summer: green reeds and cattails, tall straw thistles.
+    { ...bed, asset: 'reeds', density: 1000, season: ['summer'] },
+    { ...bank, asset: 'thistle', density: 170, season: ['summer'] },
+    // Autumn: straw reeds, grey-brown dead thistles.
+    { ...bed, asset: 'reeds_dry', density: 900, season: ['autumn'] },
+    { ...bank, asset: 'thistle_dead', density: 140, season: ['autumn'] },
+    // Spring: last year's stems standing (thinner) with the new shoots, young thistles.
+    { ...bed, asset: 'reeds_dry', density: 380, season: ['spring'] },
+    { ...bed, asset: 'reeds_young', density: 650, season: ['spring'] },
+    { ...bank, asset: 'thistle_young', density: 150, season: ['spring'] },
+    { ...bank, asset: 'thistle_dead', density: 16, season: ['spring'] },
+    // The banks themselves: grass over the bare slope (fresh in spring, straw in summer, both in autumn).
+    { ...slope, asset: 'spring_grass', density: 700, season: ['spring'] },
+    { ...slope, asset: 'dry_grass', density: 650, season: ['summer'] },
+    { ...slope, asset: 'dry_grass', density: 300, season: ['autumn'] },
+    { ...slope, asset: 'grass_tuft', density: 350, season: ['autumn'] },
+    // Shrubs along the slope, every season.
+    { ...shrub, asset: 'pack_bush', density: 14 },
+    { ...shrub, asset: 'pack_lilac', density: 1.2, scale: [0.7, 1.0] },
+  ];
+};
+
 export const ajvatovciMap: MapDef = {
   ...info,
   country: 'mk',
@@ -356,15 +416,9 @@ export const ajvatovciMap: MapDef = {
       tilt: 3,
       sink: 0.2,
     },
-    {
-      asset: 'reeds',
-      channelDist: [0.3, 5],
-      density: 90,
-      detail: true,
-      minRoadDist: 1.5,
-      minPathDist: 0.3,
-      scale: [0.8, 1.3],
-    },
+    // The canal and drains grow over in every season (the bridge canal is a thicket of reed, thistle and young shrubs):
+    // reeds fill the bed and the foot of the banks, thistles stand on the banks, shrubs grow along the slope.
+    ...canalGrowth(),
     // Tall dry weeds / thistles on the field margins.
     {
       asset: 'tall_weeds',

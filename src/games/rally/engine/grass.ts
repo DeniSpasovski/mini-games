@@ -16,7 +16,8 @@ import {
 import { Rng } from '../../../shared/rng';
 import { coverageMips } from '../trees/materials';
 import { merge } from './geo';
-import { PLANT_SHEETS } from './plants/plant-atlas.data';
+import { PLANT_SHEETS as BAKED_SHEETS } from './plants/plant-atlas.data';
+import { THISTLE_SHEETS } from './plants/thistle.data';
 import greenUrl from './plants/grass-green.webp';
 import dryUrl from './plants/grass-dry.webp';
 import springUrl from './plants/grass-spring.webp';
@@ -24,6 +25,12 @@ import weedsUrl from './plants/weeds.webp';
 import reedsUrl from './plants/reeds.webp';
 import fernsUrl from './plants/ferns.webp';
 import fernsAutumnUrl from './plants/ferns-autumn.webp';
+import thistleGreenUrl from './plants/thistle-green.webp';
+import thistleDryUrl from './plants/thistle-dry.webp';
+import thistleAutumnUrl from './plants/thistle-autumn.webp';
+
+/** The baked atlases plus the thistle ones (scripts/plants/bake-thistle.py). */
+const PLANT_SHEETS = { ...BAKED_SHEETS, ...THISTLE_SHEETS };
 
 type RGB = [number, number, number];
 export type GrassKind = 'green' | 'dry' | 'spring';
@@ -37,6 +44,9 @@ const URLS: Record<PlantSheet, string> = {
   reeds: reedsUrl,
   ferns: fernsUrl,
   'ferns-autumn': fernsAutumnUrl,
+  'thistle-green': thistleGreenUrl,
+  'thistle-dry': thistleDryUrl,
+  'thistle-autumn': thistleAutumnUrl,
 };
 
 /** The grass sheet of a kind. */
@@ -85,6 +95,9 @@ export const SHEET_GAIN: Record<PlantSheet, RGB> = {
   reeds: [0.95, 1.05, 0.95],
   ferns: [1.0, 1.0, 1.4],
   'ferns-autumn': [1.0, 1.0, 1.0],
+  'thistle-green': [1.0, 1.0, 1.0],
+  'thistle-dry': [1.0, 1.0, 1.0],
+  'thistle-autumn': [1.0, 1.0, 1.0],
 };
 
 /**
@@ -232,6 +245,11 @@ const ASSET_SHEETS: Record<string, PlantSheet[]> = {
   tall_grass: ['grass-dry', 'grass-green'],
   tall_weeds: ['weeds'],
   reeds: ['reeds'],
+  reeds_dry: ['reeds'],
+  reeds_young: ['reeds'],
+  thistle: ['thistle-dry'],
+  thistle_young: ['thistle-green'],
+  thistle_dead: ['thistle-autumn'],
   fern: ['ferns'],
   fern_autumn: ['ferns-autumn'],
 };

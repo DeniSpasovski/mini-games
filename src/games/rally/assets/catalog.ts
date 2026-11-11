@@ -183,6 +183,56 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 140, castShadow: false }],
   },
   {
+    id: 'reeds_dry',
+    name: 'Reeds (dry)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      "The reed stand as straw (autumn, and last year's stems in spring): the reed cards recoloured (no collision, detail layer only).",
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'reeds_young',
+    name: 'Reeds (young)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'New reed shoots of spring (0.4-1 m): the reed cards drawn short (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'thistle',
+    name: 'Thistle',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Tall thistles of canal banks and verges gone to straw, with pale seed heads (summer): clumps of two or three plants on cards of AI-generated art (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 120, castShadow: false }],
+  },
+  {
+    id: 'thistle_young',
+    name: 'Thistle (young)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Young green thistles and leaf rosettes (spring): cards of AI-generated art (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 100, castShadow: false }],
+  },
+  {
+    id: 'thistle_dead',
+    name: 'Thistle (dead)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Grey-brown dead thistle stalks with torn heads (autumn): cards of AI-generated art (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 120, castShadow: false }],
+  },
+  {
     id: 'fern',
     name: 'Fern',
     category: 'vegetation',

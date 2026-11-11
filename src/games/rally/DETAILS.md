@@ -311,6 +311,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models (green / dry / spring grass tufts, the weed margin, nettles `tall_weeds`) and
   CC BY Sketchfab models by Nicholas-3D (reed beds and cattails `reeds`; `--sheets reeds` rebakes only that sheet; credits in `THIRD-PARTY.md` and About), and the woods' ferns (`fern`,
   `fern_autumn` = dead bracken toned by `pack.py` `bracken()`) from the CC0 Poly Haven Fern 02.
+  Canal growth (Ajvatovci `canalGrowth` in `maps/ajvatovci/map.ts`, along the whole canal / drains by season): reeds green (summer) / straw `reeds_dry` (autumn; the last year's stems in spring, thinned) / `reeds_young` shoots (spring), bank grass, thistles (`thistle` straw with pale heads in summer, `thistle_young` green plants and rosettes in spring, `thistle_dead` grey-brown in autumn; sheets from `scripts/plants/bake-thistle.py`, AI-generated art) and `pack_bush` / `pack_lilac` shrubs.
   `SHEET_GAIN` brings each sheet into the measured colour bands (cards and blade strips alike; a test checks) and `GRASS_CARD_ALPHA` sets the card cut. Keep
   grass at two variants (it draws as a variant set). A stage loads only the sheets its season's assets use (`plantSheetsReady`, `assetIds`); a sheet that
   fails to load is logged and drawn as plain blades.
