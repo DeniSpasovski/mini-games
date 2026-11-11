@@ -1,3 +1,4 @@
+import { Vector2 } from 'three';
 import type { BuildingDef, PadDef } from '../../shared/types';
 import type { StaticCollider } from '../../../physics/types';
 import type { TerrainSampler } from '../../../world/heightfield';
@@ -15,7 +16,8 @@ import {
   toWorld,
   type Corner,
 } from './frame';
-import { getYards, PLOTS, SITE } from './layout';
+import { getYards, inside, PLOTS, SITE } from './layout';
+import { yardSurfaces, type YardSurface } from './yard-surfaces';
 import { buildStartRow } from './build';
 import { startRowInstances } from './plantings';
 import {
@@ -309,6 +311,60 @@ const kerbGround = (ground: TerrainSampler) => {
   };
 };
 
+/** Grid cell for the yard lookup (m). */
+const YARD_CELL = 16;
+
+/**
+ * The yards' paving (yard-surfaces.ts: the same planes build/lots draws), so the wheels ride on the yard, its
+ * patches and its drive instead of sinking to the graded pad a few cm under them. NaN off every yard.
+ */
+const yardGround = (ground: TerrainSampler) => {
+  const pieces = yardSurfaces((x, z) =>
+    ground.height(x + ORIGIN.x, z + ORIGIN.z),
+  );
+  const grid = new Map<number, YardSurface[]>();
+  const cell = (cx: number, cz: number) => (cx + 4096) * 8192 + (cz + 4096);
+  for (const s of pieces)
+    for (
+      let cx = Math.floor(s.x0 / YARD_CELL);
+      cx <= Math.floor(s.x1 / YARD_CELL);
+      cx++
+    )
+      for (
+        let cz = Math.floor(s.z0 / YARD_CELL);
+        cz <= Math.floor(s.z1 / YARD_CELL);
+        cz++
+      ) {
+        const k = cell(cx, cz);
+        const l = grid.get(k);
+        if (l) l.push(s);
+        else grid.set(k, [s]);
+      }
+  const p = new Vector2();
+  return (wx: number, wz: number): number => {
+    const x = wx - ORIGIN.x;
+    const z = wz - ORIGIN.z;
+    const l = grid.get(
+      cell(Math.floor(x / YARD_CELL), Math.floor(z / YARD_CELL)),
+    );
+    if (!l) return NaN;
+    let y = NaN;
+    p.set(x, z);
+    for (const s of l)
+      if (
+        x >= s.x0 &&
+        x <= s.x1 &&
+        z >= s.z0 &&
+        z <= s.z1 &&
+        inside(p, s.polygon)
+      ) {
+        const h = s.height(x, z);
+        if (!(h <= y)) y = h;
+      }
+    return y;
+  };
+};
+
 export const startRowLandmark: Landmark = {
   id: 'ajvatovci-start-row',
 
@@ -431,7 +487,14 @@ export const startRowLandmark: Landmark = {
     return out;
   },
 
-  groundOverride: kerbGround,
+  groundOverride: (ground) => {
+    const kerb = kerbGround(ground);
+    const yards = yardGround(ground);
+    return (x, z) => {
+      const h = kerb(x, z);
+      return Number.isNaN(h) ? yards(x, z) : h;
+    };
+  },
 
   instances: (ground: TerrainSampler) =>
     startRowInstances((x, z) => ground.height(x, z)),

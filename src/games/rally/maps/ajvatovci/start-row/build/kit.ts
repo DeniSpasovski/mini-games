@@ -13,6 +13,7 @@ import {
   type ColorRepresentation,
 } from 'three';
 import { ORIGIN } from '../frame';
+import { fitPlane, type Plane } from '../yard-surfaces';
 import {
   castsShadow,
   groupCastsShadow,
@@ -36,40 +37,8 @@ import {
  * every edge keeps its length). Street dressing has no plane and drapes itself on the terrain.
  */
 
-/** y offset = a * X + b * Z + c in world metres. */
-export interface Plane {
-  a: number;
-  b: number;
-  c: number;
-}
-
-/** Least-squares plane through (x, z, y) samples. */
-export function fitPlane(samples: [number, number, number][]): Plane {
-  // Centre the data for conditioning, then solve the 3x3 normal equations.
-  const n = samples.length;
-  const mx = samples.reduce((s, p) => s + p[0], 0) / n;
-  const mz = samples.reduce((s, p) => s + p[1], 0) / n;
-  const my = samples.reduce((s, p) => s + p[2], 0) / n;
-  let sxx = 0;
-  let sxz = 0;
-  let szz = 0;
-  let sxy = 0;
-  let szy = 0;
-  for (const [x, z, y] of samples) {
-    const dx = x - mx;
-    const dz = z - mz;
-    const dy = y - my;
-    sxx += dx * dx;
-    sxz += dx * dz;
-    szz += dz * dz;
-    sxy += dx * dy;
-    szy += dz * dy;
-  }
-  const det = sxx * szz - sxz * sxz;
-  const a = Math.abs(det) < 1e-9 ? 0 : (sxy * szz - szy * sxz) / det;
-  const b = Math.abs(det) < 1e-9 ? 0 : (szy * sxx - sxy * sxz) / det;
-  return { a, b, c: my - a * mx - b * mz };
-}
+// (the yard planes: ../yard-surfaces.ts, shared with the physics)
+export { fitPlane, type Plane };
 
 /** Growing arrays of one mesh: positions, normals, uvs and vertex colours (all triangles). */
 export class Soup {
