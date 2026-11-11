@@ -355,7 +355,14 @@ const SPRITE_PROJECT = /* glsl */ `
  * Light through a sprite's own crown (Beer-Lambert, per metre of crown the sun crosses to reach it): ~0.5 m^2 of
  * leaf per m^3 of crown, half of it facing the sun. A 3 m path keeps ~35 %, the heart of a big crown a few %.
  */
-const CROWN_EXTINCTION = 0.35;
+const CROWN_EXTINCTION = 0.55;
+/**
+ * Near the camera a sprite is either in a sun fleck or in the shade of the leaves above it (a seeded roll against the
+ * light that reaches its depth, so the mean stays `exp(-k x path)`): the pack trees' lit and dark cards. It eases into
+ * the smooth mean over DAPPLE_FADE metres, as the clump normals do, so the impostor (baked with the mean) still matches.
+ */
+const DAPPLE_SHADE = 0.06;
+const DAPPLE_FADE: [number, number] = [30, 70];
 /** The shadow lookup sits this far (m) past the crown's sunward surface: clear of its own shadow proxies. */
 const CROWN_EXIT = 0.6;
 
@@ -374,7 +381,10 @@ const SPRITE_SHADOW_LOOKUP = /* glsl */ `
 	float tcB = dot( tcQ, tcD );
 	float tcDisc = tcB * tcB - tcA * ( dot( tcQ, tcQ ) - 1.0 );
 	float tcOut = tcDisc > 0.0 ? max( ( - tcB + sqrt( tcDisc ) ) / tcA, 0.0 ) : 0.0;
-	vTreeSelfT = exp( - ${CROWN_EXTINCTION.toFixed(2)} * tcOut );
+	float tcT = exp( - ${CROWN_EXTINCTION.toFixed(2)} * tcOut );
+	float tcRoll = fract( sin( dot( position, vec3( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 );
+	float tcLit = mix( ${DAPPLE_SHADE.toFixed(2)}, 1.0, smoothstep( tcRoll - 0.08, tcRoll + 0.08, tcT ) );
+	vTreeSelfT = mix( tcLit, tcT, smoothstep( ${DAPPLE_FADE[0].toFixed(1)}, ${DAPPLE_FADE[1].toFixed(1)}, distance( sprWorld, tlCam ) ) );
 	vec4 worldPosition = vec4( sprWorld + wsSunDir * ( tcOut + ${CROWN_EXIT.toFixed(2)} ), 1.0 );
 `;
 
@@ -399,7 +409,8 @@ const VERTEX_COLLAPSE = /* glsl */ `
 
 const FRAGMENT_PARS = /* glsl */ `
 const float TREE_SKY_LEAN = 0.5;
-const float TREE_LEAF_FILL = 0.1;
+const float TREE_LEAF_FILL = 0.06;
+const float DAPPLE_SKY = 0.5;
 // Bark is matte and dusty: a third of the standard sky sheen (on a dark trunk the full one outshines its own brown: blue-grey).
 const float TREE_BARK_SHEEN = 0.35;
 #ifdef TREE_SPRITE
@@ -429,7 +440,12 @@ vec3 treeHue( vec3 c, float turn ) {
 	const mat3 toRGB = mat3( 1.0, 1.0, 1.0, 0.956, -0.272, -1.106, 0.621, -0.647, 1.703 );
 	vec3 yiq = toYIQ * c;
 	float a = turn * 6.2831853;
-	yiq.yz = mat2( cos( a ), sin( a ), -sin( a ), cos( a ) ) * yiq.yz;
+	// Rotated, then held inside the hues leaves have (orange-red ~0.2 rad .. blue-green ~-2.2 rad in the IQ plane): a red
+	// autumn leaf turned on never goes magenta, a dark needle never cyan.
+	float h0 = atan( yiq.z, yiq.y );
+	float r = length( yiq.yz );
+	float h = clamp( h0 + a, min( h0, -2.2 ), max( h0, 0.2 ) );
+	yiq.yz = r * vec2( cos( h ), sin( h ) );
 	return max( toRGB * yiq, 0.0 );
 }
 `;
@@ -460,6 +476,11 @@ const FRAGMENT_COLOR = /* glsl */ `
 /** After lights_fragment_end: baked AO on the ambient; the sky's diffuse light (SH) where IBL is not sampled. */
 const FRAGMENT_AMBIENT = /* glsl */ `
 	reflectedLight.indirectDiffuse *= vTreeAO;
+	#ifdef TREE_SPRITE
+		// A leaf in the shade of the leaves above it sees less sky too (DAPPLE_SKY of it).
+		float tlSkyK = mix( DAPPLE_SKY, 1.0, vTreeSelfT );
+		reflectedLight.indirectDiffuse *= tlSkyK;
+	#endif
 	#ifdef TREE_SKY
 		if ( tlSkyOn > 0.5 ) {
 			vec3 tSkyN = inverseTransformDirection( normal, viewMatrix );
@@ -469,7 +490,11 @@ const FRAGMENT_AMBIENT = /* glsl */ `
 				tSkyN = normalize( tSkyN + vec3( 0.0, TREE_SKY_LEAN, 0.0 ) );
 				reflectedLight.indirectDiffuse += material.diffuseColor * ( TREE_LEAF_FILL * vTreeAO );
 			#endif
-			reflectedLight.indirectDiffuse += shGetIrradianceAt( tSkyN, tlSky ) * BRDF_Lambert( material.diffuseColor ) * vTreeAO;
+			reflectedLight.indirectDiffuse += shGetIrradianceAt( tSkyN, tlSky ) * BRDF_Lambert( material.diffuseColor ) * vTreeAO
+			#ifdef TREE_SPRITE
+				* tlSkyK
+			#endif
+			;
 		} else reflectedLight.indirectDiffuse *= FALLBACK_AMBIENT;
 	#endif
 	#if ! defined( TREE_SPRITE ) && ! defined( TREE_IMPOSTOR )
@@ -1021,7 +1046,7 @@ export function barkMaterial(
 }
 
 /** How far the atlas normal map bends the crown normal. */
-const SPRITE_BEND = 0.8;
+const SPRITE_BEND = 1.3;
 
 let spritePrepass = true;
 

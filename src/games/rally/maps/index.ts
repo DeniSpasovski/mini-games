@@ -65,31 +65,26 @@ const ENTRIES: MapEntry[] = [
     info: ajvatovciInfo,
     load: async () => (await import('./ajvatovci/map')).ajvatovciMap,
     models: ['park', 'yard', 'village'],
-    packs: ['oak', 'maple', 'willow'],
   },
   {
     info: vodnoInfo,
     load: async () => (await import('./vodno/map')).vodnoMap,
     models: ['park', 'forest'],
-    packs: ['oak', 'maple'],
   },
   {
     info: petralicaInfo,
     load: async () => (await import('./petralica/map')).petralicaMap,
     models: ['park', 'village'],
-    packs: ['oak', 'maple'],
   },
   {
     info: galichicaInfo,
     load: async () => (await import('./galichica/map')).galichicaMap,
     models: ['park'],
-    packs: ['oak', 'maple', 'elm', 'willow'],
   },
   {
     info: jackieInfo,
     load: async () => (await import('./jackie/map')).jackieMap,
     models: ['park', 'yard'],
-    packs: ['oak', 'birch'],
   },
 ];
 

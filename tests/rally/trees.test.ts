@@ -16,7 +16,7 @@ import {
   type FadeState,
 } from '../../src/games/rally/trees/draw';
 import { treeUniforms } from '../../src/games/rally/trees/materials';
-import { keptLight } from '../../src/games/rally/trees/mesh';
+import { keptLight, leafCover } from '../../src/games/rally/trees/mesh';
 import {
   LEAF_STYLES,
   spriteAtlas,
@@ -123,11 +123,15 @@ describe('trees', () => {
         sk.segments.filter((s) => s.order <= 1).length,
       );
       expect(s1).toBeGreaterThan(0);
-      expect(meshes.sprites.count).toBe(
+      const full =
         Math.min(sk.leaves.length, def.maxSprites) *
-          (def.foliage.leaf === 'pine' ? 1 : 2),
-      );
-      expect(meshes.sprites.count).toBeGreaterThan(30);
+        (def.foliage.leaf === 'pine' ? 1 : 2);
+      // A thin (sparse) variant drops a seeded share of its points, a bare tree all of them.
+      const cover = leafCover(def, variantSeed(def, 3));
+      if (cover === 1) expect(meshes.sprites.count).toBe(full);
+      else expect(meshes.sprites.count).toBeLessThanOrEqual(full * cover * 1.3);
+      if (def.foliage.bare) expect(meshes.sprites.count).toBe(0);
+      else expect(meshes.sprites.count).toBeGreaterThan(30);
     },
   );
 
@@ -208,10 +212,10 @@ describe('trees', () => {
     // Black pine: a bare trunk under an umbrella crown (its lowest crown point in the top third).
     const bp = v('black_pine').info;
     expect(bp.crown.c[1] - bp.crown.r[1]).toBeGreaterThan(bp.height * 0.6);
-    // Tall black pine of a closed stand: half again as tall, bare to its top quarter.
+    // Tall black pine of a closed stand: half again as tall, bare to over half its height under a ragged crown.
     const tbp = v('tall_black_pine').info;
     expect(tbp.height).toBeGreaterThan(bp.height * 1.5);
-    expect(tbp.crown.c[1] - tbp.crown.r[1]).toBeGreaterThan(tbp.height * 0.7);
+    expect(tbp.crown.c[1] - tbp.crown.r[1]).toBeGreaterThan(tbp.height * 0.55);
     // Pale-barked birch and plane, white against the oak's brown: at least twice the light (linear).
     const light = (hex: string) =>
       [1, 3, 5].reduce(

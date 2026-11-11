@@ -30,7 +30,12 @@ import {
 } from './materials';
 import type { Crown, MeshData, SpriteData, VariantMeshes } from './mesh';
 import { allSeasons, seasonal, seasonOf } from './seasons';
-import { isTreeType, speciesOfType, type SpeciesDef } from './species';
+import {
+  getSpecies,
+  isTreeType,
+  speciesOfType,
+  type SpeciesDef,
+} from './species';
 import { headingAt, packSprite } from './sprite-attr';
 import {
   atlasCacheKey,
@@ -157,6 +162,15 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
   return g;
 }
 
+/** Whether the worker can look `def` up itself (the registry's species in that season), so it need not be sent. */
+function registered(def: SpeciesDef, season: Season): boolean {
+  try {
+    return seasonal(getSpecies(def.name), season) === def;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Generates variants in workers (or inline where there are none): a failed worker is dropped and its pending variants
  * are generated inline, so the stage load never hangs (shared/worker-pool.ts). The leaf atlases of the styles in use
@@ -184,10 +198,13 @@ class Generator {
           reject(e);
         }
       };
+      const season = seasonOf(def);
       const req: Omit<GenerateRequest, 'id'> = {
         species: def.name,
         index,
-        season: seasonOf(def),
+        season,
+        // Not the registry's (a debugger override, a bare species): the worker grows this one.
+        ...(registered(def, season) ? {} : { def }),
       };
       const sent = this.pool.post(req, [], (r) =>
         r ? resolve(r as Timed) : inline(),

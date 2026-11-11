@@ -22,7 +22,7 @@ import {
  * `coverageMips`): cached variants and atlases regenerate. A re-baked photo leaf style (scripts/trees/bake-leaves.py)
  * changes its baked mean, which the keys carry (`photoStamp`).
  */
-export const GENERATOR_VERSION = 32;
+export const GENERATOR_VERSION = 35;
 
 /** A photo leaf style's bake in the cache keys (its mean shade), '' for a drawn style. */
 function photoStamp(style: LeafStyle): string {
@@ -82,6 +82,9 @@ export const VARIANT_SEEDS: Readonly<Record<string, readonly number[]>> = {
   'Hedge cypress': [4129058333, 1338393590, 743902381, 2499167811],
   Locust: [1046467012, 2549771480, 820080498, 3887742723],
   Bramble: [997559168, 2581106789, 3213389530, 2692139484],
+  'Bare oak': [2500806541, 3944580060, 862084218],
+  'Bare locust': [1728467607, 2241591944, 3068857894],
+  'Dead pine': [403697114, 1823714893, 1811637147],
 };
 
 /** Seed of a species' variant: its kept seed, the same in every season. */

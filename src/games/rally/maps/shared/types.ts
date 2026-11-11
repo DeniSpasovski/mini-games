@@ -475,6 +475,8 @@ export interface RealTreesDef {
   /** Bounds of the size (x the type's own mean height) a tree's height is clamped to. */
   scale: [number, number];
   tilt?: number;
+  /** Lean toward the stage road near it (`ScatterRule.lean`). */
+  lean?: ScatterRule['lean'];
   sink?: number;
   /**
    * Model trees (catalog assets, e.g. `pack_pine`) in place of the generated ones within `dist` m of the road edge, by
@@ -1021,8 +1023,26 @@ export interface ScatterRule {
   maxSlope?: number;
   /** Min terrain slope (1 - normal.y): only on steep ground (crags, rocks on a scarp). */
   minSlope?: number;
-  /** Clustered placement: keep where noise(x/scale) > threshold (-1..1). */
-  mask?: { scale: number; threshold: number; invert?: boolean };
+  /**
+   * Clustered placement: keep where noise(x/scale) > threshold (-1..1). Rules with the same `group` share one noise field
+   * (one clump of mixed shrubs; `invert` = the ground between); otherwise each rule has its own.
+   */
+  mask?: { scale: number; threshold: number; invert?: boolean; group?: number };
+  /**
+   * Strips along the contour (terraces, planting rows on a logged slope): keep where the ground height, shifted by up to
+   * `jitter` m of noise, falls in the first `width` (0-1) of each `period` m of height; `invert` = the ground between.
+   */
+  contour?: {
+    period: number;
+    width: number;
+    jitter?: number;
+    invert?: boolean;
+  };
+  /**
+   * Trees lean out over the stage road (toward the light of the open side): within `within` m of its edge the stem
+   * tilts `deg` [min, max] toward the road, less further off. On top of `tilt`.
+   */
+  lean?: { deg: [number, number]; within: number };
   scale: [number, number];
   /** Random tilt (deg). */
   tilt?: number;
@@ -1047,6 +1067,8 @@ export interface ScatterRule {
   season?: Season[];
   /** Only on field parcels growing this crop in the map's season (`landcover.fields.crops`). */
   crop?: string;
+  /** Only this far from the edge of a field parcel [min, max] (m; `landcover.fields`): hedgerows, field-edge tree lines. */
+  fieldEdge?: [number, number];
   /** Keep away from `paths` (other roads / canals) edges (m). Default 1.5 for solid assets, 0.4 otherwise. */
   minPathDist?: number;
   /** Only this far from the EDGE of a canal / drain / river [min, max] (m, max <= 10): willows, reeds. */

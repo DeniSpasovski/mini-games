@@ -18,6 +18,7 @@ import type {
 } from '../physics/types';
 import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
+import { BARE_TWINS } from '../trees/placement';
 import { isTreeType } from '../trees/species';
 import { culvertColliders, culvertStones } from './culverts';
 import { landmarksOf, type Landmark } from './landmarks';
@@ -268,11 +269,24 @@ export class World implements GroundProvider {
         channels: this.gen.channels,
         lakes: this.gen.lakes,
         cropAt: (x, z) => this.gen.cropAt(x, z),
+        fieldEdgeAt: (x, z) => this.gen.fieldEdgeAt(x, z),
         fieldAngle: map.landcover?.fields?.angle,
         stageId: map.id,
         treeSetback: map.treeSetback,
         treeCrownClear: map.treeCrownClear,
         heroTrees: map.heroTrees,
+        // Carved below the land on a rock cut stretch: its face, or the laid-back bank above a deep one.
+        cutAt: map.road.rockCuts
+          ? (x, z, q) => {
+              const nat = this.gen.naturalHeight(x, z);
+              const depth = nat - this.gen.height(x, z);
+              if (depth < 0.4) return 0;
+              return (
+                this.gen.rockCutWeightAt(x, z, nat - q.height, q.along) *
+                Math.min(1, (depth - 0.4) / 0.8)
+              );
+            }
+          : undefined,
       },
     );
     const crowdQ = newPathQuery();
@@ -1065,6 +1079,9 @@ export class World implements GroundProvider {
       ...this.map.props.map((p) => p.asset),
     ]);
     for (const inst of this.scatter.fixedInstances()) ids.add(inst.asset);
+    // Scattered trees may stand in a dead patch as their bare twin (trees/placement.ts `bareTwin`).
+    for (const r of this.map.scatter)
+      if (BARE_TWINS[r.asset]) ids.add(BARE_TWINS[r.asset]);
     return ids;
   }
 

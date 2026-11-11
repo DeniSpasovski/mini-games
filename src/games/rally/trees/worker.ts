@@ -1,7 +1,7 @@
 import { meshBuffers } from './mesh';
 import type { Season } from '../season';
 import { seasonal } from './seasons';
-import { getSpecies } from './species';
+import { getSpecies, type SpeciesDef } from './species';
 import { generateVariant } from './variants';
 import { spriteAtlas, type LeafStyle, type SpriteAtlas } from './leaftex';
 import { photoAtlas } from './leafphoto';
@@ -22,6 +22,8 @@ export interface GenerateRequest {
   species: string;
   index: number;
   season: Season;
+  /** The definition itself when it is not the registry's (a debugger override, a bare species). */
+  def?: SpeciesDef;
 }
 
 /** The atlas of a leaf style and its mip chains (trees/materials.ts `spriteTextures`): pure pixel work, done here. */
@@ -135,10 +137,13 @@ scope.onmessage = (e) => {
     );
     return;
   }
-  const { id, species, index, season } = e.data;
+  const { id, species, index, season, def } = e.data;
   try {
     const t0 = performance.now();
-    const g = generateVariant(seasonal(getSpecies(species), season), index);
+    const g = generateVariant(
+      def ?? seasonal(getSpecies(species), season),
+      index,
+    );
     scope.postMessage({ id, ...g, ms: performance.now() - t0 }, [
       ...meshBuffers(g.meshes),
       g.info.capsules.buffer as ArrayBuffer,

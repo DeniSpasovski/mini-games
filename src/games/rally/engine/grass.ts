@@ -225,14 +225,15 @@ function fallbackSheet(id: PlantSheet): Uint8Array {
 }
 
 /** The atlases each catalog asset draws from. */
-const ASSET_SHEETS: Record<string, PlantSheet> = {
-  grass_tuft: 'grass-green',
-  dry_grass: 'grass-dry',
-  spring_grass: 'grass-spring',
-  tall_weeds: 'weeds',
-  reeds: 'reeds',
-  fern: 'ferns',
-  fern_autumn: 'ferns-autumn',
+const ASSET_SHEETS: Record<string, PlantSheet[]> = {
+  grass_tuft: ['grass-green'],
+  dry_grass: ['grass-dry'],
+  spring_grass: ['grass-spring'],
+  tall_grass: ['grass-dry', 'grass-green'],
+  tall_weeds: ['weeds'],
+  reeds: ['reeds'],
+  fern: ['ferns'],
+  fern_autumn: ['ferns-autumn'],
 };
 
 /**
@@ -240,7 +241,7 @@ const ASSET_SHEETS: Record<string, PlantSheet> = {
  * image (the game's load waits for it).
  */
 export function plantSheetsReady(assets: Iterable<string>): Promise<void> {
-  for (const a of assets) if (ASSET_SHEETS[a]) plantSheet(ASSET_SHEETS[a]);
+  for (const a of assets) for (const s of ASSET_SHEETS[a] ?? []) plantSheet(s);
   return Promise.all(loads.values()).then(() => undefined);
 }
 

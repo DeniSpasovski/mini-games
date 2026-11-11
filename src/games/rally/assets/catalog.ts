@@ -61,6 +61,8 @@ export interface AssetMeta {
   variantColliders?: ColliderSpec[][];
   /** Per-instance colour jitter (0 = none), applied via instanceColor. */
   tint?: number;
+  /** Grass: dry / lush meadow patches from a noise field over the jitter, this strong (0-1; world/meadow-patches.ts). */
+  patches?: number;
   /**
    * Knocked over when the car drives through it (no collider, the car is not slowed): falls down and costs a time
    * penalty (world/breakables.ts). `r` = radius and `h` = height (m, unscaled) of the hit test.
@@ -430,6 +432,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.2,
+    patches: 1,
   },
   {
     id: 'dry_grass',
@@ -443,6 +446,21 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.18,
+    patches: 0.7,
+  },
+  {
+    id: 'tall_grass',
+    name: 'Seeding grass',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Knee-high seeding grass of uncut verges and fallow, straw and green stalks mixed (summer, autumn; detail layer). The grass scans drawn tall.',
+    variants: 2,
+    lods: GRASS_LODS,
+    nearBoost: NEAR_GRASS,
+    nearRoad: GRASS_BLADES_ROAD,
+    tint: 0.16,
+    patches: 0.9,
   },
   {
     id: 'spring_grass',
@@ -456,6 +474,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.16,
+    patches: 0.6,
   },
   // Field crops: cards baked from the CC BY wheat / corn models (engine/crops.ts).
   {

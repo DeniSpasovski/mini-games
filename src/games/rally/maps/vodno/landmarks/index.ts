@@ -640,11 +640,10 @@ export const trailLotLandmark = landmark({
   replaces: (b) => TRAIL_LOT_REPLACES.has(b.id),
   colliders: trailLotColliders,
   plants: [
-    // Scots pines of the pack (the owner's photo: ~20-25 m, straight, close together), a few oaks among them, over a low
+    // Tall black pines (the owner's photo: ~20-25 m, straight, close together), a few oaks among them, over a low
     // hornbeam / oak understorey.
-    ...TRAIL_PINES.map(([x, z, scale, variant]) => ({
-      asset: 'pack_pine',
-      variant,
+    ...TRAIL_PINES.map(([x, z, scale]) => ({
+      asset: 'tall_black_pine',
       site: AT_WORLD,
       x,
       z,

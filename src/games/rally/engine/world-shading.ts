@@ -821,8 +821,7 @@ const FOLIAGE_TERM = /* glsl */ `
 				float wsGlint = saturate( dot( geometryNormal, wsH ) );
 				wsGlint *= wsGlint;
 				wsGlint *= wsGlint;
-				wsGlint *= wsGlint;
-				reflectedLight.directDiffuse += directLight.color * ( 0.03 * wsGlint * saturate( dot( geometryNormal, directLight.direction ) ) );
+				reflectedLight.directDiffuse += directLight.color * mix( vec3( 1.0 ), material.diffuseColor / max( material.diffuseColor.g, 1e-3 ), 0.7 ) * ( 0.06 * wsGlint * saturate( dot( geometryNormal, directLight.direction ) ) );
 				// In the crown's shadow a leaf still gets the sun through and off the leaves round it (a leaf passes ~10 %
 				// and reflects as much, green-yellow): more light again than the sky gives it, so a crown's underside is
 				// not black.

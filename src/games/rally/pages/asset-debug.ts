@@ -45,7 +45,13 @@ import {
 import { TreeRenderer } from '../trees/draw';
 import { TreeLibrary } from '../trees/load';
 import { placeTree } from '../trees/placement';
-import { speciesOfType, TREE_TYPES, variantCount } from '../trees/species';
+import {
+  bareSpecies,
+  speciesOfType,
+  TREE_TYPES,
+  variantCount,
+  type SpeciesDef,
+} from '../trees/species';
 import { DEFAULT_SEASON, SEASONS, seasonParam } from '../season';
 import type { RoadQuery } from '../world/road';
 import type { ScatterChunk, ScatterInstance } from '../world/scatter';
@@ -77,6 +83,18 @@ const DEFAULTS = {
   repeat: 1,
   /** Trees: leaf colours of this season. */
   season: DEFAULT_SEASON as string,
+  /**
+   * Trees, tuning (`SpeciesDef.foliage`, `treeOverride`): `cover` / `sprite` scale the species' own leaf cover and
+   * sprite size; `sparse` (share of thin variants), `sparseCover` (their cover), `light` / `clump` (`colorSpread`
+   * exposure / clump) replace it, -1 = the species' own; `bare` = no leaves (`bareSpecies`).
+   */
+  cover: 1,
+  sprite: 1,
+  sparse: -1,
+  sparseCover: -1,
+  light: -1,
+  clump: -1,
+  bare: false,
   /** Weather and hour of day (`Environment` reads `?weather=` / `?tod=`), as in the car viewer. */
   weather: 'dry',
   tod: VIEWER_HOUR,
@@ -238,6 +256,66 @@ const leavesCtl = vars.checkbox('Leaves', state.leaves, (v) => {
   showLeaves();
 });
 
+// Trees: the species' foliage tuned live (regrown in the worker on each change; URL keeps it).
+const tune = shell.panel.section('Tree tuning');
+const tuneSlider = (
+  label: string,
+  key: 'cover' | 'sprite' | 'sparse' | 'sparseCover' | 'light' | 'clump',
+  min: number,
+  max: number,
+  step: number,
+) =>
+  tune.slider(label, state[key], { min, max, step }, (v) => {
+    state[key] = v;
+    sync();
+    rebuild();
+  });
+tuneSlider('Leaf cover ×', 'cover', 0.1, 1.5, 0.05);
+tuneSlider('Sprite size ×', 'sprite', 0.4, 1.8, 0.05);
+tuneSlider('Sparse share (-1 own)', 'sparse', -1, 1, 0.05);
+tuneSlider('Sparse cover (-1 own)', 'sparseCover', -1, 1, 0.05);
+tuneSlider('Light spread (-1 own)', 'light', -1, 0.8, 0.02);
+tuneSlider('Clump colour (-1 own)', 'clump', -1, 0.3, 0.01);
+tune.checkbox('Bare (no leaves)', state.bare, (v) => {
+  state.bare = v;
+  sync();
+  rebuild();
+});
+tune.note('Each change regrows the variants (a few s).');
+
+/** The species with the Tree tuning section's values (itself when they are all the defaults). */
+function treeOverride(def: SpeciesDef): SpeciesDef {
+  const f = def.foliage;
+  const own = (v: number) => v < 0;
+  const plain =
+    state.cover === 1 &&
+    state.sprite === 1 &&
+    own(state.sparse) &&
+    own(state.sparseCover) &&
+    own(state.light) &&
+    own(state.clump);
+  if (plain) return state.bare ? bareSpecies(def, def.name) : def;
+  const sparse = f.sparse ?? { share: 0, cover: 0.6 };
+  const tuned: SpeciesDef = {
+    ...def,
+    foliage: {
+      ...f,
+      cover: (f.cover ?? 1) * state.cover,
+      spriteSize: f.spriteSize * state.sprite,
+      sparse: {
+        share: own(state.sparse) ? sparse.share : state.sparse,
+        cover: own(state.sparseCover) ? sparse.cover : state.sparseCover,
+      },
+      colorSpread: {
+        ...f.colorSpread,
+        ...(own(state.light) ? {} : { exposure: state.light }),
+        ...(own(state.clump) ? {} : { clump: state.clump }),
+      },
+    },
+  };
+  return state.bare ? bareSpecies(tuned, def.name) : tuned;
+}
+
 const infoSec = shell.panel.section('Info');
 const desc = infoSec.html('');
 const info = infoSec.info();
@@ -291,6 +369,7 @@ function showOptions(kind: AssetKind, variants = 1, lods = 1): void {
   show(wireCtl, asset);
   show(boundsCtl, asset);
   show(colliderCtl, asset);
+  tune.el.hidden = !tree;
 }
 
 // --- build ---------------------------------------------------------------------------------
@@ -497,7 +576,7 @@ function showTree(type: string, reframe: boolean): void {
   if (!(type in TREE_TYPES)) return;
   const job = ++treeJob;
   const season = seasonParam(state.season, DEFAULT_SEASON);
-  const def = speciesOfType(type);
+  const def = treeOverride(speciesOfType(type)); // (bare: its own variant count)
   showOptions('tree', variantCount(def));
   info({ id: type, species: def.name, status: 'growing ...' });
   desc.textContent = '';
@@ -507,7 +586,7 @@ function showTree(type: string, reframe: boolean): void {
   };
   const loaded = loadingPlate(TREE_TYPES[type]);
   void TreeLibrary.load(
-    TreeLibrary.speciesOf([type], season),
+    TreeLibrary.speciesOf([type], season).map(treeOverride),
     shell.renderer,
   ).then((lib) => {
     if (job !== treeJob) return lib.dispose();
