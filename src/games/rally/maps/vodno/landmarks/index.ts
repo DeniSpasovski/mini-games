@@ -123,6 +123,7 @@ import {
   LOWER_STATION,
   NEREZI_AREAS,
   NEREZI_CHURCH,
+  areasBox,
   onAreas,
   OUTPOST_AREAS,
   PLATFORM,
@@ -181,9 +182,16 @@ interface Spec {
 }
 
 function landmark(spec: Spec): Landmark {
+  // Scatter asks every landmark for every candidate (grass included): most are nowhere near.
+  const box = areasBox(spec.areas);
   return {
     id: spec.id,
-    occupies: (x, z, margin) => onAreas(spec.areas, x, z, margin),
+    occupies: (x, z, margin) =>
+      x > box[0] - margin &&
+      x < box[1] + margin &&
+      z > box[2] - margin &&
+      z < box[3] + margin &&
+      onAreas(spec.areas, x, z, margin),
     replaces: (b) => onAreas(spec.areas, b.x, b.z, 0) || !!spec.replaces?.(b),
     colliders: (ground) => spec.colliders(ground),
     surfaceAt: spec.surfaceAt,

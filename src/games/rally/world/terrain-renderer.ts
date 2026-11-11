@@ -27,7 +27,8 @@ import { RENDER_MARGIN, type World } from './world';
  *    8 x 8 at LOD3; same vertex spacing, one mesh each). A tile that splits or merges at the same LOD copies the
  *    vertices of the tiles it replaces instead of sampling the generator again (`reuse`). `blockLod` keeps the bands of the unmerged streamer, so merging
  *    never makes a chunk coarser; a tile may reach `MERGE_SLACK` tile sizes past its band end (at LOD3 past the
- *    view distance) instead of splitting along every band edge.
+ *    view distance) instead of splitting along every band edge. A block that hangs over the map edge merges too: its
+ *    tile is the rectangle of its chunks inside the map (`grid`), so the edge is not a strip of single chunks.
  *  - Skirts hide cracks between neighbouring LODs.
  *  - Index buffers are shared per grid size (same topology for every tile).
  *  - Work is time-sliced: `update()` builds tiles until its ms budget is used.
@@ -76,6 +77,7 @@ interface Vertices {
 interface SampleJob extends Vertices {
   w: Want;
   grid: TerrainGrid;
+  /** Vertex rows. */
   n: number;
   /** Next height row / vertex row to sample. */
   hrow: number;
@@ -98,7 +100,7 @@ export class TerrainRenderer {
   private indexCache = new Map<number, BufferAttribute>();
   private lodDistances: [number, number, number];
   private cs: number;
-  /** Chunks inside the map (+ margin): merged tiles need all their chunks in here. */
+  /** Chunks inside the map (+ margin): nothing is drawn outside (a merged tile is cut to it, `grid`). */
   private lim: { x0: number; x1: number; z0: number; z1: number };
   private heightAbove = 0;
   /** Where the tile plan was last made (re-planned after REPLAN m of travel). */
@@ -108,6 +110,8 @@ export class TerrainRenderer {
   private todo: Want[] = [];
   private next = 0;
   private job: SampleJob | null = null;
+  /** Chunks a culvert stands on: their LOD0 tile draws with the holes material (`getTerrainMaterial`). */
+  private holed = new Set<number>();
   /** Tile builds still wanted (for loading screens / stats). */
   pending = 0;
 
@@ -130,6 +134,35 @@ export class TerrainRenderer {
       mapSeason(world.map.environment),
     );
     setGroundMoisture(world.moisture);
+    if (world.map.culverts && world.gen.culverts.length) {
+      // The holes material is first drawn mid-stage (no culvert at the start line): an empty mesh carries it through
+      // the loading warm-up, so its program compiles there, and hides itself once drawn.
+      const g = new BufferGeometry();
+      g.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
+      g.setAttribute('normal', new BufferAttribute(new Float32Array(9), 3));
+      g.setAttribute('splat', new BufferAttribute(new Uint8Array(12), 4, true));
+      const warm = new Mesh(g, getTerrainMaterial(false, true));
+      warm.name = 'terrain holes warm-up';
+      warm.receiveShadow = true;
+      warm.frustumCulled = false;
+      warm.matrixAutoUpdate = false;
+      warm.onAfterRender = () => {
+        warm.visible = false;
+      };
+      this.group.add(warm);
+      for (const s of world.gen.culverts)
+        for (
+          let cz = Math.floor((s.z - s.reach) / cs);
+          cz * cs <= s.z + s.reach;
+          cz++
+        )
+          for (
+            let cx = Math.floor((s.x - s.reach) / cs);
+            cx * cs <= s.x + s.reach;
+            cx++
+          )
+            this.holed.add(key(cx, cz, 1));
+    }
   }
 
   /** Terrain meshes (one draw call each). */
@@ -219,6 +252,8 @@ export class TerrainRenderer {
     // nearest chunk and may reach `MERGE_SLACK` tile sizes into the next one).
     const want = new Map<number, Want>();
     const visit = (cx: number, cz: number, span: number): void => {
+      // Nothing of it inside the map.
+      if (cx > lx1 || cx + span <= lx0 || cz > lz1 || cz + span <= lz0) return;
       const d = this.tileDistance(cx, cz, span, focus);
       if (d > vd) return;
       const k = key(cx, cz, span);
@@ -228,14 +263,11 @@ export class TerrainRenderer {
         want.set(k, { cx, cz, span, lod, d });
         return;
       }
-      if (this.inMap(cx, cz, span) && lod >= MERGE[span]) {
-        // The band ends where the next LOD starts, unless none follows (LOD3, or the aligned 4 x 4 block hangs over
-        // the map edge, which keeps its chunks at LOD2).
-        const last =
-          lod >= 3 ||
-          !this.inMap(Math.floor(cx / 4) * 4, Math.floor(cz / 4) * 4, 4);
+      if (lod >= MERGE[span]) {
+        // The band ends where the next LOD starts, unless none follows (LOD3).
         const end =
-          (last ? vd : this.lodDistances[lod] * 1.1) + MERGE_SLACK * span * cs;
+          (lod >= 3 ? vd : this.lodDistances[lod] * 1.1) +
+          MERGE_SLACK * span * cs;
         if (this.tileFarDistance(cx, cz, span, focus) <= end) {
           want.set(k, { cx, cz, span, lod, d });
           return;
@@ -286,6 +318,7 @@ export class TerrainRenderer {
     }
   }
 
+  /** Distance to a tile (m): to its part inside the map. */
   private tileDistance(
     cx: number,
     cz: number,
@@ -293,11 +326,21 @@ export class TerrainRenderer {
     p: Vector3,
   ): number {
     const cs = this.cs;
-    const dx = Math.max(cx * cs - p.x, 0, p.x - (cx + span) * cs);
-    const dz = Math.max(cz * cs - p.z, 0, p.z - (cz + span) * cs);
+    const l = this.lim;
+    const dx = Math.max(
+      Math.max(cx, l.x0) * cs - p.x,
+      0,
+      p.x - Math.min(cx + span, l.x1 + 1) * cs,
+    );
+    const dz = Math.max(
+      Math.max(cz, l.z0) * cs - p.z,
+      0,
+      p.z - Math.min(cz + span, l.z1 + 1) * cs,
+    );
     return Math.hypot(dx, dz, this.heightAbove);
   }
 
+  /** The whole block lies inside the map (its tile is the full square). */
   private inMap(cx: number, cz: number, span: number): boolean {
     const l = this.lim;
     return (
@@ -313,20 +356,43 @@ export class TerrainRenderer {
     p: Vector3,
   ): number {
     const cs = this.cs;
+    const l = this.lim;
     const dx = Math.max(
-      Math.abs(cx * cs - p.x),
-      Math.abs((cx + span) * cs - p.x),
+      Math.abs(Math.max(cx, l.x0) * cs - p.x),
+      Math.abs(Math.min(cx + span, l.x1 + 1) * cs - p.x),
     );
     const dz = Math.max(
-      Math.abs(cz * cs - p.z),
-      Math.abs((cz + span) * cs - p.z),
+      Math.abs(Math.max(cz, l.z0) * cs - p.z),
+      Math.abs(Math.min(cz + span, l.z1 + 1) * cs - p.z),
     );
     return Math.hypot(dx, dz, this.heightAbove);
   }
 
   /**
+   * The vertex grid of a tile: its chunks inside the map (origin chunk `x`, `z`; `nx` x `nz` vertices at the LOD's
+   * step). A block inside the map is the full square.
+   */
+  private grid(
+    cx: number,
+    cz: number,
+    span: number,
+    lod: number,
+  ): { x: number; z: number; nx: number; nz: number } {
+    const l = this.lim;
+    const q = CHUNK_CELLS / STEPS[lod];
+    const x = Math.max(cx, l.x0);
+    const z = Math.max(cz, l.z0);
+    return {
+      x,
+      z,
+      nx: (Math.min(cx + span, l.x1 + 1) - x) * q + 1,
+      nz: (Math.min(cz + span, l.z1 + 1) - z) * q + 1,
+    };
+  }
+
+  /**
    * LOD of a chunk (or merged tile) as the unmerged streamer picks it: a chunk is as coarse as the aligned 2 x 2 /
-   * 4 x 4 block it sits in (when that block lies inside the map) once the block's nearest chunk is 10% past the
+   * 4 x 4 block it sits in (the part of it inside the map) once the block's nearest chunk is 10% past the
    * band start, so a band really starts a block later than its nominal distance. Merged tiles keep these bands,
    * so merging never costs detail.
    */
@@ -342,11 +408,12 @@ export class TerrainRenderer {
     // Distance to the aligned block of that size (a tile at least that big is its own block: `visit` checked it).
     const reach = (size: number): number => {
       if (span >= size) return d;
-      const bx = Math.floor(cx / size) * size;
-      const bz = Math.floor(cz / size) * size;
-      return this.inMap(bx, bz, size)
-        ? this.tileDistance(bx, bz, size, focus)
-        : 0;
+      return this.tileDistance(
+        Math.floor(cx / size) * size,
+        Math.floor(cz / size) * size,
+        size,
+        focus,
+      );
     };
     const past = (to: number): number =>
       t[to - 1] * (current !== undefined && current >= to ? 1 : 1.1);
@@ -369,9 +436,11 @@ export class TerrainRenderer {
   /**
    * Vertices of tile `w` taken from built tiles at the same LOD that cover all its chunks (it splits off a bigger
    * tile or merges smaller ones). The lattice is global, so a shared vertex has the same height, normal and splat
-   * in every tile; only the position is re-based on the new origin. Undefined when any chunk lacks such a tile.
+   * in every tile; only the position is re-based on the new origin. Undefined when any chunk lacks such a tile, or
+   * a tile is cut by the map edge (sampled instead).
    */
   private reuse(w: Want): Vertices | undefined {
+    if (!this.inMap(w.cx, w.cz, w.span)) return undefined;
     const step = STEPS[w.lod];
     const q = CHUNK_CELLS / step;
     const n = w.span * q + 1;
@@ -380,6 +449,7 @@ export class TerrainRenderer {
       for (let i = 0; i < w.span; i++) {
         const t = this.coveringTile(w.cx + i, w.cz + j);
         if (!t || t.lod !== w.lod || t.span === w.span) return undefined;
+        if (!this.inMap(t.cx, t.cz, t.span)) return undefined;
         cover.push(t);
       }
     const vcount = n * n + 4 * n;
@@ -434,18 +504,18 @@ export class TerrainRenderer {
       j.w.lod !== w.lod
     ) {
       const step = STEPS[w.lod];
-      const n = (w.span * CHUNK_CELLS) / step + 1;
-      const vcount = n * n + 4 * n;
+      const { x, z, nx, nz } = this.grid(w.cx, w.cz, w.span, w.lod);
+      const vcount = nx * nz + 2 * (nx + nz);
       j = this.job = {
         w,
-        n,
+        n: nz,
         grid: new TerrainGrid(
           this.world.gen,
-          w.cx * this.cs,
-          w.cz * this.cs,
+          x * this.cs,
+          z * this.cs,
           step * this.world.heightfield.cell,
-          n,
-          n,
+          nx,
+          nz,
         ),
         pos: new Float32Array(vcount * 3),
         nor: new Float32Array(vcount * 3),
@@ -477,12 +547,19 @@ export class TerrainRenderer {
     if (old) {
       this.keep(old);
       old.mesh.geometry = geometry;
-      old.mesh.material = getTerrainMaterial(w.lod > 0);
+      old.mesh.material = getTerrainMaterial(w.lod > 0, this.holed.has(k));
       old.lod = w.lod;
       return;
     }
-    const mesh = new Mesh(geometry, getTerrainMaterial(w.lod > 0));
-    mesh.position.set(w.cx * this.cs, 0, w.cz * this.cs);
+    const mesh = new Mesh(
+      geometry,
+      getTerrainMaterial(w.lod > 0, this.holed.has(k)),
+    );
+    mesh.position.set(
+      Math.max(w.cx, this.lim.x0) * this.cs,
+      0,
+      Math.max(w.cz, this.lim.z0) * this.cs,
+    );
     mesh.receiveShadow = true;
     if (this.opts.castShadow) {
       mesh.castShadow = true;
@@ -503,8 +580,8 @@ export class TerrainRenderer {
     sampled?: Vertices,
   ): BufferGeometry {
     const step = STEPS[lod];
-    const n = (span * CHUNK_CELLS) / step + 1;
-    const vcount = n * n + 4 * n;
+    const { x: ox, z: oz, nx, nz } = this.grid(cx, cz, span, lod);
+    const vcount = nx * nz + 2 * (nx + nz);
     const pos = sampled?.pos ?? new Float32Array(vcount * 3);
     const nor = sampled?.nor ?? new Float32Array(vcount * 3);
     const spl = sampled?.spl ?? new Uint8Array(vcount * 4);
@@ -520,9 +597,9 @@ export class TerrainRenderer {
       const sink = this.world.gen.sink;
       const x0 = cx * this.cs;
       const z0 = cz * this.cs;
-      for (let j = 0; j < n; j++) {
-        for (let i = 0; i < n; i++) {
-          const v = j * n + i;
+      for (let j = 0; j < nz; j++) {
+        for (let i = 0; i < nx; i++) {
+          const v = j * nx + i;
           const gi = i * step;
           const gj = j * step;
           pos[v * 3] = gi * cell;
@@ -540,20 +617,20 @@ export class TerrainRenderer {
       // Coarse LODs sample the generator directly (no heightfield cache).
       const g = new TerrainGrid(
         this.world.gen,
-        cx * this.cs,
-        cz * this.cs,
+        ox * this.cs,
+        oz * this.cs,
         step * cell,
-        n,
-        n,
+        nx,
+        nz,
       );
-      g.heights(0, n + 2);
-      g.vertices(0, n, pos, nor, spl);
+      g.heights(0, nz + 2);
+      g.vertices(0, nz, pos, nor, spl);
     }
 
     // Skirts: copies of the edge vertices pushed down.
-    let sv = n * n;
+    let sv = nx * nz;
     const edge = (i: number, j: number) => {
-      const v = j * n + i;
+      const v = j * nx + i;
       pos[sv * 3] = pos[v * 3];
       pos[sv * 3 + 1] = pos[v * 3 + 1] - skirt;
       pos[sv * 3 + 2] = pos[v * 3 + 2];
@@ -561,38 +638,39 @@ export class TerrainRenderer {
       spl.copyWithin(sv * 4, v * 4, v * 4 + 4);
       sv++;
     };
-    for (let i = 0; i < n; i++) edge(i, 0);
-    for (let i = 0; i < n; i++) edge(i, n - 1);
-    for (let j = 0; j < n; j++) edge(0, j);
-    for (let j = 0; j < n; j++) edge(n - 1, j);
+    for (let i = 0; i < nx; i++) edge(i, 0);
+    for (let i = 0; i < nx; i++) edge(i, nz - 1);
+    for (let j = 0; j < nz; j++) edge(0, j);
+    for (let j = 0; j < nz; j++) edge(nx - 1, j);
 
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(pos, 3));
     g.setAttribute('normal', new BufferAttribute(nor, 3));
     g.setAttribute('splat', new BufferAttribute(spl, 4, true));
-    g.setIndex(this.indexFor(n));
+    g.setIndex(this.indexFor(nx, nz));
     g.computeBoundingSphere();
     g.computeBoundingBox();
     return g;
   }
 
-  private indexFor(n: number): BufferAttribute {
-    let idx = this.indexCache.get(n);
+  private indexFor(nx: number, nz: number): BufferAttribute {
+    const ck = nx * 4096 + nz;
+    let idx = this.indexCache.get(ck);
     if (idx) return idx;
     const tris: number[] = [];
-    for (let j = 0; j < n - 1; j++) {
-      for (let i = 0; i < n - 1; i++) {
-        const a = j * n + i; // 00
+    for (let j = 0; j < nz - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const a = j * nx + i; // 00
         const b = a + 1; // 10
-        const c = a + n; // 01
+        const c = a + nx; // 01
         const d = c + 1; // 11
         // Same split as Heightfield.height(): (00,01,11) and (00,11,10).
         tris.push(a, c, d, a, d, b);
       }
     }
     // Skirt strips (both windings so culling never shows a gap).
-    const base = n * n;
-    const strip = (start: number, edgeV: (k: number) => number) => {
+    const base = nx * nz;
+    const strip = (start: number, n: number, edgeV: (k: number) => number) => {
       for (let k = 0; k < n - 1; k++) {
         const a = edgeV(k);
         const b = edgeV(k + 1);
@@ -601,14 +679,16 @@ export class TerrainRenderer {
         tris.push(a, sa, b, b, sa, sb, a, b, sa, b, sb, sa);
       }
     };
-    strip(base, (k) => k);
-    strip(base + n, (k) => (n - 1) * n + k);
-    strip(base + 2 * n, (k) => k * n);
-    strip(base + 3 * n, (k) => k * n + n - 1);
+    strip(base, nx, (k) => k);
+    strip(base + nx, nx, (k) => (nz - 1) * nx + k);
+    strip(base + 2 * nx, nz, (k) => k * nx);
+    strip(base + 2 * nx + nz, nz, (k) => k * nx + nx - 1);
     const arr =
-      n * n + 4 * n > 65535 ? new Uint32Array(tris) : new Uint16Array(tris);
+      nx * nz + 2 * (nx + nz) > 65535
+        ? new Uint32Array(tris)
+        : new Uint16Array(tris);
     idx = new BufferAttribute(arr, 1);
-    this.indexCache.set(n, idx);
+    this.indexCache.set(ck, idx);
     return idx;
   }
 

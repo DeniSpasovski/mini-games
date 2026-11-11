@@ -587,6 +587,7 @@ void loadMap(state.map).then(async (map) => {
   layers.checkbox('Terrain wireframe', state.wire, (v) => {
     state.wire = v;
     getTerrainMaterial().wireframe = v;
+    getTerrainMaterial(false, true).wireframe = v;
     sync();
   });
   layers.checkbox('Fog', state.fog, (v) => {

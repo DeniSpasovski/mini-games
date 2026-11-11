@@ -1,5 +1,4 @@
 import {
-  Box2,
   BufferAttribute,
   BufferGeometry,
   DataTexture,
@@ -7,7 +6,6 @@ import {
   InstancedMesh,
   NearestFilter,
   RGBAFormat,
-  Vector2,
   type Material,
   type WebGLRenderer,
 } from 'three';
@@ -22,7 +20,9 @@ import { MULTI_DRAW_EXT, TREE_MULTI_DRAWS, treeUniforms } from './materials';
  *   treeLod, unused. A batch owns a region of it; the shader reads tree `tmBase[gl_DrawID] + gl_InstanceID`
  *   (trees/materials.ts TREE_MULTI): instanced attributes cannot start at a per-draw offset in WebGL 2.
  * - **Uploads**: the batches keep their own arrays (trees/draw.ts writes them as before) and mark changed ranges; once
- *   a frame (`flush`) they are copied into the texture's array and sent as row spans (`copyTextureToTexture`).
+ *   a frame (`flush`) they are copied into the texture's array and sent as row spans (`texSubImage2D` on the
+ *   texture itself, each span a tight piece of the array: three's `copyTextureToTexture` unpacks with skipped rows of
+ *   the whole array, which is slow in Firefox; it reads three's `__webglTexture` / `__version`, check on a three update).
  * - **Drawing**: the mesh is an InstancedMesh with count 0 (three sets the program, uniforms and buffers, then draws
  *   nothing); its `onAfterRender` / `onAfterShadow` issue the multi-draw with the batches' current counts. Without
  *   WEBGL_multi_draw (Firefox, `?multidraw=0`) the same data is drawn one sub-draw at a time with a `tmDraw` uniform.
@@ -49,7 +49,6 @@ export interface PoolSource {
 /** The shared per-tree texture: regions per batch, changed ranges sent once a frame. */
 export class TreePool {
   texture: DataTexture;
-  private src!: DataTexture;
   private data: Float32Array;
   private rows = 0;
   private top = 0;
@@ -62,8 +61,6 @@ export class TreePool {
   private dirty: (PoolSource | number)[] = [];
   private whole = true;
   private spans: number[] = [];
-  private box = new Box2();
-  private at = new Vector2();
 
   constructor() {
     this.data = new Float32Array(0);
@@ -129,6 +126,21 @@ export class TreePool {
       return;
     }
     if (!spans.length) return;
+    const gl = renderer.getContext() as WebGL2RenderingContext;
+    const props = renderer.properties.get(this.texture) as {
+      __webglTexture?: WebGLTexture;
+      __version?: number;
+    };
+    if (!props.__webglTexture || props.__version !== this.texture.version) {
+      // Not on the GPU yet (nothing drew it): the whole array goes up, the spans with it.
+      renderer.initTexture(this.texture);
+      return;
+    }
+    const state = renderer.state;
+    state.bindTexture(gl.TEXTURE_2D, props.__webglTexture);
+    state.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    state.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    state.pixelStorei(gl.UNPACK_ALIGNMENT, this.texture.unpackAlignment);
     // Sort by start (pairs), merge near neighbours, send each as row pieces.
     const order: number[] = [];
     for (let i = 0; i < spans.length; i += 2) order.push(i);
@@ -141,33 +153,42 @@ export class TreePool {
         hi = Math.max(hi, spans[i + 1]);
         continue;
       }
-      this.send(renderer, lo, hi);
+      this.send(gl, lo, hi);
       if (k < order.length) {
         lo = spans[i];
         hi = spans[i + 1];
       }
     }
+    state.unbindTexture();
   }
 
-  /** Trees [lo, hi) as at most three boxes: the first row's tail, whole rows, the last row's head. */
-  private send(renderer: WebGLRenderer, lo: number, hi: number): void {
+  /**
+   * Trees [lo, hi) as at most three boxes: the first row's tail, whole rows, the last row's head. Each is one
+   * unbroken run of the array (a piece of a row, or whole rows), so it needs no unpack row length / skips.
+   */
+  private send(gl: WebGL2RenderingContext, lo: number, hi: number): void {
     while (lo < hi) {
       const row = Math.floor(lo / PER_ROW);
       const x = lo - row * PER_ROW;
+      let trees = Math.min(hi, (row + 1) * PER_ROW) - lo;
+      let rows = 1;
       if (x === 0 && hi - lo >= PER_ROW) {
-        const rows = Math.floor((hi - lo) / PER_ROW);
-        this.box.min.set(0, row);
-        this.box.max.set(WIDTH, row + rows);
-        this.at.set(0, row);
-        lo += rows * PER_ROW;
-      } else {
-        const end = Math.min(hi, (row + 1) * PER_ROW);
-        this.box.min.set(x * TEXELS, row);
-        this.box.max.set((end - row * PER_ROW) * TEXELS, row + 1);
-        this.at.set(x * TEXELS, row);
-        lo = end;
+        rows = Math.floor((hi - lo) / PER_ROW);
+        trees = rows * PER_ROW;
       }
-      renderer.copyTextureToTexture(this.src, this.texture, this.box, this.at);
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        x * TEXELS,
+        row,
+        (trees / rows) * TEXELS,
+        rows,
+        gl.RGBA,
+        gl.FLOAT,
+        this.data,
+        lo * TEXELS * 4,
+      );
+      lo += trees;
     }
   }
 
@@ -189,17 +210,11 @@ export class TreePool {
     data.set(this.data.subarray(0, Math.min(this.data.length, data.length)));
     this.data = data;
     this.rows = rows;
-    const make = () => {
-      const t = new DataTexture(data, WIDTH, rows, RGBAFormat, FloatType);
-      t.minFilter = t.magFilter = NearestFilter;
-      t.generateMipmaps = false;
-      return t;
-    };
-    const t = make();
+    const t = new DataTexture(data, WIDTH, rows, RGBAFormat, FloatType);
+    t.minFilter = t.magFilter = NearestFilter;
+    t.generateMipmaps = false;
     t.name = 'tree instances';
     t.needsUpdate = true;
-    // The same bytes, never uploaded itself: the source of the span copies.
-    this.src = make();
     this.whole = true;
     treeUniforms.tmData.value = t;
     return t;
@@ -207,7 +222,6 @@ export class TreePool {
 
   dispose(): void {
     this.texture.dispose();
-    this.src.dispose();
   }
 }
 

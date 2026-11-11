@@ -618,8 +618,18 @@ export const ajvatovciMap: MapDef = {
       spread: 18,
     },
   ],
-  // Concrete parapets on the canal bridge deck.
-  barriers: [{ kind: 'jersey', side: 'both', offset: 0.45, onBridge: true }],
+  // The canal bridge: low concrete kerbs; a chipped yellow pipe railing on the right, on the left only two posts and
+  // one pipe are left of it.
+  barriers: [
+    { kind: 'kerb', side: 'right', offset: 0.45, onBridge: true, rail: 'pipe' },
+    {
+      kind: 'kerb',
+      side: 'left',
+      offset: 0.45,
+      onBridge: true,
+      rail: 'pipe_broken',
+    },
+  ],
   // The A2 motorway at the start: its carriageways get a Jersey median wall and an outer guard rail.
   pathBarriers: {
     kinds: ['motorway'],
@@ -630,6 +640,8 @@ export const ajvatovciMap: MapDef = {
   },
   // The A2 overpasses and the small street bridges are modern concrete bridges with steel railings (not stone).
   bridgeStyle: 'concrete',
+  // The canal bridge on the stage is a small slab over the ditch: the reedy banks slope up to it, no wing walls.
+  stageSpanSlab: true,
   // Marshals / onlookers behind the closed junction mouths.
   // Benches, dustbins and utility cabinets along the village street.
   streetDressing: {
