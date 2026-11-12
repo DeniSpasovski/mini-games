@@ -8,6 +8,7 @@ import {
   Vector3,
   type WebGLRenderer,
 } from 'three';
+import { urlParam } from '../engine/url-param';
 import { StatsOverlay } from '../../../shared/stats-overlay';
 import { seconds, track, type EventParams } from '../../../shared/analytics';
 import gameManifest from '../game.json';
@@ -417,15 +418,12 @@ export class RallyGame {
     bindCameraAspect(this.renderer, this.camera);
     const stage = opts.stage ?? opts.map.stages[0];
     this.season = seasonParam(
-      new URLSearchParams(location.search).get('season'),
+      urlParam('season'),
       stageSeason({ season: stage.season, environment: opts.map.environment }),
     );
     this.world = new World(mapInSeason(opts.map, this.season), stage);
     this.car = getCar(opts.carId);
-    const look = weatherLook(
-      weatherParam(new URLSearchParams(location.search).get('weather')),
-      stage.weather,
-    );
+    const look = weatherLook(weatherParam(urlParam('weather')), stage.weather);
     this.soundWeather = { rain: look.rain, wet: look.wet };
     this.audio = new CarAudio(this.car, this.soundWeather);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.

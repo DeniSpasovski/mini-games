@@ -33,26 +33,18 @@ async function toClipboard(text: string): Promise<boolean> {
   }
 }
 
-/** URL of the play page that opens a saved replay (stage, car and conditions from its header). */
-export function replayUrl(
-  m: ReplayMeta | { id: string; header: ReplayMeta['header'] },
-): string {
-  const h = m.header;
+/** URL of the play page that opens a saved replay: just its id (the stage, car and conditions come from the replay). */
+export function replayUrl(id: string): string {
   const u = new URL(location.pathname, location.origin);
-  const p = u.searchParams;
-  p.set('stage', h.stage);
-  p.set('car', h.car);
-  p.set('livery', String(h.livery));
-  p.set('tyre', h.tyre);
-  p.set('susp', h.setup);
-  p.set('gear', h.gearing);
-  p.set('season', h.season);
-  if (h.hour !== undefined) p.set('tod', String(h.hour));
-  if (h.weather) p.set('weather', h.weather);
-  for (const k of ['quality', 'mute', 'display'])
-    if (new URLSearchParams(location.search).has(k))
-      p.set(k, new URLSearchParams(location.search).get(k)!);
-  p.set('replay', m.id);
+  const keep = new URLSearchParams(location.search);
+  // `replay=<id>` first and readable (`:` kept), then the display params worth carrying over.
+  const extra = ['quality', 'mute', 'display']
+    .filter((k) => keep.has(k))
+    .map((k) => `${k}=${encodeURIComponent(keep.get(k)!)}`);
+  u.search = [
+    `replay=${encodeURIComponent(id).replace(/%3A/g, ':')}`,
+    ...extra,
+  ].join('&');
   return u.toString();
 }
 
@@ -109,7 +101,7 @@ export class ReplayConsole {
       throw new Error(
         'replay: IndexedDB unavailable, cannot carry it to its stage',
       );
-    location.href = replayUrl({ id: 'pending', header: h });
+    location.href = replayUrl('pending');
   }
 
   /** Last `seconds` of the physics trace, every `every`-th step (1 = 240 Hz), tab separated. */

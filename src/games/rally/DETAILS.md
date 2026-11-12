@@ -157,7 +157,7 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 ## Replays (`game/replay/`)
 
 **On in every build** (`REPLAYS_ENABLED`, `store.ts`): every run is recorded. A run can be watched from the results, from
-Stage times (▶ on a run with a replay, "Replays on this device" list) or by URL (`?replay=<id>` on the play URL; `replayUrl()`).
+Stage times (▶ on a run with a replay, "Replays on this device" list) or by URL: `?replay=<id>` on the play URL is the whole link (`replayUrl()`): stage, car, set-up and conditions are read from the saved replay's header and any other params are ignored (old long links work the same). Replays are saved in this browser, so the link opens on the device that recorded the run.
 
 - **Recording** (`recorder.ts`): state, not inputs (re-simulating from rounded inputs drifts hundreds of metres in a minute). `RallyGame.frame` calls
   `recorder.step` after each physics step; every 4th step (60 Hz) it stores pose, per-wheel omega / temperatures and car channels (rpm, gear, pedals, steer,

@@ -42,6 +42,7 @@ import {
   weatherParam,
 } from '../weather';
 import { paramInt } from '../../../shared/url-params';
+import { setInferredParams, urlParam } from '../engine/url-param';
 import { stageSeason } from '../maps/shared/climate';
 import { seasonParam } from '../season';
 import { stageCardImageUrl } from '../tools/stage-card';
@@ -52,6 +53,7 @@ import { nameForm, storageLine } from '../game/replay/manage-ui';
 import {
   cleanName,
   loadReplay,
+  loadReplayHeader,
   renameReplay,
   replayId,
   REPLAYS_ENABLED,
@@ -94,10 +96,9 @@ const portalButton = portalUrl()
 
 migrateTimes(); // physics changed -> old stage times are tagged with their version before any menu reads them
 
-if (deepLink) void play(readUrlState(DEFAULTS));
-else
+/** The stage menu, then the stage (the choice is mirrored in the URL: reload = same stage, link is shareable). */
+function menuThenPlay(): void {
   void runMenu(root).then((r) => {
-    // Mirror the choice in the URL: reload = same stage, link is shareable.
     const { setup, gearing, tod, season, weather, ...rest } = r;
     const params = { ...DEFAULTS, ...rest, susp: setup, gear: gearing };
     // `tod` / `season` / `weather` = picked on the stage screen (the game reads them); none = the stage's own / dry.
@@ -112,6 +113,39 @@ else
     );
     void play(params);
   });
+}
+
+/**
+ * `?replay=<id>` is the whole link: the stage, car, set-up and conditions are read from the saved replay and any other
+ * params in the link are ignored (old long links keep working). A replay this device does not have still opens its
+ * stage (the id starts with it, or the link's own params) and says REPLAY NOT FOUND.
+ */
+async function playReplayLink(id: string): Promise<void> {
+  const h = await loadReplayHeader(id);
+  if (!h) {
+    if (deepLink) return void play(readUrlState(DEFAULTS));
+    return void play({ ...DEFAULTS, stage: id.split(':')[0] });
+  }
+  setInferredParams({
+    season: h.season,
+    tod: h.hour === undefined ? undefined : String(h.hour),
+    weather: h.weather,
+  });
+  void play({
+    ...DEFAULTS,
+    stage: h.stage,
+    car: h.car,
+    livery: h.livery,
+    tyre: h.tyre,
+    susp: h.setup,
+    gear: h.gearing,
+  });
+}
+
+const replayLink = REPLAYS_ENABLED ? search.get('replay') : null;
+if (replayLink) void playReplayLink(replayLink);
+else if (deepLink) void play(readUrlState(DEFAULTS));
+else menuThenPlay();
 
 /** An old `map=<id>` link is rewritten in place to its `stage=<id>` form (`stageLinkParams`, no reload). */
 function rewriteOldLink(params: URLSearchParams): URLSearchParams {
@@ -193,17 +227,12 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   void stageCardImageUrl(
     info.map,
     info.id,
-    seasonParam(
-      new URLSearchParams(location.search).get('season'),
-      stageSeason(info),
-    ),
+    seasonParam(urlParam('season'), stageSeason(info)),
   ).then((url) => {
     if (url) loading.style.setProperty('--card', `url("${url}")`);
   });
   // In the wet the stage's tyre is its wet one, and no near-slicks start in the rain (an old link / saved pick).
-  const weather = weatherParam(
-    new URLSearchParams(location.search).get('weather'),
-  );
+  const weather = weatherParam(urlParam('weather'));
   const recTyre = wetTyre(info.tyre, weatherLook(weather, info.weather).wet);
   let tyre = parseTyre(params.tyre, recTyre);
   if (isRaining(weather) && TYRES[tyre].dryOnly)
