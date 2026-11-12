@@ -16,7 +16,7 @@ import { CarModel } from '../cars/shared/car-model';
 import { CARS, getCar } from '../cars';
 import { rallyName } from '../cars/shared/rally-badge';
 import type { CarDef } from '../cars/shared/types';
-import { Environment } from '../engine/environment';
+import { DAY_LIGHT, Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
@@ -1015,7 +1015,7 @@ export class RallyGame {
   private lightParticles(): void {
     const sun = this.env.sun.color
       .clone()
-      .multiplyScalar(this.env.sun.intensity / 3.1);
+      .multiplyScalar(this.env.sun.intensity / DAY_LIGHT.sun);
     // Half sky colour, half white: dust in the shade stays dust-coloured, not blue. Night: only the moon's blue.
     const ambient = this.env.night
       ? this.env.hemi.color.clone().multiplyScalar(0.25)

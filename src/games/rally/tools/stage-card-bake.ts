@@ -2,6 +2,7 @@ import {
   Color,
   FloatType,
   Group,
+  MathUtils,
   OrthographicCamera,
   Scene,
   Vector3,
@@ -41,6 +42,18 @@ const IMAGE = 2048;
 const GRID = 257;
 /** Outer fraction of the image faded into the floor colour (no hard card edge in the view). */
 const FADE = 0.07;
+/** Long side (px) and JPEG quality of the small picture kept in the card's JSON (shown while the image loads). */
+const THUMB = 256;
+const THUMB_QUALITY = 0.6;
+/**
+ * The canopy discs against the far forest (world/far-forest.ts), which is what the woods look like from this far: its
+ * crowns are the full crown radius and FAR_FILL denser, and brighter than a plain lit disc (its GAIN). Random discs
+ * overlap where its cover adds up, hence a little more radius than that alone. Only where a crown is a pixel or two
+ * (CANOPY_GROW_SCALE, metres per pixel: none below, all of it above): on a small card the discs are drawn true to size.
+ */
+const CANOPY_GROW = 1.5;
+const CANOPY_GROW_SCALE = [1.5, 3.5];
+const CANOPY_GAIN = 1.6;
 
 /** Yield to the browser now and then while a long job runs (keeps the page responsive). */
 const breathe = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -124,7 +137,9 @@ export async function bakeStageCard(
   worldUniforms.wsWind.value.z = 0;
   scene.fog = null;
   env.sky.visible = false;
-  setGroundTint(map.environment.groundTint, mapSeason(map.environment));
+  // No meadow colour patches: their noise repeats every ~50 m, a grid from this high up.
+  const tint = map.environment.groundTint;
+  setGroundTint(tint && { ...tint, variety: 0 }, mapSeason(map.environment));
   setGroundMoisture(world.moisture);
 
   const content = new Group();
@@ -148,7 +163,16 @@ export async function bakeStageCard(
   }
 
   log(`${mapId}: trees`);
-  const trees = new AerialTrees(world, 1);
+  const grow = MathUtils.lerp(
+    1,
+    CANOPY_GROW,
+    MathUtils.smoothstep(
+      long / IMAGE,
+      CANOPY_GROW_SCALE[0],
+      CANOPY_GROW_SCALE[1],
+    ),
+  );
+  const trees = new AerialTrees(world, grow, CANOPY_GAIN);
   trees.mesh.castShadow = true;
   trees.mesh.receiveShadow = true;
   content.add(trees.mesh);
@@ -215,7 +239,7 @@ export async function bakeStageCard(
   renderer.setRenderTarget(null);
 
   const route = stagePoints(world, 8);
-  const { jpeg, floor } = encodeImage(px, w, h);
+  const { jpeg, thumb, floor } = encodeImage(px, w, h);
 
   const data: StageCardData = {
     version: STAGE_CARD_VERSION,
@@ -232,6 +256,7 @@ export async function bakeStageCard(
       Math.round(p.z * 10) / 10,
     ]),
     floor: `#${floor.getHexString()}`,
+    thumb,
   };
 
   // Restore the shared state, free everything.
@@ -280,7 +305,7 @@ function encodeImage(
   px: Float32Array,
   w: number,
   h: number,
-): { jpeg: string; floor: Color } {
+): { jpeg: string; thumb: string; floor: Color } {
   const toSrgb = (c: number) => {
     const v = Math.max(0, Math.min(1, c));
     return v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055;
@@ -318,5 +343,16 @@ function encodeImage(
   ctx.putImageData(img, 0, 0);
   // Linear like the pixels (getHexString() writes sRGB, `new Color(hex)` reads it back to linear).
   const floor = new Color().setRGB(avg[0], avg[1], avg[2]);
-  return { jpeg: canvas.toDataURL('image/jpeg', 0.88), floor };
+  const k = THUMB / Math.max(w, h);
+  const small = document.createElement('canvas');
+  small.width = Math.round(w * k);
+  small.height = Math.round(h * k);
+  const sctx = small.getContext('2d')!;
+  sctx.imageSmoothingQuality = 'high';
+  sctx.drawImage(canvas, 0, 0, small.width, small.height);
+  return {
+    jpeg: canvas.toDataURL('image/jpeg', 0.88),
+    thumb: small.toDataURL('image/jpeg', THUMB_QUALITY),
+    floor,
+  };
 }

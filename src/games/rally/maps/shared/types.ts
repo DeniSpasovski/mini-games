@@ -1370,6 +1370,8 @@ export interface EnvironmentDef {
   fillIntensity?: number;
   /** Image-based light from the sky + ground env map (default 0.3). */
   envIntensity?: number;
+  /** Share of that light the world takes as diffuse sky light (default `DAY_LIGHT.envDiffuse`; reflections keep all of it). */
+  envDiffuse?: number;
   /** Tone mapping (default 'aces'); `?tonemap=aces|agx|neutral` overrides it for comparisons. */
   toneMapping?: 'aces' | 'agx' | 'neutral';
   /** Sky clouds: coverage / density 0..1 (default 0.4 / 0.4) and drift speed multiplier (default 1). */
