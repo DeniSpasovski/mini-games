@@ -73,12 +73,101 @@ function houseArray(): DataArrayTexture {
 }
 
 const BAY = '3.2';
+
+/**
+ * Metres on a unit box. A house is a unit box scaled per instance, so anything of a fixed real size is placed by the
+ * vertex shader from the `fix` attribute (x, y, z = metres added to the scaled position; w = what the vertex is):
+ * - `FIX.plain`: just the offset (eaves boards, chimneys, door steps, parapets).
+ * - `houseSlot(kind, col)`: a window or door of a wall. Windows repeat every `HOUSE_PITCH` metres along it: column
+ *   `col` of the `n` that fit sits at ((col + 0.5) / n - 0.5) along the wall, the columns past `n` fold away (to the
+ *   origin). The front wall's door takes the middle column of the ground floor (`frontGround` windows give way to it).
+ * - `FIX.eave`: a roof edge. The offset is the overhang; the edge drops with the roof's pitch (|z| overhang x pitch).
+ * - `FIX.hipRidge`: a ridge end of a hip roof, moved along the ridge so the end slopes as steeply as the sides.
+ *   `hipEndEave` / `hipEndRidge` are the same two on the end plane itself, whose normal the shader works out too.
+ * Geometry without the attribute reads w = 1: plain, no offset.
+ */
+export const FIX = {
+  plain: 0,
+  eave: 100,
+  hipRidge: 101,
+  hipEndEave: 102,
+  hipEndRidge: 103,
+} as const;
+export const SLOT = { alongX: 0, alongZ: 1, frontGround: 2, door: 3 } as const;
+/** Most windows along the long (x) and the short (z) walls: the builders make that many, the shader shows what fits. */
+export const SLOT_COLUMNS = { long: 6, short: 4 } as const;
+/** Window spacing along a wall (m). */
+export const HOUSE_PITCH = 3.2;
+/** `fix.w` of a window / door vertex. */
+export const houseSlot = (
+  kind: (typeof SLOT)[keyof typeof SLOT],
+  col = 0,
+): number => 2 + col + 16 * kind;
+
+/** Vertex shader: `houseFix( position, instance scale )` (declarations, then the function). */
+const fixGlsl = (roof: number): string => `
+attribute vec4 fix;
+vec3 houseScale() {
+#ifdef USE_INSTANCING
+  return vec3( length( instanceMatrix[ 0 ].xyz ), length( instanceMatrix[ 1 ].xyz ), length( instanceMatrix[ 2 ].xyz ) );
+#else
+  return vec3( 1.0 );
+#endif
+}
+vec3 houseFix( vec3 p, vec3 isc ) {
+  float fw = floor( fix.w + 0.5 );
+  if ( fw > 99.5 ) {
+    if ( mod( fw, 2.0 ) > 0.5 ) p.x = sign( p.x ) * max( 0.5 - 0.5 * isc.z / isc.x, 0.0 );
+    p.xz += fix.xz / isc.xz;
+    p.y += fix.y / isc.y - abs( fix.z ) * ${(2 * roof).toFixed(4)} / isc.z;
+    return p;
+  }
+  if ( fw > 1.5 ) {
+    float code = fw - 2.0;
+    float col = mod( code, 16.0 );
+    float kind = floor( code / 16.0 );
+    bool side = kind > 0.5 && kind < 1.5;
+    float n = min( floor( ( side ? isc.z : isc.x ) / ${HOUSE_PITCH.toFixed(2)} + 0.35 ), side ? ${SLOT_COLUMNS.short.toFixed(1)} : ${SLOT_COLUMNS.long.toFixed(1)} );
+    float door = floor( max( n, 1.0 ) * 0.5 );
+    if ( kind > 2.5 ) { col = door; n = max( n, 1.0 ); }
+    if ( col > n - 0.5 || ( kind > 1.5 && kind < 2.5 && abs( col - door ) < 0.5 ) ) return vec3( 0.0 );
+    float u = ( col + 0.5 ) / n - 0.5;
+    if ( side ) p.z = u; else p.x = u;
+  }
+  return p + fix.xyz / isc;
+}`;
+
+/** Roof height of a pitched house as a share of its unit height (the eaves drop with this pitch). */
+export const ROOF_SHARE = 0.32;
+
+/**
+ * Shadow pass of the houses: the default depth material knows nothing of `fix`, so the shadows would come from the
+ * unit box. `Material.userData.depthVertex` hands the same vertex code to every depth material made for it
+ * (engine/materials.ts `shapedDepthMaterial`, the variant-set and LOD-fade depth materials).
+ */
+export interface DepthVertex {
+  key: string;
+  apply: (shader: { vertexShader: string }) => void;
+}
+const houseDepth: DepthVertex = {
+  key: 'house-fix',
+  apply: (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>${fixGlsl(ROOF_SHARE)}`)
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\ntransformed = houseFix( transformed, houseScale() );',
+      );
+  },
+};
+
 export function houseMaterial(): MeshStandardMaterial {
   const mat = new MeshStandardMaterial({
     vertexColors: true,
     map: getTexture('detail'),
     roughness: 0.75,
   });
+  mat.userData.depthVertex = houseDepth;
   const maps = { value: houseArray() };
   mat.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
@@ -86,20 +175,26 @@ export function houseMaterial(): MeshStandardMaterial {
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nattribute float layer;\nvarying float vLayer;\nvarying vec2 vLayerUv;',
+        `#include <common>\nattribute float layer;\nvarying float vLayer;\nvarying vec2 vLayerUv;${fixGlsl(ROOF_SHARE)}`,
+      )
+      .replace(
+        '#include <beginnormal_vertex>',
+        // A hip's end plane: its slope follows the instance's proportions (the ridge end moves), so does its normal.
+        `#include <beginnormal_vertex>
+if ( fix.w > 101.5 ) {
+  vec3 hs = houseScale();
+  objectNormal = normalize( vec3( sign( objectNormal.x ) * ${ROOF_SHARE.toFixed(4)} * hs.x, sign( objectNormal.y ) * 0.5 * hs.z, 0.0 ) );
+}`,
       )
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
 vLayer = layer;
-#ifdef USE_INSTANCING
-vec3 isc = vec3( length( instanceMatrix[ 0 ].xyz ), length( instanceMatrix[ 1 ].xyz ), length( instanceMatrix[ 2 ].xyz ) );
-#else
-vec3 isc = vec3( 1.0 );
-#endif
-vec3 mp = position * isc;
+vec3 isc = houseScale();
+transformed = houseFix( transformed, isc );
+vec3 mp = transformed * isc;
 vec3 an = abs( objectNormal );
-if ( an.y > 0.5 ) vLayerUv = vec2( mp.x, mp.z * 1.2 ) / ${BAY};
+if ( an.y > 0.5 || fix.w > 99.5 ) vLayerUv = vec2( mp.x, mp.z * 1.2 ) / ${BAY};
 else if ( an.x > an.z ) vLayerUv = vec2( mp.z, mp.y ) / ${BAY};
 else vLayerUv = vec2( mp.x, mp.y ) / ${BAY};`,
       );
@@ -116,6 +211,6 @@ vec4 wallTex = texture( houseMaps, vec3( vLayerUv, max( floor( vLayer + 0.5 ), 0
 diffuseColor *= vLayer < -0.5 ? detailTex : wallTex;`,
       );
   };
-  mat.customProgramCacheKey = () => 'house-walls';
+  mat.customProgramCacheKey = () => 'house-walls-fix';
   return mat;
 }

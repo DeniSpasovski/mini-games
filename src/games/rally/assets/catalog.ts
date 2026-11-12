@@ -839,7 +839,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'House (sloped roof)',
     category: 'buildings',
     description:
-      'Placeholder village house: rendered / brick walls, red tile hip or gable roof. Unit 1x1x1, scaled to the real footprint. Variants 0-3 one floor (0-2 render, 3 clay brick; hip on even, gable on odd), 4-7 two floors.',
+      'Village house: rendered / brick walls, red tile hip or gable roof with eaves, gutters and a chimney, real-size windows repeated along the walls, a front door. Unit 1x1x1, scaled to the real footprint. Variants 0-3 one floor (0-2 render, 3 clay brick; hip on even, gable on odd), 4-7 two floors.',
     variants: 8,
     lods: [
       { maxDistance: 160, castShadow: true },
@@ -853,7 +853,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'House (rubble stone)',
     category: 'buildings',
     description:
-      'Old mountain-village house in lime-plastered rubble stone, red tile roof (a separate asset so the render houses stay a small variant set). Variants 0 hip / 1 gable one floor, 2-3 two floors.',
+      'Old mountain-village house in lime-plastered rubble stone, red tile roof with eaves and a chimney, real-size windows and a front door (a separate asset so the render houses stay a small variant set). Variants 0 hip / 1 gable one floor, 2-3 two floors.',
     variants: 4,
     lods: [
       { maxDistance: 160, castShadow: true },
@@ -867,7 +867,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Building (flat roof)',
     category: 'buildings',
     description:
-      'Placeholder flat-roofed building: 0/1 industrial hall, 2 unfinished brick block, 3 rendered block. Unit 1x1x1, scaled to the footprint. Variants 4-7 two floors of windows.',
+      'Flat-roofed building: 0/1 industrial hall (roof fascia, roller door, side door), 2 unfinished brick block, 3 rendered block (overhanging roof slab, real-size windows, a front door). Unit 1x1x1, scaled to the footprint. Variants 4-7 two floors of windows.',
     variants: 8,
     lods: [
       { maxDistance: 160, castShadow: true },

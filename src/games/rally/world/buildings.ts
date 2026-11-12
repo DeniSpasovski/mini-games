@@ -144,6 +144,10 @@ export function buildingInstance(
     : b.w * b.d > 300
       ? b.id % 2
       : 2 + (b.id % 2);
+  // The front door is on local +Z: on a slope turn the box half a turn so it opens on the downhill side.
+  const side = (v: number) =>
+    ground.height(b.x - (v * b.d * s) / 2, b.z + (v * b.d * c) / 2);
+  const doorUphill = side(1) - side(-1) > 0.3;
   return {
     asset: rubble ? 'house_stone' : house ? 'house_pitched' : 'building_flat',
     variant: style + (rubble && two ? 2 : two),
@@ -151,7 +155,7 @@ export function buildingInstance(
     y: lo - sink,
     z: b.z,
     // three.js yaw maps local +X to (cos t, -sin t); we want (cos angle, sin angle).
-    rotY: -b.angle,
+    rotY: -b.angle + (doorUphill ? Math.PI : 0),
     scale: 1,
     sx: b.w,
     sy: house ? walls / HOUSE_WALL_FRACTION : walls,

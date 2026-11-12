@@ -16,7 +16,12 @@ import {
   type Material,
 } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
-import { ASSET_CATALOG, getAssetMeta, hasAsset } from '../assets/catalog';
+import {
+  ASSET_CATALOG,
+  getAssetMeta,
+  hasAsset,
+  HOUSE_WALL_FRACTION,
+} from '../assets/catalog';
 import { buildAsset, variantSeed } from '../assets/library';
 import { loadSimready } from '../assets/builders/simready';
 import {
@@ -25,11 +30,13 @@ import {
   setPackSeason,
 } from '../assets/builders/tree-packs';
 import type { BuiltAsset } from '../assets/types';
+import { shapedDepthMaterial } from '../engine/materials';
 import { CarModel } from '../cars/shared/car-model';
 import { CARS, getCar } from '../cars';
 import { isTestCar, listLabel } from '../release';
 import {
   CAMERA_LINK_DEFAULTS,
+  parseVec3,
   showViewerLoading,
   VIEWER_HOUR,
   ViewerShell,
@@ -63,6 +70,7 @@ import type { World } from '../world/world';
  *   asset-debug.html?asset=tex:road&repeat=3
  *   asset-debug.html?asset=car:skoda_rally&seed=5
  *   asset-debug.html?asset=tree:oak_tree&variant=2&season=autumn&grid=3
+ *   asset-debug.html?asset=house_pitched&variant=4&size=14,6,8   (a building at width, wall height, depth in metres)
  * `seed=-1` uses the in-world variant seed for `variant`.
  * "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean=1` hides the panel).
  * The Options section shows only the controls the picked kind uses (`showOptions`); hidden ones keep their URL value.
@@ -95,6 +103,8 @@ const DEFAULTS = {
   light: -1,
   clump: -1,
   bare: false,
+  /** Buildings: footprint shown, "width,wall height,depth" in metres (empty = 10,3.3,7). */
+  size: '',
   /** Weather and hour of day (`Environment` reads `?weather=` / `?tod=`), as in the car viewer. */
   weather: 'dry',
   tod: VIEWER_HOUR,
@@ -385,6 +395,16 @@ function frame(size: Vector3, center: Vector3): void {
   );
 }
 
+/** Instance scale of a building shown at `size` = "width,wall height,depth" (m; default a 10 x 7 m house, 3.3 m walls). */
+function buildingScale(id: string, size: string): Vector3 {
+  const [w, h, d] = parseVec3(size) ?? [10, 3.3, 7];
+  return new Vector3(
+    w,
+    id.startsWith('house') ? h / HOUSE_WALL_FRACTION : h,
+    d,
+  );
+}
+
 function spacingFor(size: Vector3): number {
   return state.spacing || Math.max(1.5, Math.max(size.x, size.z) * 1.4);
 }
@@ -437,6 +457,13 @@ function rebuild(reframe = false): void {
     part.geometry.computeBoundingBox();
     box.union(part.geometry.boundingBox!);
   }
+  // Buildings are unit boxes scaled per instance to a footprint: show them at `size` (width, wall height, depth in m).
+  const fit =
+    meta.category === 'buildings' ? buildingScale(id, state.size) : undefined;
+  if (fit) {
+    box.min.multiply(fit);
+    box.max.multiply(fit);
+  }
   const size = box.getSize(new Vector3());
   const spacing = spacingFor(size);
   const mats: Material[] = [];
@@ -454,10 +481,12 @@ function rebuild(reframe = false): void {
           0,
           (z - (n - 1) / 2) * spacing,
         );
+        if (fit) m.scale(fit);
         mesh.setMatrixAt(i++, m);
       }
     }
     mesh.castShadow = mesh.receiveShadow = true;
+    mesh.customDepthMaterial = shapedDepthMaterial(part.material);
     holder.add(mesh);
     tris += triCount(part.geometry) * n * n;
   }

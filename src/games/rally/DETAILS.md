@@ -470,7 +470,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   the bed is the `rail_track` canvas (sleepers, rust) with the gravel ground scan's stones between the sleepers.
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
   footprints (`world/building-mesh.ts`). Box houses take wall / roof scans from one texture array (`engine/house-walls.ts`, UVs from the
-  instance scale in the shader; tiles in `engine/facades/`, `scripts/facades/bake.py`); on Galichica / Petralica the share of rubble-stone houses
+  instance scale in the shader, which also keeps windows, door, eaves and chimney at their real size on any footprint and repeats the windows along the wall; tiles in `engine/facades/`, `scripts/facades/bake.py`); on Galichica / Petralica the share of rubble-stone houses
   grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace: `PadDef.level`); the
