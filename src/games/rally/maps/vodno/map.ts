@@ -61,9 +61,9 @@ const BASE_HEIGHT = 349;
 
 /**
  * The approach to the Vidikovec car park (m along the road): a rusted guard rail on the drop at its right up to the
- * lot's wall (`to`), and a short galvanised one between the road and the lot above its lower entrance (`lot`).
+ * lot's wall (`to`), and a short galvanised one between the road and the lot from the start of its grass island (`lot`).
  */
-const VIDIKOVEC_RAIL = { from: 2600, to: 2796, lot: [2845, 2900] as const };
+const VIDIKOVEC_RAIL = { from: 2600, to: 2796, lot: [2834, 2900] as const };
 /** The dark stone retaining wall on the uphill side opposite the upper half of the Vidikovec lot (`road.rockCuts.walls`):
  * ~1.8 m high, 3.5 m back from the road edge behind a grass strip with bushes ~1 m off the road (the owner's photos). */
 const VIDIKOVEC_WALL = {

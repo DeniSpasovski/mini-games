@@ -523,15 +523,16 @@ function vidikovecLayout(): void {
     yaw: facingLot(mouth),
     onSlab: true,
   });
-  for (const s of [ISLAND.from - 3, ISLAND.to + 3]) {
-    const f = left.at(s);
-    const p = off(f, -1.2);
+  // (on the grass, a little in from the island's ends, standing on its lawn)
+  for (const s of [ISLAND.from + 2.5, ISLAND.to - 2.5]) {
+    const { f, p } = isl(s, 0.2 + ISLAND.width * 0.4);
     out.push({
       kind: 'bin',
       x: p[0],
       z: p[1],
       yaw: facingLot(f),
       onSlab: true,
+      lift: 0.16,
     });
   }
   // The outer wall: a binocular viewer, solar lamps, a bench.
