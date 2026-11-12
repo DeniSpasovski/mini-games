@@ -68,10 +68,12 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 - **Render** (`engine/post-fx.ts` `PHOTO`): thin-lens depth of field on the HDR image (circle of confusion `f² / (N (s - f)) · |z - s| / z`, 64 gather taps,
   max 2.5 % of the height; a sharp nearer pixel never bleeds into the blur behind it) and exposure, before the bloom; lens drops off. Pages without the
   High effects make a `PostFx` for photo mode only.
-- **Motion blur** (`RallyGame.posePhotoSample`, `photoSamples`, `PostFx.render(samples, pose)`): the scene drawn several times across the shutter
-  (enough for 8 px steps along the longest streak while framing, max 16; 2 px steps for the picture, max 160), the car moved by its velocity, turned by
-  its rotation, wheels spun by their speed (full tyre detail), averaged before the depth of field.
-- **Take photo**: the next frame rendered at up to 3840 px on the long edge (`PHOTO_LONG_EDGE`, at most 3x the screen, within the GPU's limits), as a JPEG download (`gravel-rally-<stage>-<date>-<time>.jpg`).
+- **Motion blur** (`RallyGame.posePhotoSample`, `photoSamples`, `PostFx.render(shutter)`): the scene drawn many times across the shutter, the car moved
+  by its velocity, turned by its rotation, wheels spun by their speed (full tyre detail), averaged before the depth of field. Enough images that a wheel's
+  rim moves about 1 px between two (`PHOTO_BLUR`; fewer shows spokes and the sidewall print as separate copies), a share per frame: the view gets smoother
+  over the next frames and starts over when the camera or shutter changes. By day the mean is of the linear pictures, not of the HDR estimate (there one
+  near-white image outweighs all the others: solid bright rings from the tyre print).
+- **Take photo**: a frame (with motion blur: as many as its images need, the camera held) rendered at up to 3840 px on the long edge (`PHOTO_LONG_EDGE`, at most 3x the screen, within the GPU's limits), as a JPEG download (`gravel-rally-<stage>-<date>-<time>.jpg`).
 
 ## Controls
 

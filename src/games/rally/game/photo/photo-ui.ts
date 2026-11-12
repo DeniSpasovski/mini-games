@@ -244,7 +244,7 @@ export class PhotoUi {
     this.el.classList.toggle('clean', on);
   }
 
-  /** Take the picture: the next frame, rendered at up to 4K (`RallyGame.takePhoto`), as a JPEG download. */
+  /** Take the picture: rendered at up to 4K over the next frame(s) (`RallyGame.takePhoto`), as a JPEG download. */
   private async shoot(): Promise<void> {
     if (this.busy) return;
     this.busy = true;
@@ -282,6 +282,8 @@ export class PhotoUi {
   }
 
   private tick(dt: number): void {
+    // The camera holds still while a picture is drawn.
+    if (this.busy) return;
     const p = this.photo!;
     const h = this.held;
     const turn = 1.4 * dt * (p.fov / 50);

@@ -19,7 +19,7 @@ import { Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
-import { PostFx, postFxFromUrl } from '../engine/post-fx';
+import { type PhotoLens, PostFx, postFxFromUrl } from '../engine/post-fx';
 import { SunGlare } from '../engine/sun-glare';
 import type { QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
@@ -234,14 +234,18 @@ const SPRAY_COLOR = 0xd4d9de;
 /** Take photo renders its frame with this long edge (px; 4K UHD), at most PHOTO_MAX_UPSCALE x the screen's resolution. */
 const PHOTO_LONG_EDGE = 3840;
 const PHOTO_MAX_UPSCALE = 3;
-/** Motion blur images per frame: while framing the shot / for the picture. */
 /**
- * Motion blur images: enough that the longest streak is drawn in steps of PHOTO_STEP_PX (picture) or
- * PHOTO_PREVIEW_STEP_PX (while framing the shot), within these limits.
+ * Motion blur images across the shutter: enough that the fastest thing in view (a wheel's rim) moves about a pixel
+ * from one image to the next, or its fine detail (spokes, the sidewall print) shows as separate copies. `perFrame`
+ * are drawn each frame, so the picture gets smoother over the next frames (`PostFx.render`).
  */
-const PHOTO_SAMPLES = { min: 4, preview: 16, picture: 160 };
-const PHOTO_STEP_PX = 2;
-const PHOTO_PREVIEW_STEP_PX = 8;
+const PHOTO_BLUR = {
+  /** While framing the shot. */
+  preview: { stepPx: 1, max: 512, perFrame: 16 },
+  /** Take photo (up to 4K). */
+  picture: { stepPx: 1.25, max: 768, perFrame: 8 },
+  min: 8,
+};
 /** The replay keeps recording this long after the finish line (s): the car braking to a stop on the run-off. */
 const REPLAY_TAIL = 6;
 
@@ -390,6 +394,10 @@ export class RallyGame {
   private photoRatio = 0;
   /** Size of the last picture (px). */
   photoSize = { width: 0, height: 0 };
+  /** The lens of the picture being drawn (held with the camera until all its images are in). */
+  private photoLens?: PhotoLens;
+  /** What the motion blur's images so far were drawn with (camera, shutter); a change starts them over. */
+  private readonly photoView: number[] = [];
   /** Called when a replay opens / closes (the page swaps its overlays). */
   onReplayChange?: (on: boolean) => void;
   /** Called when the finished run's replay is encoded (and saved, ranked runs). */
@@ -1536,6 +1544,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       );
     this.photoScale = this.renderScale;
     this.setRenderScale(1);
+    this.env.heldTime = this.env.time;
     this.hud.el.classList.add('photo');
     return this.photo;
   }
@@ -1544,9 +1553,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const p = this.photo;
     if (!p) return;
     this.photo = undefined;
+    this.env.heldTime = undefined;
+    // A picture still being drawn is dropped (it would be of the game's own view).
+    this.photoShot?.(null);
+    this.photoShot = undefined;
+    this.photoLens = undefined;
     p.restore();
     this.updateParticleScale();
     this.post?.set({ photo: null });
+    this.post?.releaseShutter();
     this.photoPost?.dispose();
     this.photoPost = undefined;
     this.setRenderScale(this.photoScale);
@@ -1567,28 +1582,55 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   }
 
   /**
-   * Motion blur images for this frame: the longest streak (the wheel tops, the car's turn over ~2.5 m, at the orbit
-   * distance) in px over the step size.
+   * Motion blur images across the shutter: the longest streak in px over the step size. The fastest points are a
+   * wheel's rim (its own turning, plus the car's speed when the camera holds still) at the wheel nearest the camera,
+   * and the car's turn over ~2.5 m.
    */
   private photoSamples(shutter: number): number {
     const v = this.vehicle;
     const cam = this.camera;
+    const root = this.model.root;
     const h = this.renderer.domElement.height;
     const fpx = h / (2 * Math.tan((cam.fov * Math.PI) / 360));
-    const d = Math.max(1, cam.position.distanceTo(this.model.root.position));
-    // The top of a wheel moves at twice the car's speed (the camera holds still) or once it (panning with the car).
-    const wheel = this.photo?.settings.follow === 'ground' ? 2 : 1;
+    let d = cam.position.distanceTo(root.position);
+    let rim = 0;
+    for (let i = 0; i < 4; i++) {
+      const w = v.wheels[i];
+      rim = Math.max(rim, Math.abs(w.omega) * w.radius);
+      d = Math.min(
+        d,
+        cam.position.distanceTo(
+          root.localToWorld(this.photoAxis.copy(this.model.wheelPos[i])),
+        ),
+      );
+    }
+    const car = v.velocity.length();
     const speed = Math.max(
-      v.velocity.length() * wheel,
+      this.photo?.settings.follow === 'ground' ? car + rim : Math.max(car, rim),
       v.angularVelocity.length() * 2.5,
     );
-    const px = ((speed * shutter) / d) * fpx;
-    const shot = !!this.photoShot;
-    const n = Math.ceil(px / (shot ? PHOTO_STEP_PX : PHOTO_PREVIEW_STEP_PX));
-    return Math.max(
-      PHOTO_SAMPLES.min,
-      Math.min(shot ? PHOTO_SAMPLES.picture : PHOTO_SAMPLES.preview, n),
-    );
+    const px = ((speed * shutter) / Math.max(0.5, d)) * fpx;
+    const q = this.photoShot ? PHOTO_BLUR.picture : PHOTO_BLUR.preview;
+    return Math.max(PHOTO_BLUR.min, Math.min(q.max, Math.ceil(px / q.stepPx)));
+  }
+
+  /** True when the camera or the shutter changed since the last frame (the motion blur starts over). */
+  private photoViewChanged(shutter: number): boolean {
+    const cam = this.camera;
+    const now = [
+      ...cam.position.toArray(),
+      ...cam.quaternion.toArray(),
+      cam.fov,
+      cam.aspect,
+      shutter,
+      this.photo?.settings.follow === 'ground' ? 1 : 0,
+    ];
+    const was = this.photoView;
+    const changed =
+      was.length !== now.length || now.some((x, i) => x !== was[i]);
+    was.length = 0;
+    was.push(...now);
+    return changed;
   }
 
   private readonly photoBase = {
@@ -2026,8 +2068,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
     // Paused: the camera freezes where it is (the rig would keep carrying it at the car's frozen velocity).
-    if (this.photo) this.photo.update();
-    else if (replay)
+    // The camera holds still while a picture's motion blur is drawn (several frames).
+    if (this.photo) {
+      if (!this.photoShot) this.photo.update();
+    } else if (replay)
       replay.director.update(
         replay.dt,
         v,
@@ -2275,16 +2319,29 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       }
     }
     const post = this.photo ? (this.post ?? this.photoPost) : this.post;
-    post?.set({ photo: this.photo ? this.photo.lens : null });
+    if (this.photoShot && this.photo) this.photoLens ??= this.photo.lens;
+    else this.photoLens = undefined;
+    post?.set({
+      photo: this.photo ? (this.photoLens ?? this.photo.lens) : null,
+    });
     const blur = this.photo ? this.photoMotion() : 0;
-    if (post && blur > 0)
-      post.render(this.photoSamples(blur), (t) =>
-        this.posePhotoSample(t * blur),
-      );
-    else if (post?.active) post.render();
-    else this.renderer.render(this.scene, this.camera);
-    if (blur > 0) this.posePhotoSample(null);
-    if (this.photoShot) {
+    // Motion blur: a share of the shutter's images each frame; a picture waits for all of them.
+    let whole = true;
+    if (post && blur > 0) {
+      const shot = !!this.photoShot;
+      whole = post.render({
+        samples: this.photoSamples(blur),
+        perFrame: (shot ? PHOTO_BLUR.picture : PHOTO_BLUR.preview).perFrame,
+        pose: (t) => this.posePhotoSample(t * blur),
+        restart: this.photoViewChanged(blur),
+      });
+      this.posePhotoSample(null);
+    } else {
+      this.photoView.length = 0;
+      if (post?.active) post.render();
+      else this.renderer.render(this.scene, this.camera);
+    }
+    if (this.photoShot && whole) {
       // Read the canvas in the same task as its render (no preserveDrawingBuffer needed).
       const done = this.photoShot;
       this.photoShot = undefined;
