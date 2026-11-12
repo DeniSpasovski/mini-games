@@ -134,6 +134,14 @@ const WALL_SLOPE = 5;
 /** How far behind a retaining wall's line the carve's foot lies (m): the wall's face (world/rock-cut-mesh.ts) stands 1.2 m in
  * front of it, so the 1 m terrain grid's ramp up the bank stays hidden behind the stone. */
 export const WALL_GAP = 1.5;
+/** A retaining wall's face stands this far behind its line (`offset` past the road edge), its stone top is this thick (m). */
+export const WALL_FACE = 0.3;
+export const WALL_THICK = 0.3;
+/** The wall is built in panels this long (m), each climbing this share of the road's grade: a small step at each joint. */
+export const WALL_PANEL = 10;
+const WALL_FOLLOW = 0.8;
+/** The ground on top of a wall: from the stone's back it eases over this width (m) into the bank behind. */
+export const WALL_SKIN = 3.5;
 /** A `solid` wall (RoadDef.cutWalls) is held tighter than the parkway's, so its coping is a narrow strip. */
 export const cutShape = (solid?: boolean): CutShape =>
   solid
@@ -2277,6 +2285,64 @@ export class TerrainGenerator {
       (w) => w.side === Math.sign(side) && along >= w.from && along <= w.to,
     );
   }
+
+  /** The panel of the retaining wall `wall` that `along` lies in (a joint belongs to the panel it starts). */
+  wallPanel(wall: { from: number }, along: number): number {
+    return Math.floor((along - wall.from) / WALL_PANEL + 1e-6);
+  }
+
+  /**
+   * A retaining wall's top `along` m along on `side` (panel `k`, by default the one `along` lies in): `base` is the line its
+   * courses count up from (it climbs `WALL_FOLLOW` of the road's grade, then steps at the next joint), `top` its stone top.
+   */
+  wallTop(
+    along: number,
+    side: number,
+    k?: number,
+  ): { base: number; top: number } | undefined {
+    const w = this.rockCutWall(along, side);
+    if (!w) return undefined;
+    const panel = k ?? this.wallPanel(w, along);
+    const g0 = this.road.at(w.from + panel * WALL_PANEL).y;
+    const base = g0 + WALL_FOLLOW * (this.road.at(along).y - g0);
+    return { base, top: base + w.height };
+  }
+
+  /**
+   * Height of the ground on top of a retaining wall at (x, z), `dist` m from the road's centre line `along` m along on
+   * `side` (panel `k`): the stone's top at its back, eased over `WALL_SKIN` m into the terrain behind (the mesh skin,
+   * world/rock-cut-mesh.ts, is drawn at it); undefined off the wall's top.
+   */
+  wallGround(
+    x: number,
+    z: number,
+    along: number,
+    side: number,
+    dist: number,
+    hw: number,
+    k?: number,
+  ): number | undefined {
+    const w = this.rockCutWall(along, side);
+    const t = this.wallTop(along, side, k);
+    if (!w || !t) return undefined;
+    const back = hw + w.offset + WALL_FACE + WALL_THICK;
+    if (dist < back - WALL_THICK || dist > back + WALL_SKIN) return undefined;
+    // (the stepped stone top only at the stone; behind it a smooth line along the road's grade, so the ground does not
+    // step with the panels, and never under the bank it eases into)
+    const smooth = this.road.at(along).y + w.height;
+    const lead = t.top + (smooth - t.top) * smoothstep(back, back + 0.8, dist);
+    const ground = this.height(x, z);
+    const e = smoothstep(back, back + WALL_SKIN, dist);
+    return Math.max(ground + 0.03, lead + (ground - lead) * e);
+  }
+
+  /** `wallGround` at a world point (roadside props on a wall's top stand on it). */
+  wallGroundAt(x: number, z: number): number | undefined {
+    if (!this.map.road.rockCuts?.walls?.length) return undefined;
+    const q = this.road.query(x, z, this.wq);
+    return this.wallGround(x, z, q.along, q.lateral, q.distance, q.halfWidth);
+  }
+  private wq: RoadQuery = newRoadQuery();
 
   /**
    * Lateral offset (m from the centreline) where the rock cut's carve leaves the road level, `along` m along on `side`: the

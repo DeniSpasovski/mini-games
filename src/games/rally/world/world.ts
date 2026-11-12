@@ -375,7 +375,10 @@ export class World implements GroundProvider {
         );
         if (q.found && q.distance <= q.halfWidth + 0.5) continue;
       }
-      this.scatter.addFixed(inst);
+      // Bushes on top of a retaining wall stand on its ground, not on the carve under it.
+      const top = this.gen.wallGroundAt(inst.x, inst.z);
+      if (top !== undefined) inst.y = Math.max(inst.y, top);
+      this.scatter.addFixed(inst, top !== undefined);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
     if (map.realTrees) this.scatter.addRealTrees(map.realTrees);

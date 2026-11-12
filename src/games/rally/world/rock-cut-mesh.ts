@@ -14,7 +14,7 @@ import normalUrl from '../engine/props/cut-face.normal.webp';
 import { bridgeMaterials } from './bridge-mesh';
 import { newRoadQuery } from './road';
 import { getTerrainMaterial } from './terrain-material';
-import { WALL_GAP } from './terrain-gen';
+import { WALL_FACE, WALL_SKIN, WALL_THICK } from './terrain-gen';
 import type { World } from './world';
 
 /**
@@ -54,11 +54,6 @@ const ZONE = 70;
 const WALL_TILE = 0.9;
 const WALL_STONE = [0.25, 0.25, 0.25];
 const WALL_MOSS = [0.22, 0.3, 0.15];
-/** The wall's visible thickness: its stone top (m). */
-const WALL_THICK = 0.3;
-/** The wall is built in panels this long (m), each climbing this share of the road's grade: a small step at each joint. */
-const WALL_PANEL = 10;
-const WALL_FOLLOW = 0.8;
 /** Splat of the ground right on top of the wall: grass with gravel [grass, dirt, rock, gravel]. */
 const WALL_TOP_SPLAT = [0.55, 0.1, 0, 0.35];
 
@@ -347,140 +342,123 @@ export function* rockCutMeshJob(
    * courses step up a little at every joint. Both ends are closed.
    */
   const buildWall = (run: Section[], s: number): void => {
-    for (let t = 0; t < 3; t++)
-      for (const key of ['lo', 'hi'] as const) {
-        const v = run.map((r) => r[key]);
-        for (let i = 1; i + 1 < run.length; i++)
-          run[i][key] = (v[i - 1] + 2 * v[i] + v[i + 1]) / 4;
-      }
     const stone = new Strip();
     const earth = new Strip();
     const sp = [1, 0, 0, 0];
     const n = run.length;
-    const from = gen.rockCutWall(run[0].d, s)?.from ?? run[0].d;
-    const grade = (d: number) => road.at(d).y;
-    // Per section: its lines across (lateral offsets), the foot and the ground's heights.
-    const geo = run.map((r) => {
-      const at = (l: number) => gen.height(r.x + r.tz * l, r.z - r.tx * l);
-      const face = r.lo + (0.3 - WALL_GAP) * s;
-      const cope = face + WALL_THICK * s;
-      const back = r.hi + 0.3 * s;
-      const yb = at(face) - 0.3;
-      return {
-        face,
-        cope,
-        back,
-        yb,
-        ground: Math.max(at(r.hi), yb + 0.6),
-        yk: at(back),
-      };
-    });
-    const panelOf = (d: number) => Math.floor((d - from) / WALL_PANEL + 1e-6);
-    // A panel's base line (its courses count up from it) and its height over it (the ground's mean along it).
-    const base = (k: number, d: number): number => {
-      const g0 = grade(from + k * WALL_PANEL);
-      return g0 + WALL_FOLLOW * (grade(d) - g0);
-    };
-    const rise = new Map<number, number[]>();
-    run.forEach((r, i) => {
-      const k = panelOf(r.d);
-      const v = geo[i].ground - base(k, r.d);
-      rise.set(k, [...(rise.get(k) ?? []), v]);
-    });
-    const height = (k: number): number => {
-      const v = rise.get(k) ?? rise.get(k - 1) ?? [1.5];
-      return v.reduce((a, b) => a + b, 0) / v.length;
-    };
+    const wall = gen.rockCutWall(run[0].d, s)!;
     const both = (strip: Strip, q: V3[], c: number[], b = 0) => {
       strip.quad(q, c, b);
       strip.quad([...q].reverse(), c, b);
     };
-    let prevTop = NaN;
-    const emit = (r: Section, i: number, k: number): number => {
-      const g = geo[i];
+    // Across the ground on top: from the stone's back over `WALL_SKIN` m into the bank.
+    const SKIN = 6;
+    let prev: { yt: number; prof: V3[] } | undefined;
+    const emit = (r: Section, i: number, k: number) => {
+      const hw = road.at(r.d).halfWidth;
+      const at = (l: number) => gen.height(r.x + r.tz * l, r.z - r.tx * l);
       const p = (l: number, y: number): V3 => [
         r.x + r.tz * l,
         y,
         r.z - r.tx * l,
       ];
-      const b0 = base(k, r.d);
-      const yt = Math.max(b0 + height(k), g.yb + 0.6);
+      const face = (hw + wall.offset + WALL_FACE) * s;
+      const cope = face + WALL_THICK * s;
+      const yb = at(face) - 0.3;
+      const { base, top } = gen.wallTop(r.d, s, k)!;
+      const yt = Math.max(top, yb + 0.6);
       // Stone: up the face in courses, over the top.
       const rows: V3[] = [];
-      for (let j = 0; j <= 3; j++)
-        rows.push(p(g.face, g.yb + ((yt - g.yb) * j) / 3));
-      rows.push(p(g.cope, yt));
+      for (let j = 0; j <= 3; j++) rows.push(p(face, yb + ((yt - yb) * j) / 3));
+      rows.push(p(cope, yt));
       stone.row(
         rows,
         rows.map((v, j) => {
-          const top = j / (rows.length - 1);
+          const t = j / (rows.length - 1);
           const moss = smoothstep(
             -0.1,
             0.6,
             noise.noise2(r.d / 4 + 23, v[1] / 1.5) +
-              0.5 * top +
-              0.25 * (1 - smoothstep(0, 0.3, top)),
+              0.5 * t +
+              0.25 * (1 - smoothstep(0, 0.3, t)),
           );
           const tone = 0.85 + 0.3 * noise.noise2(r.d / 2.5, v[1] / 1.2);
           return WALL_STONE.map(
             (c, m) => tone * (c + (WALL_MOSS[m] - c) * moss),
           );
         }),
-        rows.map((v) => [r.d / WALL_TILE, (v[1] - b0) / WALL_TILE]),
+        rows.map((v) => [r.d / WALL_TILE, (v[1] - base) / WALL_TILE]),
         s,
       );
-      // Ground on top: gravel and grass at the stone, the bank's own cover where it meets the bank.
-      const top = [p(g.cope, yt), p(g.back, g.yk)];
-      world.heightfield.splatAt(top[1][0], top[1][2], sp);
+      // The ground on top (terrain-gen `wallGround`): gravel and grass at the stone, easing into the bank's own cover.
+      const prof: V3[] = [];
+      const cols: number[][] = [];
+      for (let j = 0; j <= SKIN; j++) {
+        const l = cope + (WALL_SKIN * j * s) / SKIN;
+        const [x, , z] = p(l, 0);
+        const y =
+          j === 0
+            ? yt
+            : (gen.wallGround(x, z, r.d, s, Math.abs(l), hw, k) ??
+                gen.height(x, z)) + 0.02;
+        prof.push(p(l, y));
+        world.heightfield.splatAt(x, z, sp);
+        const e = smoothstep(0, 1, j / SKIN);
+        cols.push(WALL_TOP_SPLAT.map((c, m) => c + (sp[m] - c) * e));
+      }
       earth.row(
-        top,
-        [WALL_TOP_SPLAT, [...sp]],
-        [
-          [0, 0],
-          [0, 0],
-        ],
+        prof,
+        cols,
+        prof.map(() => [0, 0]),
         s,
       );
       // The ends: the wall's square end and the ground's side down to the foot.
       if (i === 0 || i === n - 1) {
         both(
           stone,
-          [p(g.face, g.yb), p(g.face, yt), p(g.cope, yt), p(g.cope, g.yb)],
+          [p(face, yb), p(face, yt), p(cope, yt), p(cope, yb)],
           WALL_STONE,
-          b0,
+          base,
         );
-        both(
-          earth,
-          [p(g.cope, g.yb), p(g.cope, yt), p(g.back, g.yk), p(g.back, g.yb)],
-          sp,
-        );
+        for (let j = 0; j < SKIN; j++)
+          both(
+            earth,
+            [
+              [prof[j][0], yb, prof[j][2]],
+              prof[j],
+              prof[j + 1],
+              [prof[j + 1][0], yb, prof[j + 1][2]],
+            ],
+            WALL_TOP_SPLAT,
+          );
       }
-      // A joint: the step up between the panels (the end of the higher one above the lower's top).
-      if (Number.isFinite(prevTop) && Math.abs(prevTop - yt) > 0.01) {
-        const [lo, hi] = [Math.min(prevTop, yt), Math.max(prevTop, yt)];
+      // A joint: the step between the panels, stone and ground.
+      if (prev && Math.abs(prev.yt - yt) > 0.01) {
+        const [lo, hi] = [Math.min(prev.yt, yt), Math.max(prev.yt, yt)];
         both(
           stone,
-          [p(g.face, lo), p(g.face, hi), p(g.cope, hi), p(g.cope, lo)],
+          [p(face, lo), p(face, hi), p(cope, hi), p(cope, lo)],
           WALL_STONE,
-          b0,
+          base,
         );
-        both(
-          earth,
-          [p(g.cope, lo), p(g.cope, hi), p(g.back, g.yk), p(g.back, g.yk)],
-          WALL_TOP_SPLAT,
-        );
+        for (let j = 0; j < SKIN; j++)
+          both(
+            earth,
+            [prev.prof[j], prof[j], prof[j + 1], prev.prof[j + 1]],
+            WALL_TOP_SPLAT,
+          );
       }
-      return yt;
+      return { yt, prof };
     };
     run.forEach((r, i) => {
-      const k = panelOf(r.d);
+      const k = gen.wallPanel(wall, r.d);
       // (a section on a joint ends the panel before it, then starts its own)
-      if (i > 0 && panelOf(r.d - 0.01) !== k) {
-        prevTop = emit(r, i, k - 1);
+      if (i > 0 && gen.wallPanel(wall, r.d - 0.01) !== k) {
+        prev = emit(r, i, k - 1);
         stone.break();
         earth.break();
         emit(r, i, k);
-        prevTop = NaN;
+        prev = undefined;
       } else emit(r, i, k);
     });
     const mesh = new Mesh(stone.geometry(), bridgeMaterials().stone);

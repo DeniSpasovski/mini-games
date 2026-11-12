@@ -289,9 +289,10 @@ export class ScatterField {
   }
 
   /** Add a hand-placed / road-side instance (call before streaming starts). */
-  addFixed(inst: ScatterInstance): void {
+  /** `onWall`: it stands on a retaining wall's top ground (terrain-gen `wallGround`), not in the cut under it. */
+  addFixed(inst: ScatterInstance, onWall = false): void {
     // No hand-placed tree or shrub on a rock cut's face either.
-    if (isTreeType(inst.asset) && this.ctx.cutAt) {
+    if (isTreeType(inst.asset) && this.ctx.cutAt && !onWall) {
       const q = this.road.query(inst.x, inst.z, this.q);
       if (
         q.found &&

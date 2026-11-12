@@ -846,8 +846,8 @@ export const vodnoMap: MapDef = {
     }),
   ],
   roadside: [
-    // The Vidikovec wall (the owner's photos): a few rounded bushes in the grass strip in front of it, and a thick fringe
-    // of bushes and shrubs along its top, under the trees of the bank.
+    // The Vidikovec wall (the owner's photos): a few rounded bushes in the grass strip in front of it, a fringe of bushes
+    // right on its top edge and small trees behind them on the bank.
     {
       asset: 'bush',
       every: 7,
@@ -864,21 +864,31 @@ export const vodnoMap: MapDef = {
       count: 2,
       spread: 1.2,
       side: 'left',
-      offset: VIDIKOVEC_WALL.offset + 1.7,
-      depth: 1.2,
+      offset: VIDIKOVEC_WALL.offset + 1,
+      depth: 0.5,
       from: VIDIKOVEC_WALL.from,
       to: VIDIKOVEC_WALL.to,
       scale: [0.6, 0.95],
     },
     {
-      asset: 'thicket_shrub',
-      every: 2.5,
+      asset: 'young_tree',
+      every: 3,
       side: 'left',
-      offset: VIDIKOVEC_WALL.offset + 2.4,
-      depth: 1,
-      from: VIDIKOVEC_WALL.from + 2,
+      offset: VIDIKOVEC_WALL.offset + 2.8,
+      depth: 2.5,
+      from: VIDIKOVEC_WALL.from + 1,
       to: VIDIKOVEC_WALL.to,
-      scale: [0.7, 1],
+      scale: [0.5, 0.85],
+    },
+    {
+      asset: 'hornbeam_tree',
+      every: 8,
+      side: 'left',
+      offset: VIDIKOVEC_WALL.offset + 5.5,
+      depth: 2,
+      from: VIDIKOVEC_WALL.from + 3,
+      to: VIDIKOVEC_WALL.to,
+      scale: [0.5, 0.7],
     },
     // White / red chevrons on the outside of the hairpins.
     {
