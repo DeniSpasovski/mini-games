@@ -12,6 +12,7 @@ import {
   LineSegments,
   Mesh,
   MeshBasicMaterial,
+  type Object3D,
   Raycaster,
   Sprite,
   SpriteMaterial,
@@ -61,6 +62,7 @@ import { SURFACES } from '../physics/surfaces';
  * Map viewer: aerial view of one stage on its map, for quick iteration. Opens framed on the stage's route and streams
  * around it; the rest of the map streams in where the camera goes.
  *   map-viewer.html?map=test&stage=test&scatter=1&road=1&grid=0&splat=0&drain=0&fog=0&labels=1&along=1100&zoom=0.5
+ * `far=1` adds the far forest and the whole map's scatter (off by default: close-up work loads and streams less).
  * `stage` = the stage shown (its route, start / splits / finish, closures and fans; default the map's first). Old links
  * `map=<stage id>` open that stage on its map. Distances (`along`, the 250 m ticks, "Drive from here") are along the
  * stage road, in the stage's direction. `season` = spring | summer | autumn (ground, leaves; default the stage's own, as in the game).
@@ -85,6 +87,11 @@ const DEFAULTS = {
   /** Drainage lines and culverts (MapDef.culverts, scripts/realmap/culverts.py). */
   drain: false,
   fog: false,
+  /**
+   * The far forest (canopy shell, far trees) and the scatter of the whole map: for overviews and far-tree work. Off,
+   * trees end at the game's forest distance and only the scatter near the camera is generated.
+   */
+  far: false,
   labels: true,
   wire: false,
   /** Real-world maps: focus + inspect this building id ("stage 1 - building 12"). */
@@ -230,18 +237,22 @@ void loadMap(state.map).then(async (map) => {
   trees.group.visible = state.scatter;
   scene.add(trees.group);
   trees.attachRenderer(renderer);
-  const farForest = new FarForest(
-    world,
-    treeLibrary,
-    quality.forestDistance,
-    viewDistance,
-    renderer.extensions.has('EXT_color_buffer_float') ||
-      renderer.extensions.has('EXT_color_buffer_half_float'),
-  );
-  farForest.renderer = renderer;
-  trees.group.add(farForest.mesh);
-  if (farForest.farTrees) trees.group.add(farForest.farTrees);
-  horizon?.setForest(canopyTone(treeLibrary, world), farForest.canopy);
+  const farForest = state.far
+    ? new FarForest(
+        world,
+        treeLibrary,
+        quality.forestDistance,
+        viewDistance,
+        renderer.extensions.has('EXT_color_buffer_float') ||
+          renderer.extensions.has('EXT_color_buffer_half_float'),
+      )
+    : undefined;
+  if (farForest) {
+    farForest.renderer = renderer;
+    trees.group.add(farForest.mesh);
+    if (farForest.farTrees) trees.group.add(farForest.farTrees);
+  }
+  horizon?.setForest(canopyTone(treeLibrary, world), farForest?.canopy);
   setForest(forestColor(treeLibrary), quality.forestDistance);
   const treeStats = new TreeStatsOverlay(
     renderer.domElement.parentElement ?? document.body,
@@ -646,6 +657,12 @@ void loadMap(state.map).then(async (map) => {
     getTerrainMaterial(false, true).wireframe = v;
     sync();
   });
+  // A change reloads: the far forest is built with the world.
+  layers.checkbox('Far view (far forest)', state.far, (v) => {
+    state.far = v;
+    sync(true);
+    location.reload();
+  });
   layers.checkbox('Fog', state.fog, (v) => {
     state.fog = v;
     shell.envDef.fogDensity = v ? map.environment.fogDensity : 0.00005;
@@ -932,9 +949,11 @@ void loadMap(state.map).then(async (map) => {
     );
     trees.update(camera);
     // The map's scatter fills in with what is left of half the frame's budget (one chunk at least).
-    do if (fill.next().done) break;
-    while (performance.now() - t0 < STREAM_MS / 2);
-    farForest.update(camera.position);
+    if (farForest) {
+      do if (fill.next().done) break;
+      while (performance.now() - t0 < STREAM_MS / 2);
+      farForest.update(camera.position);
+    }
     treeStats.update();
     // A few times a second (the counters change while streaming; `info` only touches changed values).
     const now = performance.now();
@@ -973,10 +992,26 @@ void loadMap(state.map).then(async (map) => {
         0.8,
     );
     for (let i = 0; i < 6; i++) streamer.update(t);
+    // Every scatter asset and tree batch joins the warm-up below, as in the game's load: a program first drawn when
+    // its objects stream in compiles inside that frame, a hitch while dragging.
+    streamer.prewarm();
     trees.updateNow(camera);
-    farForest.fillNow(camera.position);
+    trees.prewarm(camera);
+    farForest?.fillNow(camera.position);
   }
   await renderer.compileAsync(scene, camera);
+  {
+    // Drawn once, nothing culled: drivers finish a program at its first real draw.
+    const culled: Object3D[] = [];
+    scene.traverse((o) => {
+      if (o.frustumCulled) culled.push(o);
+      o.frustumCulled = false;
+    });
+    renderer.render(scene, camera);
+    for (const o of culled) o.frustumCulled = true;
+    streamer.settle();
+    trees.settle();
+  }
   shell.paused = false;
   loaded();
   /**
@@ -1008,9 +1043,9 @@ void loadMap(state.map).then(async (map) => {
     }
     // The instance streamer builds its chunks over several updates.
     for (let i = 0; i < 80; i++) streamer.update(controls.target);
-    while (!fill.next().done);
+    if (farForest) while (!fill.next().done);
     trees.updateNow(camera);
-    farForest.fillNow(camera.position);
+    farForest?.fillNow(camera.position);
     return n;
   }
 

@@ -69,7 +69,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
    these to place `at:` props), checks the road is flat/gravel and no solid scatter is on the road.
 2. `npx rstest integration-tests/rally/stage-<map>.test.ts` (new map: add that file, `describeStages(<map>)`) — the autopilot must finish the stage with every car without rolling.
    If it fails, trace the failing distance (lower `maxGrade`, widen a hairpin, move a crest out of a corner).
-3. Look: `/games/rally/map-viewer.html?map=<id>&stage=<id>` (one stage of the map, default the first; oblique overview of the stage's route, `grid=1` chunk grid, `splat=1` surfaces,
+3. Look: `/games/rally/map-viewer.html?map=<id>&stage=<id>` (one stage of the map, default the first; oblique overview of the stage's route, `grid=1` chunk grid, `splat=1` surfaces, `far=1` far forest,
    click terrain -> "Drive from here").
 4. Drive: `/games/rally/?stage=<id>&spawn=<metres along the stage>&mute=1` to test a section directly.
 5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Conventions", `isMutedByUrl`).
