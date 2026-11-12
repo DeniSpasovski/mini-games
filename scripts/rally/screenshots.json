@@ -146,8 +146,8 @@
     "car": "skoda_rally",
     "season": "summer",
     "tod": 10,
-    "spawn": 1050,
-    "note": "Right-hand hairpin with the wooden guard rail"
+    "spawn": 1325,
+    "note": "Left-hand hairpin with the wooden guard rail and the red chevron sign"
   },
   {
     "id": "vodno-cross-ridge",
@@ -157,12 +157,12 @@
     "season": "summer",
     "tod": 10,
     "spawn": 4400,
-    "note": "View up the north face from the finish end: antenna mast, cable car, Millennium Cross (free camera 120 m above the slope; the car waits behind it)",
+    "note": "View up the north face from the finish end: antenna mast, cable car, Millennium Cross (free camera 100 m above the slope; the car waits behind it)",
     "cam": {
-      "atWorld": [466, -313, 120],
-      "lookWorld": [-640, 780],
-      "lookUp": 30,
-      "fov": 15
+      "atWorld": [170, -31, 100],
+      "lookWorld": [-600, 775],
+      "lookUp": 40,
+      "fov": 14
     }
   },
   {
