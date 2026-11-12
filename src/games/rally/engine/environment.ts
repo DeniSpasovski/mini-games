@@ -45,6 +45,7 @@ import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
 import {
   setCarEnvSun,
+  setEnvDiffuse,
   setFogBase,
   setFogLayer,
   setShadowBox,
@@ -185,6 +186,37 @@ const LOOKS: Record<string, Partial<EnvironmentDef>> = {
   },
 };
 
+/**
+ * Day light balance. On flat ground the sky gives about a third of what the sun does (a clear day: cast shadows are
+ * dark), and faces turned from the sun get the light the ground throws back (`bounce`), warm.
+ * - `sun` / `sunLow`: the sun's intensity high in the sky and how much of it a sun on the horizon loses.
+ * - `fill`: the hemisphere light's sky side (`fillIntensity`).
+ * - `envDiffuse`: the share of the env map's diffuse light that is used (reflections keep the whole `envIntensity`).
+ * - `bounce`: the ground's albedo x how much of it a wall sees unshaded.
+ * - `warmLow`: how fast a sinking sun turns golden (exponent on its lowness): with the sun carrying the light, a
+ *   mid-morning sun (~20 deg) must stay near white or the whole scene goes yellow.
+ * `CLASSIC_LIGHT` = the sky at three quarters of the sun, no bounce: the studio's softboxes are tuned for it, and
+ * `?look=classic` shows it in game (dry weather only).
+ */
+export const DAY_LIGHT = {
+  sun: 4.5,
+  sunLow: 1.6,
+  fill: 0.15,
+  envDiffuse: 0.57,
+  bounce: 0.75,
+  warmLow: 2,
+};
+const CLASSIC_LIGHT: typeof DAY_LIGHT = {
+  sun: 3.1,
+  sunLow: 1.1,
+  fill: 0.26,
+  envDiffuse: 1,
+  bounce: 0,
+  warmLow: 1,
+};
+/** The env map's diffuse light on flat ground at `envIntensity` 1, about (the sky's share of the light the ground bounces). */
+const ENV_SKY_IRRADIANCE = 2.3;
+
 /** Radiance of the studio strip lights (x white; the env map is drawn at `envIntensity`, ~0.3). */
 const STUDIO_POWER = 60;
 /** Radiance of the studio room around them (linear grey). */
@@ -237,7 +269,12 @@ export function weatherEnv(
     fogSunGlow: (def.fogSunGlow ?? 0.45) * w.sun,
     fillSky: dark > 0.5 ? '#c4cad1' : (def.fillSky ?? '#9fb8e6'),
     // The sky carries the light under cloud: more fill as the sun goes.
-    fillIntensity: (def.fillIntensity ?? 0.26) + 0.5 * dark,
+    fillIntensity:
+      (def.fillIntensity ??
+        MathUtils.lerp(DAY_LIGHT.fill, CLASSIC_LIGHT.fill, dark)) +
+      0.5 * dark,
+    // ... and all of the env map's: under a deck there is no sun for it to be weighed against.
+    envDiffuse: MathUtils.lerp(def.envDiffuse ?? DAY_LIGHT.envDiffuse, 1, dark),
     wind: (def.wind ?? 1) * w.wind,
     // The eye (and a camera) opens up under a dark sky.
     exposure: def.exposure * (1 + 0.3 * dark),
@@ -341,6 +378,8 @@ export class Environment {
   private stageWeather?: Partial<Record<Weather, WeatherTuning>>;
   /** World height (m) of the stage start: a fog layer's top is measured from it (`setStageBase`). */
   private stageBase = 0;
+  /** Share of the env map's diffuse light in use (`DAY_LIGHT.envDiffuse`; 1 at night and in the studio). */
+  private envDiffuse = 1;
   /** The sun's intensity before a fog layer dims it (`update`). */
   private sunBase = 0;
   private nightSky: NightSky;
@@ -436,6 +475,8 @@ export class Environment {
       def = { ...def, ...def.goldenHour };
     const look = ownValue(LOOKS, urlString('look') ?? '');
     if (look) def = { ...def, ...look };
+    const light =
+      studio || urlString('look') === 'classic' ? CLASSIC_LIGHT : DAY_LIGHT;
     this.weather = studio ? 'dry' : weatherParam(urlString('weather'));
     this.weatherLook = weatherLook(this.weather, this.stageWeather);
     def = weatherEnv(def, this.weatherLook);
@@ -500,6 +541,7 @@ export class Environment {
     this.lightRight.set(0, 1, 0).cross(this.sunDir).normalize();
     this.lightUp.copy(this.sunDir).cross(this.lightRight).normalize();
 
+    let envDiffuse = 1;
     if (this.night) {
       // Moon: dim and blue; the headlights' own shadow map (game/headlights.ts) carries the scene, so the moon casts
       // shadows on high quality only. Cool sky fill, almost no ground bounce.
@@ -514,9 +556,13 @@ export class Environment {
       // Warmer, dimmer sun near the horizon (golden below ~25 deg), unless the map sets it.
       const low = MathUtils.clamp(1 - elevation / 40, 0, 1);
       if (def.sunColor) this.sun.color.set(def.sunColor);
-      else this.sun.color.setRGB(1, 0.93 - low * 0.2, 0.84 - low * 0.38);
+      else {
+        const warm = low ** light.warmLow;
+        this.sun.color.setRGB(1, 0.93 - warm * 0.2, 0.84 - warm * 0.38);
+      }
       this.sun.intensity =
-        (def.sunIntensity ?? 3.1 - low * 1.1) * this.weatherLook.sun;
+        (def.sunIntensity ?? light.sun - low * light.sunLow) *
+        this.weatherLook.sun;
       // Under a rain deck there is no sun or moon disc, only the grey sky's light (no glint on the wet road).
       this.sun.castShadow = this.sun.intensity > 0;
 
@@ -526,8 +572,25 @@ export class Environment {
         .set(def.groundTint?.grass ?? '#7a6a48')
         .lerp(new Color('#8a6a40'), 0.45)
         .multiplyScalar(0.7);
-      this.hemi.intensity = def.fillIntensity ?? 0.26;
+      this.hemi.intensity = def.fillIntensity ?? light.fill;
+      envDiffuse = def.envDiffuse ?? light.envDiffuse;
+      if (light.bounce > 0) {
+        // The ground's bounce: its colour (half greyed: road, soil and shade mixed in) x the light that falls on it,
+        // as the irradiance of a face looking straight down (the hemisphere light scales it by its intensity).
+        const c = this.hemi.groundColor;
+        const grey = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+        const onGround =
+          this.sun.intensity * Math.sin(MathUtils.degToRad(elevation)) +
+          (def.envIntensity ?? 0.3) * envDiffuse * ENV_SKY_IRRADIANCE +
+          this.hemi.intensity * 0.5;
+        c.lerp(new Color(grey, grey, grey), 0.5).multiplyScalar(
+          (light.bounce * 0.2 * onGround) /
+            Math.max(1e-3, grey * this.hemi.intensity),
+        );
+      }
     }
+    this.envDiffuse = envDiffuse;
+    setEnvDiffuse(envDiffuse);
 
     this.renderer.toneMapping =
       ownValue(
@@ -718,10 +781,11 @@ export class Environment {
     const cube = new WebGLCubeRenderTarget(32);
     new CubeCamera(0.1, 2000, cube).update(this.renderer, envScene);
     const intensity = this.scene.environmentIntensity;
+    const diffuse = this.envDiffuse;
     if (!this.night && this.def.fogColor === 'sky' && this.scene.fog)
       this.scene.fog.color.copy(this.horizonColor(envScene));
     void LightProbeGenerator.fromCubeRenderTarget(this.renderer, cube)
-      .then((probe) => setTreeSky(probe.sh.coefficients, intensity))
+      .then((probe) => setTreeSky(probe.sh.coefficients, intensity * diffuse))
       .finally(() => cube.dispose());
     sky.material.dispose();
     sky.geometry.dispose();

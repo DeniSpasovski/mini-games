@@ -62,7 +62,7 @@ into `DETAILS.md`, never up.
 - Open work = short checkboxes in `TASKS.md` / `TODO.md` (local, git-ignored); when done, delete it and document only what changed how things work.
 - Update docs (README / DETAILS / skill) in the same change as the behaviour; keep skill links to `DETAILS.md` valid.
 - **Screenshots**: `screenshots/` next to the README, taken in game (car / map viewer or game page), 16:9 jpg, 1280-1536 px wide,
-  no debug panels; retake when the look changes.
+  no debug panels; retake when the look changes (rally: `scripts/rally/screenshots.mjs`, spots in rally `DETAILS.md`).
 
 ## Project map
 
@@ -91,6 +91,7 @@ into `DETAILS.md`, never up.
 - `scripts/asphalt/`: `bake.mjs` + `gen.js` (the baked road asphalt tiles, `src/games/rally/engine/asphalt/`; `DETAILS.md` -> Road textures)
 - `scripts/portal/wordmarks.py`: a title in a font -> white outlined `wordmark.svg` (portal header and the game covers; usage in its header);
   `og-image.mjs`: retakes the portal's 1200x630 link preview `public/og-image.jpg` (dev server running)
+- `scripts/rally/screenshots.mjs` + `screenshots.json`: retakes every rally README / map / cover picture and the link preview from a stage, car, spot, season and hour (dev server running; table in rally `DETAILS.md` -> Screenshots)
 - `scripts/ground/bake.py`: the rally terrain tiles (`engine/ground/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/facades/bake.py`: the wall and roof tiles of the rally buildings (`engine/facades/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/kaboom/bake-hdri.py`: the small environment-light HDRIs of the Kaboom levels (`src/games/kaboom/assets/hdri/<level>.hdr`) from Poly Haven 1k HDRIs (ids in the script);

@@ -523,15 +523,16 @@ function vidikovecLayout(): void {
     yaw: facingLot(mouth),
     onSlab: true,
   });
-  for (const s of [ISLAND.from - 3, ISLAND.to + 3]) {
-    const f = left.at(s);
-    const p = off(f, -1.2);
+  // (on the grass, a little in from the island's ends, standing on its lawn)
+  for (const s of [ISLAND.from + 2.5, ISLAND.to - 2.5]) {
+    const { f, p } = isl(s, 0.2 + ISLAND.width * 0.4);
     out.push({
       kind: 'bin',
       x: p[0],
       z: p[1],
       yaw: facingLot(f),
       onSlab: true,
+      lift: 0.16,
     });
   }
   // The outer wall: a binocular viewer, solar lamps, a bench.
@@ -1099,9 +1100,10 @@ export function drawParkGround(l: Local, lot: Lot, gy: LocalGround): void {
     drawStairs(l, gy);
     return;
   }
-  // Vidikovec island: a lens of lawn inside a stone kerb.
+  // Vidikovec island: a lens of lawn, its road side a soft grass edge, a stone kerb on its lot side.
   const shape = lotShape(lot);
   const left = new Edge(shape.left, 'left');
+  const frames: Fr[] = [];
   const outerLine: V2[] = [];
   const innerLine: V2[] = [];
   for (let s = ISLAND.from; s <= ISLAND.to + 0.01; s += 2) {
@@ -1110,31 +1112,65 @@ export function drawParkGround(l: Local, lot: Lot, gy: LocalGround): void {
       0.35,
       Math.min(1, (s - ISLAND.from) / 3, (ISLAND.to - s) / 3),
     );
+    frames.push(f);
     outerLine.push(off(f, -0.2));
     innerLine.push(off(f, -(0.2 + ISLAND.width * ramp)));
   }
-  for (let i = 0; i + 1 < outerLine.length; i++)
+  for (let i = 0; i + 1 < outerLine.length; i++) {
     quad(
       [outerLine[i], outerLine[i + 1], innerLine[i + 1], innerLine[i]],
       '#7eab4f',
       0.16,
       true,
     );
-  for (const line of [outerLine, innerLine])
-    for (let i = 0; i + 1 < line.length; i++) {
-      const a = line[i];
-      const b = line[i + 1];
-      const y = gy((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) + SLAB;
-      wallSeg(l, a, b, y - 0.3, y + 0.2, 0.24, 'drystone', '#e2dccf');
-    }
-  // The rounded ends.
-  for (const [a, b] of [
-    [outerLine[0], innerLine[0]],
-    [outerLine[outerLine.length - 1], innerLine[innerLine.length - 1]],
-  ]) {
-    const y = gy((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) + SLAB;
-    wallSeg(l, a, b, y - 0.3, y + 0.2, 0.24, 'drystone', '#e2dccf');
+    // (the road side: the lawn rolls down onto the slab, no kerb)
+    const lip = [off(frames[i], 0.1), off(frames[i + 1], 0.1)];
+    l.fan(
+      'lawn',
+      [
+        [lip[0][0], gy(lip[0][0], lip[0][1]) + SLAB + 0.01, lip[0][1]],
+        [lip[1][0], gy(lip[1][0], lip[1][1]) + SLAB + 0.01, lip[1][1]],
+        [
+          outerLine[i + 1][0],
+          gy(outerLine[i + 1][0], outerLine[i + 1][1]) + SLAB + 0.16,
+          outerLine[i + 1][1],
+        ],
+        [
+          outerLine[i][0],
+          gy(outerLine[i][0], outerLine[i][1]) + SLAB + 0.16,
+          outerLine[i][1],
+        ],
+      ],
+      '#7eab4f',
+      up,
+      (p) => [p[0], p[2]],
+    );
   }
+  // The kerb on the lot side, round the lens's ends to the road edge: one ribbon sloping with the ground (no level steps).
+  const kerb: V2[] = [
+    outerLine[0],
+    ...innerLine,
+    outerLine[outerLine.length - 1],
+  ];
+  const tangents = kerb.map((_, k) => {
+    const a = kerb[Math.max(0, k - 1)];
+    const b = kerb[Math.min(kerb.length - 1, k + 1)];
+    return unitV(b[0] - a[0], b[1] - a[1]);
+  });
+  const top = smoothHeights(kerb.map((p) => gy(p[0], p[1]) + SLAB + 0.2));
+  wallRibbon(
+    l,
+    {
+      p: kerb,
+      // (the normal points into the lot, away from the lawn)
+      n: tangents.map(([tx, tz]): V2 => [-tz, tx]),
+      hi: top,
+      lo: top.map((y) => y - 0.5),
+      inner: -0.12,
+      outer: 0.12,
+    },
+    '#e2dccf',
+  );
 }
 
 /** Concrete stairs with log handrails, following the terrain (tread tops 12 cm over it, at most 32 cm a step). */

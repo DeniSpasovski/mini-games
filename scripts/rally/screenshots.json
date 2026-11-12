@@ -1,0 +1,210 @@
+[
+  {
+    "id": "ajvatovci-start-street",
+    "file": "src/games/rally/maps/ajvatovci/screenshots/start-street.jpg",
+    "stage": "ajvatovci",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 7.5,
+    "spawn": 200,
+    "note": "Start street between the warehouses"
+  },
+  {
+    "id": "ajvatovci-farmland-road",
+    "file": "src/games/rally/maps/ajvatovci/screenshots/farmland-road.jpg",
+    "stage": "ajvatovci",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 7.5,
+    "spawn": 1500,
+    "note": "Farmland road: wheat left, meadow right, power line ahead"
+  },
+  {
+    "id": "ajvatovci-hill-road",
+    "file": "src/games/rally/maps/ajvatovci/screenshots/hill-road.jpg",
+    "stage": "ajvatovci",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 7.5,
+    "spawn": 2950,
+    "note": "Village edge: first houses, crew at the junction"
+  },
+  {
+    "id": "ajvatovci-night",
+    "file": "src/games/rally/maps/ajvatovci/screenshots/night.jpg",
+    "stage": "ajvatovci",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 1,
+    "spawn": 1500,
+    "note": "The farmland road at night, headlights on"
+  },
+  {
+    "id": "galichica-livada-pass",
+    "file": "src/games/rally/maps/galichica/screenshots/livada-pass.jpg",
+    "stage": "galichica_west",
+    "car": "skoda_rally",
+    "season": "autumn",
+    "tod": 9,
+    "spawn": 14000,
+    "note": "Climb to the Livada pass, bare slope"
+  },
+  {
+    "id": "galichica-prespa-climb",
+    "file": "src/games/rally/maps/galichica/screenshots/prespa-climb.jpg",
+    "stage": "galichica_east",
+    "car": "skoda_rally",
+    "season": "spring",
+    "tod": 9,
+    "spawn": 24000,
+    "note": "Climb from Lake Prespa, lake on the right"
+  },
+  {
+    "id": "jackie-city-start",
+    "file": "src/games/rally/maps/jackie/screenshots/city-start.jpg",
+    "stage": "jackie",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 8,
+    "spawn": "start",
+    "note": "Just short of the START arch"
+  },
+  {
+    "id": "jackie-parkway-bridge",
+    "file": "src/games/rally/maps/jackie/screenshots/parkway-bridge.jpg",
+    "stage": "jackie",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 8,
+    "spawn": 2700,
+    "note": "Parkway, left bend, parked cars and crowd on the right"
+  },
+  {
+    "id": "jackie-night",
+    "file": "src/games/rally/maps/jackie/screenshots/night.jpg",
+    "stage": "jackie",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 1,
+    "spawn": 2700,
+    "note": "The parkway at night, street lamps lit"
+  },
+  {
+    "id": "petralica-valley-road",
+    "file": "src/games/rally/maps/petralica/screenshots/valley-road.jpg",
+    "stage": "petralica",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 16.5,
+    "spawn": 1900,
+    "note": "Tarmac valley road, open fields, farms in the distance"
+  },
+  {
+    "id": "petralica-mountain-climb",
+    "file": "src/games/rally/maps/petralica/screenshots/mountain-climb.jpg",
+    "stage": "petralica",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 16.5,
+    "spawn": 5500,
+    "note": "Gravel climb, forested hill ahead"
+  },
+  {
+    "id": "petralica-night",
+    "file": "src/games/rally/maps/petralica/screenshots/night.jpg",
+    "stage": "petralica",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 1,
+    "spawn": 5600,
+    "note": "The gravel at night, headlights on"
+  },
+  {
+    "id": "test-forest-stage",
+    "file": "src/games/rally/maps/test/screenshots/forest-stage.jpg",
+    "stage": "test",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 15.8,
+    "spawn": 600,
+    "note": "Forest gravel between the pines, white marker posts"
+  },
+  {
+    "id": "vodno-start-line",
+    "file": "src/games/rally/maps/vodno/screenshots/start-line.jpg",
+    "stage": "vodno",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 10,
+    "spawn": "start",
+    "note": "Car just short of the VODNO HILLCLIMB arch"
+  },
+  {
+    "id": "vodno-hairpins",
+    "file": "src/games/rally/maps/vodno/screenshots/hairpins.jpg",
+    "stage": "vodno",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 10,
+    "spawn": 1325,
+    "note": "Left-hand hairpin with the wooden guard rail and the red chevron sign"
+  },
+  {
+    "id": "vodno-cross-ridge",
+    "file": "src/games/rally/maps/vodno/screenshots/cross-ridge.jpg",
+    "stage": "vodno",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 10,
+    "spawn": 4400,
+    "note": "View up the north face from the finish end: antenna mast, cable car, Millennium Cross (free camera 100 m above the slope; the car waits behind it)",
+    "cam": {
+      "atWorld": [170, -31, 100],
+      "lookWorld": [-600, 775],
+      "lookUp": 40,
+      "fov": 14
+    }
+  },
+  {
+    "id": "rally-start",
+    "file": "src/games/rally/screenshots/start.jpg",
+    "stage": "ajvatovci",
+    "car": "zastava_101",
+    "season": "summer",
+    "tod": 7.5,
+    "spawn": "start",
+    "note": "Zastava 101 at the start line of Ajvatovci Hill"
+  },
+  {
+    "id": "ui-stage",
+    "file": "src/games/rally/screenshots/ui-stage.jpg",
+    "stage": "test",
+    "car": "skoda_rally",
+    "season": "summer",
+    "spawn": "start",
+    "note": "Menu: Select stage, Forest Rally highlighted, 1280x720",
+    "kind": "stage-select",
+    "settle": 60000
+  },
+  {
+    "id": "thumbnail",
+    "file": "src/games/rally/thumbnail.jpg",
+    "stage": "jackie",
+    "car": "skoda_rally",
+    "season": "summer",
+    "tod": 8,
+    "spawn": 3500,
+    "note": "Portal cover, with thumbnail-640.jpg: the parkway",
+    "kind": "thumbnail"
+  },
+  {
+    "id": "og-image",
+    "file": "public/og-image.jpg",
+    "stage": "",
+    "car": "skoda_rally",
+    "season": "summer",
+    "spawn": 0,
+    "note": "Portal home page 1200x630 (after the cover)",
+    "kind": "og"
+  }
+]
