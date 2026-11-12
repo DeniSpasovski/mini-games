@@ -27,6 +27,7 @@ import {
   WebGLCubeRenderTarget,
   type WebGLRenderer,
 } from 'three';
+import { urlParam } from './url-param';
 import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import { ownValue, paramNumber } from '../../../shared/url-params';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
@@ -306,13 +307,11 @@ function patchSky(sky: Sky): Sky {
 
 /** `?tod=<hours>` (try a time of day on any map with `timeOfDay`), `?tonemap=aces|agx|neutral` and `?grade=off`. */
 function urlNumber(name: string): number | undefined {
-  if (typeof location === 'undefined') return undefined;
-  const v = new URLSearchParams(location.search).get(name);
+  const v = urlParam(name);
   return paramNumber(v, -1e6, 1e6, undefined);
 }
 function urlString(name: string): string | undefined {
-  if (typeof location === 'undefined') return undefined;
-  return new URLSearchParams(location.search).get(name) ?? undefined;
+  return urlParam(name) ?? undefined;
 }
 
 /**

@@ -885,7 +885,7 @@ class MainMenu {
     b.append(label);
     b.title = 'Watch replay';
     b.addEventListener('click', () => {
-      location.href = replayUrl(r);
+      location.href = replayUrl(r.id);
     });
     return b;
   }
