@@ -36,7 +36,8 @@ describe('street cars', () => {
       const mid = streetCar({ seed: 1, variant, lod: 1 });
       const far = streetCar({ seed: 1, variant, lod: 2 });
       expect(near.parts.length).toBe(1);
-      expect(tris(near)).toBeLessThan(9000);
+      // The model plus its rounded wheels (wheel-rounding.ts).
+      expect(tris(near)).toBeLessThan(10500);
       expect(tris(near)).toBeGreaterThan(3000);
       expect(tris(mid)).toBeLessThan(2500);
       expect(tris(far)).toBeLessThan(1500);
@@ -105,8 +106,9 @@ describe('street cars', () => {
   test('taxi and police car: the model plus its add-ons', () => {
     for (const b of [taxi, policeCar]) {
       const near = b({ seed: 1, variant: 0, lod: 0 });
-      expect(near.parts.length).toBe(2);
-      expect(tris(near)).toBeLessThan(9500);
+      // The taxi's lit roof sign is a part of its own.
+      expect(near.parts.length).toBe(b === taxi ? 3 : 2);
+      expect(tris(near)).toBeLessThan(10500);
     }
     expect(taxi({ seed: 1, variant: 0, lod: 2 }).parts.length).toBe(1);
   });

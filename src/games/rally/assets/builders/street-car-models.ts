@@ -13,6 +13,7 @@ import atlasUrl from './street-car-atlas.jpg';
 import maskUrl from './street-car-mask.png';
 import { SERVICE_VEHICLE_DATA } from './service-vehicles.data';
 import { STREET_CAR_DATA, type StreetCarData } from './street-cars.data';
+import { roundWheels, type TriangleSoup } from './wheel-rounding';
 
 /**
  * The background cars and the service park's vans and trucks: vehicles of three CC BY packs (credits: THIRD-PARTY.md) with
@@ -75,7 +76,7 @@ const caches = new WeakMap<StreetCarData[], Map<string, StreetCarShape>>();
 
 /** The street car `index` (wrapped) at `lod` (0 near; the last one is the farthest). */
 export const streetCarModel = (index: number, lod: number): StreetCarShape =>
-  vehicleModel(STREET_CAR_DATA, index, lod);
+  vehicleModel(STREET_CAR_DATA, index, lod, true);
 
 /** A van or truck of pack 7 by id (`van_low`, `van_high`, `minibus`, `box_truck`, `flatbed`), same LODs. */
 export function serviceVehicleModel(id: string, lod: number): StreetCarShape {
@@ -84,11 +85,15 @@ export function serviceVehicleModel(id: string, lod: number): StreetCarShape {
   return vehicleModel(SERVICE_VEHICLE_DATA, index, lod);
 }
 
-/** A model of any baked list (`street-cars.data.ts` layout) at `lod`: also the fire engines' (`fire-truck-models.ts`). */
+/**
+ * A model of any baked list (`street-cars.data.ts` layout) at `lod`: also the fire engines' (`fire-truck-models.ts`).
+ * `round`: its wheels get more sides at LOD 0 (`wheel-rounding.ts`); a list is either always or never asked rounded.
+ */
 export function vehicleModel(
   list: StreetCarData[],
   index: number,
   lod: number,
+  round = false,
 ): StreetCarShape {
   const i = ((index % list.length) + list.length) % list.length;
   const data = list[i];
@@ -99,6 +104,23 @@ export function vehicleModel(
   const hit = cache.get(key);
   if (hit) return hit;
   const d = decode(data.lods[l]);
+  let soup: TriangleSoup | undefined;
+  /** The mesh as triangles with creased normals (hard edges above ~35 deg), non-indexed like every other vehicle part. */
+  const triangles = (): TriangleSoup => {
+    if (soup) return soup;
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(d.pos, 3));
+    g.setAttribute('uv', new BufferAttribute(d.uv, 2));
+    g.setIndex(new BufferAttribute(d.idx, 1));
+    const out = toCreasedNormals(g, 0.6);
+    soup = {
+      pos: out.getAttribute('position').array as Float32Array,
+      normal: out.getAttribute('normal').array as Float32Array,
+      uv: out.getAttribute('uv').array as Float32Array,
+    };
+    if (round && l === 0) soup = roundWheels(soup);
+    return soup;
+  };
   const shape: StreetCarShape = {
     length: data.length,
     width: data.width,
@@ -106,21 +128,17 @@ export function vehicleModel(
     roofX: data.roofX,
     sideZ: data.sideZ,
     geometry: (paintHex) => {
+      const t = triangles();
       const g = new BufferGeometry();
-      g.setAttribute('position', new BufferAttribute(d.pos, 3));
-      g.setAttribute('uv', new BufferAttribute(d.uv, 2));
+      g.setAttribute('position', new BufferAttribute(t.pos.slice(), 3));
+      g.setAttribute('normal', new BufferAttribute(t.normal.slice(), 3));
+      g.setAttribute('uv', new BufferAttribute(t.uv.slice(), 2));
       const base = new Color(paintHex);
-      const col = new Float32Array(d.pos.length);
+      const col = new Float32Array(t.pos.length);
       for (let v = 0; v < col.length; v += 3)
         col.set([base.r, base.g, base.b], v);
       g.setAttribute('color', new BufferAttribute(col, 3));
-      g.setIndex(new BufferAttribute(d.idx, 1));
-      // Creased normals (hard edges above ~35 deg), non-indexed like every other vehicle part.
-      const out = toCreasedNormals(g, 0.6);
-      for (const name of Object.keys(out.attributes))
-        if (!['position', 'normal', 'uv', 'color'].includes(name))
-          out.deleteAttribute(name);
-      return out;
+      return g;
     },
   };
   cache.set(key, shape);

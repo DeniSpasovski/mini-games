@@ -48,6 +48,7 @@ export type MaterialId =
   | 'reflector'
   | 'lamp_lens'
   | 'vehicle'
+  | 'taxi_sign'
   | 'debris'
   | 'outcrop'
   | 'village_sign';
@@ -358,6 +359,14 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 0.42,
         metalness: 0.3,
       });
+      break;
+    case 'taxi_sign':
+      // The lit roof sign of the taxi: its face texture, glowing (engine/night-glow.ts `sign`).
+      m = new MeshStandardMaterial({
+        map: getTexture('taxi_sign'),
+        roughness: 0.35,
+      });
+      addNightGlow(m as MeshStandardMaterial, 'sign');
       break;
     case 'debris': {
       // Forest-floor scans (stumps, logs, branches, roots: builders/simready.ts) in their own colour and normal maps,

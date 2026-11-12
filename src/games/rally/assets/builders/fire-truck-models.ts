@@ -26,7 +26,7 @@ const ATLAS: Record<FireTruckId, string> = {
 /** The engine `id` at `lod` (0 near); `geometry()` has position, normal and uv only. */
 export function fireTruckModel(id: FireTruckId, lod: number): StreetCarShape {
   const index = FIRE_TRUCK_DATA.findIndex((d) => d.id === id);
-  const shape = vehicleModel(FIRE_TRUCK_DATA, index, lod);
+  const shape = vehicleModel(FIRE_TRUCK_DATA, index, lod, true);
   return {
     ...shape,
     geometry: (paintHex) => {
