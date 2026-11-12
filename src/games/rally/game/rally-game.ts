@@ -40,7 +40,7 @@ import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { PeopleAnimator } from '../world/people-anim';
 import { DistanceCull } from '../world/distance-cull';
-import { batchStatic } from '../world/static-batch';
+import { batchRoad } from '../world/static-batch';
 import { prefetchTextures, rememberTextures } from '../engine/texture-prefetch';
 import { warmLevels } from '../world/people-warm';
 import { assetIds, InstanceStreamer } from '../world/instance-streamer';
@@ -65,7 +65,7 @@ import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
 import { CarSurround } from '../world/car-surround';
-import { canopyTone, FarForest } from '../world/far-forest';
+import { canopyTone, FarForest, forestColor } from '../world/far-forest';
 import { FarShadow } from '../world/far-shadow';
 import { TerrainLight } from '../world/terrain-light';
 import { Horizon } from '../world/horizon';
@@ -176,30 +176,8 @@ const SHADOW_OVERLAP = 35;
 const FAKE_TREES_FROM = 250;
 /** Render scale Auto's steps (`RallyGame.adaptScale`): full down to the 70 % option. */
 const SCALE_STEPS = [1, 0.92, 0.85, 0.77, 0.7];
-/** Road sub-groups whose meshes never change after the build: batched (world/static-batch.ts). */
-const STATIC_ROAD_GROUPS = [
-  'paths',
-  'buildings',
-  'barriers',
-  'bridges',
-  'cut-walls',
-  'railways',
-  'street-detail',
-  'plazas',
-  'gore',
-];
 /** A gantry clock is redrawn only while the camera is this close to it (m): each redraw uploads a texture. */
 const CLOCK_NEAR = 400;
-
-/** The far forest's colour on the ground: the stage's foliage, darker (a canopy seen from afar is mostly shade). */
-function forestColor(lib: TreeLibrary): Color {
-  const c = new Color(0, 0, 0);
-  const all = lib.all();
-  for (const v of all) c.add(new Color(...v.info.foliageColor));
-  if (all.length) c.multiplyScalar(0.55 / all.length);
-  else c.set(0x26341c);
-  return c;
-}
 
 /** Terrain LOD bands at lodScale 1 (m): 1 m grid / 2 m / 4 m / 8 m beyond. */
 const TERRAIN_LODS = [160, 520, 1100];
@@ -457,11 +435,7 @@ export class RallyGame {
     // Whole-map static meshes (the stage road's chunks, path / building tiles, walls, rails ...): one multi-draw per
     // material instead of a draw per tile (world/static-batch.ts). Not the gantries / signs / cable cars (own
     // textures or moving parts).
-    batchStatic(road);
-    for (const name of STATIC_ROAD_GROUPS) {
-      const g = road.getObjectByName(name);
-      if (g) batchStatic(g);
-    }
+    batchRoad(road);
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
     this.roadCull = new DistanceCull(road, q.viewDistance);
     await frame();
