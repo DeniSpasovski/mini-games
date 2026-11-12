@@ -72,7 +72,7 @@ const LOOKS: Record<Season, Look> = {
   },
   autumn: {
     sheet: 'reeds-autumn',
-    top: ['#3f4224', '#64593a'],
+    top: ['#4d4626', '#7a6638'],
     root: '#15170d',
     height: 1,
     cover: 1,

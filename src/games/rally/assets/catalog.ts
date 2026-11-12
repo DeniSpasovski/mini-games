@@ -501,6 +501,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 120, castShadow: false }],
   },
   {
+    id: 'dry_weeds',
+    name: 'Dry weeds',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Nettles and docks dried off yellow-brown: the dried cells of the nettle scan (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 120, castShadow: false }],
+  },
+  {
     id: 'grass_tuft',
     name: 'Grass tuft',
     category: 'vegetation',

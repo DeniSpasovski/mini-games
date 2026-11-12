@@ -244,6 +244,7 @@ const ASSET_SHEETS: Record<string, PlantSheet[]> = {
   spring_grass: ['grass-spring'],
   tall_grass: ['grass-dry', 'grass-green'],
   tall_weeds: ['weeds'],
+  dry_weeds: ['weeds'],
   reeds: ['reeds'],
   cattails: ['reeds'],
   cattails_dry: ['reeds-autumn'],

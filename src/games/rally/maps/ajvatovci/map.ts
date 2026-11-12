@@ -64,8 +64,8 @@ const seasonalGrass = (r: ScatterRule): ScatterRule[] => [
 ];
 
 /**
- * The drains and the canal are field ditches (`terrain.ditches`): a V about 7 m across and 1.7 m deep, a trickle in its
- * bed, the reed bed drawn as one volume over it (world/reed-bed.ts). The mown strip and the maintenance track run on the
+ * The drains and the canal are field ditches (`terrain.ditches`): a V about 7 m across and 1.7 m deep, 0.4 m of murky
+ * water in its bed, the reed bed drawn as one volume over it (world/reed-bed.ts). The mown strip and the maintenance track run on the
  * ditch's right (looking along it; at the stage bridge the side away from the start), the dredged spoil and brush heaps
  * beyond them; the other bank is weeds, saplings and bramble down to the field.
  */
@@ -74,7 +74,7 @@ const DITCHES: DitchDef = {
   topWidth: 7,
   bedWidth: 1,
   depth: 1.7,
-  water: 0,
+  water: 0.4,
   track: 1,
   mown: 3,
   trackWidth: 2.6,
@@ -139,10 +139,32 @@ const canalGrowth = (): ScatterRule[] => {
   };
   return [
     // The reed bed's edges and top.
-    { ...reedEdge, asset: 'reeds', density: 900, season: ['summer'] },
-    { ...reedTop, asset: 'reeds', density: 900, season: ['summer'] },
-    { ...reedEdge, asset: 'reeds_dry', density: 900, season: ['autumn'] },
-    { ...reedTop, asset: 'reeds_dry', density: 900, season: ['autumn'] },
+    // (green and the November stand, with last year's straw-brown stems among them)
+    { ...reedEdge, asset: 'reeds', density: 800, season: ['summer'] },
+    { ...reedTop, asset: 'reeds', density: 800, season: ['summer'] },
+    {
+      ...reedEdge,
+      asset: 'reeds_old',
+      density: 140,
+      season: ['summer'],
+      ditchTop: { top: [0.4, 1.0], height: 1.75 },
+    },
+    { ...reedEdge, asset: 'reeds_dry', density: 650, season: ['autumn'] },
+    { ...reedTop, asset: 'reeds_dry', density: 650, season: ['autumn'] },
+    {
+      ...reedEdge,
+      asset: 'reeds_old',
+      density: 300,
+      season: ['autumn'],
+      ditchTop: { top: [0.5, 1.1], height: 1.75 },
+    },
+    {
+      ...reedTop,
+      asset: 'reeds_old',
+      density: 250,
+      season: ['autumn'],
+      ditchTop: { top: [0.5, 1.1], height: 1.75 },
+    },
     {
       ...reedEdge,
       asset: 'reeds_old',
@@ -184,14 +206,18 @@ const canalGrowth = (): ScatterRule[] => {
       mask: { scale: 9, threshold: -0.25 },
     },
     { ...wild, asset: 'tall_weeds', density: 40, season: ['autumn'] },
+    // Weeds already dried off yellow-brown: some in summer, most of them by autumn.
+    { ...wild, asset: 'dry_weeds', density: 50, season: ['summer'] },
+    { ...wild, asset: 'dry_weeds', density: 170, season: ['autumn'] },
     // Rank grass over the rest of the bank (fresh in spring, straw in summer, both in autumn).
     { ...wild, asset: 'spring_grass', density: 700, season: ['spring'] },
     { ...wild, asset: 'dry_grass', density: 650, season: ['summer'] },
-    { ...wild, asset: 'dry_grass', density: 300, season: ['autumn'] },
-    { ...wild, asset: 'grass_tuft', density: 350, season: ['autumn'] },
+    { ...wild, asset: 'dry_grass', density: 520, season: ['autumn'] },
+    { ...wild, asset: 'grass_tuft', density: 150, season: ['autumn'] },
     // The track side: weeds only on the lip, short grass on the mown strip.
     { ...lip, asset: 'tall_weeds', density: 60 },
     { ...lip, asset: 'rust_weeds', density: 120, season: ['autumn'] },
+    { ...lip, asset: 'dry_weeds', density: 80, season: ['autumn'] },
     {
       ...lip,
       asset: 'grass_tuft',

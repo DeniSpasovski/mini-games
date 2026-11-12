@@ -79,13 +79,15 @@ export function getWaterMaterial(
     normalMap.needsUpdate = true;
     material = new MeshStandardMaterial({
       color: new Color(culvert ? 0x5a4630 : 0x26382c),
-      roughness: culvert ? 0.25 : murky ? 0.3 : 0.14,
+      // (murky: a dull film of silt and scum, little of the sky in it)
+      roughness: culvert ? 0.25 : murky ? 0.6 : 0.14,
       metalness: 0,
       normalMap,
-      envMapIntensity: culvert ? 0.12 : murky ? 0.1 : flow ? 0.2 : 0.4,
+      envMapIntensity: culvert ? 0.12 : murky ? 0.04 : flow ? 0.2 : 0.4,
       transparent: true,
     });
-    material.normalScale.set(culvert ? 0.45 : 0.18, culvert ? 0.45 : 0.18);
+    const ns = culvert ? 0.45 : murky ? 0.07 : 0.18;
+    material.normalScale.set(ns, ns);
     material.name = culvert
       ? 'water_culvert'
       : flow
@@ -183,7 +185,7 @@ export function getWaterMaterial(
             float wsFoam = ( 1.0 - smoothstep( 0.03, 0.3, vDepth ) ) * smoothstep( 0.35, 0.7, wsFn ) + ( 1.0 - smoothstep( 0.2, 0.9, vDepth ) ) * smoothstep( 0.78, 0.9, wsFn ) * 0.5;
             #endif
             #ifdef WATER_MURKY
-            wsFoam *= 0.4;
+            wsFoam *= 0.1;
             #endif
             diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.78, 0.8, 0.78 ), wsFoam * 0.85 );
             diffuseColor.a = max( diffuseColor.a, wsFoam * 0.9 );
@@ -218,7 +220,7 @@ export function getWaterMaterial(
         ? 'water-culvert-1'
         : flow
           ? murky
-            ? 'water-flow-murky-1'
+            ? 'water-flow-murky-2'
             : 'water-flow-2'
           : 'water-2';
     materials.set(key, material);

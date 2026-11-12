@@ -392,6 +392,8 @@ export const tallWeeds = tallCards(
   [...CELLS.nettles, ...CELLS.dryNettles],
   [0.75, 1.15],
 );
+/** The dried-off weeds only (yellow-brown nettles and docks). */
+export const dryWeeds = tallCards(CELLS.dryNettles, [0.7, 1.1]);
 
 // --- field crops (engine/crops.ts: the CC BY wheat and corn models, cards baked from them) ---
 
