@@ -871,7 +871,7 @@ export function buildTrailLot(
     const [lx, lz] = toLocal(TRAIL_START, x, z);
     picnicTable(trail, lx, ground(x, z) - trail.baseY, lz, yaw);
   }
-  // The hairpin island: rail, gazebo, tables (local = world - the gazebo's position).
+  // The hairpin island: braced log fence, gazebo, tables (local = world - the gazebo's position).
   const island = at({ ...ISLAND_GAZEBO, yaw: 0 }, 'hairpin-island');
   const ix = ISLAND_GAZEBO.x;
   const iz = ISLAND_GAZEBO.z;
@@ -882,6 +882,7 @@ export function buildTrailLot(
       run.map(([x, z]) => [x - ix, z - iz]),
       iy,
       1.0,
+      true,
     );
   gazebo(island, 0, iy(0, 0), 0, ISLAND_GAZEBO.yaw, {
     apothem: ISLAND_GAZEBO_APOTHEM,

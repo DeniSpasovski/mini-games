@@ -245,7 +245,7 @@ export const VODNO_FLATS: FlatArea[] = [
     name: 'cross',
     x: PLATFORM.x,
     z: PLATFORM.z,
-    radius: 16,
+    radius: 17.5,
     blend: 10,
     label: false,
   },

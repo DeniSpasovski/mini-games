@@ -128,10 +128,39 @@
     road_tarmac_lines: {
       ...VODNO,
       len: 7,
+      // (old paint: thin, worn through in places; the centre line repainted solid since, the edge lines older)
       lines: [
-        { u: 0.05, w: 12, color: WHITE },
-        { u: 0.5, w: 12, color: WHITE },
-        { u: 0.95, w: 12, color: WHITE },
+        { u: 0.05, w: 12, color: WHITE, worn: 0.6 },
+        { u: 0.5, w: 12, color: WHITE, worn: 0.3 },
+        { u: 0.95, w: 12, color: WHITE, worn: 0.6 },
+      ],
+    },
+    /**
+     * Vodno's re-laid upper road (above the big hairpin): fresh dark asphalt, fine stones, hardly a crack, crisp lines
+     * (`fresh`: little aggregate showing through the paint).
+     */
+    road_tarmac_new: {
+      seed: 13,
+      len: 7,
+      polish: 0.12,
+      exposed: 0.06,
+      cracks: 1,
+      snakes: 0,
+      joints: 0,
+      grain: 0.6,
+      tone: 0.08,
+      patches: 0,
+      dust: 0.35,
+      age: 0.1,
+      lift: 0.06,
+      warmTarget: [104, 103, 100],
+      relief: 0.35,
+      crackW: 0.5,
+      chips: 6000,
+      lines: [
+        { u: 0.05, w: 12, color: WHITE, fresh: true },
+        { u: 0.5, w: 12, color: WHITE, fresh: true },
+        { u: 0.95, w: 12, color: WHITE, fresh: true },
       ],
     },
     /** The same surface without lines (Vodno's crossroad, where the road paint lies over it). */
@@ -837,15 +866,35 @@
       const lw = Math.max(1, L.w * S);
       const period = L.dash ? ((L.dash[0] + L.dash[1]) / o.len) * h : h;
       const on = L.dash ? (L.dash[0] / o.len) * h : h;
+      // `worn` (0..1): the paint in rows of 4 px at a wandering strength, worn through in bald stretches
+      const wr = new Rng(o.seed + 23 + Math.round(L.u * 100));
+      let bald = 0;
+      let a = 1;
       for (let y0 = 0; y0 < h; y0 += period) {
-        cx.fillStyle = L.color;
-        cx.fillRect(L.u * w - lw, y0, lw * 2, on);
-        hx.fillStyle = grey(95);
-        hx.fillRect(L.u * w - lw, y0, lw * 2, on);
-        rx.fillStyle = grey(190);
-        rx.fillRect(L.u * w - lw, y0, lw * 2, on);
+        for (let y = y0; y < y0 + on; y += L.worn ? 4 : on) {
+          const rh = L.worn ? Math.min(4, y0 + on - y) : on;
+          if (L.worn) {
+            if (bald > 0) {
+              bald -= rh;
+              continue;
+            }
+            if (wr.chance(0.02 * L.worn)) bald = wr.range(8, 60) * S;
+            a = Math.min(1, Math.max(0.25, a + wr.range(-0.12, 0.12)));
+          }
+          const k = L.worn ? 1 - L.worn * (1 - a) : 1;
+          cx.globalAlpha = k;
+          cx.fillStyle = L.color;
+          cx.fillRect(L.u * w - lw, y, lw * 2, rh);
+          hx.globalAlpha = k;
+          hx.fillStyle = grey(95);
+          hx.fillRect(L.u * w - lw, y, lw * 2, rh);
+          rx.globalAlpha = k;
+          rx.fillStyle = grey(190);
+          rx.fillRect(L.u * w - lw, y, lw * 2, rh);
+        }
       }
-      for (let i = 0; i < 2200 * S * S; i++) {
+      cx.globalAlpha = hx.globalAlpha = rx.globalAlpha = 1;
+      for (let i = 0; i < (L.fresh ? 250 : 2200) * S * S; i++) {
         const x = L.u * w + rng.range(-lw - 1, lw + 1);
         const y = rng.next() * h;
         const r = Math.max(0.8, rng.range(0.8, 2.4) * S * coarse);

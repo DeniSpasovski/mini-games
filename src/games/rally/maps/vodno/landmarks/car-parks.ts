@@ -1,3 +1,4 @@
+import { hash3 } from '../../../../../shared/rng';
 import type { StaticCollider } from '../../../physics/types';
 import {
   LOT_ASPHALT,
@@ -879,21 +880,45 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
   // Marked bays: a white line every `pitch`, depth `depth` from the edge, and the line closing the bays.
   const bays = lot.bays;
   if (bays) {
-    const line = (a: V2, b: V2, w: number): void => {
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      const nx = (-(b[1] - a[1]) / len) * (w / 2);
-      const nz = ((b[0] - a[0]) / len) * (w / 2);
-      quad(
-        'marking',
-        [
-          [a[0] - nx, a[1] - nz],
-          [b[0] - nx, b[1] - nz],
-          [b[0] + nx, b[1] + nz],
-          [a[0] + nx, a[1] + nz],
-        ],
-        '#f1f1ec',
-        SLAB + 0.02,
+    // Old paint: each line its own faded grey-white, worn through in short gaps (seeded by where it lies).
+    const line = (a0: V2, b0: V2, w: number): void => {
+      const len = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]) || 1;
+      const nx = (-(b0[1] - a0[1]) / len) * (w / 2);
+      const nz = ((b0[0] - a0[0]) / len) * (w / 2);
+      const seed = hash3(
+        Math.round(a0[0] * 10),
+        Math.round(a0[1] * 10),
+        5,
+        811,
       );
+      const v = 200 + (seed % 36);
+      const color = `rgb(${v},${v},${v - 6})`;
+      const pieces = Math.max(1, Math.round(len / 1.6));
+      for (let k = 0; k < pieces; k++) {
+        const h = hash3(seed, k, 3, 97) % 100;
+        if (h < 22) continue;
+        const t0 = k / pieces + (h < 40 ? 0.25 / pieces : 0);
+        const t1 = (k + 1) / pieces;
+        const a: V2 = [
+          a0[0] + (b0[0] - a0[0]) * t0,
+          a0[1] + (b0[1] - a0[1]) * t0,
+        ];
+        const b: V2 = [
+          a0[0] + (b0[0] - a0[0]) * t1,
+          a0[1] + (b0[1] - a0[1]) * t1,
+        ];
+        quad(
+          'marking',
+          [
+            [a[0] - nx, a[1] - nz],
+            [b[0] - nx, b[1] - nz],
+            [b[0] + nx, b[1] + nz],
+            [a[0] + nx, a[1] + nz],
+          ],
+          color,
+          SLAB + 0.02,
+        );
+      }
     };
     const cum = centre.map((_, i) =>
       centre
@@ -1077,4 +1102,86 @@ export function slabHeight(
     for (const lot of lots) if (onLot(lot, x, z)) return ground(x, z) + SLAB;
     return NaN;
   };
+}
+
+/**
+ * Parked cars in a lot's edge bays (the bays `buildLot` paints): one in `share` of them (seeded), nose in, in the lot's
+ * local frame - (x, z), `turn` = the car's +x from the site's +x (rad) - and a `street_car` variant.
+ */
+export function bayCars(
+  lot: Lot,
+  share: number,
+  seed: number,
+): { x: number; z: number; turn: number; variant: number }[] {
+  const bays = lot.bays;
+  if (!bays) return [];
+  const { centre, left, right, hl, hr } = lotShape(lot);
+  const n = centre.length;
+  const cum = [0];
+  for (let i = 1; i < n; i++)
+    cum.push(
+      cum[i - 1] +
+        Math.hypot(
+          centre[i][0] - centre[i - 1][0],
+          centre[i][1] - centre[i - 1][1],
+        ),
+    );
+  const total = cum[n - 1];
+  const sample = (s: number) => {
+    let i = 1;
+    while (i < n - 1 && cum[i] < s) i++;
+    const seg = cum[i] - cum[i - 1] || 1;
+    const t = Math.min(1, Math.max(0, (s - cum[i - 1]) / seg));
+    const mix = (a: number, b: number): number => a + (b - a) * t;
+    return {
+      p: [
+        mix(centre[i - 1][0], centre[i][0]),
+        mix(centre[i - 1][1], centre[i][1]),
+      ],
+      n: [
+        -(centre[i][1] - centre[i - 1][1]) / seg,
+        (centre[i][0] - centre[i - 1][0]) / seg,
+      ],
+      hl: mix(hl[i - 1], hl[i]),
+      hr: mix(hr[i - 1], hr[i]),
+    };
+  };
+  // (as buildLot: the bays begin 1.2 m past the first station of the straight far end)
+  let straightS = 0;
+  if (bays.straight) {
+    const zl = left[n - 1][1];
+    const zr = right[n - 1][1];
+    let k = n - 1;
+    while (
+      k > 0 &&
+      Math.abs(left[k - 1][1] - zl) < 0.05 &&
+      Math.abs(right[k - 1][1] - zr) < 0.05
+    )
+      k--;
+    straightS = cum[k] + 1.2;
+  }
+  const out: { x: number; z: number; turn: number; variant: number }[] = [];
+  let k = 0;
+  for (const sd of bays.both ? [-1, 1] : [1]) {
+    const s0 = Math.max(bays.from * total, straightS);
+    const s1 = bays.to * total;
+    for (let s = s0; s + bays.pitch <= s1 + 0.01; s += bays.pitch, k++) {
+      const at = sample(s + bays.pitch / 2);
+      const h = (sd < 0 ? at.hl : at.hr) - 0.35;
+      const inner = h - bays.depth;
+      if (inner < 1.6) continue;
+      const r = hash3(k, seed, 7, 4111);
+      if ((r % 1000) / 1000 >= share) continue;
+      const d = (inner + h) / 2 + 0.2;
+      const [nx, nz] = [at.n[0] * sd, at.n[1] * sd];
+      out.push({
+        x: at.p[0] + nx * d,
+        z: at.p[1] + nz * d,
+        // nose towards the lot's edge, a little off square
+        turn: Math.atan2(nz, nx) + (((r >>> 10) % 100) / 100 - 0.5) * 0.12,
+        variant: (r >>> 4) % 10,
+      });
+    }
+  }
+  return out;
 }

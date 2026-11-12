@@ -32,9 +32,14 @@ export const vodnoInfo: MapInfo = {
       note: 'the houses OpenStreetMap does not have yet - ODbL',
     },
     {
+      label: 'Copernicus DEM GLO-30 (via OpenTopography)',
+      url: 'https://doi.org/10.5069/G9028PQB',
+      note: 'elevation of the mountain (the woods lowered by the canopy height) - (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA',
+    },
+    {
       label: 'AWS Terrain Tiles (Terrarium)',
       url: 'https://registry.opendata.aws/terrain-tiles/',
-      note: 'elevation of the map and of the far horizon (Skopje valley, Skopska Crna Gora, Sar Mountains) - SRTM / EU-DEM derived, see the tile attributions',
+      note: 'elevation of the town at the start and of the far horizon (Skopje valley, Skopska Crna Gora, Sar Mountains) - SRTM / EU-DEM derived, see the tile attributions',
     },
     {
       label: 'ESA WorldCover 10 m 2021 v200',
@@ -60,6 +65,10 @@ export const vodnoInfo: MapInfo = {
       label: 'Vodno (Wikipedia)',
       url: 'https://en.wikipedia.org/wiki/Vodno',
       note: 'the mountain, its woods and the cable car - reference only',
+    },
+    {
+      label: "YouTube videos of Vodno, the owner's photos",
+      note: 'roadside details of the stage - reference only, nothing copied',
     },
   ],
   stageNumber: 5,
@@ -108,7 +117,7 @@ export const vodnoInfo: MapInfo = {
   },
   // The road's centre line (the first crossroad's extra lane moves it): the same points as the full map's road.
   route: shiftedRoute(data.route, laneShift),
-  // The road's surface, then each section's (the lined road, the crossroad's wide stretch, the lined road again): see
-  // `infoOf` in ../index.ts.
-  surfaces: ['tarmac', 'tarmac', 'tarmac'],
+  // The road's surface, then each section's (the crossroad's wide stretch, the lined road, the re-laid asphalt and its
+  // paler lay above the joint, the lined road again): see `infoOf` in ../index.ts.
+  surfaces: ['tarmac', 'tarmac', 'tarmac', 'tarmac', 'tarmac', 'tarmac'],
 };

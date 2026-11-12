@@ -6,6 +6,7 @@ import {
 } from '../shared/real-map';
 import type {
   BarrierRule,
+  DropRails,
   CulvertsDef,
   HeightmapDef,
   HorizonDef,
@@ -16,6 +17,7 @@ import type {
   PropPlacement,
   RailwayDef,
   RasterDef,
+  RoadDef,
   ScatterRule,
 } from '../shared/types';
 import canopy from './canopy.json';
@@ -24,6 +26,7 @@ import data from './data.json';
 import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
 import { VODNO_FLATS } from './landmarks';
+import { laybyPads, roadSidewalk } from './laybys';
 import { GATE_PAD } from './landmarks/gate';
 import { BUILDING_PAD, HOTEL_PAD } from './landmarks/hotel';
 import { LOWER_NODE } from './landmarks/sites';
@@ -40,6 +43,7 @@ import {
 } from './crossroad';
 import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
 import { SKYLINE } from './skyline';
+import { JUNCTION_PAINT, PATCHES, SURFACE_SECTIONS } from './surface';
 import { START_SIDEWALKS, startBuildings, startStreets } from './start-area';
 import { START_LOT_PAD } from './landmarks/start-lot';
 import { FINISH, ROAD_LENGTH, START } from './stages';
@@ -52,7 +56,10 @@ import { FINISH, ROAD_LENGTH, START } from './stages';
  * Baked from open data by `python scripts/realmap/bake.py scripts/realmap/vodno.json` (terrain, land cover, every
  * road and building of the box) and `python scripts/realmap/horizon.py scripts/realmap/vodno.json` (the Skopje valley
  * and the mountains round it as a backdrop: it reaches far to the north, where the view from the stage goes, and
- * little to the south, behind the ridge). Edit THIS file for the look; re-bake only to change the source data.
+ * little to the south, behind the ridge). The mountain's heights come from Copernicus GLO-30 (config "dem"), re-baked
+ * after bake.py and canopy.py by `python scripts/realmap/dem_heightmap.py scripts/realmap/vodno.json` (the woods lowered
+ * by their canopy height, the town kept on the bake's terrain). Edit THIS file for the look; re-bake only to change the
+ * source data.
  * World (0, 0) = 41.97219 N, 21.40287 E; +X east, +Z south. Task list: ./TODO.md.
  */
 
@@ -60,10 +67,19 @@ import { FINISH, ROAD_LENGTH, START } from './stages';
 const BASE_HEIGHT = 349;
 
 /**
- * The approach to the Vidikovec car park (m along the road): a rusted guard rail on the drop at its right up to the
- * lot's wall (`to`), and a short galvanised one between the road and the lot from the start of its grass island (`lot`).
+ * The approach to the Vidikovec car park (m along the road): rusted guard rail runs on the drop at its right (`runs`,
+ * the site reference: two gaps with a grass verge, a short piece round the bend) up to the lot's wall, and a
+ * short galvanised one between the road and the lot from the start of its grass island (`lot`).
  */
-const VIDIKOVEC_RAIL = { from: 2600, to: 2796, lot: [2834, 2900] as const };
+const VIDIKOVEC_RAIL = {
+  runs: [
+    [2478, 2575],
+    [2680, 2715],
+    // (to the lot's lower entrance: the game's lot opens ~30 m below the real one)
+    [2775, 2796],
+  ] as const,
+  lot: [2834, 2900] as const,
+};
 /** The dark stone retaining wall on the uphill side opposite the upper half of the Vidikovec lot (`road.rockCuts.walls`):
  * ~1.8 m high, 3.5 m back from the road edge behind a grass strip with bushes ~1 m off the road (the owner's photos). */
 const VIDIKOVEC_WALL = {
@@ -74,9 +90,400 @@ const VIDIKOVEC_WALL = {
   offset: 3.5,
 } as const;
 /** The one real rock cut of the road: the big hairpin blasted through a spur (m along, `road.rockCuts`). */
-const ROCK_CUT: [number, number] = [1985, 2125];
+const ROCK_CUT: [number, number] = [1985, 2062];
+/**
+ * The rock faces of the road (m along, `road.rockCuts.stretches`; side +1 = left going up): the rock past the start
+ * street, the big hairpin's cut through
+ * the spur (both sides), and what the references show - the limestone below Vidikovec in three outcrops, not one wall.
+ */
+const ROCK_STRETCHES: NonNullable<RoadDef['rockCuts']>['stretches'] = [
+  // (the references: a pale limestone cut with trees on top, dark broken ledges past the next bend, a near-vertical dark
+  // crag at the edge line on the second right bend)
+  { from: 1495, to: 1535, side: -1, look: 'limestone' },
+  { from: 1685, to: 1720, side: -1, look: 'dark' },
+  { from: 1752, to: 1792, side: -1, look: 'dark' },
+  { from: ROCK_CUT[0], to: ROCK_CUT[1], look: 'dark' },
+  ...[
+    [2590, 2622],
+    [2640, 2678],
+    [2737, 2767],
+  ].map(([from, to]) => ({
+    from,
+    to,
+    side: 1 as const,
+    look: 'limestone' as const,
+  })),
+  // (round the 3 040 m bend: a dark earth-and-rock cut under pines before it, a low limestone outcrop past it)
+  { from: 2955, to: 3000, side: 1, look: 'dark' },
+  { from: 3118, to: 3147, side: 1, look: 'limestone' },
+  // (the shale only to 3 610 m: a stony earth bank from there)
+  { from: 3555, to: 3612, side: 1, look: 'dark' },
+  { from: 3835, to: 3885, side: 1 },
+];
 /** Guard rails stand on the 0.6 m verge (`road.shoulder`), not past it on the falling slope (posts hanging in the air). */
 const RAIL_OFFSET = 0.4;
+
+/** A galvanised guard rail on the verge from `from` to `to` m along (`more`: rusty, two-tier). */
+const rail = (
+  side: 'left' | 'right',
+  from: number,
+  to: number,
+  more: Partial<BarrierRule> = {},
+): BarrierRule => ({
+  kind: 'guardrail',
+  side,
+  offset: RAIL_OFFSET,
+  from,
+  to,
+  skipJunctions: 4,
+  rusty: false,
+  ...more,
+});
+/**
+ * The rails the references show where the hairpin and derived rails miss or get them wrong (m along): two-tier
+ * beams round the 1350 m hairpin, above it and on the bend after the Vidikovec, the long rusty run below the upper
+ * hairpins. A hairpin rail they overlap gives way.
+ */
+const VIDEO_RAILS: BarrierRule[] = [
+  rail('left', 780, 880),
+  // (the 1 350 m hairpin: two-tier on its entry half, a gap where the beam was knocked down, a short piece on the exit)
+  rail('right', 1322, 1352, { tiers: 2 }),
+  rail('right', 1388, 1400),
+  // (rusty single beams, galvanised two-tier only over the steepest drop)
+  // (as on the real road: from opposite the limestone cut, two-tier between the two bends, rusty again to the
+  // hikers' car park's entrance (trail-lot.ts, ~1 830 m); galvanised past the lot to the big hairpin)
+  rail('left', 1520, 1668, { rusty: true }),
+  rail('left', 1668, 1700, { tiers: 2 }),
+  rail('left', 1700, 1830, { rusty: true }),
+  rail('left', 1895, 1940),
+  // (past the hairpin island's log fence and board, road-lines.ts: on the outside of the left bend only)
+  rail('right', 2093, 2125),
+  // (the references: two-tier from its first post, the lower beam stopping ~25 m before the end)
+  rail('right', 3020, 3095, { tiers: 2 }),
+  rail('right', 3095, 3122),
+  // (on the verge's rim: the line through the bend before it runs close to the edge)
+  // (the references: pale weathered zinc with rust streaks, a break at the bent end at ~3 460 m; single-height round the
+  // start of the bend, two-tier from 3 715 m, a rusty tail past it)
+  rail('right', 3400, 3458, { offset: 0.7 }),
+  rail('right', 3463, 3715, { offset: 0.7 }),
+  rail('right', 3715, 3805, { tiers: 2 }),
+  rail('right', 3805, 3840, { rusty: true }),
+  rail('right', 3890, 3940, { rusty: true }),
+];
+/**
+ * The flush pale concrete strip along the asphalt edge (the references, m along): both sides from the start street to the big
+ * hairpin (not over the crossroad, its own kerbs and paint, nor along the start street's sidewalks), wider
+ * paved strips on the flat verge before the big hairpin and at the foot of its cut, the cut foot past the hairpin, the
+ * inside of the 3 710 m bend, the valley side below the finish, the park side past the finish junction.
+ */
+const KERBS: BarrierRule[] = (
+  [
+    [120, WIDE_FROM, 'left'],
+    [8, WIDE_FROM, 'right'],
+    [WIDE_TO, 1998, 'left'],
+    [1998, 2030, 'left', 1.4],
+    [2030, 2135, 'left'],
+    // (the lined ditches at 1688-1722 and 1772-1830 take the edge there, GUTTERS)
+    [WIDE_TO, 1688, 'right'],
+    [1722, 1772, 'right'],
+    [1830, 1855, 'right'],
+    [1855, 1895, 'right', 1.5],
+    [1895, 2100, 'right'],
+    [2130, 2200, 'left'],
+    [3665, 3800, 'left'],
+    [3970, 4080, 'right'],
+    [4290, 4400, 'right'],
+  ] as const
+).map(
+  ([from, to, side, width]: readonly [
+    number,
+    number,
+    'left' | 'right',
+    number?,
+  ]): BarrierRule => ({
+    kind: 'edge',
+    side,
+    // (the strip starts at the asphalt edge)
+    offset: width ?? 0.5,
+    from,
+    to,
+    skipJunctions: 3,
+    width,
+  }),
+);
+/**
+ * Lined ditches along the asphalt edge (the references, m along): concrete channels under the rock below the Vidikovec and
+ * the bank past 3 250 m, a stone-pitched gutter on the uphill side before the finish. Their inner rim meets the road
+ * edge, on level ground (terrain-gen `edgeVergeAt`), the bank's foot just past them.
+ */
+const GUTTERS: BarrierRule[] = (
+  [
+    [1688, 1722, 'right', false],
+    [1772, 1830, 'right', false],
+    [3250, 3350, 'left', false],
+    [4100, 4150, 'left', true],
+  ] as const
+).map(([from, to, side, cobbles]) => ({
+  kind: 'gutter',
+  side,
+  offset: 0.4,
+  from,
+  to,
+  skipJunctions: 3,
+  cobbles,
+}));
+const overlaps = (a: BarrierRule, b: BarrierRule) =>
+  a.side === b.side && a.from! < b.to! && a.to! > b.from!;
+/** No rail on the outside of the big hairpin past the side road's mouth: the island with its log fence (trail-lot.ts). */
+const NO_RAIL: BarrierRule[] = [rail('left', 2005, 2050)];
+/**
+ * No derived rail (m along): the lay-by and the kerbed grass verge below the 1350 m hairpin, the island outside the big
+ * hairpin, the log fence over the drop before the finish (road-lines.ts) and the Vidikovec approach (own runs).
+ */
+const NO_DROP_RAIL: NonNullable<DropRails['exclude']> = [
+  // (the bend at the gate: a verge and a wall of bushes on its left, no rail)
+  { from: 610, to: 668, side: 'left' },
+  { from: 1085, to: 1320, side: 'right' },
+  { from: 1352, to: 1388, side: 'right' },
+  // (past the big hairpin: the island's fence, then a grass verge and thicket above the one rail)
+  { from: 2030, to: 2093, side: 'right' },
+  { from: 2125, to: 2210, side: 'right' },
+  { from: 2005, to: 2050, side: 'left' },
+  { from: 4040, to: 4290, side: 'right' },
+  // the Vidikovec approach: its own rail runs and the gaps between them
+  { from: 2440, to: 2834, side: 'right' },
+];
+
+/** Where the crowns close over the road (the references, m along): young broadleaf right at the verge, leaning out. */
+const CLOSED: [number, number][] = [
+  [780, 900],
+  [1450, 1550],
+  [3250, 3500],
+  [4250, 4474],
+];
+/**
+ * Where a wall of growth stands at the road's edge (as on the real road; m along, side +1 left / -1 right,
+ * `back` = the verge, shoulder or fence in front of it, m past the road edge): brambles and scrub leafed to the ground,
+ * hazel and young stems behind them, then trees leaning out over the road.
+ */
+const WALLS: [from: number, to: number, side: 1 | -1, back: number][] = [
+  // the start street's straight: forest to the kerb on the right (a gap for the start line's crew), scrub behind the
+  // wire fence on the left
+  [218, 246, -1, 1],
+  [288, 398, -1, 1],
+  [215, 396, 1, 3],
+  [492, 560, -1, 1],
+  // the gate junction: bushes close the left of the bend, a shrub wall behind the gravel shoulder past the tower
+  [620, 665, 1, 1.6],
+  [668, 712, -1, 4.2],
+  // the 1 350 m hairpin: a tree wall behind the verge and the rail on its outside, a closed corridor on its exit
+  [1300, 1400, -1, 2.4],
+  [1378, 1420, -1, 1.2],
+  [1385, 1420, 1, 1.4],
+  // 1.45-1.52 km: broadleaf behind the left verge, scrub down to the right kerb
+  [1445, 1520, 1, 1.6],
+  [1445, 1495, -1, 1],
+  // past the big hairpin: closed wood on both sides, the thicket 2-3 m from the right edge
+  [2128, 2185, -1, 2.4],
+  [2135, 2185, 1, 1.6],
+  // the 3 040 m bend: oaks and thicket behind the level verge before it, trees right behind its rail, thicket past it
+  [2955, 3020, -1, 3.6],
+  [3040, 3122, -1, 1.2],
+  [3145, 3185, 1, 1.2],
+  // 3.4-3.56 km: crowns over the road, closed woodland on both sides, dense shrubs at the rail
+  [3400, 3485, 1, 1.4],
+  [3485, 3555, 1, 1.2],
+  [3485, 3555, -1, 1.2],
+  // the Vidikovec approach: forest on the steep bank to the left edge (not on the limestone outcrops), a tree wall
+  // behind the rail runs and behind the grass shelf in their gaps
+  [2420, 2588, 1, 1.4],
+  [2622, 2640, 1, 1.4],
+  [2678, 2735, 1, 1.4],
+  [2768, 2810, 1, 1.4],
+  [2520, 2575, -1, 1.2],
+  [2575, 2680, -1, 3.6],
+  [2680, 2715, -1, 1.2],
+  [2715, 2755, -1, 3.6],
+  [2775, 2796, -1, 1.2],
+  // below the finish: the scrub bank on the left, woods behind the log fence, a forest wall on the left to the junction
+  [4040, 4150, 1, 1.6],
+  [4060, 4195, -1, 2.4],
+  [4200, 4330, 1, 1.6],
+];
+function wallRules(): ScatterRule[] {
+  const backs = [...new Set(WALLS.map((w) => w[3]))];
+  return backs.flatMap((back) => {
+    const along = WALLS.filter((w) => w[3] === back).map(
+      ([from, to, side]): [number, number, 1 | -1] => [from, to, side],
+    );
+    return (
+      [
+        // asset, per 1000 m2, band past `back` (m), scale, lean
+        // (the front row 0.8 m in: its sprays reach the kerb, not the lane)
+        ['bramble_shrub', 85, [0.8, 2.4], [0.8, 1.25], false],
+        ['thicket_shrub', 135, [1, 3.2], [0.9, 1.4], false],
+        ['scrub_bush', 55, [0.8, 2.8], [0.8, 1.3], false],
+        ['hazelnut_tree', 32, [1.8, 5.5], [0.85, 1.3], true],
+        ['young_tree', 34, [1.8, 6], [0.8, 1.25], true],
+        ['hornbeam_tree', 9, [2.5, 9], [0.45, 0.75], true],
+        ['locust_tree', 5, [2.5, 9], [0.4, 0.65], true],
+      ] as const
+    ).map(([asset, density, band, scale, lean]): ScatterRule => ({
+      asset,
+      along,
+      density,
+      minRoadDist: back + band[0],
+      maxRoadDist: back + band[1],
+      maxSlope: 0.6,
+      scale: [scale[0], scale[1]],
+      tilt: 4,
+      ...(lean
+        ? { lean: { deg: [5, 11] as [number, number], within: 10 } }
+        : {}),
+      sink: 0.2,
+    }));
+  });
+}
+/** The stands the references show by the road (m along: `along`), on top of the woods of the land cover. */
+const ROAD_STANDS: ScatterRule[] = [
+  ...(
+    [
+      ['hornbeam_tree', 6, 1.6, [0.4, 0.7]],
+      ['locust_tree', 3, 1.6, [0.35, 0.6]],
+      ['young_tree', 4, 1.2, [0.7, 1.1]],
+      ['thicket_shrub', 8, 1.1, [0.8, 1.2]],
+    ] as const
+  ).map(([asset, density, min, scale]): ScatterRule => ({
+    asset,
+    along: CLOSED,
+    density,
+    minRoadDist: min,
+    maxRoadDist: 7,
+    maxSlope: 0.5,
+    scale: [scale[0], scale[1]],
+    tilt: 3,
+    lean: { deg: [6, 10], within: 8 },
+    sink: 0.2,
+  })),
+  // scrub rooted on the steep dug banks and fill banks, to the kerb (the references; `earthCuts.cover`), young trees among
+  // it: not on the rock below Vidikovec, the junctions and lots
+  ...(
+    [
+      ['thicket_shrub', 80, [0.75, 1.15], 0.12, 1.2],
+      ['young_tree', 8, [0.6, 0.95], undefined, 1.6],
+    ] as const
+  ).map(([asset, density, scale, minSlope, minRoadDist]): ScatterRule => ({
+    asset,
+    minSlope,
+    minRoadDist,
+    along: [
+      [540, 650],
+      [700, 1325],
+      [1325, 1380, -1],
+      [1380, 1980],
+      [2130, 2580],
+      [2745, 2840],
+      // (not on the crushed-stone crescent inside the 3 040 m bend)
+      [2930, 3015],
+      [3015, 3080, -1],
+      [3080, 4100],
+    ],
+    density,
+    maxRoadDist: 5,
+    maxSlope: 0.5,
+    scale: [scale[0], scale[1]],
+    tilt: 4,
+    lean: { deg: [4, 9], within: 6 },
+    sink: 0.25,
+  })),
+  ...wallRules(),
+  // the logged clearing right of the road before the big hairpin: stumps and brash
+  ...(
+    [
+      ['forest_stump', 14, true],
+      ['forest_branches', 10, true],
+      ['forest_log', 3, true],
+    ] as const
+  ).map(([asset, density, align]): ScatterRule => ({
+    asset,
+    along: [[1850, 1900]],
+    density,
+    minRoadDist: 2.5,
+    maxRoadDist: 22,
+    maxSlope: 0.5,
+    scale: [0.8, 1.2],
+    alignToGround: align,
+    sink: 0.05,
+  })),
+  // black pines round the big hairpin; young pines among orange-leaved oak above it
+  {
+    asset: 'black_pine',
+    along: [[1900, 2120]],
+    density: 5,
+    minRoadDist: 3,
+    maxRoadDist: 30,
+    maxSlope: 0.6,
+    scale: [0.75, 1.1],
+    tilt: 2,
+    sink: 0.3,
+  },
+  {
+    asset: 'black_pine',
+    along: [[2300, 2450]],
+    density: 9,
+    minRoadDist: 2.5,
+    maxRoadDist: 25,
+    maxSlope: 0.6,
+    scale: [0.3, 0.55],
+    tilt: 3,
+    sink: 0.2,
+  },
+  {
+    asset: 'oak_tree',
+    along: [[2300, 2450]],
+    density: 5,
+    minRoadDist: 3,
+    maxRoadDist: 25,
+    maxSlope: 0.6,
+    scale: [0.4, 0.7],
+    tilt: 3,
+    lean: { deg: [3, 6], within: 10 },
+    sink: 0.2,
+  },
+  // yellow scrub outside the 3 040 m bend
+  {
+    asset: 'scrub_bush',
+    along: [[3010, 3075]],
+    density: 30,
+    minRoadDist: 1.4,
+    maxRoadDist: 12,
+    maxSlope: 0.5,
+    scale: [0.8, 1.3],
+    sink: 0.1,
+  },
+  // the dark tall pine stand from ~4 230 m to the top, big park trees on the level ground at the finish junction
+  {
+    asset: 'tall_black_pine',
+    along: [[4230, 4474]],
+    density: 6,
+    minRoadDist: 3,
+    maxRoadDist: 40,
+    maxSlope: 0.8,
+    scale: [0.8, 1.1],
+    tilt: 2,
+    sink: 0.3,
+  },
+  {
+    asset: 'pale_tree',
+    along: [[4290, 4400]],
+    density: 1.5,
+    minRoadDist: 5,
+    maxRoadDist: 30,
+    maxSlope: 0.1,
+    scale: [0.9, 1.25],
+    sink: 0.2,
+  },
+];
 
 /** Covers where dry grass grows (detail layer). */
 const DRY = ['grass', 'shrub', 'bare', 'crop', 'urban'];
@@ -309,11 +716,31 @@ export const vodnoMap: MapDef = {
     shoulder: 0.6,
     ditch: 0.3,
     crown: 0.04,
+    // (the old road is darker than the country-road tile, as on the real road)
+    tone: 0.72,
     smoothing: 40,
     // The real road is graded (average 5.4 %, short ramps in the hairpins); the ~30 m elevation data on 30 % slopes
     // asks for 25 % in places (an OSM line a few metres off on a steep slope reads metres of height): cap it, the road
     // is cut / filled into the mountainside like the built one.
     maxGrade: 0.11,
+    // ... and it only climbs: from the first crossroad to the top the line never falls and is never dead level (the
+    // references; the elevation data still reads dips at the bends), with slow grade changes. At 800 m (a railed drop
+    // on the left) and below the finish (the drop on the right, a log fence) the data's line lies a few metres low.
+    climb: {
+      from: WIDE_TO,
+      to: ROAD_LENGTH,
+      minGrade: 0.015,
+      maxGrade: 0.1,
+      window: 120,
+      lift: [
+        [700, 0],
+        [800, 2.5],
+        [900, 0],
+        [3950, 0],
+        [4220, 3.5],
+        [4474, 3],
+      ],
+    },
     // The concrete retaining wall on the right of the first crossroad (./crossroad.ts): the only sheer cut of the road.
     cutWalls: {
       minHeight: 1,
@@ -321,37 +748,113 @@ export const vodnoMap: MapDef = {
       concreteFrom: 0,
       range: WALL_RANGE,
       solid: true,
+      // (the references: an old wall in cast panels, streaked and damp at its foot, nothing on top)
+      weathered: true,
+      fence: false,
     },
-    // Layered shale faces where the land stands 3 m above the road - only at the big hairpin (the owner's photos). Elsewhere
-    // the ~30 m elevation data (a surface model: tree tops) lies metres above the road where the real banks are low and
-    // green: no faked cliffs there. At Vidikovec the uphill bank is held by a low dark stone wall along the upper half of
-    // the lot.
+    // Rock faces where the land stands 3 m above the road, only on the stretches the owner's photos and the references
+    // show (elsewhere the bank is an earth cut, below): the layered shale of the big hairpin, grey bedrock and dark rock
+    // on the right at 1.7 km, the pale limestone outcrops on the left below Vidikovec, the dark shale round the 3.6 km
+    // bend, a rocky bank at 3.85 km. At Vidikovec the uphill bank is held by a low dark stone wall along the upper half
+    // of the lot.
     rockCuts: {
-      minRise: 3,
+      // (only on the listed stretches: low enough that the shallow one at 1 770 m keeps its face with the foot close in)
+      minRise: 2.5,
       slope: 1.3,
-      foot: 1.2,
+      // (the face rises just past the kerb strip, as in the references: no gravel shelf at its foot)
+      foot: 0.6,
       maxFace: 7,
-      exclude: [
-        [0, ROCK_CUT[0]],
-        [ROCK_CUT[1], ROAD_LENGTH],
-      ],
+      stretches: ROCK_STRETCHES,
       walls: [VIDIKOVEC_WALL],
     },
+    // Leaf litter swept to the edge under the woods (the references)
+    litter: 0.8,
+    // Everywhere else the uphill bank is a dug earth face (the references): its foot just past the verge, 45-60 deg up to
+    // ~3.5 m, scrub and litter on it, trees on its rim (not the wide grassy ramp of the default blend). Not in the
+    // start streets (their walls and gardens).
+    earthCuts: {
+      minRise: 1,
+      slope: 1.1,
+      foot: 0.8,
+      maxFace: 3.5,
+      // (none on the flat verge with the paved strip before the big hairpin)
+      exclude: [
+        [0, WIDE_TO, 1],
+        [0, 158, -1],
+        [218, WIDE_TO, -1],
+        [1850, 1900, -1],
+      ],
+      // The references: the dug banks are hidden by scrub to the kerb, with litter and thin grass between the stems; the
+      // low bank before the finish is grassed.
+      cover: 'scrub',
+      covers: [
+        // the bare dug face on the outside of the start street's left bend
+        { from: 158, to: 218, side: -1, cover: 'bare' },
+        // (the steep grass and moss bank inside the 3 710 m bend)
+        { from: 3665, to: 3800, side: 1, cover: 'grass' },
+      ],
+    },
+    // Grass and moss under the rails, earth and dead leaves on the uphill side, where the upper road has no gravel verge.
+    softVerges: [
+      { from: 2955, to: 3104, side: -1, cover: 'grass' },
+      { from: 3380, to: 3845, side: -1, cover: 'grass' },
+      { from: 3380, to: 3665, side: 1, cover: 'litter' },
+      // (the flat grass shelf in the gaps of the Vidikovec approach's rail, grass under its runs)
+      { from: 2478, to: 2755, side: -1, cover: 'grass' },
+      { from: 2775, to: 2834, side: -1, cover: 'grass' },
+      { from: 2420, to: 2810, side: 1, cover: 'litter' },
+    ],
+    // White limestone gravel on the valley side's verge where the references show it, and inside the 3 040 m bend.
+    gravelVerges: [
+      { from: 2200, to: 2450, side: -1, width: 1.6 },
+      // (white chippings only on the short lay-by before the lot's rail: a grass shelf in the other gaps, softVerges)
+      { from: 2755, to: 2775, side: -1, width: 3 },
+      { from: 3840, to: 3880, side: -1, width: 1.6 },
+      // the island inside the 1 350 m hairpin, the strip in front of the log fence past the big hairpin's pavilion
+      { from: 1335, to: 1372, side: 1, width: 2 },
+      // the gate junction: the bleached gravel lot before the tower, the flat shoulder past it; a metre
+      // of gravel in front of the rail and the bank round the 1 350 m hairpin's outside
+      { from: 626, to: 660, side: -1, width: 5 },
+      { from: 666, to: 712, side: -1, width: 4 },
+      { from: 1322, to: 1420, side: -1, width: 1.2 },
+      { from: 2035, to: 2087, side: -1, width: 1.4 },
+      // (white limestone chippings on the lay-by past the 3 040 m bend's rail)
+      { from: 3105, to: 3140, side: -1, width: 4.5 },
+      // the gravel strip between the road and the stone gutter before the finish
+      { from: 4100, to: 4150, side: 1, width: 1.5 },
+      // ... and under the log fence over the drop
+      { from: 4060, to: 4198, side: -1, width: 1 },
+    ],
     // ... and its spoil tipped over the valley side: a straight bank of rock and earth from the verge's rim.
     fills: { minDrop: 1.5, slope: 0.8 },
     // The big hairpin (2 000 m): the road is blasted through a spur the 30 m elevation data smooths to ~2 m - a 6-8 m
     // shale face round the outside of the bend and along the leg above it (the owner's photos).
     trenchFills: [
       { from: 1998, to: 2105, halfWidth: 15, depth: [8, 6], side: 1 },
+      // ... the dug bank on the outside of the start street's left bend (the references: 3-5 m of bare pebbly earth; the
+      // data reads ~1 m) ...
+      { from: 162, to: 212, halfWidth: 8, depth: [4, 3.5], side: -1 },
+      // ... the limestone cut at 1.5 km and the dark crag at 1.77 km (4-5 m and 7-8 m in the references) ...
+      { from: 1497, to: 1533, halfWidth: 8, depth: [4.5, 4], side: -1 },
+      { from: 1755, to: 1790, halfWidth: 9, depth: [7, 6.5], side: -1 },
+      // ... the middle limestone outcrop below Vidikovec (the data reads 3 m there) ...
+      { from: 2645, to: 2672, halfWidth: 8, depth: [5, 5], side: 1 },
+      // ... the cut and the outcrop round the 3 040 m bend (3-4 m and 2-3 m) ...
+      { from: 2957, to: 2998, halfWidth: 8, depth: [3.8, 3.4], side: 1 },
+      { from: 3120, to: 3145, halfWidth: 7, depth: [3, 2.6], side: 1 },
+      // ... the 3-4 m bank right behind the kerb inside the 3 710 m bend ...
+      { from: 3670, to: 3796, halfWidth: 8, depth: [3.6, 3.2], side: 1 },
+      // ... the steep scrub bank on the left below the finish (3-5 m, 1.5 m from the edge) ...
+      { from: 4044, to: 4148, halfWidth: 8, depth: [4, 3.5], side: 1 },
+      // ... and the rocky bank at 3.85 km (the references: 3-4 m of rock and ivy on the left; the data reads ~2 m)
+      { from: 3840, to: 3880, halfWidth: 10, depth: [6, 5.5], side: 1 },
     ],
     surface: 'tarmac',
-    // Old tarmac with white edge and centre lines all along; at the first crossroad every line is paint (`markings`).
+    // Old tarmac with white edge and centre lines, the re-laid upper road in fresh asphalt (./surface.ts); at the first
+    // crossroad every line is paint (`markings`), and the big repairs of the old road are laid as patches.
     texture: 'road_tarmac_lines',
-    sections: [
-      { from: WIDE_FROM, surface: 'tarmac', texture: 'road_tarmac_plain' },
-      { from: WIDE_TO, surface: 'tarmac', texture: 'road_tarmac_lines' },
-    ],
-    markings: MARKINGS,
+    sections: SURFACE_SECTIONS,
+    markings: [...MARKINGS, ...PATCHES, ...JUNCTION_PAINT],
     points: routePoints(
       data.route,
       (along) => (along < START + 500 ? 6.4 : 5.8) + laneExtra(along),
@@ -363,7 +866,16 @@ export const vodnoMap: MapDef = {
   scatterBounds: { maxZ: 900 },
   // The lower road runs through open ground: grass and bushes to the verge, the forest standing 8 m and more back (the pines
   // come to the edge further up).
-  treeSetback: [{ from: 250, to: 1150, dist: 8, fade: 80 }],
+  // (Not 760-900 m: the woods close over the road there, `ROAD_STANDS`.)
+  treeSetback: [
+    // (the crossroad and its wall; the start street's straight is a wall of growth: WALLS)
+    { from: 398, to: 492, dist: 8, fade: 12 },
+    { from: 560, to: 620, dist: 8, fade: 20 },
+    { from: 712, to: 760, dist: 8, fade: 30 },
+    { from: 900, to: 1150, dist: 8, fade: 40 },
+    // (the 1 350 m hairpin's inside island: a treeless grass apron, the woods 4-6 m back)
+    { from: 1328, to: 1378, dist: 5, fade: 8 },
+  ],
   // Elsewhere the woods come to the verge; no low limb hangs over the road.
   treeCrownClear: 1.5,
   // Every crown of the canopy height model outside the woods (gardens, hedgerows, field and edge trees) and the lone
@@ -396,6 +908,7 @@ export const vodnoMap: MapDef = {
     lean: { deg: [2, 5], within: 12 },
   },
   scatter: [
+    ...ROAD_STANDS,
     // The woods of the north face (leaf type from winter / summer satellite scenes, scripts/realmap/leaf_type.py): low
     // downy / Turkey oak and oriental hornbeam coppice (the natural forest), black pine plantations from the 1950s in
     // blocks and terrace strips across the slope, mixed stands between. The road verges are mostly broadleaf.
@@ -680,8 +1193,8 @@ export const vodnoMap: MapDef = {
     // parks and the rails): thicket, bush and hazel in merged clumps on one clump field, young locust.
     ...(
       [
-        ['bush', 7, 1.6, 20, [0.7, 1.3]],
-        ['thicket_shrub', 5, 1.8, 22, [0.7, 1.15]],
+        ['bush', 7, 1.1, 20, [0.7, 1.3]],
+        ['thicket_shrub', 5, 1.2, 22, [0.7, 1.15]],
         ['hazelnut_tree', 2.5, 2.5, 25, [0.75, 1.15]],
       ] as const
     ).map(([asset, density, min, max, scale]): ScatterRule => ({
@@ -899,23 +1412,40 @@ export const vodnoMap: MapDef = {
       offset: 3,
       faceRoad: true,
     },
+    // The start street: utility poles on the right, a clipped evergreen hedge along the right of the bend before the
+    // crossroad.
     {
-      asset: 'marker_post',
-      every: 50,
-      side: 'both',
-      offset: 1.4,
-      from: START + 400,
-      alongRoad: true,
+      asset: 'power_pole',
+      every: 36,
+      side: 'right',
+      offset: 2.2,
+      // (its cross arm square to the road: the line runs along it)
+      faceRoad: true,
+      from: 140,
+      to: 362,
+      skipJunctions: 6,
     },
-    // ... closer on the outside of the bends (white posts, red reflectors): every 16 m where the radius is under 80 m.
+    // (a row of bushes, 1-1.5 m across, makes the hedge: as in the Vidikovec lot)
+    {
+      asset: 'bush',
+      every: 1.1,
+      side: 'right',
+      offset: 2.6,
+      from: 300,
+      to: 362,
+      scale: [0.7, 0.8],
+      skipJunctions: 4,
+    },
+    // ... and both sides of the big hairpin's approach and turn, every 12 m (the references).
     {
       asset: 'marker_post',
-      every: 16,
-      maxRadius: 80,
-      side: 'outside',
-      offset: 1.4,
-      from: START + 400,
+      every: 12,
+      side: 'both',
+      offset: 1.2,
+      from: 1870,
+      to: 2060,
       alongRoad: true,
+      skipJunctions: 4,
     },
     // Lamps along Salvador Aljende street at the start (the run-up and the first stretch of the climb).
     {
@@ -924,7 +1454,8 @@ export const vodnoMap: MapDef = {
       from: 0,
       to: START + 380,
       side: 'right',
-      offset: 1.6,
+      // (at the back of the kerb strip: in front of the rock cut and the crossroad wall, not in them)
+      offset: 1,
       minRadius: 40,
       faceRoad: true,
     },
@@ -1010,15 +1541,17 @@ export const vodnoMap: MapDef = {
         maxRadius: 30,
         lead: 20,
         offset: RAIL_OFFSET,
-      }),
-      {
+      }).filter(
+        (r) => ![...VIDEO_RAILS, ...NO_RAIL].some((v) => overlaps(r, v)),
+      ),
+      ...VIDIKOVEC_RAIL.runs.map(([from, to]): BarrierRule => ({
         kind: 'guardrail',
         side: 'right',
         offset: RAIL_OFFSET,
-        from: VIDIKOVEC_RAIL.from,
-        to: VIDIKOVEC_RAIL.to,
+        from,
+        to,
         skipJunctions: 4,
-      } satisfies BarrierRule,
+      })),
     ].map((rule) => ({ ...rule, rusty: true })),
     // A short galvanised rail between the road and the Vidikovec lot, uphill of its lower entrance, ending at the grass
     // island with the notice board (the owner's photos).
@@ -1030,16 +1563,21 @@ export const vodnoMap: MapDef = {
       to: VIDIKOVEC_RAIL.lot[1],
       skipJunctions: 4,
       rusty: false,
+      tiers: 2,
     } satisfies BarrierRule,
     {
       kind: 'guardrail',
       side: 'left',
       offset: RAIL_OFFSET,
       from: 500,
-      to: 640,
+      // (to the bend at the gate: a verge and a wall of bushes from there, WALLS)
+      to: 615,
       skipJunctions: 4,
       rusty: false,
     } satisfies BarrierRule,
+    ...VIDEO_RAILS,
+    ...KERBS,
+    ...GUTTERS,
   ],
   // The 2000 m hairpin's rail (ending at 1994 m) curves round into the closed side road and runs up its edge to the sand
   // piles (ref-03).
@@ -1055,7 +1593,12 @@ export const vodnoMap: MapDef = {
   ],
   // Galvanised rails (ref-07 / ref-12) wherever the fill bank / the valley side drops more than 2 m within 3 m of the
   // verge (world/drop-rails.ts; the map's own rails above win).
-  dropRails: { minDrop: 2, rusty: false, offset: RAIL_OFFSET },
+  dropRails: {
+    minDrop: 2,
+    rusty: false,
+    offset: RAIL_OFFSET,
+    exclude: NO_DROP_RAIL,
+  },
   props,
   landmarks: [
     'vodno-sredno-vodno',
@@ -1076,3 +1619,11 @@ export const vodnoMap: MapDef = {
   ],
   features: data.features as MapFeatures,
 };
+
+// The lay-bys follow the road's own line (laybys.ts): their pads are added once the road is defined.
+vodnoMap.terrain.pads!.push(...laybyPads(vodnoMap.road));
+// The kerbed sidewalk of the start street: on the left in front of the garden walls (road-lines.ts).
+vodnoMap.cityStreets!.links = [
+  ...START_SIDEWALKS,
+  roadSidewalk(vodnoMap.road, 4, 120, 1),
+];

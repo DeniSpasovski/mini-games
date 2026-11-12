@@ -402,9 +402,25 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `MapDef.dropRails` derives more (`world/drop-rails.ts`): wherever the carved ground falls more than `minDrop` m within `within`
   (3) m of the verge; the map's own `barriers` (hand, hairpin, OSM-mapped `barrier=guard_rail`) win on their side and stretch,
   and a derived run ending within `gap` of one carries it on (its steel and offset, no gap).
+  `tiers: 2` = a second beam; `dropRails.exclude` = spans with no derived rail. The rail is a double-sided two-rib W-beam sheet, each face lit by its
+  slope (`RAIL`, `world/barrier-mesh.ts`), its colour times the `barrier_rail` weathering map (grime, streaks, rust bleed). Trees
+  and shrubs stand `RAIL_CLEAR` past a stage-road guard rail (`ScatterContext.railAt`). Kinds `edge` (a flush pale concrete strip
+  along the asphalt, `width`, default 0.5 m) and `gutter` (`cobbles`: a stone dish) have no colliders; under an `edge` strip and a
+  `gutter` closer than 1 m the verge is held level with the road edge (`TerrainGen.edgeVergeAt`), so no bank cuts through them.
 - **Fill banks** (`RoadDef.fills`, `TerrainGen.carveRoad` / `paintFill`): the valley-side mirror of `rockCuts` - where the land 5 m
   past the verge lies `minDrop` m below the road, the verge holds to its rim and a straight `slope` bank of stony earth falls to the
   land (no ditch). With `dropRails` the rails stand on its rim (Vodno).
+- **Cuts** (Vodno): `rockCuts.stretches` (rock faces only there, `RockLook` tone; `walls` = low retaining walls); `earthCuts` (a
+  steep dug bank where the land rises; `cover` / `covers` = `bare` | `scrub` | `grass`, the scatter roots on a covered face;
+  `exclude` takes an optional side); `cutWalls.weathered` (cast panels, streaks, moss; `fence: false` = nothing on top).
+- **Verges**: `gravelVerges` (grit painted and driven as gravel), `softVerges` (a grass or leaf-litter verge instead), `litter` (a
+  leaf-litter band at the edge, weighted by the canopy).
+- **The climb**: `RoadDef.climb` (`Road.gradeClimb`) fits a stretch's height line to never fall (grade between `minGrade` and
+  `maxGrade`, `lift` raises where the data reads low).
+- **Road paint**: markings `patch` (`dim` = a duller re-laid lane, `cracks` = an alligator crack field, texture `road_cracks`) /
+  `stripe` (white or `yellow`); asphalt tile lines take `worn` (`gen.js`).
+- **Roadside stands**: `ScatterRule.along` limits a rule to stretches of the stage road, optionally one side (`[from, to, side]`);
+  such a rule only runs in the chunks beside them (Vodno's walls of growth at the kerb, `WALLS` in its `map.ts`).
 - **Culverts** (`MapDef.culverts` = `maps/<id>/culverts.json`, baked by `scripts/realmap/culverts.py`; `world/culverts.ts`,
   `culvert-mesh.ts`): where a drainage line of the elevation data crosses the stage road, a concrete pipe with a headwall, wing walls
   and an apron at both ends, the gully carved to and from it (`TerrainGen` after `carveRoad`, never on the road or its verge: no
@@ -452,12 +468,12 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`; the tarmacs `road_tarmac` (Poly Haven Asphalt 04 scan, CC0, with hairline
   cracks and faint tyre / oil marks: Ajvatovci, Galichica, Petralica; the scan goes in `sources/textures/asphalt_04/`, listed in `PHOTOS` in
   `scripts/asphalt/bake.mjs`), `road_tarmac_kerbed` (no edge grit: Ajvatovci's kerbed start street), `road_tarmac_lines` (white edge and centre lines) and
-  `road_tarmac_plain` (no lines: Vodno's crossroad, where the road paint lies over it); `road_parkway` and the city asphalts (`road_city`, `road_street`,
+  `road_tarmac_plain` (no lines: Vodno's crossroad, where the road paint lies over it), `road_tarmac_new` (fresh dark asphalt: Vodno's re-laid road); `RoadDef.tone` darkens a map's baked tarmac and `sections[].tone` one stretch of it (`setRoadTone`, `engine/road-surface.ts`); `road_parkway` and the city asphalts (`road_city`, `road_street`,
   `road_street4`, `junction_asphalt`).
   - The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp` from `scripts/asphalt/bake.mjs` (tiles drawn by
     `gen.js` in headless Chromium; the output is committed, rerun after changing `gen.js`). High loads the 1024 px set, Medium / Low their own 512 px set.
     `engine/road-surface.ts` loads them (the play page preloads the map's sets) and `getRoadMaterial` puts them on the road: colour + a normal map with the
-    roughness packed in its alpha + a tone shader (blotches and streaks that never repeat; Vodno's tiles get pale repair patches, more of them higher up). A
+    roughness packed in its alpha + a tone shader (blotches and streaks that never repeat; Vodno's tiles get pale repair patches, most on the old lower road, none on the fresh stretch). A
     new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN` (same `len` as `texLength`; a test checks) and a rebake.
   - Rally-worn tarmac (`world/road-wear.ts`, the stage road's `WEAR_TEX` tarmacs): per-sample masks in the `rwA` / `rwB` vertex attributes,
     drawn by the asphalt shader - a light film of earth on the inside of some hairpins (under ~40 m radius, not on decks, kerbed
@@ -810,7 +826,7 @@ own season and hour unless the row says otherwise (night = 01:00). The same link
 | `petralica/night.jpg`          | petralica        | skoda_rally | 5600 m                      | summer 01:00  | The gravel at night, headlights on                                                                             |
 | `test/forest-stage.jpg`        | test             | skoda_rally | 600 m                       | summer 15:48  | Forest gravel between the pines, white marker posts                                                            |
 | `vodno/start-line.jpg`         | vodno            | skoda_rally | start                       | summer 10:00  | Car just short of the VODNO HILLCLIMB arch                                                                     |
-| `vodno/hairpins.jpg`           | vodno            | skoda_rally | 1325 m                      | summer 10:00  | Left-hand hairpin with the wooden guard rail and the red chevron sign                                          |
+| `vodno/hairpins.jpg`           | vodno            | skoda_rally | 1325 m                      | summer 10:00  | Left-hand hairpin with the two-tier steel guard rail                                                           |
 | `vodno/cross-ridge.jpg`        | vodno            | skoda_rally | 4400 m (free camera)        | summer 10:00  | Free camera 100 m above the north slope at [170, -31], aimed at [-600, 775]: mast, cable car, Millennium Cross |
 | `start.jpg`                    | ajvatovci        | zastava_101 | start                       | summer 07:30  | Zastava 101 at the start line of Ajvatovci Hill                                                                |
 | `ui-stage.jpg`                 | menu             | -           | Start rally -> Select stage | stage default | first stage highlighted, 1280x720                                                                              |

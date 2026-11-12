@@ -2,7 +2,11 @@ import type { Vector3 } from 'three';
 import { Noise2D, smoothstep } from '../../../shared/noise';
 import { hash3 } from '../../../shared/rng';
 import { mapSeason } from '../maps/shared/climate';
-import { roadSurfaceAt, type MapDef } from '../maps/shared/types';
+import {
+  roadSurfaceAt,
+  type EarthCover,
+  type MapDef,
+} from '../maps/shared/types';
 import type { SurfaceId } from '../physics/surfaces';
 import {
   Landcover,
@@ -128,6 +132,8 @@ export interface CutShape {
   margin: number;
   over: number;
 }
+/** An earth cut (RoadDef.earthCuts) needs the land this far (m) further from the road to stand at least as high. */
+const EARTH_OUT = 6;
 /** Rise per m across of the carve behind a low retaining wall (RoadDef.rockCuts `walls`): the wall mesh stands vertical in
  * front of it (world/rock-cut-mesh.ts), the carve only has to stay behind the face. */
 const WALL_SLOPE = 5;
@@ -2265,18 +2271,80 @@ export class TerrainGenerator {
     side = 0,
   ): number {
     const rc = this.map.road.rockCuts;
-    if (!rc || !(rise > rc.minRise)) return 0;
+    if (!rc) return 0;
+    const wall = this.rockCutWall(along, side);
+    // A retaining wall holds a bank lower than a rock face needs: a bit over half its height is enough (the face is
+    // never taller than the land, `face` below).
+    const min = wall ? Math.min(rc.minRise, wall.height * 0.55) : rc.minRise;
+    if (!(rise > min)) return 0;
     if (
-      !this.rockCutWall(along, side) &&
-      rc.exclude?.some(([a, b]) => along > a && along < b)
+      !wall &&
+      (rc.exclude?.some(([a, b]) => along > a && along < b) ||
+        (rc.stretches && !this.rockCutStretch(along, side)))
     )
       return 0;
-    let w = smoothstep(rc.minRise, rc.minRise + 1.5, rise);
+    let w = smoothstep(min, min + (wall ? 1 : 1.5), rise);
     if (this.paths) {
       const pq = this.paths.query(x, z, this.pq, undefined, this.roadOnGround);
       if (pq.found) w *= smoothstep(3, 14, pq.distance - pq.halfWidth);
     }
     return w;
+  }
+
+  /**
+   * 0..1: how much of an earth cut (RoadDef.earthCuts) the stage road's bank is at (x, z), the land `rise` m above the
+   * road `along` m along it on `side` (0 = the gentle embankment): none where a rock cut or retaining wall holds it.
+   */
+  earthCutWeightAt(
+    x: number,
+    z: number,
+    rise: number,
+    along: number,
+    side = 0,
+  ): number {
+    const ec = this.map.road.earthCuts;
+    if (!ec || !(rise > ec.minRise)) return 0;
+    if (
+      ec.exclude?.some(
+        ([a, b, s]) =>
+          along > a && along < b && (!s || s === (side >= 0 ? 1 : -1)),
+      )
+    )
+      return 0;
+    if (this.rockCutWall(along, side)) return 0;
+    // Only where the land keeps rising away from the road (a hump beside it keeps the gentle bank, not a dug ridge).
+    const p = this.road.at(along);
+    const sd = side >= 0 ? 1 : -1;
+    const out =
+      this.naturalHeight(x + p.tz * sd * EARTH_OUT, z - p.tx * sd * EARTH_OUT) -
+      p.y;
+    let w = smoothstep(ec.minRise, ec.minRise + 1, Math.min(rise, out));
+    if (w <= 0) return 0;
+    if (this.paths) {
+      const pq = this.paths.query(x, z, this.pq, undefined, this.roadOnGround);
+      if (pq.found) w *= smoothstep(3, 14, pq.distance - pq.halfWidth);
+    }
+    return w;
+  }
+
+  /** The cover of the earth cut's face (RoadDef.earthCuts `covers` / `cover`) `along` m along the road on `side` (+1 left). */
+  earthCover(along: number, side: number): EarthCover {
+    const ec = this.map.road.earthCuts;
+    const sd = side >= 0 ? 1 : -1;
+    const st = ec?.covers?.find(
+      (c) => along >= c.from && along <= c.to && (!c.side || c.side === sd),
+    );
+    return st?.cover ?? ec?.cover ?? 'bare';
+  }
+
+  /** The rock-cut stretch (RoadDef.rockCuts `stretches`) `along` m along the road on `side` (+1 left) lies in, if any. */
+  rockCutStretch(along: number, side: number) {
+    return this.map.road.rockCuts?.stretches?.find(
+      (st) =>
+        along >= st.from &&
+        along <= st.to &&
+        (!st.side || st.side === Math.sign(side)),
+    );
   }
 
   /** The low retaining wall (RoadDef.rockCuts `walls`) holding the cut `along` m along the road on `side` (+1 left), if any. */
@@ -2513,6 +2581,20 @@ export class TerrainGenerator {
         (rise - face) * smoothstep(top, top + 3 + (rise - face) * 1.6, d);
       h += (cut - h) * rw;
     }
+    // An earth cut where no rock shows: the same compact bank (a dug face from its foot, the rest laid back), no rock mesh.
+    const ew =
+      rw < 1 ? this.earthCutWeightAt(x, z, rise, q.along, q.lateral) : 0;
+    if (ew > 0) {
+      const ec = r.earthCuts!;
+      const foot = hw + r.shoulder + ec.foot;
+      const face = Math.min(rise, ec.maxFace);
+      const top = foot + face / ec.slope;
+      const cut =
+        q.height +
+        face * smoothstep(foot, top, d) +
+        (rise - face) * smoothstep(top, top + 3 + (rise - face) * 1.6, d);
+      h += (cut - h) * ew * (1 - rw);
+    }
     // A fill on the valley side: the verge held at road level to its rim, then a straight bank of tipped rock down to
     // the land (RoadDef.fills, the mirror of the rock cuts) instead of the gentle blend.
     // (judged by the land's drop at the bank's reach, 5 m past the verge: the natural slope carried out from here)
@@ -2550,7 +2632,47 @@ export class TerrainGenerator {
         ditch = 0;
       h -= ditch;
     }
+    // Under an edge kerb or a lined ditch at the road edge (BarrierRule kinds 'edge' / 'gutter') the verge stays level
+    // with the road edge to past its outer edge, so no bank or embankment blend rises over the strip (the coarse
+    // terrain mesh would cut through anything sunk below it); the land picks up again just beyond it.
+    const verge = this.edgeVergeAt(q.along, q.lateral);
+    if (verge)
+      h =
+        q.height +
+        (h - q.height) *
+          smoothstep(hw + verge.outer + 0.1, hw + verge.outer + 0.4, d);
     return h;
+  }
+
+  private edgeVerges?: {
+    from: number;
+    to: number;
+    side: number;
+    outer: number;
+  }[];
+  /**
+   * The edge kerb / road-edge gutter at `along` on `side` (+1 left): its outer edge (m past the road edge). Undefined
+   * where none; a gutter further out than 1 m is a ditch lining, not part of the verge.
+   */
+  edgeVergeAt(along: number, side: number): { outer: number } | undefined {
+    this.edgeVerges ??= (this.map.barriers ?? [])
+      .filter((b) => b.kind === 'edge' || (b.kind === 'gutter' && b.offset < 1))
+      .flatMap((b) =>
+        (b.side === 'both' ? [1, -1] : [b.side === 'left' ? 1 : -1]).map(
+          (sd) => ({
+            from: b.from ?? -Infinity,
+            to: b.to ?? Infinity,
+            side: sd,
+            outer: b.kind === 'gutter' ? b.offset + 0.38 : b.offset,
+          }),
+        ),
+      );
+    const sd = side >= 0 ? 1 : -1;
+    let best: { outer: number } | undefined;
+    for (const k of this.edgeVerges)
+      if (k.side === sd && along >= k.from && along <= k.to)
+        if (!best || k.outer > best.outer) best = k;
+    return best;
   }
 
   /**
@@ -2670,6 +2792,10 @@ export class TerrainGenerator {
       this.paintLawns(x, z, out);
       if (near) this.paintScree(x, z, roadDist - roadHw, out);
       if (near) this.paintFill(x, z, roadDist - roadHw, out);
+      if (near) this.paintEarthCut(x, z, roadDist - roadHw, out);
+      if (near) this.paintLitter(x, z, roadDist - roadHw, gravel, out);
+      if (near) this.paintSoftVerge(x, z, roadDist - roadHw, out);
+      if (near) this.paintGravelVerge(x, z, roadDist - roadHw, out);
       return;
     }
     let dirt = smoothstep(0.15, 0.55, n) * 0.85;
@@ -2690,6 +2816,10 @@ export class TerrainGenerator {
     this.paintLawns(x, z, out);
     if (near) this.paintScree(x, z, roadDist - roadHw, out);
     if (near) this.paintFill(x, z, roadDist - roadHw, out);
+    if (near) this.paintEarthCut(x, z, roadDist - roadHw, out);
+    if (near) this.paintLitter(x, z, roadDist - roadHw, gravel, out);
+    if (near) this.paintSoftVerge(x, z, roadDist - roadHw, out);
+    if (near) this.paintGravelVerge(x, z, roadDist - roadHw, out);
   }
 
   private fan = 0;
@@ -2843,6 +2973,143 @@ export class TerrainGenerator {
     if (w <= 0) return;
     const earth = [0.2, 0.5, 0.25, 0.05];
     for (let i = 0; i < 4; i++) out[i] += (earth[i] - out[i]) * w;
+  }
+
+  /**
+   * Bare earth, leaf litter and grit on the face of an earth cut (RoadDef.earthCuts), `edge` m beyond the road edge: the
+   * dug face, thin grass only at its top; stones at its foot.
+   */
+  private paintEarthCut(
+    x: number,
+    z: number,
+    edge: number,
+    out: Float32Array | number[],
+  ): void {
+    const ec = this.map.road.earthCuts;
+    if (!ec) return;
+    const sh = this.map.road.shoulder;
+    if (edge < sh || edge > sh + ec.foot + ec.maxFace / ec.slope + 2) return;
+    const q = this.road.query(x, z, this.sq);
+    if (!q.found) return;
+    const rise = this.naturalHeight(x, z) - q.height;
+    const face = Math.min(Math.max(rise, 0), ec.maxFace);
+    const top = sh + ec.foot + face / ec.slope;
+    const n = this.detailNoise.noise2(x / 2.5, z / 2.5);
+    const w =
+      this.earthCutWeightAt(x, z, rise, q.along, q.lateral) *
+      (1 - this.rockCutWeightAt(x, z, rise, q.along, q.lateral)) *
+      smoothstep(sh + 0.2, sh + ec.foot, edge) *
+      (1 - smoothstep(top - 0.3, top + 1.2, edge)) *
+      (0.7 + 0.3 * n);
+    if (w <= 0) return;
+    // [grass, dirt, rock, gravel]: litter and earth on the face, stones and grit where it meets the verge; a covered
+    // face is mostly grass (scrub: litter and thin grass between the stems)
+    const foot = 1 - smoothstep(sh + ec.foot, sh + ec.foot + 0.8, edge);
+    const cover = this.earthCover(q.along, q.lateral);
+    const earth =
+      cover === 'grass'
+        ? [0.8, 0.14, 0.04 + 0.04 * foot, 0.02 + 0.04 * foot]
+        : cover === 'scrub'
+          ? [
+              0.42 + 0.2 * n,
+              0.46 - 0.2 * n,
+              0.08 + 0.06 * foot,
+              0.04 + 0.08 * foot,
+            ]
+          : [0.12, 0.72, 0.12 + 0.1 * foot, 0.04 + 0.1 * foot];
+    for (let i = 0; i < 4; i++) out[i] += (earth[i] - out[i]) * w;
+  }
+
+  /**
+   * Leaf litter and soil swept to the road's edge under trees (RoadDef.litter), `edge` m beyond the road edge: a band
+   * from the asphalt to ~1.5 m past the verge, as strong as the canopy over it; none on gravel (pads, lay-bys).
+   */
+  private paintLitter(
+    x: number,
+    z: number,
+    edge: number,
+    gravel: number,
+    out: Float32Array | number[],
+  ): void {
+    const k = this.map.road.litter;
+    if (!k || edge < 0 || gravel > 0.4) return;
+    const sh = this.map.road.shoulder;
+    const n = this.detailNoise.noise2(x / 1.7, z / 1.7);
+    const outer = sh + 1.2 + 0.5 * n;
+    if (edge > outer + 0.6) return;
+    const canopy = this.landcover?.canopy?.cover.at(x, z) ?? 0;
+    const w =
+      k *
+      smoothstep(0.1, 0.6, canopy) *
+      smoothstep(0.05, 0.35, edge) *
+      (1 - smoothstep(outer - 0.6, outer + 0.6, edge)) *
+      (0.75 + 0.25 * n) *
+      (1 - gravel);
+    if (w <= 0.01) return;
+    const litter = [0.08, 0.86, 0.04, 0.02];
+    for (let i = 0; i < 4; i++) out[i] += (litter[i] - out[i]) * w;
+  }
+
+  /** A grass or leaf-litter verge instead of the gravel one (RoadDef.softVerges), `edge` m beyond the road edge. */
+  private paintSoftVerge(
+    x: number,
+    z: number,
+    edge: number,
+    out: Float32Array | number[],
+  ): void {
+    const sv = this.map.road.softVerges;
+    if (!sv || edge < 0 || edge > 3) return;
+    const q = this.road.query(x, z, this.sq);
+    if (!q.found) return;
+    const side = q.lateral > 0 ? 1 : -1;
+    const st = sv.find(
+      (v) =>
+        q.along >= v.from &&
+        q.along <= v.to &&
+        (v.side === undefined || v.side === side),
+    );
+    if (!st) return;
+    const n = this.detailNoise.noise2(x / 1.3 + 31, z / 1.3 - 17);
+    const w =
+      (1 - smoothstep(1.6 + 0.5 * n, 2.8, edge)) *
+      Math.min(1, (q.along - st.from) / 4, (st.to - q.along) / 4);
+    if (w <= 0.01) return;
+    const cover =
+      st.cover === 'grass'
+        ? // (thin dry grass and moss over earth: not a lawn)
+          [0.42 + 0.2 * n, 0.52 - 0.2 * n, 0.03, 0.03]
+        : [0.1 + 0.08 * n, 0.84 - 0.08 * n, 0.04, 0.02];
+    for (let i = 0; i < 4; i++) out[i] += (cover[i] - out[i]) * w;
+  }
+
+  /** A wider gravel verge on a stretch of the road (RoadDef.gravelVerges), `edge` m beyond the road edge. */
+  private paintGravelVerge(
+    x: number,
+    z: number,
+    edge: number,
+    out: Float32Array | number[],
+  ): void {
+    const gv = this.map.road.gravelVerges;
+    if (!gv || edge < 0 || edge > 4) return;
+    const q = this.road.query(x, z, this.sq);
+    if (!q.found) return;
+    const side = q.lateral > 0 ? 1 : -1;
+    let w = 0;
+    for (const g of gv) {
+      if (g.side !== side || q.along < g.from - 3 || q.along > g.to + 3)
+        continue;
+      const ends =
+        smoothstep(g.from - 3, g.from + 3, q.along) *
+        (1 - smoothstep(g.to - 3, g.to + 3, q.along));
+      const n = 0.3 * this.detailNoise.noise2(x / 2, z / 2);
+      w = Math.max(
+        w,
+        ends * (1 - smoothstep(g.width - 0.4 + n, g.width + 0.4 + n, edge)),
+      );
+    }
+    if (w <= 0) return;
+    const grit = [0, 0.06, 0.04, 0.9];
+    for (let i = 0; i < 4; i++) out[i] += (grit[i] - out[i]) * w;
   }
 
   /** Scree (rock chips and grit) along the foot of a rock cut (RoadDef.rockCuts), `edge` m beyond the road edge. */

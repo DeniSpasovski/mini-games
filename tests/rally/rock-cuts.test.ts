@@ -50,11 +50,12 @@ describe('Vodno rock cuts', () => {
     expect(steep).toBeGreaterThan(1);
   });
 
-  test('rock faces only at the hairpin, a low stone wall at Vidikovec, none elsewhere', () => {
+  test('rock faces only on the stretches the references show (each one has its face), a low stone wall at Vidikovec', () => {
     const job = rockCutMeshJob(world, () => new MeshStandardMaterial());
     let r = job.next();
     while (!r.done) r = job.next();
-    const [from, to] = [1985, 2125];
+    const stretches = vodnoMap.road.rockCuts!.stretches!;
+    const seen = new Set<number>();
     const wall = vodnoMap.road.rockCuts!.walls![0];
     for (const m of (r.value?.children ?? []) as Mesh[]) {
       const p = (m.geometry as BufferGeometry).attributes.position;
@@ -63,8 +64,13 @@ describe('Vodno rock cuts', () => {
       for (let i = 0; i < p.count; i++) {
         world.road.query(p.getX(i), p.getZ(i), q);
         if (m.name === 'rock-cut') {
-          expect(q.along).toBeGreaterThan(from - 15);
-          expect(q.along).toBeLessThan(to + 15);
+          const k = stretches.findIndex(
+            (st) => q.along > st.from - 15 && q.along < st.to + 15,
+          );
+          expect(k, `face at ${q.along.toFixed(0)} m`).toBeGreaterThanOrEqual(
+            0,
+          );
+          seen.add(k);
         } else {
           expect(q.along).toBeGreaterThan(wall.from - 5);
           expect(q.along).toBeLessThan(wall.to + 5);
@@ -76,6 +82,7 @@ describe('Vodno rock cuts', () => {
       if (m.name === 'rock-cut-wall')
         expect(hi - Math.max(lo, 0)).toBeLessThan(wall.height + 1);
     }
+    expect([...seen].sort((a, b) => a - b)).toEqual(stretches.map((_, k) => k));
   });
 
   test('the trail lot colliders stay off the stage road', () => {

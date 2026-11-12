@@ -13,6 +13,7 @@ import {
   JUNCTION_OF,
   ROAD_SURFACE_LEN,
   type RoadSurfaceId,
+  mapRoadTone,
 } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
 import { facadePhotosReady } from '../engine/facade-textures';
@@ -103,10 +104,13 @@ export function getRoadMaterial(
   texture: RoadTexture = 'road',
   layer = 0,
   junction?: RoadSurfaceId,
+  /** A road section's own tone (`RoadDef.sections[].tone`). */
+  tone = 1,
 ): MeshStandardMaterial {
   // The stage road's rally tarmac wears (world/road-wear.ts; its mesh has the attributes).
   const wear = layer === 0 && WEAR_TEX.has(texture);
-  const key = `${texture}:${layer}:${junction ?? ''}`;
+  // (the map's own tone too: a second map built in the same page gets its own materials)
+  const key = `${texture}:${layer}:${junction ?? ''}:${tone}:${mapRoadTone()}`;
   let m = roadMaterials.get(key);
   if (!m) {
     const baked = isRoadSurface(texture);
@@ -138,7 +142,13 @@ export function getRoadMaterial(
       RALLY_PUDDLES: 1,
     };
     if (baked)
-      applyRoadSurface(m, texture, junction ?? JUNCTION_OF[texture], wear);
+      applyRoadSurface(
+        m,
+        texture,
+        junction ?? JUNCTION_OF[texture],
+        wear,
+        tone,
+      );
     // The gravel is the terrain's own (world/gravel-road.ts), blended into the verge at its edges.
     if (gravel) setupGravelRibbon(m);
     roadMaterials.set(key, m);
@@ -364,7 +374,7 @@ interface Mouth {
 const BLEND_FADE = 6;
 const LINE_FADE = 2;
 /** Stage road textures with painted lines. */
-const LINED = new Set<RoadTexture>(['road_tarmac_lines']);
+const LINED = new Set<RoadTexture>(['road_tarmac_lines', 'road_tarmac_new']);
 
 /**
  * Junction mouths of plain tarmac side roads and city streets (`MOUTH_TEX`) on the stage road (not on a plaza, which
@@ -663,13 +673,15 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   const starts: number[] = [];
   for (let i = 0; i < samples.length - 1;) {
     starts.push(i);
-    const tex = roadSurfaceAt(world.map.road, samples[i].dist).texture;
+    const at = roadSurfaceAt(world.map.road, samples[i].dist);
     let end = Math.min(samples.length - 1, i + SEGMENT);
-    for (let j = i + 1; j <= end; j++)
-      if (roadSurfaceAt(world.map.road, samples[j].dist).texture !== tex) {
+    for (let j = i + 1; j <= end; j++) {
+      const next = roadSurfaceAt(world.map.road, samples[j].dist);
+      if (next.texture !== at.texture || next.tone !== at.tone) {
         end = j;
         break;
       }
+    }
     i = end;
   }
   const mouths = junctionMouths(world);
@@ -857,6 +869,9 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
       g,
       getRoadMaterial(
         roadSurfaceAt(world.map.road, samples[start].dist).texture,
+        0,
+        undefined,
+        roadSurfaceAt(world.map.road, samples[start].dist).tone,
       ),
     );
     mesh.receiveShadow = true;

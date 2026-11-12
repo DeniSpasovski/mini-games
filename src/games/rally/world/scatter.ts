@@ -50,10 +50,19 @@ export interface ScatterContext {
   fieldEdgeAt?: (x: number, z: number) => number | undefined;
   /**
    * 0..1: how much (x, z) lies on a rock cut of the stage road (`RoadDef.rockCuts`: its face or the bank above it), `q` =
-   * the stage road there. Nothing roots on a cut, and no tree stands where its crown would hang over the face.
+   * the stage road there. Nothing roots on a cut, and no tree stands where its crown would hang over the face (`crown`:
+   * the point under a crown - only rock counts there: crowns on the rim of an earth cut lean out over it).
    */
-  cutAt?: (x: number, z: number, q: RoadQuery) => number;
+  cutAt?: (x: number, z: number, q: RoadQuery, crown?: boolean) => number;
+  /**
+   * The stage-road guard rail `along` m on `side` (+1 left): its distance past the road edge (m), -1 where none. Trees
+   * and shrubs keep RAIL_CLEAR beyond it, so no crown grows through the beam.
+   */
+  railAt?: (along: number, side: number) => number;
 }
+
+/** How far past a guard rail a tree or shrub stands (m): about a shrub's crown radius. */
+const RAIL_CLEAR = 1.8;
 
 /** Rock cuts (`ScatterContext.cutAt`) lie within this distance of the stage road's edge (m): no look-up beyond. */
 const CUT_REACH = 24;
@@ -288,6 +297,36 @@ export class ScatterField {
     return this.hf.chunkSize;
   }
 
+  private alongChunks = new Map<ScatterRule, Set<number>>();
+  /** The chunks within reach of an `along` rule's road stretches (undefined: the rule is not tied to the road). */
+  private alongChunksOf(rule: ScatterRule): Set<number> | undefined {
+    if (!rule.along) return undefined;
+    let set = this.alongChunks.get(rule);
+    if (!set) {
+      set = new Set();
+      const cs = this.chunkSize;
+      for (const [a, b] of rule.along)
+        for (let d = a; ; d = Math.min(b, d + 4)) {
+          const p = this.road.at(d);
+          const r = p.halfWidth + (rule.maxRoadDist ?? this.road.influence) + 2;
+          for (
+            let cx = Math.floor((p.x - r) / cs);
+            cx <= Math.floor((p.x + r) / cs);
+            cx++
+          )
+            for (
+              let cz = Math.floor((p.z - r) / cs);
+              cz <= Math.floor((p.z + r) / cs);
+              cz++
+            )
+              set.add(key(cx, cz));
+          if (d >= b) break;
+        }
+      this.alongChunks.set(rule, set);
+    }
+    return set;
+  }
+
   /** Add a hand-placed / road-side instance (call before streaming starts). */
   /** `onWall`: it stands on a retaining wall's top ground (terrain-gen `wallGround`), not in the cut under it. */
   addFixed(inst: ScatterInstance, onWall = false): void {
@@ -358,7 +397,8 @@ export class ScatterField {
         q.found &&
         rd < CUT_REACH &&
         (cutAt(x, z, q) > 0.3 ||
-          cutAt(x + towardX * CUT_CROWN, z + towardZ * CUT_CROWN, q) > 0.3)
+          cutAt(x + towardX * CUT_CROWN, z + towardZ * CUT_CROWN, q, true) >
+            0.3)
       )
         continue;
       const tiltA = u(4) * Math.PI * 2;
@@ -700,6 +740,9 @@ export class ScatterField {
     if (!this.inBounds(x0 + cs / 2, z0 + cs / 2)) return out;
     for (let ri = 0; ri < rules.length; ri++) {
       const rule = rules[ri];
+      // A rule for stretches of the stage road (`along`): only in the chunks beside them.
+      const beside = this.alongChunksOf(rule);
+      if (beside && !beside.has(key(cx, cz))) continue;
       const rng = new Rng(
         hash3(cx, cz, ri + salt, this.seed ^ hashString(rule.asset)),
       );
@@ -792,7 +835,24 @@ export class ScatterField {
         )
           continue;
         if (rule.maxRoadDist !== undefined && rd > rule.maxRoadDist) continue;
+        if (
+          rule.along &&
+          !(
+            q.found &&
+            rule.along.some(
+              ([a, b, sd]) =>
+                q.along >= a &&
+                q.along <= b &&
+                (sd === undefined || sd === (q.lateral >= 0 ? 1 : -1)),
+            )
+          )
+        )
+          continue;
         if (minPath > -Infinity && this.nearPath(x, z, minPath)) continue;
+        if (tree && q.found && rd < 6 && this.ctx.railAt) {
+          const rail = this.ctx.railAt(q.along, q.lateral >= 0 ? 1 : -1);
+          if (rail >= 0 && rd < rail + RAIL_CLEAR) continue;
+        }
         // Toward the stage road from here (unit, xz): trees lean that way, and their crowns must not hang over a cut.
         let towardX = 0;
         let towardZ = 0;
@@ -813,7 +873,7 @@ export class ScatterField {
           const reach = tree ? (solid ? CUT_CROWN : 1.5) : 0;
           if (
             reach > 0 &&
-            cutAt(x + towardX * reach, z + towardZ * reach, q) > 0.3
+            cutAt(x + towardX * reach, z + towardZ * reach, q, true) > 0.3
           )
             continue;
         }

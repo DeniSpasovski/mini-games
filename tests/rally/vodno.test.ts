@@ -38,6 +38,13 @@ import {
   roadZ,
 } from '../../src/games/rally/maps/vodno/landmarks/restaurant';
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
+import {
+  JUNCTION_PAINT,
+  NEW_FROM,
+  NEW_JOINT,
+  NEW_TO,
+  PATCHES,
+} from '../../src/games/rally/maps/vodno/surface';
 import { distance as polygonDistance } from '../../src/games/rally/world/pads';
 import {
   BANK,
@@ -131,7 +138,9 @@ describe('vodno stage', () => {
   });
 
   test('the hairpins get guard rails on the outside', () => {
-    const rails = map.barriers ?? [];
+    const rails = (map.barriers ?? []).filter(
+      (r) => r.kind !== 'edge' && r.kind !== 'gutter',
+    );
     expect(rails.length).toBeGreaterThanOrEqual(2);
     expect(rails.every((r) => r.kind === 'guardrail')).toBe(true);
   });
@@ -156,11 +165,16 @@ describe('cable car layout', () => {
     expect(lay.supports[0].station).toBe(true);
     expect(lay.supports[lay.supports.length - 1].station).toBe(true);
     expect(lay.supports.length).toBeGreaterThanOrEqual(10);
+    // 4 m over the slope; 3 m in the last 30 m into a station (the ropes run in at the height of its floor).
+    const stations = lay.supports.filter((s) => s.station);
     for (const rope of lay.ropes)
       for (let i = 0; i < rope.length; i += 3) {
         const clearance =
           rope[i + 1] - world.analytic.height(rope[i], rope[i + 2]);
-        expect(clearance).toBeGreaterThan(4);
+        const nearStation = stations.some(
+          (s) => Math.hypot(s.x - rope[i], s.z - rope[i + 2]) < 30,
+        );
+        expect(clearance).toBeGreaterThan(nearStation ? 3 : 4);
       }
   });
 
@@ -778,20 +792,93 @@ describe('vodno car park surroundings', () => {
     const rails = (map.barriers ?? []).filter((b) => b.kind === 'guardrail');
     const rusty = rails.filter((b) => b.rusty);
     expect(rusty.length).toBeGreaterThan(0);
+    // (three runs with grass-verge gaps between, as on the real road)
     expect(
-      rusty.some((b) => b.side === 'right' && b.from === 2600 && b.to === 2796),
-    ).toBe(true);
-    // The galvanised rails: between the road and the Vidikovec lot from its grass island's start, the left side after the first crossroad.
-    expect(rails.filter((b) => !b.rusty).map((b) => [b.side, b.from])).toEqual([
-      ['right', 2834],
-      ['left', 500],
+      rusty
+        .filter((b) => b.side === 'right' && b.from! >= 2470 && b.to! <= 2840)
+        .map((b) => [b.from, b.to]),
+    ).toEqual([
+      [2478, 2575],
+      [2680, 2715],
+      [2775, 2796],
     ]);
-    // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is.
+    // The galvanised rails: between the road and the Vidikovec lot from its grass island's start (two-tier), the left
+    // side after the first crossroad, and the runs the references show.
+    expect(
+      rails.filter((b) => !b.rusty).map((b) => [b.side, b.from, b.tiers ?? 1]),
+    ).toEqual([
+      ['right', 2834, 2],
+      ['left', 500, 1],
+      ['left', 780, 1],
+      ['right', 1322, 2],
+      ['right', 1388, 1],
+      ['left', 1668, 2],
+      ['left', 1895, 1],
+      ['right', 2093, 1],
+      ['right', 3020, 2],
+      ['right', 3095, 1],
+      ['right', 3400, 1],
+      ['right', 3463, 1],
+      ['right', 3715, 2],
+    ]);
+    // No two rails on one side of the same stretch (a hairpin rail gives way to the referenced one).
+    for (const a of rails)
+      for (const b of rails)
+        if (a !== b && a.side === b.side)
+          expect(a.from! < b.to! && a.to! > b.from!).toBe(false);
+    // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is; the
+    // re-laid upper road in fresh asphalt, the old tarmac again past the finish junction.
     expect(map.road.texture).toBe('road_tarmac_lines');
     expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([
       ['road_tarmac_plain', WIDE_FROM],
       ['road_tarmac_lines', WIDE_TO],
+      ['road_tarmac_new', NEW_FROM],
+      ['road_tarmac_new', NEW_JOINT],
+      ['road_tarmac_lines', NEW_TO],
     ]);
+    // The big repairs lie on the old road, on it (not past its edges).
+    for (const p of PATCHES) {
+      if (p.kind !== 'patch') continue;
+      expect(p.to).toBeLessThan(NEW_FROM);
+      expect(p.offset + p.width).toBeLessThanOrEqual(5.8);
+    }
+  });
+
+  test('the road only climbs from the first crossroad to the top, at a steady grade (the references)', () => {
+    const r = world.road;
+    let fall = 0;
+    let steep = 0;
+    let prev = r.at(WIDE_TO).y;
+    for (let a = WIDE_TO + 5; a <= r.length; a += 5) {
+      const y = r.at(a).y;
+      fall = Math.max(fall, prev - y);
+      if (y - prev > 0.101 * 5) steep++;
+      prev = y;
+    }
+    // never falls, never steeper than the 10 % cap
+    expect(fall).toBeLessThan(0.05);
+    expect(steep).toBe(0);
+    // the average grade of the real road (5.3 %): START 349 m -> the finish at Sredno Vodno
+    const grade = (r.at(FINISH).y - r.at(START).y) / (FINISH - START);
+    expect(grade).toBeGreaterThan(0.048);
+    expect(grade).toBeLessThan(0.058);
+  });
+
+  test('banks stand on one side: no trench (land high on both sides) outside the rock cuts', () => {
+    // 7 m past each edge: more than 2.5 m above the road on both sides only where the road crosses a spur.
+    let trench = 0;
+    for (let a = WIDE_TO; a < FINISH; a += 10) {
+      const s = world.road.at(a);
+      const up = [1, -1].map((side) => {
+        const d = s.halfWidth + 7;
+        return (
+          world.analytic.height(s.x + side * s.tz * d, s.z - side * s.tx * d) -
+          s.y
+        );
+      });
+      if (up[0] > 2.5 && up[1] > 2.5) trench += 10;
+    }
+    expect(trench).toBeLessThanOrEqual(40);
   });
 
   test('the service road that merges above the finish ends level with the summit road', () => {
@@ -849,7 +936,11 @@ describe('vodno start street and first crossroad', () => {
   });
 
   test('the crossroad lanes are painted: edge lines, a double centre line on the texture line, a left-turn arrow and a straight arrow', () => {
-    expect(map.road.markings).toBe(MARKINGS);
+    expect(map.road.markings).toEqual([
+      ...MARKINGS,
+      ...PATCHES,
+      ...JUNCTION_PAINT,
+    ]);
     const lines = MARKINGS.flatMap((m) => (m.kind === 'line' ? [m] : []));
     const arrows = MARKINGS.flatMap((m) => (m.kind === 'arrow' ? [m] : []));
     expect(lines.some((m) => m.dash)).toBe(true);
@@ -930,7 +1021,9 @@ describe('vodno start street and first crossroad', () => {
   test('the trees keep back from the road on the start street and ease in and out', () => {
     const set = map.treeSetback!;
     expect(set.length).toBeGreaterThan(0);
-    expect(setbackAt(set, 700)).toBe(8);
+    expect(setbackAt(set, 600)).toBe(8);
+    // (none where the woods close over the road)
+    expect(setbackAt(set, 830)).toBe(0);
     expect(setbackAt(set, set[0].from - 1)).toBe(0);
     expect(setbackAt(set, set[0].from + 10)).toBeLessThan(8);
   });

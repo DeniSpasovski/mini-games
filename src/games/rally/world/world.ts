@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 import { hashString } from '../../../shared/rng';
 import { mapSeason } from '../maps/shared/climate';
 import { setPackSeason } from '../assets/builders/tree-packs';
+import { setRoadTone } from '../engine/road-surface';
 import type {
   BarrierRule,
   BuildingDef,
@@ -246,6 +247,7 @@ export class World implements GroundProvider {
       });
     // Pack trees and shrubs wear the map's season (shared materials: set before anything is built).
     setPackSeason(mapSeason(map.environment));
+    setRoadTone(map.road.tone ?? 1);
     this.scatter = new ScatterField(
       this.analytic,
       this.road,
@@ -281,32 +283,54 @@ export class World implements GroundProvider {
         treeSetback: map.treeSetback,
         treeCrownClear: map.treeCrownClear,
         heroTrees: map.heroTrees,
+        // (read when the scatter streams in, after the runs are built below)
+        railAt: (along, side) => {
+          let o = -1;
+          for (const r of this.barrierRuns ?? [])
+            if (
+              r.path === undefined &&
+              r.rule.kind === 'guardrail' &&
+              r.side === side &&
+              along >= r.from &&
+              along <= r.to
+            )
+              o = Math.max(o, r.rule.offset);
+          return o;
+        },
         // Carved below the land on a rock cut stretch: its face, or the laid-back bank above a deep one.
-        cutAt: map.road.rockCuts
-          ? (x, z, q) => {
-              const nat = this.gen.naturalHeight(x, z);
-              const depth = nat - this.gen.height(x, z);
-              if (depth < 0.4) return 0;
-              // A low retaining wall: bushes in the grass strip in front of it and on the bank above, only its own
-              // footprint clear.
-              const wall = this.gen.rockCutWall(q.along, q.lateral);
-              if (wall) {
-                const face = q.halfWidth + wall.offset;
-                return q.distance > face - 0.4 && q.distance < face + 2.4
-                  ? 1
-                  : 0;
+        cutAt:
+          map.road.rockCuts || map.road.earthCuts
+            ? (x, z, q, crown) => {
+                const nat = this.gen.naturalHeight(x, z);
+                const depth = nat - this.gen.height(x, z);
+                if (depth < 0.4) return 0;
+                // A low retaining wall: bushes in the grass strip in front of it and on the bank above, only its own
+                // footprint clear.
+                const wall = this.gen.rockCutWall(q.along, q.lateral);
+                if (wall) {
+                  const face = q.halfWidth + wall.offset;
+                  return q.distance > face - 0.4 && q.distance < face + 2.4
+                    ? 1
+                    : 0;
+                }
+                const rise = nat - q.height;
+                return (
+                  Math.max(
+                    this.gen.rockCutWeightAt(x, z, rise, q.along, q.lateral),
+                    // (a covered earth face: bushes and stems root on it)
+                    crown || this.gen.earthCover(q.along, q.lateral) !== 'bare'
+                      ? 0
+                      : this.gen.earthCutWeightAt(
+                          x,
+                          z,
+                          rise,
+                          q.along,
+                          q.lateral,
+                        ),
+                  ) * Math.min(1, (depth - 0.4) / 0.8)
+                );
               }
-              return (
-                this.gen.rockCutWeightAt(
-                  x,
-                  z,
-                  nat - q.height,
-                  q.along,
-                  q.lateral,
-                ) * Math.min(1, (depth - 0.4) / 0.8)
-              );
-            }
-          : undefined,
+            : undefined,
       },
     );
     const crowdQ = newPathQuery();

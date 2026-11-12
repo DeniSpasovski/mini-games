@@ -64,6 +64,110 @@ function chainLinkMaterial(): MeshStandardMaterial {
   }));
 }
 
+/** The concrete builder's texture repeat (m): `new Builder(CONC_TS)`. */
+const CONC_TS = 4;
+
+/** Hash of an integer to 0..1. */
+function hash01(n: number): number {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
+ * A weathered concrete face (`cutWalls.weathered`): the plain concrete wall, in 0.5 m columns and height bands so the
+ * vertex colours can carry the dirt - dark rain streaks running down from the coping (one length and strength per
+ * column), a damp dark band along the foot with green-grey moss in patches, the odd lighter repaired panel.
+ */
+function weatheredFace(
+  b: Builder,
+  pts: { x: number; z: number; bot: number; top: number }[],
+): void {
+  // columns every ~0.5 m between the row points
+  const cols: { x: number; z: number; bot: number; top: number; u: number }[] =
+    [];
+  let len = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p = pts[i];
+    const q = pts[i + 1];
+    const L = Math.hypot(q.x - p.x, q.z - p.z);
+    const n = Math.max(1, Math.round(L / 0.5));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      cols.push({
+        x: p.x + (q.x - p.x) * t,
+        z: p.z + (q.z - p.z) * t,
+        bot: p.bot + (q.bot - p.bot) * t,
+        top: p.top + (q.top - p.top) * t,
+        u: len + L * t,
+      });
+    }
+    len += L;
+  }
+  const last = pts[pts.length - 1];
+  cols.push({ ...last, u: len });
+  // the joints between the cast panels (every PANEL m): a thin dark line, three columns each
+  const PANEL = 2.5;
+  const all: ((typeof cols)[number] & { joint?: boolean })[] = [];
+  for (let i = 0; i < cols.length; i++) {
+    all.push(cols[i]);
+    const p = cols[i];
+    const q = cols[i + 1];
+    if (!q) break;
+    const j = Math.ceil(p.u / PANEL) * PANEL;
+    if (j - 0.04 <= p.u || j + 0.04 >= q.u) continue;
+    for (const [du, joint] of [
+      [-0.03, false],
+      [0, true],
+      [0.03, false],
+    ] as const) {
+      const t = (j + du - p.u) / (q.u - p.u);
+      all.push({
+        x: p.x + (q.x - p.x) * t,
+        z: p.z + (q.z - p.z) * t,
+        bot: p.bot + (q.bot - p.bot) * t,
+        top: p.top + (q.top - p.top) * t,
+        u: j + du,
+        joint,
+      });
+    }
+  }
+  // heights as fractions down from the top (streaks) and up from the foot (damp)
+  const fr = [0, 0.04, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 0.9, 1];
+  const v0 = b.pos.length / 3;
+  for (const c of all) {
+    const ci = Math.floor(c.u / 0.5);
+    const streak = hash01(ci) < 0.8 ? 0.3 + 0.45 * hash01(ci + 0.5) : 0;
+    const reach = 0.3 + 0.65 * hash01(ci * 3.7);
+    const panel = Math.floor(c.u / 4);
+    const repaired = hash01(panel * 9.1) < 0.12 ? 0.06 : 0;
+    const moss = Math.max(0, Math.sin(c.u * 0.7 + 2 * hash01(panel)) - 0.3);
+    for (const f of fr) {
+      const y = c.top - (c.top - c.bot) * f;
+      const fromFoot = y - c.bot;
+      let k = (1 + repaired) * (c.joint ? 0.4 : 1);
+      if (f < reach) k -= streak * (1 - f / reach);
+      const damp = 1 - Math.min(1, fromFoot / 0.9);
+      k -= 0.32 * damp;
+      // (old cast concrete bleached pale and warm by the sun: brighter than the new wall's grey)
+      const col: [number, number, number] = [
+        CONC[0] * 1.28 * k * (1 - 0.12 * moss * damp),
+        CONC[1] * 1.22 * k * (1 - 0.02 * moss * damp),
+        CONC[2] * 1.1 * k * (1 - 0.16 * moss * damp),
+      ];
+      b.pos.push(c.x, y, c.z);
+      b.col.push(...col);
+      b.uv.push(c.u / CONC_TS, y / CONC_TS);
+    }
+  }
+  const n = fr.length;
+  for (let i = 0; i < all.length - 1; i++)
+    for (let j = 0; j < n - 1; j++) {
+      const a = v0 + i * n + j;
+      const c = v0 + (i + 1) * n + j;
+      b.idx.push(a, c, c + 1, a, c + 1, a + 1);
+    }
+}
+
 interface WallRow {
   /** Road centre + tangent. */
   x: number;
@@ -179,7 +283,7 @@ export function* cutWallMeshJob(
   const build = (rows: WallRow[]): void => {
     if (rows.length < 2) return;
     const stone = new Builder(2);
-    const conc = new Builder(4);
+    const conc = new Builder(CONC_TS);
     const metal = new Builder(1);
     const mesh = new Builder(MESH_TS);
     const concrete = rows[0].concrete;
@@ -188,10 +292,16 @@ export function* cutWallMeshJob(
       z: r.z - r.tx * l,
     });
     // Face: from just below the road surface up to the land.
-    (concrete ? conc : stone).wall(
-      rows.map((r) => ({ ...at(r, r.lat), bot: r.y - 0.2, top: r.top })),
-      concrete ? CONC : STONE,
-    );
+    if (concrete && cw.weathered)
+      weatheredFace(
+        conc,
+        rows.map((r) => ({ ...at(r, r.lat), bot: r.y - 0.2, top: r.top })),
+      );
+    else
+      (concrete ? conc : stone).wall(
+        rows.map((r) => ({ ...at(r, r.lat), bot: r.y - 0.2, top: r.top })),
+        concrete ? CONC : STONE,
+      );
     // Coping: a concrete walk from the face to behind the sheer rise (the sidewalk behind the railing).
     const v0 = conc.pos.length / 3;
     for (const r of rows) {
@@ -570,6 +680,7 @@ export function* cutWallMeshJob(
           // at the wall top's level - a fence keeps a street off the drop, it never stands on one)
           fence:
             !line.noFence &&
+            cw.fence !== false &&
             !gen.plazas.inside(s.x + s.tz * lat, s.z - s.tx * lat, 1) &&
             !onStreet(
               s.x + s.tz * (lat + Math.sign(lat) * 0.3),
