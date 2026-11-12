@@ -764,6 +764,37 @@ colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`
 
 <!-- /temps-matrix -->
 
+## Screenshots
+
+README / map / cover pictures are retaken with `scripts/rally/screenshots.mjs` (dev server up; `--only <id>` for some, ids and
+every setting in `scripts/rally/screenshots.json`). Each is the game canvas at 1536x864 (no HUD), `quality=high`, car dropped on
+the road at `?spawn=<m>` (`start` = the stage start) in free drive, default chase camera, dry weather, default livery, and the stage's
+own season and hour unless the row says otherwise (night = 01:00). The same link plays the spot:
+`/games/rally/?stage=<stage>&car=<car>&season=<season>&tod=<hour>&spawn=<m>&mute=1`.
+
+| Picture                        | Stage            | Car         | Position                    | Season, time  | Shows                                                                                                           |
+| ------------------------------ | ---------------- | ----------- | --------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------- |
+| `ajvatovci/start-street.jpg`   | ajvatovci        | skoda_rally | 200 m                       | summer 07:30  | Start street between the warehouses                                                                             |
+| `ajvatovci/farmland-road.jpg`  | ajvatovci        | skoda_rally | 1500 m                      | summer 07:30  | Farmland road: wheat left, meadow right, power line ahead                                                       |
+| `ajvatovci/hill-road.jpg`      | ajvatovci        | skoda_rally | 2950 m                      | summer 07:30  | Village edge: first houses, crew at the junction                                                                |
+| `ajvatovci/night.jpg`          | ajvatovci        | skoda_rally | 1500 m                      | summer 01:00  | The farmland road at night, headlights on                                                                       |
+| `galichica/livada-pass.jpg`    | galichica_west   | skoda_rally | 14000 m                     | autumn 09:00  | Climb to the Livada pass, bare slope                                                                            |
+| `galichica/prespa-climb.jpg`   | galichica_east   | skoda_rally | 24000 m                     | spring 09:00  | Climb from Lake Prespa, lake on the right                                                                       |
+| `jackie/city-start.jpg`        | jackie           | skoda_rally | start                       | summer 08:00  | Just short of the START arch                                                                                    |
+| `jackie/parkway-bridge.jpg`    | jackie           | skoda_rally | 2700 m                      | summer 08:00  | Parkway, left bend, parked cars and crowd on the right                                                          |
+| `jackie/night.jpg`             | jackie           | skoda_rally | 2700 m                      | summer 01:00  | The parkway at night, street lamps lit                                                                          |
+| `petralica/valley-road.jpg`    | petralica        | skoda_rally | 1900 m                      | summer 16:30  | Tarmac valley road, open fields, farms in the distance                                                          |
+| `petralica/mountain-climb.jpg` | petralica        | skoda_rally | 5500 m                      | summer 16:30  | Gravel climb, forested hill ahead                                                                               |
+| `petralica/night.jpg`          | petralica        | skoda_rally | 5600 m                      | summer 01:00  | The gravel at night, headlights on                                                                              |
+| `test/forest-stage.jpg`        | test             | skoda_rally | 600 m                       | summer 15:48  | Forest gravel between the pines, white marker posts                                                             |
+| `vodno/start-line.jpg`         | vodno            | skoda_rally | start                       | summer 10:00  | Car just short of the VODNO HILLCLIMB arch                                                                      |
+| `vodno/hairpins.jpg`           | vodno            | skoda_rally | 1050 m                      | summer 10:00  | Right-hand hairpin with the wooden guard rail                                                                   |
+| `vodno/cross-ridge.jpg`        | vodno            | skoda_rally | 4400 m (free camera)        | summer 10:00  | Free camera 120 m above the north slope at [466, -313], aimed at [-640, 780]: mast, cable car, Millennium Cross |
+| `start.jpg`                    | ajvatovci        | zastava_101 | start                       | summer 07:30  | Zastava 101 at the start line of Ajvatovci Hill                                                                 |
+| `ui-stage.jpg`                 | menu             | -           | Start rally -> Select stage | stage default | first stage highlighted, 1280x720                                                                               |
+| `thumbnail.jpg`                | jackie           | skoda_rally | 3500 m                      | summer 08:00  | Portal cover, with thumbnail-640.jpg                                                                            |
+| `public/og-image.jpg`          | portal home page | -           | -                           | -             | link preview 1200x630, taken after the cover                                                                    |
+
 ## Known limitations
 
 - Generation runs on the main thread, time-sliced: the load builds the road mesh in ~25 ms slices (`buildRoadMeshSliced`);
