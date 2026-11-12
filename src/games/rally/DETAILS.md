@@ -58,16 +58,35 @@ tree distance, shadow map). Remembered in localStorage, applied only while the p
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.
 
+## Photo mode (`game/photo/`)
+
+From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pauses). The game stands still; `Back` / `Esc` returns to where it was.
+
+- **Camera** (`photo-mode.ts`): free orbit around the car's middle (full turn, pitch, distance 1.6-40 m, pan up to 15 m), kept above the ground; starts
+  from the game's view. Lens: focal length 16-200 mm on a 35 mm full frame (= field of view), aperture f/1.4-f/22, focus (auto on the orbit point, or set),
+  exposure ±2 EV, roll ±30°, shutter speed (Off ... 1/8 s: the motion blur) keeping the **car** sharp (the camera pans with it) or the **background** (the camera holds still).
+- **Render** (`engine/post-fx.ts` `PHOTO`): thin-lens depth of field on the HDR image (circle of confusion `f² / (N (s - f)) · |z - s| / z`, 64 gather taps,
+  max 2.5 % of the height; a sharp nearer pixel never bleeds into the blur behind it) and exposure, before the bloom; lens drops off. Pages without the
+  High effects make a `PostFx` for photo mode only.
+- **Filter** (`PHOTO_FILTERS`, `PHOTO_LOOK`): the last pass, on the finished picture (saturation, contrast, tint, faded blacks, dark corners), mixed in by its strength.
+- **Motion blur** (`RallyGame.posePhotoSample`, `photoSamples`, `PostFx.render(shutter)`): the scene drawn many times across the shutter, the car moved
+  by its velocity, turned by its rotation, wheels spun by their speed (full tyre detail), averaged before the depth of field. Enough images that a wheel's
+  rim moves about 1 px between two (`PHOTO_BLUR`; fewer shows spokes and the sidewall print as separate copies), a share per frame: the view gets smoother
+  over the next frames and starts over when the camera or shutter changes. By day the mean is of the linear pictures, not of the HDR estimate (there one
+  near-white image outweighs all the others: solid bright rings from the tyre print).
+- **Take photo**: a frame (with motion blur: as many as its images need, the camera held) rendered at up to 3840 px on the long edge (`PHOTO_LONG_EDGE`, at most 3x the screen, within the GPU's limits), as a JPEG download (`gravel-rally-<stage>-<date>-<time>.jpg`).
+
 ## Controls
 
-| Input    | Keys                                                                                                                                                                                                                                               |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                                                   |
-|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                                          |
-|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                                    |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset); steering mode: Options -> Pad steering (PHYSICS.md "Steering input") |
-| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit                     |
-| Touch    | floating steering stick (or arrows: Options -> Touch steering), BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                    |
+| Input    | Keys                                                                                                                                                                                                                                                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                                                                                                                                                                      |
+|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                                                                                                             |
+|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                                                                                                       |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset); steering mode: Options -> Pad steering (PHYSICS.md "Steering input")                                                                    |
+| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `P` photo mode, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit                                                                        |
+| Photo    | drag orbit, right-drag / `Shift`-drag pan, wheel zoom, `W` `A` `S` `D` / arrows orbit, `Q` / `E` zoom, `R` recentre, `Enter` / `P` take photo, `H` hide, `Esc` back; pad left stick orbit, right stick zoom / pan, LT / RT focal length, A take photo, Y hide, B back; touch drag orbit, two fingers pan / pinch zoom |
+| Touch    | floating steering stick (or arrows: Options -> Touch steering), BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                                                                       |
 
 ## Game flow
 
@@ -405,9 +424,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   m of the road, every age in one stand (the age ladder). Scatter tools: `mask.group` (rules on one clump field: mixed
   thickets; `invert` = the ground between: pine blocks with broadleaf between), `contour` (strips / planting rows along the
   contour: Vodno's logged slope regrowth), `lean` (stems within `within` m tilt toward the road, also on `realTrees`),
-  `fieldEdge` (within [min, max] m of a field parcel's edge: Ajvatovci hedgerows and poplar lines, Petralica field-edge
-  tree bands; with a `mask` so only some boundaries carry one). `minRoadDist` / `maxRoadDist` past the road query's
-  ~35 m reach use a coarse distance field (`farRoadDist`, to 260 m).
+  `fieldEdge` (within [min, max] m of a field parcel's edge: Petralica field-edge tree bands; with a `mask` so only some
+  boundaries carry one). `minRoadDist` / `maxRoadDist` past the road query's ~35 m reach use a coarse distance field
+  (`farRoadDist`, to 260 m).
   `forestEdge()` (`maps/shared/forest-edge.ts`) adds the verge belt: thicket / hazel / bush clumps and leaning young trees.
   Nothing grows on a rock cut's face, and no tree stands where its crown would hang over one (`ScatterContext.cutAt`,
   `world.ts`: carved below the land where `rockCutWeightAt` says cut; `CUT_CROWN` toward the road).
@@ -649,6 +668,8 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
 - Per-instance caches live on the instance (`ScatterInstance.streamed`), never in a `WeakMap` over every scatter
   instance: one with 300k+ entries made 30-50 ms GC pauses.
 - Big GPU uploads go up in row bands (`copyTextureToTexture`), never whole while driving.
+- Many small texture updates a frame (the trees' `TreePool.flush`) call `texSubImage2D` with a tight piece of the
+  array each: unpacking with skipped rows of a big array is slow in Firefox.
 - Never write into a buffer the GPU drew from last frame: rotate copies (`COPIES` in game/tyre-marks.ts,
   world/far-shadow.ts) and upload only the used range. A buffer drawn but never written turns static on ANGLE / D3D11 and
   its next write waits for the GPU: the tyre marks re-upload one quad every frame.
@@ -663,7 +684,10 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   tiles): writes into its shared buffers stall ANGLE / D3D11.
 - Tree batches: one `multiDrawElementsInstancedWEBGL` per material and part (`trees/multi-draw.ts`), per-tree data in a
   float texture (`TreePool`); `?multidraw=0` draws one call per batch.
-- Terrain tiles merge per LOD band and reuse released geometry (`terrain-renderer.ts`, `SPARE_TILES`).
+- Terrain tiles merge per LOD band and reuse released geometry (`terrain-renderer.ts`, `MERGE`, `SPARE_TILES`). A block
+  over the map edge merges too, cut to the map (`grid`): never a strip of single chunks along the edge.
+- A `discard` goes in its own material variant, used only where it is needed: the near terrain's culvert holes
+  (`getTerrainMaterial(far, holes)`) draw on the tiles a culvert stands on; a warm-up mesh compiles the variant at load.
 - Many materials = many draws: use a texture array (`engine/texture-array.ts`). A custom shader scales
   `envMapIntensity`, never replaces it.
 - Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).

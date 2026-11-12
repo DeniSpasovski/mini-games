@@ -26,6 +26,7 @@ import {
   CURBS_FROM,
   fenceRuns,
   gates,
+  kerbRuns,
   poleSpots,
   straighten,
 } from './streetwork';
@@ -199,8 +200,12 @@ const replacedOutlines = (): Corner[][] => [
   ...SOUTH_STRIPS,
 ];
 
-let cache: { polygons: { pts: Float64Array; bounds: number[] }[] } | undefined;
-/** Lots and buildings as world polygons with bounds, for quick point tests. */
+type Area = { pts: Float64Array; bounds: number[] };
+let cache: { polygons: Area[]; paving: Area[] } | undefined;
+/**
+ * Lots and buildings as world polygons with bounds, for quick point tests; `paving` = the north kerb and sidewalk runs
+ * (build/street.ts), kept apart so they keep scatter out without hiding OSM buildings near the street (`replaces`).
+ */
 const areas = () => {
   if (cache) return cache;
   const outlines = [
@@ -220,7 +225,18 @@ const areas = () => {
       }),
     ),
   ];
-  const polygons = outlines.map((c) => {
+  // The north kerb + sidewalk outside the gates, sampled every 4 m so the strips follow the bend.
+  const strip = (x0: number, x1: number): Corner[] => {
+    const xs: number[] = [];
+    for (let x = x0; x < x1; x += 4) xs.push(x);
+    xs.push(x1);
+    return [
+      ...xs.map((x): Corner => [x, roadZ(x, ROAD.half)]),
+      ...xs.reverse().map((x): Corner => [x, roadZ(x, SIDEWALK_BACK)]),
+    ];
+  };
+  const pavingOutlines = kerbRuns().north.map(([x0, x1]) => strip(x0, x1));
+  const toArea = (c: Corner[]): Area => {
     const pts = flat(c);
     let minX = Infinity;
     let maxX = -Infinity;
@@ -233,12 +249,15 @@ const areas = () => {
       maxZ = Math.max(maxZ, pts[i + 1]);
     }
     return { pts, bounds: [minX, maxX, minZ, maxZ] };
+  };
+  return (cache = {
+    polygons: outlines.map(toArea),
+    paving: pavingOutlines.map(toArea),
   });
-  return (cache = { polygons });
 };
 
-const within = (x: number, z: number, margin: number): boolean => {
-  for (const { pts, bounds } of areas().polygons) {
+const hit = (list: Area[], x: number, z: number, margin: number): boolean => {
+  for (const { pts, bounds } of list) {
     if (
       x < bounds[0] - margin ||
       x > bounds[1] + margin ||
@@ -250,6 +269,16 @@ const within = (x: number, z: number, margin: number): boolean => {
   }
   return false;
 };
+
+/** In a lot / building (or, with `paving`, also on a kerb or the sidewalk) within `margin` m. */
+const within = (
+  x: number,
+  z: number,
+  margin: number,
+  paving = false,
+): boolean =>
+  hit(areas().polygons, x, z, margin) ||
+  (paving && hit(areas().paving, x, z, margin));
 
 /** Height of the kerb top / the sidewalk above the road centre (m): see build/street.ts. */
 const KERB = 0.17;
@@ -337,7 +366,7 @@ export const startRowLandmark: Landmark = {
     // Cheap reject: the whole row lies within a few hundred metres of the Mileks site origin.
     if (Math.abs(x - ORIGIN.x) > 520 || Math.abs(z - ORIGIN.z) > 260)
       return false;
-    return within(x, z, margin);
+    return within(x, z, margin, true);
   },
 
   replaces: (b: BuildingDef) => {

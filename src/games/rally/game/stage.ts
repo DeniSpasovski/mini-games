@@ -345,7 +345,7 @@ export class StageTimer {
  */
 export const STAGE_TIMES_VERSIONS: Record<string, number> = {
   test: 1,
-  ajvatovci: 1,
+  ajvatovci: 2,
   petralica: 1,
   jackie: 1,
   galichica_west: 1,

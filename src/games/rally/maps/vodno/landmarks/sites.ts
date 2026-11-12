@@ -182,6 +182,27 @@ export function onAreas(
   });
 }
 
+/** The world box (min x, max x, min z, max z) round every area: a cheap reject before `onAreas`. */
+export function areasBox(
+  areas: readonly Area[],
+): [number, number, number, number] {
+  const box: [number, number, number, number] = [
+    Infinity,
+    -Infinity,
+    Infinity,
+    -Infinity,
+  ];
+  for (const { site, rect, r } of areas) {
+    const reach =
+      (r ?? Math.hypot(rect![1] - rect![0], rect![3] - rect![2])) + 2;
+    box[0] = Math.min(box[0], site.x - reach);
+    box[1] = Math.max(box[1], site.x + reach);
+    box[2] = Math.min(box[2], site.z - reach);
+    box[3] = Math.max(box[3], site.z + reach);
+  }
+  return box;
+}
+
 export const SREDNO_AREAS: Area[] = [
   { site: SREDNO_CHURCH, rect: [-13.2, 5.8, -6.9, 6.9] },
   { site: LOWER_STATION, rect: [-12.7, 12.7, -4.5, 4.5] },

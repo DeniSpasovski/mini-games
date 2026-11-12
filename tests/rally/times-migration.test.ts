@@ -19,7 +19,8 @@ const CAR_IDS = ALL_CARS.map((c) => c.id);
  * The map / stage split must not lose a player's times: every stage that existed before it is the old map's id, and
  * the stored keys (`rally.times.<id>`, `rally.best.<id>.<car>`, `rally.timesVersion.<id>`, `rally.settings` `map`)
  * and version numbers are unchanged. This fills a store the way a player of the release before the split has it
- * and checks that everything still reads as current. It fails when a stage id, a key or a version number changes.
+ * and checks that everything still reads as current. It fails when a stage id or a key changes, or a version number goes
+ * down (a times bump since then is allowed: the store is filled at the current numbers).
  */
 
 /** The stage ids (= the old map ids) and their times versions in the release before the split. */
@@ -63,20 +64,24 @@ function playerBeforeSplit(): Record<string, string> {
       livery: 2,
     }),
     'rally.times.ajvatovci': JSON.stringify([
-      run(312.4, 'skoda_rally', 1),
-      run(318.9, 'bimmer_m3', 1),
+      run(312.4, 'skoda_rally', STAGE_TIMES_VERSIONS.ajvatovci),
+      run(318.9, 'bimmer_m3', STAGE_TIMES_VERSIONS.ajvatovci),
       // a run from before times versions existed: stays an old run
       run(305.0, 'fiesta', 0),
     ]),
-    'rally.times.petralica': JSON.stringify([run(640.2, 'lancer_evo_6', 1)]),
-    'rally.times.jackie': JSON.stringify([run(281.7, 'citroen_c4', 1)]),
+    'rally.times.petralica': JSON.stringify([
+      run(640.2, 'lancer_evo_6', STAGE_TIMES_VERSIONS.petralica),
+    ]),
+    'rally.times.jackie': JSON.stringify([
+      run(281.7, 'citroen_c4', STAGE_TIMES_VERSIONS.jackie),
+    ]),
     'rally.best.petralica.skoda_rally': JSON.stringify({
       total: 655.1,
       splits: [150, 300, 450, 600],
     }),
   };
-  for (const [id, v] of Object.entries(RELEASED_BEFORE_SPLIT))
-    s[`rally.timesVersion.${id}`] = String(v);
+  for (const id of Object.keys(RELEASED_BEFORE_SPLIT))
+    s[`rally.timesVersion.${id}`] = String(STAGE_TIMES_VERSIONS[id]);
   for (const [car, v] of Object.entries(CAR_TIMES_VERSIONS))
     s[`rally.carVersion.${car}`] = String(v);
   return s;
@@ -89,9 +94,9 @@ describe('times survive the map / stage split', () => {
     g.localStorage = saved;
   });
 
-  test('every stage released before the split keeps its id and times version', () => {
+  test('every stage released before the split keeps its id, its times version never goes down', () => {
     for (const [id, v] of Object.entries(RELEASED_BEFORE_SPLIT)) {
-      expect(STAGE_TIMES_VERSIONS[id]).toBe(v);
+      expect(STAGE_TIMES_VERSIONS[id]).toBeGreaterThanOrEqual(v);
       expect(getStage(id).id).toBe(id);
     }
   });
