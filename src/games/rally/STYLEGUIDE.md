@@ -116,6 +116,12 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
   save's edge in `--ui-best`), quiet row actions (Name / Rename, ×) and a storage line; anything destructive asks once
   (`.replay-confirm.armed`: "Delete?" in `--ui-penalty`). The name field (`.replay-name`) is an amber-edged input with
   Save (amber) / Cancel; the soft-limit notice is a glass block with a penalty edge.
+- **Photo mode** (`game/photo/photo.css`): the HUD and touch controls hide; top right a plate (`PHOTO` on amber, then lens and
+  aperture); left a glass lens panel with an amber edge (focal length, aperture, focus with a **Car** chip for auto focus,
+  exposure, roll, shutter speed (the motion blur) with Car / Background chips for what stays sharp, a filter dropdown (`.ph-select`, as `.menu-select`) and its strength: native range inputs in amber); bottom right one slanted glass slab with Hide / Reset view / Back and the
+  amber **Take photo**. Hide leaves only a faint "Show controls" button. A white flash and a short note on each picture; while a
+  picture is drawn the note holds with its percentage and an amber bar along its foot, and Take photo is off.
+  Phones: the panel fills the left edge, the slab stays bottom right.
 
 ## Layout rules
 
