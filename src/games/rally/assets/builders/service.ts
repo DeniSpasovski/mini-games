@@ -3,7 +3,9 @@ import {
   BufferGeometry,
   CylinderGeometry,
   Float32BufferAttribute,
+  LatheGeometry,
   SphereGeometry,
+  Vector2,
 } from 'three';
 import type { AssetBuilder } from '../types';
 import { TEAM_COUNT, TEAMS } from './teams';
@@ -401,24 +403,115 @@ export const portaToilet: AssetBuilder = ({ variant, lod }) => {
   return finish(parts);
 };
 
-/** Fuel trailer: lying tank on a two-wheel chassis, hose reel. */
+/**
+ * Fuel trailer: a tank with dished ends strapped into two saddles on a ladder chassis, mudguards over the wheels, a
+ * filler dome on top, pump cabinet and hose reel on the front deck, A-frame drawbar with a jockey wheel.
+ */
 export const fuelTrailer: AssetBuilder = ({ lod }) => {
+  const RED = '#b5301c';
+  const STEEL = '#8d9096';
+  const CABINET = '#2a2d34';
+  const near = lod === 0;
+  // Tank: its axis along X, centre (TX, TY); a straight shell with ends dished DISH deep (a lathe about the axis).
+  const R = 0.58;
+  const HALF = 0.95;
+  const DISH = 0.22;
+  const TX = -0.45;
+  const TY = 1.3;
+  const arc = near ? 6 : 3;
+  const profile: Vector2[] = [];
+  for (let i = 0; i <= arc; i++) {
+    const a = ((i / arc) * Math.PI) / 2;
+    profile.push(new Vector2(Math.sin(a) * R, -HALF - Math.cos(a) * DISH));
+  }
+  for (let i = arc; i >= 0; i--) {
+    const a = ((i / arc) * Math.PI) / 2;
+    profile.push(new Vector2(Math.sin(a) * R, HALF + Math.cos(a) * DISH));
+  }
+  const round = (r: number, h: number, sides: number) =>
+    new CylinderGeometry(r, r, h, sides);
   const parts: BufferGeometry[] = [
-    box(3.4, 0.12, 1.5, 0, 0.7, 0, DARK),
     solid(
-      new CylinderGeometry(0.6, 0.6, 2.6, lod ? 8 : 12)
+      new LatheGeometry(profile, near ? 20 : 10)
         .rotateZ(Math.PI / 2)
-        .translate(0, 1.4, 0),
-      '#c8321e',
+        .translate(TX, TY, 0),
+      RED,
     ),
-    box(1.2, 0.06, 0.06, 2.1, 0.64, 0, DARK),
-    box(0.5, 0.5, 0.2, 0.9, 0.95, 0.76, '#2a2d34'),
+    // Chassis rails, axle, front deck.
+    box(3.2, 0.1, 0.08, -0.1, 0.6, 0.45, DARK),
+    box(3.2, 0.1, 0.08, -0.1, 0.6, -0.45, DARK),
+    box(0.08, 0.08, 1.6, -0.35, 0.33, 0, DARK),
+    box(0.8, 0.04, 1, 1.1, 0.67, 0, STEEL),
+    // Pump cabinet, the hose reel on it.
+    box(0.45, 0.5, 0.8, 1.15, 0.94, 0, CABINET),
+    solid(
+      round(0.17, 0.3, 10)
+        .rotateX(Math.PI / 2)
+        .translate(1.15, 1.4, 0),
+      DARK,
+    ),
+    // Filler dome.
+    solid(round(0.2, 0.1, near ? 12 : 8).translate(TX, TY + R + 0.03, 0), RED),
+    // A-frame drawbar and coupling.
+    solid(
+      new BoxGeometry(1.1, 0.07, 0.07).rotateY(0.42).translate(2, 0.6, 0.225),
+      DARK,
+    ),
+    solid(
+      new BoxGeometry(1.1, 0.07, 0.07).rotateY(-0.42).translate(2, 0.6, -0.225),
+      DARK,
+    ),
+    box(0.25, 0.08, 0.1, 2.58, 0.62, 0, STEEL),
   ];
-  for (const z of [0.85, -0.85])
+  for (const x of [TX - 0.6, TX + 0.6]) {
+    // Saddle and the strap over the tank.
+    parts.push(box(0.12, 0.3, 1, x, 0.8, 0, DARK));
     parts.push(
-      lod === 0
-        ? wheel(0.33, 0.2, -0.2, z)
-        : box(0.66, 0.5, 0.2, -0.2, 0.33, z, DARK),
+      solid(
+        round(R + 0.012, 0.07, near ? 20 : 10)
+          .rotateZ(Math.PI / 2)
+          .translate(x, TY, 0),
+        STEEL,
+      ),
+    );
+  }
+  for (const z of [0.82, -0.82]) {
+    parts.push(
+      near
+        ? wheel(0.33, 0.2, -0.35, z)
+        : box(0.66, 0.5, 0.2, -0.35, 0.33, z, DARK),
+      box(0.9, 0.04, 0.26, -0.35, 0.72, z, CABINET),
+    );
+    if (!near) continue;
+    parts.push(
+      solid(
+        round(0.16, 0.21, 12)
+          .rotateX(Math.PI / 2)
+          .translate(-0.35, 0.33, z),
+        '#b9bcc0',
+      ),
+      box(0.04, 0.14, 0.26, -0.8, 0.67, z, CABINET),
+      box(0.04, 0.14, 0.26, 0.1, 0.67, z, CABINET),
+      // Reel flanges, tail lamps.
+      solid(
+        round(0.24, 0.03, 12)
+          .rotateX(Math.PI / 2)
+          .translate(1.15, 1.4, z > 0 ? 0.16 : -0.16),
+        RED,
+      ),
+      box(0.03, 0.08, 0.14, -1.71, 0.6, z > 0 ? 0.45 : -0.45, '#b03024'),
+    );
+  }
+  if (near)
+    parts.push(
+      // Chassis cross members, filler cap, the nozzle in its holster, jockey wheel.
+      box(0.08, 0.08, 0.9, -1.6, 0.6, 0, DARK),
+      box(0.08, 0.08, 0.9, 0.6, 0.6, 0, DARK),
+      box(0.08, 0.08, 0.9, 1.45, 0.6, 0, DARK),
+      solid(round(0.12, 0.05, 10).translate(TX, TY + R + 0.1, 0), STEEL),
+      box(0.06, 0.22, 0.06, 0.98, 1.05, 0.43, STEEL),
+      box(0.05, 0.5, 0.05, 2.3, 0.4, 0.16, STEEL),
+      wheel(0.1, 0.07, 2.3, 0.16),
     );
   return finish(parts);
 };
