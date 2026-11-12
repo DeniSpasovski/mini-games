@@ -27,6 +27,7 @@ import {
   WebGLCubeRenderTarget,
   type WebGLRenderer,
 } from 'three';
+import { urlParam } from './url-param';
 import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import { ownValue, paramNumber } from '../../../shared/url-params';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
@@ -306,13 +307,11 @@ function patchSky(sky: Sky): Sky {
 
 /** `?tod=<hours>` (try a time of day on any map with `timeOfDay`), `?tonemap=aces|agx|neutral` and `?grade=off`. */
 function urlNumber(name: string): number | undefined {
-  if (typeof location === 'undefined') return undefined;
-  const v = new URLSearchParams(location.search).get(name);
+  const v = urlParam(name);
   return paramNumber(v, -1e6, 1e6, undefined);
 }
 function urlString(name: string): string | undefined {
-  if (typeof location === 'undefined') return undefined;
-  return new URLSearchParams(location.search).get(name) ?? undefined;
+  return urlParam(name) ?? undefined;
 }
 
 /**
@@ -356,6 +355,16 @@ export class Environment {
   private lightUp = new Vector3();
   private center = new Vector3();
   private t0 = performance.now();
+  /**
+   * Photo mode: the world clock (wind sway, cloud drift) stands still, so a motion blur drawn over several frames
+   * averages one instant. Set to the clock's time (s) to hold it, `undefined` to let it run.
+   */
+  heldTime?: number;
+
+  /** The world clock (s). */
+  get time(): number {
+    return this.heldTime ?? (performance.now() - this.t0) / 1000;
+  }
   /** Studio softboxes in the env map (menu car screens): crisp panel highlights on paint and glass. */
   studio: boolean;
   /** Radiance of the env map's ground disc (below its horizon): the car's surroundings are lit like it (car-surround.ts). */
@@ -802,9 +811,9 @@ export class Environment {
     const sky = this.sky.material.uniforms.skyFog.value as Vector4;
     if (sky.w > 0) sky.x = worldUniforms.wsFogLayer.value.x - cameraPos.y;
     this.nightSky.group.position.copy(cameraPos);
-    setWorldTime((performance.now() - this.t0) / 1000);
+    setWorldTime(this.time);
     this.sky.material.uniforms.time.value =
-      ((performance.now() - this.t0) / 1000) * (this.def.cloudSpeed ?? 1);
+      this.time * (this.def.cloudSpeed ?? 1);
   }
 
   dispose(): void {
