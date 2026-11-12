@@ -16,7 +16,11 @@ import { houseMaterial } from './house-walls';
 import { groundLitCard, worldUniforms } from './world-shading';
 import { imageTexture } from './image-texture';
 import rockColorUrl from './props/rocks.color.webp';
+import debrisColorUrl from './props/simready-forest.color.webp';
+import debrisNormalUrl from './props/simready-forest.normal.webp';
 import rockNormalUrl from './props/rocks.normal.webp';
+import outcropColorUrl from './props/outcrop.color.webp';
+import outcropNormalUrl from './props/outcrop.normal.webp';
 import strawUrl from './props/straw.webp';
 
 /**
@@ -29,6 +33,8 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'foliage_card_weeds'
   | 'foliage_card_reeds'
+  | 'foliage_card_ferns'
+  | 'foliage_card_ferns_autumn'
   | 'grass_blade'
   | 'rock'
   | 'hay'
@@ -42,6 +48,8 @@ export type MaterialId =
   | 'reflector'
   | 'lamp_lens'
   | 'vehicle'
+  | 'debris'
+  | 'outcrop'
   | 'village_sign';
 
 const cache = new Map<MaterialId, Material>();
@@ -135,6 +143,8 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card_spring',
   'foliage_card_weeds',
   'foliage_card_reeds',
+  'foliage_card_ferns',
+  'foliage_card_ferns_autumn',
 ];
 let foliageA2C = false;
 
@@ -226,6 +236,20 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 1,
       });
       break;
+    case 'foliage_card_ferns':
+    case 'foliage_card_ferns_autumn': {
+      // Fern stands of the shaded woods, green / dead bracken (engine/plants/ferns*.webp).
+      const sheet = id === 'foliage_card_ferns' ? 'ferns' : 'ferns-autumn';
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet(sheet),
+        color: new Color(...cardColor(sheet)),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    }
     case 'grass_blade':
       // The near grass LOD: opaque blade strips (engine/grass.ts), vertex coloured.
       m = new MeshStandardMaterial({
@@ -252,6 +276,27 @@ export function getMaterial(id: MaterialId): Material {
         map,
         normalMap,
         roughness: 0.9,
+      });
+      break;
+    }
+    case 'outcrop': {
+      // Rock bands of steep hillsides (builders/outcrops.ts): two Poly Haven rock-face scans in their own colour and
+      // normal maps side by side (engine/props/outcrop.*.webp, scripts/rocks/bake-outcrops.mjs); lit like the ground.
+      const map = imageTexture(outcropColorUrl, 1024, 512, 'outcrop');
+      const normalMap = imageTexture(
+        outcropNormalUrl,
+        1024,
+        512,
+        'outcrop:normal',
+        '#8080ff',
+        false,
+      );
+      for (const t of [map, normalMap]) t.flipY = false; // glTF UVs
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map,
+        normalMap,
+        roughness: 0.92,
       });
       break;
     }
@@ -314,6 +359,26 @@ export function getMaterial(id: MaterialId): Material {
         metalness: 0.3,
       });
       break;
+    case 'debris': {
+      // Forest-floor scans (stumps, logs, branches, roots: builders/simready.ts) in their own colour and normal maps,
+      // one atlas tile each (scripts/props/bake-simready.py `forest`); lit like the ground they lie on (RALLY_GROUND).
+      const map = imageTexture(debrisColorUrl, 2048, 1024, 'debris');
+      const normalMap = imageTexture(
+        debrisNormalUrl,
+        1024,
+        512,
+        'debris:normal',
+        '#8080ff',
+        false,
+      );
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map,
+        normalMap,
+        roughness: 0.95,
+      });
+      break;
+    }
     case 'village_sign':
       m = new MeshStandardMaterial({
         map: getTexture('village_sign'),
@@ -348,6 +413,7 @@ export function getMaterial(id: MaterialId): Material {
     m.defines = { ...CARD_DEFINES };
     groundLitCard(m, 'blade');
   }
+  if (id === 'debris' || id === 'outcrop') m.defines = { RALLY_GROUND: 1 };
   if (id === 'flag') m.defines = { RALLY_FLAG: 1 };
   if (id === 'fan_flag') m.defines = { RALLY_FLAG: 0.4 };
   cache.set(id, m);

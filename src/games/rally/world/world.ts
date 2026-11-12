@@ -1,7 +1,14 @@
 import { Vector3 } from 'three';
 import { hashString } from '../../../shared/rng';
 import { mapSeason } from '../maps/shared/climate';
-import type { BuildingDef, MapDef, StageDef } from '../maps/shared/types';
+import { setPackSeason } from '../assets/builders/tree-packs';
+import type {
+  BarrierRule,
+  BuildingDef,
+  MapDef,
+  StageDef,
+} from '../maps/shared/types';
+import { dropRailRules } from './drop-rails';
 import { roadSurfaceAt } from '../maps/shared/types';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
@@ -11,12 +18,16 @@ import type {
 } from '../physics/types';
 import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
+import { RoadSlab } from './road-slab';
+import { BARE_TWINS } from '../trees/placement';
 import { isTreeType } from '../trees/species';
+import { culvertColliders, culvertStones } from './culverts';
 import { landmarksOf, type Landmark } from './landmarks';
 import {
   barrierColliders,
   barrierRuns,
   pathBarrierRuns,
+  sideRoadRailRuns,
   type BarrierRun,
 } from './barriers';
 import { newPathQuery } from './real-data';
@@ -136,6 +147,8 @@ export class World implements GroundProvider {
   readonly heightfield: Heightfield;
   /** Uncached terrain sampling for whole-map placement work (see AnalyticTerrain). */
   readonly analytic: AnalyticTerrain;
+  /** The road slabs: the drawn terrain is cut under every road ribbon (world/road-slab.ts). */
+  readonly slab: RoadSlab;
   readonly scatter: ScatterField;
   readonly stage: StageLayout;
   /** Start / finish gantries, painted lines and split boards (stage-signs.ts, drawn by stage-sign-mesh.ts). */
@@ -148,6 +161,8 @@ export class World implements GroundProvider {
   readonly landmarks: Landmark[];
   /** Continuous barriers (MapDef.barriers): drawn by barrier-mesh.ts, solid via box colliders. */
   readonly barrierRuns: BarrierRun[];
+  /** `map.barriers` + the derived drop rails (`map.dropRails`). */
+  readonly barrierRules: BarrierRule[];
   /** Walls in the portal tunnels between the parkway lanes and the parkway (portals.ts laneWalls). */
   readonly laneWalls: LaneWallRow[][];
   /** City maps (MapDef.cityStreets): where the streets have kerbs / sidewalks / crosswalks / lamps. */
@@ -194,6 +209,8 @@ export class World implements GroundProvider {
     for (let i = 1; i <= timing.splits; i++)
       splits.push(start + ((finish - start) * i) / (timing.splits + 1));
     this.stage = { start, finish, splits };
+    this.slab = new RoadSlab(this.gen, map);
+    this.gen.sink = (x, z) => this.slab.sink(x, z);
     this.heightfield = new Heightfield(this.gen);
     this.analytic = new AnalyticTerrain(this.gen);
     this.landmarks = landmarksOf(map);
@@ -227,6 +244,8 @@ export class World implements GroundProvider {
             parkQ.distance < parkQ.halfWidth + r + 2) ||
           (!!this.gen.lakes?.query(x, z, parkLq) && parkLq.sd < r + 2),
       });
+    // Pack trees and shrubs wear the map's season (shared materials: set before anything is built).
+    setPackSeason(mapSeason(map.environment));
     this.scatter = new ScatterField(
       this.analytic,
       this.road,
@@ -245,6 +264,8 @@ export class World implements GroundProvider {
         this.landmarks.some((l) => l.occupies(x, z, 1.5)) ||
         // No trees hanging into an underpass trench.
         this.gen.inUnderpassTrench(x, z) ||
+        // Nothing grows on a culvert's walls or in its gully.
+        this.gen.nearCulvert(x, z, 2.5) ||
         // Nothing grows on a service park's level lot.
         (!!parkDef && serviceParkOccupies(parkDef, x, z, 3)),
       this.heightfield,
@@ -254,10 +275,38 @@ export class World implements GroundProvider {
         channels: this.gen.channels,
         lakes: this.gen.lakes,
         cropAt: (x, z) => this.gen.cropAt(x, z),
+        fieldEdgeAt: (x, z) => this.gen.fieldEdgeAt(x, z),
         fieldAngle: map.landcover?.fields?.angle,
         stageId: map.id,
         treeSetback: map.treeSetback,
         treeCrownClear: map.treeCrownClear,
+        heroTrees: map.heroTrees,
+        // Carved below the land on a rock cut stretch: its face, or the laid-back bank above a deep one.
+        cutAt: map.road.rockCuts
+          ? (x, z, q) => {
+              const nat = this.gen.naturalHeight(x, z);
+              const depth = nat - this.gen.height(x, z);
+              if (depth < 0.4) return 0;
+              // A low retaining wall: bushes in the grass strip in front of it and on the bank above, only its own
+              // footprint clear.
+              const wall = this.gen.rockCutWall(q.along, q.lateral);
+              if (wall) {
+                const face = q.halfWidth + wall.offset;
+                return q.distance > face - 0.4 && q.distance < face + 1.6
+                  ? 1
+                  : 0;
+              }
+              return (
+                this.gen.rockCutWeightAt(
+                  x,
+                  z,
+                  nat - q.height,
+                  q.along,
+                  q.lateral,
+                ) * Math.min(1, (depth - 0.4) / 0.8)
+              );
+            }
+          : undefined,
       },
     );
     const crowdQ = newPathQuery();
@@ -329,6 +378,7 @@ export class World implements GroundProvider {
       this.scatter.addFixed(inst);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
+    if (map.realTrees) this.scatter.addRealTrees(map.realTrees);
     for (const inst of this.servicePark?.instances ?? [])
       this.scatter.addFixed(inst);
     const bq = newPathQuery();
@@ -364,9 +414,22 @@ export class World implements GroundProvider {
       );
       return !(cq.found && cq.distance <= cq.halfWidth + 1);
     });
+    // The map's own rails, then the derived ones where the valley side drops away (the map's win).
+    this.barrierRules = [
+      ...(map.barriers ?? []),
+      ...(map.dropRails
+        ? dropRailRules(
+            this.road,
+            (x, z) => this.gen.height(x, z),
+            map.dropRails,
+            map.barriers ?? [],
+            map.road.shoulder,
+          )
+        : []),
+    ];
     this.barrierRuns = barrierRuns(
       this.road,
-      map.barriers ?? [],
+      this.barrierRules,
       mouths,
       net
         ? (x, z, along) => {
@@ -416,6 +479,10 @@ export class World implements GroundProvider {
           (pi) => this.gen.isParkwayLane(pi),
         ),
       );
+    if (map.sideRoadRails && this.gen.paths)
+      this.barrierRuns.push(
+        ...sideRoadRailRuns(this.gen.paths, this.road, map.sideRoadRails),
+      );
     for (const c of barrierColliders(
       { road: this.road, net: this.gen.paths },
       this.analytic,
@@ -454,7 +521,7 @@ export class World implements GroundProvider {
         this.scatter.addFixed(inst);
     }
     if (map.cityStreets && this.gen.paths) {
-      const near = nearestRoadPoint(this.road);
+      const near = nearestRoadPoint(this.road, 12, map.cityStreets.until);
       this.streetDetail = streetDetail(map.cityStreets, {
         road: this.road,
         net: this.gen.paths,
@@ -544,8 +611,13 @@ export class World implements GroundProvider {
         this.surfaceFns.push(landmark.surfaceAt.bind(landmark));
     }
 
+    for (const c of culvertColliders(this.gen.culverts))
+      this.scatter.addFixedCollider(c);
+    for (const inst of culvertStones(this.gen.culverts, this.analytic))
+      this.scatter.addFixed(inst);
+
     this.signs = stageSigns(
-      map,
+      { ...map, barriers: this.barrierRules },
       this.stageRoad,
       this.analytic,
       this.stage,
@@ -1031,6 +1103,9 @@ export class World implements GroundProvider {
       ...this.map.props.map((p) => p.asset),
     ]);
     for (const inst of this.scatter.fixedInstances()) ids.add(inst.asset);
+    // Scattered trees may stand in a dead patch as their bare twin (trees/placement.ts `bareTwin`).
+    for (const r of this.map.scatter)
+      if (BARE_TWINS[r.asset]) ids.add(BARE_TWINS[r.asset]);
     return ids;
   }
 

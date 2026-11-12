@@ -89,6 +89,48 @@ export const dryGrass = grass('dry', [0.45, 0.7]);
 /** Fresh spring grass (bright green), for maps with a green `groundTint`. */
 export const springGrass = grass('spring', [0.3, 0.5]);
 
+/**
+ * Seeding grass (uncut verges, fallow): knee-high, the tuft scans drawn about twice as tall as wide so their seed stalks
+ * stand up out of the tufts; the meadow patches pick the variant (world/meadow-patches.ts): all straw in the dry patches,
+ * a green base under the straw in the lush ones.
+ */
+export const tallGrass: AssetBuilder = ({ seed, variant, lod }) => {
+  const rng = new Rng(seed);
+  const h = rng.range(0.75, 1.05);
+  const w = GRASS_W * rng.range(0.8, 0.95);
+  if (lod === 0)
+    return {
+      parts: [
+        {
+          geometry: bladeTuftGeometry(seed, 'dry', w, h),
+          material: getMaterial('grass_blade'),
+        },
+      ],
+    };
+  // Variant 0: three straw cards. Variant 1: two straw cards over a lower green one (green leaves under dry stalks).
+  const straw = plantCards(
+    rng,
+    'grass-dry',
+    CELLS.dryTufts,
+    w,
+    h,
+    variant === 0 ? 3 : 2,
+  );
+  if (variant === 0)
+    return {
+      parts: [{ geometry: straw, material: getMaterial('foliage_card_dry') }],
+    };
+  return {
+    parts: [
+      { geometry: straw, material: getMaterial('foliage_card_dry') },
+      {
+        geometry: plantCards(rng, 'grass-green', CELLS.tufts, w, h * 0.65, 1),
+        material: getMaterial('foliage_card'),
+      },
+    ],
+  };
+};
+
 /** Weeds: tall cards (the cells are 0.6 x 1.2 m). */
 function tallCards(
   cells: readonly number[],
@@ -132,6 +174,38 @@ export const reeds: AssetBuilder = ({ seed, variant }) => {
     ],
   };
 };
+
+/**
+ * Ferns of the shaded woods (male fern / bracken): three crossed cards of the fern sheet (2.4 x 1.2 m cells, the stand
+ * ~0.6 of the card's height), green or dead bracken (autumn).
+ */
+function fernStand(autumn: boolean): AssetBuilder {
+  return ({ seed }) => {
+    const rng = new Rng(seed);
+    const h = rng.range(0.9, 1.3);
+    return {
+      parts: [
+        {
+          geometry: plantCards(
+            rng,
+            autumn ? 'ferns-autumn' : 'ferns',
+            CELLS.ferns,
+            h * 2,
+            h,
+            3,
+            0.6,
+          ),
+          material: getMaterial(
+            autumn ? 'foliage_card_ferns_autumn' : 'foliage_card_ferns',
+          ),
+        },
+      ],
+    };
+  };
+}
+
+export const fern = fernStand(false);
+export const fernAutumn = fernStand(true);
 
 /** Nettle stands of the field margins and ditches, green and dried. */
 export const tallWeeds = tallCards(

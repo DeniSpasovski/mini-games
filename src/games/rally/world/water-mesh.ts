@@ -38,41 +38,79 @@ const LAKE_DEPTH = 3;
 /** Water deeper than this (m) shows its full deep colour; shallower it clears to the bed. */
 const CLEAR = 0.9;
 
-const materials = new Map<boolean, MeshStandardMaterial>();
+const materials = new Map<string, MeshStandardMaterial>();
 const time = { value: 0 };
+/** How much the culverts run, 0..1 (world/culvert-water.ts sets it): their water sinks to nothing and is not drawn at 0. */
+export const culvertFlow = { value: 0 };
 
 /**
  * Shared water material; reflects the sky (scene environment). Per vertex `depth` (m, water level minus the bed) runs
  * it from clear over the shallows (a soft edge where it meets the bank) to a deep green-brown; `flow` = the ripples run
  * along the UV's v (channels, downstream) instead of drifting (lakes).
  */
-export function getWaterMaterial(flow = false): MeshStandardMaterial {
-  let material = materials.get(flow);
+export function getWaterMaterial(
+  flow = false,
+  culvert = false,
+): MeshStandardMaterial {
+  const key = culvert ? 'culvert' : flow ? 'flow' : 'still';
+  let material = materials.get(key);
   if (!material) {
     const normalMap = getTexture('water_normal').clone();
     normalMap.needsUpdate = true;
     material = new MeshStandardMaterial({
-      color: new Color(0x26382c),
-      roughness: 0.14,
+      color: new Color(culvert ? 0x5a4630 : 0x26382c),
+      roughness: culvert ? 0.25 : 0.14,
       metalness: 0,
       normalMap,
-      envMapIntensity: flow ? 0.2 : 0.4,
+      envMapIntensity: culvert ? 0.12 : flow ? 0.2 : 0.4,
       transparent: true,
     });
-    material.normalScale.set(0.18, 0.18);
-    material.name = flow ? 'water_flow' : 'water';
+    material.normalScale.set(culvert ? 0.45 : 0.18, culvert ? 0.45 : 0.18);
+    material.name = culvert ? 'water_culvert' : flow ? 'water_flow' : 'water';
     if (flow) material.defines = { WATER_FLOW: 1 };
+    if (culvert) Object.assign((material.defines ??= {}), { CULVERT: 1 });
     material.onBeforeCompile = (sh) => {
       addWorldUniforms(sh);
       sh.uniforms.uWaterTime = time;
+      sh.uniforms.uCulvertFlow = culvertFlow;
       sh.vertexShader = sh.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute float waterDepth;\nvarying float vDepth;\nvarying vec3 vWp;',
+          `#include <common>
+          attribute float waterDepth;
+          varying float vDepth;
+          varying vec3 vWp;
+          #ifdef CULVERT
+          attribute float waterTurb;
+          varying float vTurb;
+          uniform float uCulvertFlow;
+          #endif`,
         )
         .replace(
           '#include <uv_vertex>',
-          '#include <uv_vertex>\nvDepth = waterDepth;\nvWp = ( modelMatrix * vec4( position, 1.0 ) ).xyz;',
+          `#include <uv_vertex>
+          vDepth = waterDepth;
+          vWp = ( modelMatrix * vec4( position, 1.0 ) ).xyz;
+          #ifdef CULVERT
+          vTurb = waterTurb;
+          #endif`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          #ifdef CULVERT
+          // Built at full flow: the surface sinks with the flow (the shore stays) and the water thins with it.
+          transformed.y -= waterDepth * ( 1.0 - uCulvertFlow );
+          vDepth = waterDepth * uCulvertFlow;
+          vWp.y -= waterDepth * ( 1.0 - uCulvertFlow );
+          #endif`,
+        )
+        .replace(
+          '#include <project_vertex>',
+          `#include <project_vertex>
+          #ifdef CULVERT
+          if ( uCulvertFlow <= 0.001 ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );
+          #endif`,
         );
       sh.fragmentShader = sh.fragmentShader
         .replace(
@@ -80,7 +118,11 @@ export function getWaterMaterial(flow = false): MeshStandardMaterial {
           `#include <common>
           varying float vDepth;
           varying vec3 vWp;
-          uniform float uWaterTime;`,
+          uniform float uWaterTime;
+          #ifdef CULVERT
+          varying float vTurb;
+          uniform float uCulvertFlow;
+          #endif`,
         )
         .replace(
           '#include <color_fragment>',
@@ -90,11 +132,21 @@ export function getWaterMaterial(flow = false): MeshStandardMaterial {
           vec3 wsBed = vec3( 0.30, 0.29, 0.23 );
           diffuseColor.rgb = mix( wsBed, diffuseColor.rgb * 0.8, dk );
           diffuseColor.a = smoothstep( 0.0, 0.12, vDepth ) * mix( 0.35, 1.0, dk );
+          #ifdef CULVERT
+          // Storm run-off: opaque brown-grey silt water, lighter where it is thin and where it churns.
+          diffuseColor.rgb = mix( vec3( 0.26, 0.2, 0.13 ), diffuseColor.rgb, smoothstep( 0.0, 0.3, vDepth ) );
+          diffuseColor.a = smoothstep( 0.0, 0.03, vDepth ) * 0.92;
+          #endif
           #ifdef WATER_FLOW
             // Foam: along the banks and in streaks where the stream runs shallow, stretched with the current.
             vec2 wsFq = vec2( vNormalMapUv.x * ${RIPPLE.toFixed(1)} * 2.2, vNormalMapUv.y * ${RIPPLE.toFixed(1)} * 0.35 + uWaterTime * ${(CURRENT * 0.35).toFixed(3)} );
             float wsFn = wsVNoise( wsFq ) * 0.6 + wsVNoise( wsFq * 2.3 + 9.1 ) * 0.4;
+            #ifdef CULVERT
+            // Run-off is muddy, not clear: foam only in the jet out of the pipe, the piling at the inlet and a thin line at the edges.
+            float wsFoam = ( 0.3 + 0.7 * vTurb ) * smoothstep( 0.52, 0.78, wsFn ) * smoothstep( 0.0, 0.05, vDepth ) * 0.8 + ( 1.0 - smoothstep( 0.0, 0.035, vDepth ) ) * smoothstep( 0.0, 0.01, vDepth ) * smoothstep( 0.3, 0.6, wsFn ) * 0.5;
+            #else
             float wsFoam = ( 1.0 - smoothstep( 0.03, 0.3, vDepth ) ) * smoothstep( 0.35, 0.7, wsFn ) + ( 1.0 - smoothstep( 0.2, 0.9, vDepth ) ) * smoothstep( 0.78, 0.9, wsFn ) * 0.5;
+            #endif
             diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.78, 0.8, 0.78 ), wsFoam * 0.85 );
             diffuseColor.a = max( diffuseColor.a, wsFoam * 0.9 );
           #endif`,
@@ -123,14 +175,15 @@ export function getWaterMaterial(flow = false): MeshStandardMaterial {
           }`,
         );
     };
-    material.customProgramCacheKey = () => (flow ? 'water-flow-2' : 'water-2');
-    materials.set(flow, material);
+    material.customProgramCacheKey = () =>
+      culvert ? 'water-culvert-1' : flow ? 'water-flow-2' : 'water-2';
+    materials.set(key, material);
   }
   return material;
 }
 
 /** Ripples drift (lakes) or run (channels) and the sky is reflected: run before each water mesh draw. */
-function animate(scene: Scene, mat: MeshStandardMaterial): void {
+export function animateWater(scene: Scene, mat: MeshStandardMaterial): void {
   if (scene.environment && mat.envMap !== scene.environment) {
     // Own env map so envMapIntensity is not the (low) scene environment intensity.
     mat.envMap = scene.environment;
@@ -248,7 +301,7 @@ export function* waterMeshJob(
     const mesh = new Mesh(g, mat);
     mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;
-    mesh.onBeforeRender = (_r, scene) => animate(scene, mat);
+    mesh.onBeforeRender = (_r, scene) => animateWater(scene, mat);
     group.add(mesh);
     yield;
   }

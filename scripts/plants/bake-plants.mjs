@@ -8,7 +8,8 @@
  *
  * The source folder holds one folder per Poly Haven model (the 1k glTF download: <id>.gltf + .bin + textures/, plus the
  * model's 1k alpha png and, where there is one, its dry colour map): grass_medium_01, grass_medium_02, nettle_plant,
- * dandelion_01, celandine_01, weed_plant_02; and the two glb files of `GLB_MODELS`. scripts/plants/layout.ts says which clump stands where in each cell
+ * dandelion_01, celandine_01, weed_plant_02; and the two glb files of `GLB_MODELS`. A Poly Haven model missing there is
+ * read from the sibling `polyhaven/<id>/` folder (`<id>_1k.gltf`, as downloaded): fern_02 (the ferns sheet). scripts/plants/layout.ts says which clump stands where in each cell
  * (seeded); headless Chromium (Playwright, three.js) renders every cell from the side, albedo only, alpha-tested at 2x
  * and averaged down to soft coverage; scripts/plants/pack.py packs the sheets, bleeds colour under the transparent
  * texels, makes the spring sheet and measures the means the blade strips and the vines take.
@@ -68,16 +69,19 @@ for (const id of [
   'dandelion_01',
   'celandine_01',
   'weed_plant_02',
+  'fern_02',
 ]) {
   if (!needed.has(id)) continue;
-  const dir = path.join(src, id);
+  const own = path.join(src, id);
+  const dir = fs.existsSync(own) ? own : path.join(src, '..', 'polyhaven', id);
   const t = (name) => path.join(dir, 'textures', `${id}_${name}`);
   const need = (p) => {
     if (!fs.existsSync(p)) throw new Error(`missing ${p}`);
     return p;
   };
+  const gltf = path.join(dir, `${id}.gltf`);
   MODELS[id] = {
-    gltf: need(path.join(dir, `${id}.gltf`)),
+    gltf: need(fs.existsSync(gltf) ? gltf : path.join(dir, `${id}_1k.gltf`)),
     diff: need(t('diff_1k.jpg')),
     alpha: need(t('alpha_1k.png')),
     arm: need(t('arm_1k.jpg')),
@@ -98,9 +102,12 @@ const TYPES = {
 };
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split('?')[0]);
+  // (`/@up/`: the sources folder above, for the polyhaven/ models)
   const file = url.startsWith('/@src/')
     ? path.join(src, url.slice(6))
-    : path.join(root, url);
+    : url.startsWith('/@up/')
+      ? path.join(src, '..', url.slice(5))
+      : path.join(root, url);
   if (!fs.existsSync(file)) {
     res.writeHead(404).end();
     return;
@@ -112,16 +119,26 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((ok) => server.listen(0, ok));
 const base = `http://127.0.0.1:${server.address().port}`;
-const web = (p) =>
-  p ? `${base}/@src/${path.relative(src, p).split(path.sep).join('/')}` : null;
+const web = (p) => {
+  if (!p) return null;
+  const rel = path.relative(src, p);
+  return rel.startsWith('..')
+    ? `${base}/@up/${path.relative(path.dirname(src), p).split(path.sep).join('/')}`
+    : `${base}/@src/${rel.split(path.sep).join('/')}`;
+};
 
-// Playwright as in scripts/asphalt/bake.mjs: PLAYWRIGHT_MODULE / CHROMIUM_PATH when it is not installed as `playwright`.
+// Playwright as in scripts/asphalt/bake.mjs: PLAYWRIGHT_MODULE / CHROMIUM_PATH when it is not installed as `playwright`;
+// PLANTS_PROFILE = a Chromium profile folder to run in (kept between runs).
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ?? 'playwright'
 );
-const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH || undefined,
-});
+const launchOpts = { executablePath: process.env.CHROMIUM_PATH || undefined };
+const browser = process.env.PLANTS_PROFILE
+  ? await chromium.launchPersistentContext(
+      process.env.PLANTS_PROFILE,
+      launchOpts,
+    )
+  : await chromium.launch(launchOpts);
 const page = await browser.newPage();
 page.on('console', (m) => console.log('page:', m.text()));
 await page.goto(`${base}/scripts/plants/render.html`);
@@ -186,5 +203,5 @@ fs.rmSync(tmp, { recursive: true });
 execFileSync(
   'npx',
   ['prettier', '--write', 'src/games/rally/engine/plants/plant-atlas.data.ts'],
-  { cwd: root, stdio: 'inherit' },
+  { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' },
 );

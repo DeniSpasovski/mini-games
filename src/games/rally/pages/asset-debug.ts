@@ -19,6 +19,11 @@ import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { ASSET_CATALOG, getAssetMeta, hasAsset } from '../assets/catalog';
 import { buildAsset, variantSeed } from '../assets/library';
 import { loadSimready } from '../assets/builders/simready';
+import {
+  LAZY_PACK_KINDS,
+  loadTreePacks,
+  setPackSeason,
+} from '../assets/builders/tree-packs';
 import type { BuiltAsset } from '../assets/types';
 import { CarModel } from '../cars/shared/car-model';
 import { CARS, getCar } from '../cars';
@@ -40,7 +45,13 @@ import {
 import { TreeRenderer } from '../trees/draw';
 import { TreeLibrary } from '../trees/load';
 import { placeTree } from '../trees/placement';
-import { speciesOfType, TREE_TYPES, variantCount } from '../trees/species';
+import {
+  bareSpecies,
+  speciesOfType,
+  TREE_TYPES,
+  variantCount,
+  type SpeciesDef,
+} from '../trees/species';
 import { DEFAULT_SEASON, SEASONS, seasonParam } from '../season';
 import type { RoadQuery } from '../world/road';
 import type { ScatterChunk, ScatterInstance } from '../world/scatter';
@@ -72,6 +83,18 @@ const DEFAULTS = {
   repeat: 1,
   /** Trees: leaf colours of this season. */
   season: DEFAULT_SEASON as string,
+  /**
+   * Trees, tuning (`SpeciesDef.foliage`, `treeOverride`): `cover` / `sprite` scale the species' own leaf cover and
+   * sprite size; `sparse` (share of thin variants), `sparseCover` (their cover), `light` / `clump` (`colorSpread`
+   * exposure / clump) replace it, -1 = the species' own; `bare` = no leaves (`bareSpecies`).
+   */
+  cover: 1,
+  sprite: 1,
+  sparse: -1,
+  sparseCover: -1,
+  light: -1,
+  clump: -1,
+  bare: false,
   /** Weather and hour of day (`Environment` reads `?weather=` / `?tod=`), as in the car viewer. */
   weather: 'dry',
   tod: VIEWER_HOUR,
@@ -85,6 +108,8 @@ const TREE_SHADOW_EXTENT = 40;
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
 
 const isTree = (id: string) => id.startsWith('tree:');
+/** Pack trees (catalog assets): a tree's shadow box, the season control. */
+const isPack = (id: string) => id.startsWith('pack_');
 type AssetKind = 'asset' | 'car' | 'tree' | 'tex';
 const kindOf = (id: string): AssetKind =>
   id.startsWith('tex:')
@@ -97,7 +122,8 @@ const kindOf = (id: string): AssetKind =>
 // A tree needs a bigger shadow box than a prop (set at load: switching between the two reloads the page).
 const shell = new ViewerShell({
   title: 'Asset debugger',
-  shadowExtent: isTree(state.asset) ? TREE_SHADOW_EXTENT : 12,
+  shadowExtent:
+    isTree(state.asset) || isPack(state.asset) ? TREE_SHADOW_EXTENT : 12,
 });
 const { scene, camera, controls } = shell;
 const holder = new Group();
@@ -132,7 +158,8 @@ const items = [
   })),
 ];
 shell.panel.section('Assets').list(items, state.asset, (id) => {
-  const reload = isTree(id) !== isTree(state.asset);
+  const reload =
+    isTree(id) !== isTree(state.asset) || isPack(id) !== isPack(state.asset);
   state.asset = id;
   state.lod = 0;
   ViewerShell.clearCameraLink(state); // the new asset is framed afresh
@@ -229,6 +256,66 @@ const leavesCtl = vars.checkbox('Leaves', state.leaves, (v) => {
   showLeaves();
 });
 
+// Trees: the species' foliage tuned live (regrown in the worker on each change; URL keeps it).
+const tune = shell.panel.section('Tree tuning');
+const tuneSlider = (
+  label: string,
+  key: 'cover' | 'sprite' | 'sparse' | 'sparseCover' | 'light' | 'clump',
+  min: number,
+  max: number,
+  step: number,
+) =>
+  tune.slider(label, state[key], { min, max, step }, (v) => {
+    state[key] = v;
+    sync();
+    rebuild();
+  });
+tuneSlider('Leaf cover ×', 'cover', 0.1, 1.5, 0.05);
+tuneSlider('Sprite size ×', 'sprite', 0.4, 1.8, 0.05);
+tuneSlider('Sparse share (-1 own)', 'sparse', -1, 1, 0.05);
+tuneSlider('Sparse cover (-1 own)', 'sparseCover', -1, 1, 0.05);
+tuneSlider('Light spread (-1 own)', 'light', -1, 0.8, 0.02);
+tuneSlider('Clump colour (-1 own)', 'clump', -1, 0.3, 0.01);
+tune.checkbox('Bare (no leaves)', state.bare, (v) => {
+  state.bare = v;
+  sync();
+  rebuild();
+});
+tune.note('Each change regrows the variants (a few s).');
+
+/** The species with the Tree tuning section's values (itself when they are all the defaults). */
+function treeOverride(def: SpeciesDef): SpeciesDef {
+  const f = def.foliage;
+  const own = (v: number) => v < 0;
+  const plain =
+    state.cover === 1 &&
+    state.sprite === 1 &&
+    own(state.sparse) &&
+    own(state.sparseCover) &&
+    own(state.light) &&
+    own(state.clump);
+  if (plain) return state.bare ? bareSpecies(def, def.name) : def;
+  const sparse = f.sparse ?? { share: 0, cover: 0.6 };
+  const tuned: SpeciesDef = {
+    ...def,
+    foliage: {
+      ...f,
+      cover: (f.cover ?? 1) * state.cover,
+      spriteSize: f.spriteSize * state.sprite,
+      sparse: {
+        share: own(state.sparse) ? sparse.share : state.sparse,
+        cover: own(state.sparseCover) ? sparse.cover : state.sparseCover,
+      },
+      colorSpread: {
+        ...f.colorSpread,
+        ...(own(state.light) ? {} : { exposure: state.light }),
+        ...(own(state.clump) ? {} : { clump: state.clump }),
+      },
+    },
+  };
+  return state.bare ? bareSpecies(tuned, def.name) : tuned;
+}
+
 const infoSec = shell.panel.section('Info');
 const desc = infoSec.html('');
 const info = infoSec.info();
@@ -282,6 +369,7 @@ function showOptions(kind: AssetKind, variants = 1, lods = 1): void {
   show(wireCtl, asset);
   show(boundsCtl, asset);
   show(colliderCtl, asset);
+  tune.el.hidden = !tree;
 }
 
 // --- build ---------------------------------------------------------------------------------
@@ -325,6 +413,10 @@ function rebuild(reframe = false): void {
   if (!hasAsset(id)) return;
   const meta = getAssetMeta(id);
   showOptions('asset', meta.variants, meta.lods.length);
+  if (isPack(id)) {
+    seasonCtl.el.hidden = false;
+    setPackSeason(seasonParam(state.season, DEFAULT_SEASON));
+  }
   const lod = Math.min(state.lod, meta.lods.length - 1);
   const seed =
     state.seed < 0
@@ -484,7 +576,7 @@ function showTree(type: string, reframe: boolean): void {
   if (!(type in TREE_TYPES)) return;
   const job = ++treeJob;
   const season = seasonParam(state.season, DEFAULT_SEASON);
-  const def = speciesOfType(type);
+  const def = treeOverride(speciesOfType(type)); // (bare: its own variant count)
   showOptions('tree', variantCount(def));
   info({ id: type, species: def.name, status: 'growing ...' });
   desc.textContent = '';
@@ -494,7 +586,7 @@ function showTree(type: string, reframe: boolean): void {
   };
   const loaded = loadingPlate(TREE_TYPES[type]);
   void TreeLibrary.load(
-    TreeLibrary.speciesOf([type], season),
+    TreeLibrary.speciesOf([type], season).map(treeOverride),
     shell.renderer,
   ).then((lib) => {
     if (job !== treeJob) return lib.dispose();
@@ -623,9 +715,12 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// The park, yard and village props' models are chunks of their own (`loadSimready`).
+// The park, yard, village and forest props' models are chunks of their own (`loadSimready`), as are most pack trees'.
 const propsLoaded = loadingPlate('asset models');
-void loadSimready('park', 'yard', 'village').then(() => {
+void Promise.all([
+  loadSimready('park', 'yard', 'village', 'forest'),
+  loadTreePacks(...LAZY_PACK_KINDS),
+]).then(() => {
   propsLoaded();
   rebuild(true);
   // A shared camera link wins over the automatic framing.

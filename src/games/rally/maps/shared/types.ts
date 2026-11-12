@@ -71,15 +71,38 @@ export interface MapDef {
    * through a suburb, a forest road with the trees set back), easing in and out over `fade` m (default 30) at the ends.
    */
   treeSetback?: { from: number; to: number; dist: number; fade?: number }[];
+  /** Trees placed where they really stand (a canopy height model's crowns, scripts/realmap/canopy.py): world/scatter.ts. */
+  realTrees?: RealTreesDef;
   /**
    * Trees (not bushes) whose low leaves (under 4 m above the stage road) would reach more than this many m past its edge
    * take another pose (variant, rotation, size) that keeps them off: world/scatter.ts `lowOverRoad`.
    */
   treeCrownClear?: number;
+  /**
+   * Hero trees near the stage road: within `dist` m of its edge, `share` of the scattered trees of a generated species
+   * (the `swap` key: a tree asset id) stand as its pack model instead (`asset`, a `pack_*` id, at `scale` x the rule's scale), not nearer
+   * than `minRoadDist`. The forest beyond stays generated. world/scatter.ts.
+   */
+  heroTrees?: {
+    dist: number;
+    swap: Record<
+      string,
+      {
+        asset: string;
+        share: number;
+        scale: [number, number];
+        minRoadDist?: number;
+      }
+    >;
+  };
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
   barriers?: BarrierRule[];
+  /** OSM park furniture, barriers and fences along the stage (`data.json` features); placed by the map's own landmark. */
+  features?: MapFeatures;
+  /** Guard rails derived from the ground where the valley side drops away (world/drop-rails.ts); `barriers` win. */
+  dropRails?: DropRails;
   /** City dressing (parked cars, spectators, police / fire vehicles) placed from the road network: world/street-dressing.ts. */
   streetDressing?: StreetDressing;
   /** Power line supports [x, z] and line polylines (flat x, z lists), baked from OSM: towers / poles + cables (world/power-lines.ts). */
@@ -92,10 +115,18 @@ export interface MapDef {
    * catenary masts / wires on the electrified ones (world/railways.ts). Road decks crossing them clear the wires.
    */
   railways?: RailwayDef[];
+  /**
+   * Culverts under the stage road where the elevation data says water crosses it (`culverts.json`, baked by
+   * scripts/realmap/culverts.py): a pipe with a concrete headwall at both ends, a gully carved to and from it
+   * (world/culverts.ts). The road itself is never touched.
+   */
+  culverts?: CulvertsDef;
   /** City streets: city asphalt on the other roads (centre lines on the wide ones), kerbs, sidewalks, crosswalks and lamps near the stage road (world/street-detail-mesh.ts). */
   cityStreets?: CityStreets;
   /** Barriers along the OTHER carriageways (paths of the given OSM kinds): the same wall / rail as the stage road. */
   pathBarriers?: PathBarrierRule;
+  /** Guard rails along a stretch of a side road (world/barriers.ts `sideRoadRailRuns`): one stage-road rail running on up it. */
+  sideRoadRails?: SideRoadRail[];
   /**
    * Roads that run in the divided highway's cut beside its carriageways, parallel to the stage road (OSM maps them
    * as ordinary streets: the sunken inner Union Turnpike lanes beside the Jackie). They are treated as carriageways:
@@ -114,6 +145,11 @@ export interface MapDef {
    * meets a wider / narrower way). Default false: the deck keeps one width, railings run parallel end to end.
    */
   bridgeCorners?: boolean;
+  /**
+   * The stage road's bridge spans are small slab bridges over a ditch: a solid 0.7 m slab (no girders / beams) and no
+   * wing walls (the banks slope up to it).
+   */
+  stageSpanSlab?: boolean;
   /** Overhead guide signs on steel gantries (highway maps): exit signs from the ramps + hand-placed boards (world/overhead-signs.ts). */
   overheadSigns?: OverheadSignDef;
   /**
@@ -404,6 +440,62 @@ export interface LandcoverDef {
    * open data gets wrong (vineyards mapped as orchard or missing). Each becomes a zone of its own with `angle`.
    */
   paint?: { cover: string; angle?: number; poly: number[] }[];
+  /**
+   * The real canopy (scripts/realmap/canopy.py): share of the ground under crowns (0-1) and the stand height (m). Scatter
+   * rules with `canopy` thin and size their trees by it.
+   */
+  canopy?: { cover: RasterDef; height: RasterDef };
+  /**
+   * Pine-needle litter: per cover class, the share (0-1) of the forest-floor litter under the crowns that is a needle
+   * carpet (the `needles` ground scan) instead of leaf litter, e.g. `{ pine: 1, mixed: 0.5 }`; a needle floor is
+   * carpeted whatever the season (world/ground-moisture.ts G channel, world/terrain-material.ts).
+   */
+  needles?: Record<string, number>;
+}
+
+/**
+ * A byte grid over the map, run-length encoded like the land cover: the value at (originX + cell i, originZ + cell j)
+ * is byte x `scale`, read bilinear between the samples (world/real-data.ts `Raster`).
+ */
+export interface RasterDef {
+  originX: number;
+  originZ: number;
+  cell: number;
+  cols: number;
+  rows: number;
+  rle: string;
+  scale: number;
+}
+
+/**
+ * Trees where they really stand (world/scatter.ts `addRealTrees`): each keeps the scatter's rules (bounds, buildings,
+ * landmarks, `minRoadDist` / `minPathDist`, `treeSetback`, water) and is sized to its height.
+ */
+export interface RealTreesDef {
+  /** x, z, height (m) per tree. */
+  trees: number[];
+  /** Tree types by the land cover class at the tree, picked by hash (list one twice to weight it); classes left out grow none. */
+  assets: Record<string, string[]>;
+  minRoadDist: number;
+  /** Default 1.5. */
+  minPathDist?: number;
+  /** Bounds of the size (x the type's own mean height) a tree's height is clamped to. */
+  scale: [number, number];
+  tilt?: number;
+  /** Lean toward the stage road near it (`ScatterRule.lean`). */
+  lean?: ScatterRule['lean'];
+  sink?: number;
+  /**
+   * Model trees (catalog assets, e.g. `pack_pine`) in place of the generated ones within `dist` m of the road edge, by
+   * the land cover class: the variant whose height (`heights[asset]`, m per variant at scale 1) is nearest the tree's
+   * height x `gain` (the canopy model reads tall conifers low), scaled to it (0.5-1.4x).
+   */
+  near?: {
+    dist: number;
+    assets: Record<string, string[]>;
+    heights: Record<string, number[]>;
+    gain?: number;
+  };
 }
 
 /** Standing water: closed polygon (world x/z, not repeating the first point). */
@@ -466,6 +558,24 @@ export interface PathDef {
   name?: string;
 }
 
+/** One culvert: a point on the stage road where a drainage line crosses it. */
+export interface CulvertDef {
+  /** World point on the baked route line (the engine projects it onto the game road). */
+  x: number;
+  z: number;
+  /** Downstream flow direction (unit x, z): the pipe runs along it, at most 30 degrees off square to the road. */
+  dir: number[];
+  /** Upstream catchment (ha): sizes the pipe. */
+  area: number;
+}
+
+/** `maps/<id>/culverts.json`: the culverts and the drainage lines near the road (map viewer `drain=1`). */
+export interface CulvertsDef {
+  culverts: CulvertDef[];
+  /** Drainage lines: catchment (ha) at the lower end, flat x, z list. */
+  lines?: { area: number; pts: number[] }[];
+}
+
 /** One railway track (one OSM way: a single track). */
 export interface RailwayDef {
   /** Centre line, flat [x0, z0, x1, z1, ...]. */
@@ -505,6 +615,11 @@ export interface TrenchFill {
   to: number;
   halfWidth: number;
   depth: [number, number];
+  /**
+   * Raise one side only (1 = left of the direction of travel, -1 = right): a spur the ~30 m elevation data smooths
+   * away beside a hill road, so `rockCuts` makes the cut the photos show.
+   */
+  side?: 1 | -1;
 }
 
 /** A stretch of the stage road on a bridge (over a street / rail) or under a structure, by distance along (m). */
@@ -555,6 +670,13 @@ export interface TerrainDef {
   edgeRise: number;
   /** Slope (1 - normal.y) range where bare rock replaces the ground cover: [start, full]. Default [0.22, 0.38]. */
   rockSlope?: [number, number];
+  /**
+   * Bare stony ground on steep natural slopes (`slope`: 1 - normal.y range [start, full], judged on the elevation data)
+   * and scree fanned out up to `reach` m (default 10) below them (world/terrain-gen.ts `paintTalus`).
+   */
+  talus?: { slope: [number, number]; reach?: number };
+  /** Channel kinds (e.g. `stream`) whose bed is washed pebbles and stones instead of earth. */
+  streamBeds?: string[];
   flatAreas: FlatArea[];
   /** Graded lots / yards (real-world maps with landmarks), applied after the flat areas. */
   pads?: PadDef[];
@@ -642,6 +764,46 @@ export interface RoadDef {
      * newer stretch of a parkway) instead of coursed stone with a picket railing.
      */
     concreteFrom?: number;
+  };
+  /**
+   * Natural rock cuts (a hill road blasted into the slope): where the land beside the road rises more than `minRise` m
+   * above it, the embankment becomes a steep face (`slope` = rise per m across, at most `maxFace` m high, a deeper cut
+   * lies back as an earth bank above it) from `foot` m beyond the verge, a
+   * layered rock face is laid on it (world/rock-cut-mesh.ts) and its foot is painted with scree. The terrain is the
+   * collider. Off near other roads (their mouths keep the gentle bank) and over `exclude` ranges along the road.
+   */
+  rockCuts?: {
+    minRise: number;
+    slope: number;
+    foot: number;
+    maxFace: number;
+    exclude?: [number, number][];
+    /**
+     * Stretches where the cut is held by a low masonry retaining wall instead of a rock face (even inside `exclude`):
+     * on `side` (+1 left of travel, -1 right) from `from` to `to` m along, a vertical face of at most `height` m standing
+     * `offset` m from the road edge (a level grass strip in front), laid as dark coursed stone, the rest of the cut a
+     * grassed bank above it (trees and bushes grow there).
+     */
+    walls?: {
+      from: number;
+      to: number;
+      side: 1 | -1;
+      height: number;
+      offset: number;
+    }[];
+  };
+  /**
+   * Fill banks on the valley side (the mirror of `rockCuts`): where the land beside the road lies more than `minDrop` m
+   * below it, the verge is held at road level to its rim (`rim` m past the shoulder, default 0.3) and the bank falls
+   * straight at `slope` m per m (tipped rock: ~0.8) down to the land, instead of the gentle blend; its face is painted
+   * as stony earth. No ditch on a fill. Off on bridges and over `exclude` ranges along the road. With `MapDef.dropRails`
+   * this is where the derived guard rails stand.
+   */
+  fills?: {
+    minDrop: number;
+    slope: number;
+    rim?: number;
+    exclude?: [number, number][];
   };
   /**
    * Where the elevation data has a void beside a sunken stretch (lidar under a wide structure reads the trench
@@ -879,8 +1041,28 @@ export interface ScatterRule {
   maxRoadDist?: number;
   /** Max terrain slope (1 - normal.y), e.g. 0.3. */
   maxSlope?: number;
-  /** Clustered placement: keep where noise(x/scale) > threshold (-1..1). */
-  mask?: { scale: number; threshold: number; invert?: boolean };
+  /** Min terrain slope (1 - normal.y): only on steep ground (crags, rocks on a scarp). */
+  minSlope?: number;
+  /**
+   * Clustered placement: keep where noise(x/scale) > threshold (-1..1). Rules with the same `group` share one noise field
+   * (one clump of mixed shrubs; `invert` = the ground between); otherwise each rule has its own.
+   */
+  mask?: { scale: number; threshold: number; invert?: boolean; group?: number };
+  /**
+   * Strips along the contour (terraces, planting rows on a logged slope): keep where the ground height, shifted by up to
+   * `jitter` m of noise, falls in the first `width` (0-1) of each `period` m of height; `invert` = the ground between.
+   */
+  contour?: {
+    period: number;
+    width: number;
+    jitter?: number;
+    invert?: boolean;
+  };
+  /**
+   * Trees lean out over the stage road (toward the light of the open side): within `within` m of its edge the stem
+   * tilts `deg` [min, max] toward the road, less further off. On top of `tilt`.
+   */
+  lean?: { deg: [number, number]; within: number };
   scale: [number, number];
   /** Random tilt (deg). */
   tilt?: number;
@@ -905,15 +1087,62 @@ export interface ScatterRule {
   season?: Season[];
   /** Only on field parcels growing this crop in the map's season (`landcover.fields.crops`). */
   crop?: string;
+  /** Only this far from the edge of a field parcel [min, max] (m; `landcover.fields`): hedgerows, field-edge tree lines. */
+  fieldEdge?: [number, number];
   /** Keep away from `paths` (other roads / canals) edges (m). Default 1.5 for solid assets, 0.4 otherwise. */
   minPathDist?: number;
   /** Only this far from the EDGE of a canal / drain / river [min, max] (m, max <= 10): willows, reeds. */
   channelDist?: [number, number];
+  /**
+   * Thin and size by the real canopy (`landcover.canopy`; ignored without it): the full density where the canopy share
+   * is `full` or more, none under `min`, in proportion between. `height` = the stand height (m) the rule's `scale`
+   * fits: trees grow by the stand height there / `height` (0.7-1.4x); unset = sizes unchanged. `open` turns it round:
+   * the rule fills the gaps (full density where the share is `min` or less, none from `full` up) - the young trees and
+   * scrub under the canopy model's 3 m floor.
+   */
+  canopy?: { full: number; min: number; height?: number; open?: boolean };
+  /**
+   * A rock band (asset `rock_outcrop`, world/outcrops.ts): each point grows a row of `pieces` along the contour, faces
+   * down the slope, `step` m apart at scale 1 (default 2.6), leant back by `lean` x the slope angle (default 0.35);
+   * the row stops where the slope leaves `minSlope` / `maxSlope`. `alignToGround` / `tilt` are ignored.
+   */
+  outcrop?: { pieces: [number, number]; step?: number; lean?: number };
+}
+
+/** An OSM feature point (scripts/realmap/features.py): kind, x, z, heading of the way it sits on (rad), OSM node id. */
+export type MapFeaturePoint = [string, number, number, number, number];
+
+/** Road-side features OSM maps (data.json "features", baked by scripts/realmap/features.py; ODbL). */
+export interface MapFeatures {
+  points: MapFeaturePoint[];
+  /** Barrier lines: fence / wall / kerb / guard_rail / retaining_wall / hedge, `pts` flat [x, z, ...], `type` = fence_type / material. */
+  lines: { kind: string; pts: number[]; id: number; type?: string }[];
+}
+
+/**
+ * Derived guard rails: wherever the carved ground falls more than `minDrop` m below the stage road within `within` m
+ * (default 3) of the valley edge (the verge's outer edge), a guard rail runs along that edge. Gaps under `gap` m (14) are bridged, runs under
+ * `minLength` m (16) dropped, ends led in `lead` m (4). Explicit `barriers` rules (hand-placed, hairpin, OSM-mapped
+ * `barrier=guard_rail`) win: no derived run overlaps one on the same side; one that meets it carries it on (its steel).
+ */
+export interface DropRails {
+  minDrop: number;
+  within?: number;
+  gap?: number;
+  minLength?: number;
+  lead?: number;
+  offset?: number;
+  from?: number;
+  to?: number;
+  skipJunctions?: number;
+  /** Weathered rusty steel (default) or galvanised. */
+  rusty?: boolean;
 }
 
 /** A continuous roadside barrier (world/barriers.ts + barrier-mesh.ts). */
 export interface BarrierRule {
-  kind: 'jersey' | 'guardrail';
+  /** `kerb`: a low concrete edge beam on a small slab bridge (the collider stays a Jersey's). */
+  kind: 'jersey' | 'guardrail' | 'kerb';
   side: 'left' | 'right' | 'both';
   /** Distance from the road edge to the barrier centre line (m). */
   offset: number;
@@ -926,6 +1155,11 @@ export interface BarrierRule {
   skipJunctions?: number;
   /** Guard rail only: weathered, rusted brown steel instead of galvanised. */
   rusty?: boolean;
+  /**
+   * Kerb only: a painted (yellow, chipped) two-pipe railing on it; `pipe_broken` = what is left of one (two posts
+   * and one pipe at the start of the run, the other posts cut off).
+   */
+  rail?: 'pipe' | 'pipe_broken';
 }
 
 /**
@@ -946,6 +1180,8 @@ export interface SidewalkLink {
 export interface CityStreets {
   /** Streets within this distance of the stage road get kerbs, sidewalks, crosswalks and lamps (m). */
   reach: number;
+  /** Only near the stage road's first `until` m (the town it leaves; default: all of it). */
+  until?: number;
   /** Sidewalk width (m). */
   sidewalk?: number;
   /** Lamp spacing along the streets (m, 0 = none). */
@@ -1007,6 +1243,26 @@ export interface StreetDressing {
  * a Jersey wall on the median side (another carriageway / the stage road within reach), a guard rail on
  * the outer side, broken where another road joins (ramp mouths, merges) or lies under the barrier.
  */
+/**
+ * A guard rail on the road-network way nearest `from`, between the points of that way nearest `from` and `to`, on `side`
+ * of travel from `from` to `to`. It starts where it clears the stage road (whose own rails run there), or curves out of
+ * a stage-road rail end (`join`).
+ */
+export interface SideRoadRail {
+  from: [number, number];
+  to: [number, number];
+  side: 'left' | 'right';
+  /** Distance from the way's edge to the rail centre line (m). */
+  offset: number;
+  /**
+   * Curve out of the end of a stage-road rail (its `along`, `side`, `offset`) into this one, so the two read as one
+   * rail round the corner of the junction.
+   */
+  join?: { along: number; side: 'left' | 'right'; offset: number };
+  /** Weathered, rusted brown steel instead of galvanised. */
+  rusty?: boolean;
+}
+
 export interface PathBarrierRule {
   /** OSM kinds, e.g. ['motorway']. */
   kinds: string[];
@@ -1201,6 +1457,11 @@ export interface GroundTint {
   variety?: number;
   /** Leaf litter under the tree crowns, 0..1 (default by season: spring 0.3, summer 0.45, autumn 1). */
   litter?: number;
+  /**
+   * Forest floor under the crowns, 0..1 (default 0): darker, browner humus soil, and that share of the sky light shut
+   * out (terrain, roads, ground plants; the sun's shadow maps still give the sun flecks).
+   */
+  shade?: number;
 }
 
 /**

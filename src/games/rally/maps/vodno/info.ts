@@ -47,6 +47,11 @@ export const vodnoInfo: MapInfo = {
       note: 'which woods are pine and which are oak and hornbeam, from a winter and a summer scene - contains modified Copernicus Sentinel data (2025)',
     },
     {
+      label: 'High Resolution Canopy Height Maps (Meta / WRI)',
+      url: 'https://registry.opendata.aws/dataforgood-fb-forests/',
+      note: 'where the woods are closed or open, how tall they stand and every tree outside them - Meta and World Resources Institute, imagery (c) Maxar 2018-2020, CC BY 4.0',
+    },
+    {
       label: 'Millennium Cross (Wikipedia)',
       url: 'https://en.wikipedia.org/wiki/Millennium_Cross',
       note: 'height and look of the cross on Krstovar - reference only',
@@ -81,11 +86,24 @@ export const vodnoInfo: MapInfo = {
       vibrance: 0.1,
       vignette: 0.1,
     },
-    groundTint: { grass: '#9d9560', amount: 0.5 },
+    // The pine woods' floor (the trail start's street view): needles and litter on dark earth, in the crowns' shade.
+    groundTint: {
+      grass: '#7a8a4c',
+      amount: 0.5,
+      variety: 0.45,
+      litter: 0.4,
+      shade: 0.6,
+    },
     // Summer is the map's own look; the grass of an April hillside and of an October one.
     groundTints: {
-      spring: { grass: '#76a44a', amount: 0.65, variety: 1 },
-      autumn: { grass: '#86703f', amount: 0.62 },
+      spring: {
+        grass: '#76a44a',
+        amount: 0.65,
+        variety: 1,
+        litter: 0.6,
+        shade: 0.55,
+      },
+      autumn: { grass: '#86703f', amount: 0.62, shade: 0.55 },
     },
   },
   // The road's centre line (the first crossroad's extra lane moves it): the same points as the full map's road.

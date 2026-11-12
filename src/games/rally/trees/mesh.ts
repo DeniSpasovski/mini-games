@@ -1,4 +1,4 @@
-import { atlasUv, CLUSTER_IMAGES, SPRAY_BASE, spriteAtlas } from './leaftex';
+import { atlasShape, atlasUv, CLUSTER_IMAGES, SPRAY_BASE } from './leaftex';
 import {
   cross,
   GOLDEN,
@@ -115,9 +115,9 @@ const YOUNG_BARK: [number, number] = [0.012, 0.045];
 /** A limb's collar where it leaves its parent (x its radius) and how far along it it runs (x the parent's radius). */
 const COLLAR: [number, number] = [1.3, 1.6];
 /** The trunk's root flare (x its radius), its buttress lobes (share of the radius, count) and height (x the radius). */
-const ROOT_FLARE = 1.45;
-const ROOT_LOBES: [number, number] = [0.12, 5];
-const ROOT_HEIGHT = 3;
+const ROOT_FLARE = 1.7;
+const ROOT_LOBES: [number, number] = [0.2, 5];
+const ROOT_HEIGHT = 3.5;
 
 class Builder {
   p: number[] = [];
@@ -225,7 +225,7 @@ function spriteOcclusion(
   return keptLight(
     0.8 + 0.2 * smoothstep(0.1, 1.0, crownAt(cr, p).e),
     1 - 0.5 * shade * underCrown(cr, p, STAND_CANOPY),
-    0.75 + 0.25 * smoothstep(0.15, 0.9, clump),
+    0.5 + 0.5 * smoothstep(0.1, 0.9, clump),
   );
 }
 
@@ -415,8 +415,12 @@ function leafColor(
   seed: number,
   l: number,
   exposure: number,
+  clump: number,
 ): V3 {
   const rng = new TreeRng(mix32(seed ^ 0x51ed27, l));
+  // One limb's leaves share a little of their look (a branch turns ahead of its neighbours, sits in its own light).
+  const cu = (k: number) =>
+    2 * unit(mix32(mix32(seed ^ 0x3c1a9, clump), k)) - 1;
   const f = def.foliage;
   const pal = f.palette;
   let c: V3;
@@ -430,7 +434,10 @@ function leafColor(
         1,
         Math.max(
           0,
-          stage + f.turn * (exposure - 0.5) + 0.15 * (2 * rng.next() - 1),
+          stage +
+            f.turn * (exposure - 0.5) +
+            CLUMP_STAGE * Math.abs(f.turn) * 4 * cu(1) +
+            0.15 * (2 * rng.next() - 1),
         ),
       ) *
       (pal.length - 1);
@@ -441,8 +448,37 @@ function leafColor(
       t - i,
     );
   }
-  return scale(c, rng.range(0.88, 1.1));
+  // Sun leaves at the crown's surface and top are lighter and warmer, shade leaves inside darker and cooler; each clump
+  // a little lighter or darker, warmer or cooler than its neighbours.
+  const e = exposure - 0.5;
+  const ev = f.colorSpread?.exposure ?? EXPOSURE_VALUE;
+  const cv = f.colorSpread?.clump ?? CLUMP_VALUE;
+  const v = (1 + ev * e + cv * cu(2)) * rng.range(0.9, 1.08);
+  const w =
+    (EXPOSURE_WARM * ev * e) / EXPOSURE_VALUE +
+    (CLUMP_WARM * cv * cu(3)) / CLUMP_VALUE;
+  return [c[0] * v * (1 + w), c[1] * v, c[2] * v * (1 - 2 * w)];
 }
+
+/**
+ * Share of a variant's leaf points that carry a sprite: the season's cover (`leafy`) times the species' `cover`, a
+ * `sparse` variant's own (picked by its seed), 0 for a bare tree.
+ */
+export function leafCover(def: SpeciesDef, seed: number): number {
+  const f = def.foliage;
+  const sparse =
+    f.sparse && unit(mix32(seed, 0x5ba45e)) < f.sparse.share
+      ? f.sparse.cover
+      : 1;
+  return f.bare ? 0 : (f.leafy ?? 1) * (f.cover ?? 1) * sparse;
+}
+
+const EXPOSURE_VALUE = 0.6;
+const EXPOSURE_WARM = 0.12;
+const CLUMP_VALUE = 0.09;
+const CLUMP_WARM = 0.035;
+/** How far a clump's leaves stand ahead of / behind the tree's stage on a season ramp, per unit of `turn` x 4. */
+const CLUMP_STAGE = 0.1;
 
 function mean(cs: V3[]): V3 {
   let m: V3 = [0, 0, 0];
@@ -549,7 +585,7 @@ function spriteOrder(sk: Skeleton, seed: number): number[] {
 const CLUMP_ORDER = 2;
 const CLUMP_MIN = 8;
 /** A sprite's normal: the crown's ellipsoid normal plus this much of its clump's. */
-const CLUMP_NORMAL = 1.6;
+const CLUMP_NORMAL = 3;
 
 interface Clump {
   c: V3;
@@ -620,13 +656,14 @@ function sprites(
   wd: WindData,
   colors: V3[],
 ): SpriteData {
-  const atlas = spriteAtlas(def.foliage.leaf);
+  const atlas = atlasShape(def.foliage.leaf);
   // The palette is the cluster's mean albedo: the atlas shades around it (trees/leaftex.ts `mean`).
   const gain = 1 / atlas.mean;
   const order = spriteOrder(sk, seed);
   const capped = order.slice(0, def.maxSprites);
   // Season leaf cover: a seeded share of the leaf points goes bare (the same ones every load) and the rest shrink.
-  const leafy = def.foliage.leafy ?? 1;
+  // A thin crown (`cover`, a `sparse` variant) drops more, keeping the size: gaps, not smaller leaves. Bare: none.
+  const leafy = leafCover(def, seed);
   const kept =
     leafy < 1
       ? capped.filter((li) => unit(mix32(mix32(seed, li), 7)) < leafy)
@@ -725,6 +762,7 @@ export function buildMeshes(
   const cr = fitCrown(sk, def.foliage.spriteSize);
   const wd = windData(sk, seed);
   // Exposure: out at the crown's surface and up at its top (where autumn starts).
+  const clumpOf = leafClumps(sk).of;
   const colors = sk.leaves.map((l, i) =>
     leafColor(
       def,
@@ -738,6 +776,7 @@ export function buildMeshes(
             0.4 * ((l.pos[1] - cr.c[1]) / cr.r[1] + 0.5),
         ),
       ),
+      clumpOf[i],
     ),
   );
   // Branch cap: thicker twigs drop out until LOD0 fits (deterministic, the levels still nest).

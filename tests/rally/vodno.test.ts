@@ -38,6 +38,7 @@ import {
   roadZ,
 } from '../../src/games/rally/maps/vodno/landmarks/restaurant';
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
+import { distance as polygonDistance } from '../../src/games/rally/world/pads';
 import {
   BANK,
   JUNCTION,
@@ -249,6 +250,9 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-crossroad-hotel',
     'vodno-start-lot',
     'vodno-roadside-gazebo',
+    'vodno-pulloff-gazebo',
+    'vodno-trail-lot',
+    'vodno-osm-features',
   ];
 
   test('registered on the map and in the world', () => {
@@ -429,7 +433,27 @@ describe('vodno car parks', () => {
       'vidikovec_garden_ramp_2',
       'sredno_lot',
       'sredno_bus_lot',
+      'trail_lot',
+      'trail_mouth',
+      'trail_start',
+      'gazebo_pulloff',
     ]);
+  });
+
+  test('the footpaths stop short of the graded lots (their heights come from the land)', () => {
+    const feet = vodnoMap.paths!.filter(
+      (p) => p.kind === 'path' || p.kind === 'footway',
+    );
+    expect(feet.length).toBeGreaterThan(40);
+    for (const pad of LOT_PADS) {
+      const pts = new Float64Array(pad.polygon);
+      for (const p of feet)
+        for (let i = 0; i < p.pts.length; i += 2)
+          expect(
+            polygonDistance(pts, p.pts[i], p.pts[i + 1]),
+            `${pad.name} (${p.pts[i]}, ${p.pts[i + 1]})`,
+          ).toBeGreaterThan(pad.blend);
+    }
   });
 
   test('the two Sredno lots are straight bands: parallel long sides, west ends on one line, east ends cut by the road', () => {
@@ -757,8 +781,11 @@ describe('vodno car park surroundings', () => {
     expect(
       rusty.some((b) => b.side === 'right' && b.from === 2600 && b.to === 2796),
     ).toBe(true);
-    // The one galvanised rail: the left side after the first crossroad.
-    expect(rails.filter((b) => !b.rusty).map((b) => b.side)).toEqual(['left']);
+    // The galvanised rails: on along the Vidikovec lot's wall to its entrance, the left side after the first crossroad.
+    expect(rails.filter((b) => !b.rusty).map((b) => [b.side, b.from])).toEqual([
+      ['right', 2796],
+      ['left', 500],
+    ]);
     // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is.
     expect(map.road.texture).toBe('road_tarmac_lines');
     expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([

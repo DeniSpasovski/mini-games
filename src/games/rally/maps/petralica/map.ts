@@ -5,7 +5,7 @@ import {
   routePoints,
   routeSpans,
 } from '../shared/real-map';
-import { greenInSpring } from '../shared/seasonal-grass';
+import { greenInSpring, seedingGrass } from '../shared/seasonal-grass';
 import type {
   HeightmapDef,
   HorizonDef,
@@ -13,10 +13,12 @@ import type {
   LandcoverDef,
   MapDef,
   PathDef,
+  ScatterRule,
 } from '../shared/types';
 import data from './data.json';
 import horizon from './horizon.json';
 import { petralicaInfo as info } from './info';
+import { forestEdge } from '../shared/forest-edge';
 
 /**
  * "Petralica" - real-world mountain stage in Rankovce municipality, north-east North Macedonia: Ginovci village
@@ -70,6 +72,8 @@ export const petralicaMap: MapDef = {
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
+    // Pine-needle carpet on the floor of the pine stands (world/ground-moisture.ts).
+    needles: { pine: 1 },
     // [grass, dirt, rock, gravel]
     splat: {
       grass: [0.86, 0.1, 0.04, 0],
@@ -214,6 +218,45 @@ export const petralicaMap: MapDef = {
       tilt: 2,
       sink: 0.2,
     },
+    // Tree bands along the field edges and the brook (the photos ref-05 / ref-07): oak / hornbeam lines over a hazel and
+    // thicket hedge on some parcel boundaries (a band ~3.5 m wide: high densities), a gully band of oak, willow and thicket along the brook. Within view of the
+    // road.
+    ...(
+      [
+        ['thicket_shrub', 90, [0.75, 1.2]],
+        ['hazelnut_tree', 40, [0.75, 1.1]],
+        ['oak_tree', 14, [0.6, 1.05]],
+        ['young_tree', 12, [0.8, 1.2]],
+      ] as const
+    ).map(([asset, density, scale]): ScatterRule => ({
+      asset,
+      cover: ['crop'],
+      fieldEdge: [0, 1.8],
+      density,
+      minRoadDist: 4,
+      maxRoadDist: 180,
+      mask: { scale: 50, threshold: 0.12, group: 21 },
+      scale: [scale[0], scale[1]],
+      tilt: 3,
+      sink: 0.15,
+    })),
+    ...(
+      [
+        ['oak_tree', 6, [0.7, 1.15]],
+        ['willow_tree', 4, [0.8, 1.15]],
+        ['hornbeam_tree', 4, [0.7, 1.1]],
+        ['thicket_shrub', 10, [0.8, 1.2]],
+      ] as const
+    ).map(([asset, density, scale]): ScatterRule => ({
+      asset,
+      channelDist: [1.5, 10],
+      density,
+      minRoadDist: 4,
+      maxSlope: 0.7,
+      scale: [scale[0], scale[1]],
+      tilt: 4,
+      sink: 0.2,
+    })),
     // Orchards: planted rows along the long side of each parcel.
     {
       asset: 'fruit_tree',
@@ -360,6 +403,19 @@ export const petralicaMap: MapDef = {
       minRoadDist: 1,
       scale: [0.7, 1.3],
     },
+    // Seeding grass on the uncut verges, stands of it on the old pasture.
+    ...seedingGrass({
+      cover: [...DRY, 'trees', 'pine', 'crop'],
+      verge: 400,
+      fallow: 200,
+      fallowCover: ['grass', 'shrub', 'bare'],
+    }),
+    // Where the road cuts a wood: shrub belt and young trees along the verge (maps/shared/forest-edge.ts).
+    ...forestEdge({
+      woods: ['trees', 'pine'],
+      young: ['oak_tree'],
+      open: ['shrub'],
+    }),
   ],
   roadside: [
     {

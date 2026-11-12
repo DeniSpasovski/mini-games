@@ -1125,7 +1125,7 @@ export function drawParkGround(l: Local, lot: Lot, gy: LocalGround): void {
       const a = line[i];
       const b = line[i + 1];
       const y = gy((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) + SLAB;
-      wallSeg(l, a, b, y - 0.3, y + 0.2, 0.24, 'rubble', '#e2dccf');
+      wallSeg(l, a, b, y - 0.3, y + 0.2, 0.24, 'drystone', '#e2dccf');
     }
   // The rounded ends.
   for (const [a, b] of [
@@ -1133,7 +1133,7 @@ export function drawParkGround(l: Local, lot: Lot, gy: LocalGround): void {
     [outerLine[outerLine.length - 1], innerLine[innerLine.length - 1]],
   ]) {
     const y = gy((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) + SLAB;
-    wallSeg(l, a, b, y - 0.3, y + 0.2, 0.24, 'rubble', '#e2dccf');
+    wallSeg(l, a, b, y - 0.3, y + 0.2, 0.24, 'drystone', '#e2dccf');
   }
 }
 

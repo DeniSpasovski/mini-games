@@ -1,4 +1,10 @@
-import type { PathDef } from '../maps/shared/types';
+import {
+  type CityStreets,
+  type MapDef,
+  type PathDef,
+  roadSurfaceAt,
+  type RoadTexture,
+} from '../maps/shared/types';
 import type { PathNetwork } from './real-data';
 import { newRoadQuery, type Road } from './road';
 
@@ -46,6 +52,86 @@ export const JUNCTION_ASPHALT: Readonly<Record<string, string>> = {
   road_tarmac_plain: 'road_tarmac_plain_junction',
   road_tarmac_plain_kerbed: 'road_tarmac_plain_junction',
 };
+
+/** City streets (OSM kinds) that get city asphalt on maps with `cityStreets`. */
+const CITY_KINDS = new Set([
+  'primary',
+  'secondary',
+  'tertiary',
+  'unclassified',
+  'residential',
+  'living_street',
+]);
+/**
+ * Texture of another road (path / deck) by its OSM class: mainline motorways have lane markings; on city maps
+ * the streets get city asphalt (a double yellow centre line from 6.4 m wide, dashed lane lines too from 12 m = 4 lanes).
+ */
+export const pathTexture = (
+  kind: string,
+  width: number,
+  city?: CityStreets,
+): RoadTexture =>
+  (kind === 'motorway' || kind === 'trunk') && width >= 5.5
+    ? 'road_parkway'
+    : city && CITY_KINDS.has(kind)
+      ? city.asphalt
+        ? city.asphalt
+        : width >= 12
+          ? 'road_street4'
+          : width >= 6.4
+            ? 'road_street'
+            : 'road_city'
+      : 'road_tarmac';
+/** Side road textures that get a junction mouth: plain tarmac and the city streets. */
+export const MOUTH_TEX = new Set<RoadTexture>([
+  'road_tarmac',
+  'road_tarmac_plain_kerbed',
+  'road_city',
+  'road_street',
+  'road_street4',
+]);
+
+/**
+ * The junctions that get a paved mouth (rounded corners + pad, world/road-mesh.ts `junctionMouths`): plain tarmac
+ * side roads and city streets on a stage road with its own junction asphalt, not a parkway lane, a shallow merge or a
+ * plaza's street; one per doubled way. Pure: the road slab (world/road-slab.ts) cuts the drawn terrain under the same
+ * corners.
+ */
+export function mouthJunctions(
+  junctions: readonly Junction[],
+  road: Road,
+  map: Pick<MapDef, 'road' | 'cityStreets'>,
+  isParkwayLane: (pi: number) => boolean,
+  onPlaza: (x: number, z: number) => boolean,
+): Junction[] {
+  const city = map.cityStreets;
+  return (
+    junctions
+      .filter((j) => {
+        if (j.surface !== 'tarmac') return false;
+        if (!MOUTH_TEX.has(pathTexture(j.kind, j.width, city))) return false;
+        // (a stage road with its own junction asphalt: a parkway stage has ramps, not mouths)
+        if (!JUNCTION_ASPHALT[roadSurfaceAt(map.road, j.along).texture])
+          return false;
+        if (isParkwayLane(j.path)) return false;
+        // (a shallow merge runs into the edge like a slip road: no rounded corners or pad)
+        const s = road.at(j.along);
+        if (Math.abs(j.dx * s.tx + j.dz * s.tz) > Math.cos(MERGE_ANGLE))
+          return false;
+        return !onPlaza(j.x, j.z);
+      })
+      // Two ways joining at the same spot (a doubled way in the map data): one mouth.
+      .filter(
+        (j, i, all) =>
+          !all
+            .slice(0, i)
+            .some(
+              (o) =>
+                o.side === j.side && Math.hypot(o.x - j.x, o.z - j.z) < o.width,
+            ),
+      )
+  );
+}
 
 /** How far a side road end may be from the stage road edge and still be joined (m). */
 const MAX_GAP = 20;

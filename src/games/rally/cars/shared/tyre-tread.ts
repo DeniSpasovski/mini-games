@@ -4,12 +4,16 @@ import {
   LinearFilter,
   LinearMipmapLinearFilter,
   MeshStandardMaterial,
-  type Material,
+  Material,
   RepeatWrapping,
   ClampToEdgeWrapping,
   RGBAFormat,
   UnsignedByteType,
+  Vector2,
+  type WebGLProgramParametersWithUniforms,
+  type WebGLRenderer,
 } from 'three';
+import type { TyreLodShares } from './tyre-lod';
 import type { TyreId } from '../../physics/tyres';
 import { sidewallMaterial } from './tyre-sidewall';
 
@@ -469,10 +473,12 @@ function texture(t: Tread, data: Uint8Array): DataTexture {
 /** Normal map strength: the slope of a full-depth wall is scaled down to this share (soft, worn block edges). */
 const NORMAL_STRENGTH = 0.35;
 
-/** Groove shading (rgb, multiplies the vertex colour) and normal map of a tread. */
-function treadMaps(t: Tread): { map: DataTexture; normal: DataTexture } {
+/** Groove shading (rgb, multiplies the vertex colour) and normal map of a tread (`h`: its height field, softened). */
+function treadMaps(
+  t: Tread,
+  h = blurred(t, 1, 1),
+): { map: DataTexture; normal: DataTexture } {
   const { cols, rows } = t;
-  const h = blurred(t, 1, 1);
   const albedo = new Uint8Array(cols * rows * 4);
   const normal = new Uint8Array(cols * rows * 4);
   const px = BW / TW / 1000;
@@ -520,6 +526,68 @@ const plainMat = new MeshStandardMaterial({
   roughness: 0.95,
 });
 const materials = new Map<TyreId, MeshStandardMaterial>();
+const blurMaps = new Map<TyreId, { map: DataTexture; normal: DataTexture }>();
+
+/**
+ * The tread of a turning tyre (tyre-lod.ts 'blur' level): smeared along the rolling direction over a whole pitch, so
+ * the blocks average out and the circumferential grooves and shoulder voids stay - what a tyre at speed looks like.
+ * One pair of textures per compound, shared by every car.
+ */
+function treadBlurMaps(c: TyreId): { map: DataTexture; normal: DataTexture } {
+  let m = blurMaps.get(c);
+  if (!m) {
+    const t = tread(c);
+    m = treadMaps(t, blurred(t, 1, Math.floor(t.rows / 2)));
+    m.map.name = 'tyre-tread-blur';
+    m.normal.name = 'tyre-tread-blur-normal';
+    blurMaps.set(c, m);
+  }
+  return m;
+}
+
+/**
+ * Screen-door dither for the tyre levels: keeps the fragments whose noise (interleaved gradient noise of the pixel, the
+ * same for every material) falls in the material's `userData.tyreLod` range, so complementary ranges crossfade two
+ * meshes with no holes and no transparency. One function for every tyre material: one shader program.
+ */
+function tyreLodCompile(
+  this: Material,
+  shader: WebGLProgramParametersWithUniforms,
+  renderer: WebGLRenderer,
+): void {
+  // The world shading's uniforms (fog, lights, cloud shadows) come with the default hook (engine/world-shading.ts).
+  Material.prototype.onBeforeCompile.call(this, shader, renderer);
+  shader.uniforms.tyreLod = this.userData.tyreLod;
+  shader.uniforms.tyreLetterBias = this.userData.tyreLetterBias;
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      '#include <common>',
+      '#include <common>\nuniform vec2 tyreLod;\nuniform float tyreLetterBias;',
+    )
+    .replace(
+      '#include <clipping_planes_fragment>',
+      `float tyreDither = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+if (tyreDither < tyreLod.x || tyreDither >= tyreLod.y) discard;
+#include <clipping_planes_fragment>`,
+    )
+    .replace(
+      '#include <map_fragment>',
+      `#ifdef USE_MAP
+diffuseColor *= texture2D(map, vMapUv, tyreLetterBias);
+#endif`,
+    );
+}
+
+/** Give a car's tyre material the level dither (range all = drawn whole) and the lettering's mip bias. */
+function withLod(m: MeshStandardMaterial): MeshStandardMaterial {
+  m.userData.tyreLod = { value: new Vector2(0, 2) };
+  m.userData.tyreLetterBias = { value: 0 };
+  m.onBeforeCompile = tyreLodCompile;
+  return m;
+}
+
+/** Drawn in place of the lettering on the tyre levels that do not carry it this frame (three skips invisible groups). */
+const noLetters = new MeshStandardMaterial({ visible: false });
 
 /** The rubber material of a compound: the tread's groove shading and normal map on the band, plain on the sidewalls. */
 function rubberMaterial(c: TyreId): MeshStandardMaterial {
@@ -549,7 +617,12 @@ export function tyreMaterial(c: TyreId | null): Material | Material[] {
 
 /** A car's own copy of its tyre materials, with road dust on them (`set`; the textures stay shared). */
 export interface DustyTyre {
+  /** The full tyre's materials. */
   readonly materials: Material | Material[];
+  /** The low-poly tyre's materials (tyre-lod.ts): sharp tread and smeared tread. Null on a plain tyre (no levels). */
+  readonly low: { sharp: Material[]; blur: Material[] } | null;
+  /** Level shares (tyre-lod.ts): each level's dither range, and which one draws the lettering. */
+  setLod(lod: TyreLodShares): void;
   /** Dust level 0..1 (tyre-dust.ts steps) and its linear colour. */
   set(level: number, color: Color): void;
   dispose(): void;
@@ -569,29 +642,72 @@ export function dustyTyre(
   const [rubberBase, letterBase] = Array.isArray(base)
     ? (base as MeshStandardMaterial[])
     : [base as MeshStandardMaterial, null];
-  const rubber = rubberBase.clone();
-  const letters = letterBase?.clone() ?? null;
   const clean = rubberColor();
   const roughness = rubberBase.roughness;
   const white = new Color(1, 1, 1);
   const target = new Color();
-  return {
-    materials: letters ? [rubber, letters] : rubber,
-    set(level, color) {
-      if (baked)
-        target.setRGB(
+  const dustTarget = (color: Color) =>
+    baked
+      ? target.setRGB(
           color.r / baked[0],
           color.g / baked[1],
           color.b / baked[2],
-        );
-      else target.copy(color);
-      rubber.color.copy(clean).lerp(target, level);
-      rubber.roughness = roughness + (1 - roughness) * level;
-      letters?.color.copy(white).lerp(color, level * 0.6);
+        )
+      : target.copy(color);
+  if (!c || !letterBase) {
+    const rubber = rubberBase.clone();
+    return {
+      materials: rubber,
+      low: null,
+      setLod() {},
+      set(level, color) {
+        rubber.color.copy(clean).lerp(dustTarget(color), level);
+        rubber.roughness = roughness + (1 - roughness) * level;
+      },
+      dispose() {
+        rubber.dispose();
+      },
+    };
+  }
+  // Levels: full, sharp low, blurred low (tyre-lod.ts), each its own dither range; one lettering material.
+  const full = withLod(rubberBase.clone());
+  const sharp = withLod(rubberBase.clone());
+  const blur = withLod(rubberBase.clone());
+  const blurMaps = treadBlurMaps(c);
+  blur.map = blurMaps.map;
+  blur.normalMap = blurMaps.normal;
+  const letters = withLod(letterBase.clone());
+  const rubbers = [full, sharp, blur];
+  const sets = [
+    [full, letters] as Material[],
+    [sharp, noLetters],
+    [blur, noLetters],
+  ];
+  const range = (m: MeshStandardMaterial, lo: number, hi: number) =>
+    (m.userData.tyreLod.value as Vector2).set(lo, hi);
+  return {
+    materials: sets[0],
+    low: { sharp: sets[1], blur: sets[2] },
+    setLod(lod) {
+      range(full, 0, lod.full);
+      range(sharp, lod.full, lod.full + lod.sharp);
+      // The last range runs past 1 so rounding never leaves a pixel out.
+      range(blur, lod.full + lod.sharp, 2);
+      const k = ['full', 'sharp', 'blur'].indexOf(lod.letters ?? '');
+      sets.forEach((s, i) => (s[1] = i === k ? letters : noLetters));
+      letters.userData.tyreLetterBias.value = lod.letterBias;
+    },
+    set(level, color) {
+      dustTarget(color);
+      for (const r of rubbers) {
+        r.color.copy(clean).lerp(target, level);
+        r.roughness = roughness + (1 - roughness) * level;
+      }
+      letters.color.copy(white).lerp(color, level * 0.6);
     },
     dispose() {
-      rubber.dispose();
-      letters?.dispose();
+      for (const r of rubbers) r.dispose();
+      letters.dispose();
     },
   };
 }

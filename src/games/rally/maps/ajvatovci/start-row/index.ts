@@ -9,6 +9,7 @@ import {
   ORIGIN,
   ROAD,
   roadLine,
+  roadZ,
   SIDEWALK_BACK,
   SOUTH_FENCE,
   STREET_X,
@@ -16,12 +17,16 @@ import {
   type Corner,
 } from './frame';
 import { getYards, PLOTS, SITE } from './layout';
+import { yardTop } from './yard-surfaces';
 import { buildStartRow } from './build';
 import { startRowInstances } from './plantings';
 import {
+  APRON_BACK,
+  apronLine,
   CURBS_FROM,
   fenceRuns,
   gates,
+  kerbRuns,
   poleSpots,
   straighten,
 } from './streetwork';
@@ -195,16 +200,43 @@ const replacedOutlines = (): Corner[][] => [
   ...SOUTH_STRIPS,
 ];
 
-let cache: { polygons: { pts: Float64Array; bounds: number[] }[] } | undefined;
-/** Lots and buildings as world polygons with bounds, for quick point tests. */
+type Area = { pts: Float64Array; bounds: number[] };
+let cache: { polygons: Area[]; paving: Area[] } | undefined;
+/**
+ * Lots and buildings as world polygons with bounds, for quick point tests; `paving` = the north kerb and sidewalk runs
+ * (build/street.ts), kept apart so they keep scatter out without hiding OSM buildings near the street (`replaces`).
+ */
 const areas = () => {
   if (cache) return cache;
   const outlines = [
     ...getYards().map((y) => y.polygon.map((p): Corner => [p.x, p.y])),
     ...footprints().map((f) => f.corners),
     ...replacedOutlines(),
+    // The driveway aprons (build/street.ts): paving, no grass through it.
+    ...(['north', 'south'] as const).flatMap((side) =>
+      gates()[side].map(([x0, x1]): Corner[] => {
+        const front = side === 'north' ? ROAD.half : -ROAD.half;
+        return [
+          [x0, roadZ(x0, front)],
+          [x1, roadZ(x1, front)],
+          [x1, roadZ(x1, APRON_BACK[side])],
+          [x0, roadZ(x0, APRON_BACK[side])],
+        ];
+      }),
+    ),
   ];
-  const polygons = outlines.map((c) => {
+  // The north kerb + sidewalk outside the gates, sampled every 4 m so the strips follow the bend.
+  const strip = (x0: number, x1: number): Corner[] => {
+    const xs: number[] = [];
+    for (let x = x0; x < x1; x += 4) xs.push(x);
+    xs.push(x1);
+    return [
+      ...xs.map((x): Corner => [x, roadZ(x, ROAD.half)]),
+      ...xs.reverse().map((x): Corner => [x, roadZ(x, SIDEWALK_BACK)]),
+    ];
+  };
+  const pavingOutlines = kerbRuns().north.map(([x0, x1]) => strip(x0, x1));
+  const toArea = (c: Corner[]): Area => {
     const pts = flat(c);
     let minX = Infinity;
     let maxX = -Infinity;
@@ -217,12 +249,15 @@ const areas = () => {
       maxZ = Math.max(maxZ, pts[i + 1]);
     }
     return { pts, bounds: [minX, maxX, minZ, maxZ] };
+  };
+  return (cache = {
+    polygons: outlines.map(toArea),
+    paving: pavingOutlines.map(toArea),
   });
-  return (cache = { polygons });
 };
 
-const within = (x: number, z: number, margin: number): boolean => {
-  for (const { pts, bounds } of areas().polygons) {
+const hit = (list: Area[], x: number, z: number, margin: number): boolean => {
+  for (const { pts, bounds } of list) {
     if (
       x < bounds[0] - margin ||
       x > bounds[1] + margin ||
@@ -235,17 +270,29 @@ const within = (x: number, z: number, margin: number): boolean => {
   return false;
 };
 
-/** Height of the kerb top / the sidewalk / a driveway apron above the road centre (m): see build/street.ts. */
+/** In a lot / building (or, with `paving`, also on a kerb or the sidewalk) within `margin` m. */
+const within = (
+  x: number,
+  z: number,
+  margin: number,
+  paving = false,
+): boolean =>
+  hit(areas().polygons, x, z, margin) ||
+  (paving && hit(areas().paving, x, z, margin));
+
+/** Height of the kerb top / the sidewalk above the road centre (m): see build/street.ts. */
 const KERB = 0.17;
 const SIDEWALK = 0.15;
-const APRON = 0.07;
 
 /**
  * The ground the car drives on: the terrain, except where the street has a kerb, a sidewalk or a
  * driveway apron - there it is the same raised surface the street mesh draws (build/street.ts), so
  * the wheels feel the 17 cm kerb and ride up onto the sidewalk. NaN elsewhere.
  */
-const kerbGround = (ground: TerrainSampler) => {
+const kerbGround = (
+  ground: TerrainSampler,
+  yard: (x: number, z: number) => number,
+) => {
   const centre = roadLine(0);
   const heights = centre.map((p) =>
     ground.height(p.x + ORIGIN.x, p.y + ORIGIN.z),
@@ -253,10 +300,21 @@ const kerbGround = (ground: TerrainSampler) => {
   const g = gates();
   const inGate = (x: number, gaps: [number, number][]) =>
     gaps.some(([a, b]) => x >= a && x <= b);
+  const across = apronLine(
+    (x, z) => ground.height(x + ORIGIN.x, z + ORIGIN.z),
+    yard,
+  );
   return (wx: number, wz: number): number => {
     const x = wx - ORIGIN.x;
     const z = wz - ORIGIN.z;
     if (x < CURBS_FROM || x > STREET_X[1]) return NaN;
+    // A driveway apron: the ramp from the road to the yard.
+    for (const side of ['north', 'south'] as const) {
+      if (!inGate(x, g[side])) continue;
+      const l = across(x, side);
+      const t = (z - l.zf) / (l.zb - l.zf);
+      if (t >= 0 && t <= 1) return l.yf + (l.yb - l.yf) * t;
+    }
     // The road sample whose x is nearest, then the closest of its neighbours.
     let lo = 0;
     let hi = centre.length - 1;
@@ -289,22 +347,14 @@ const kerbGround = (ground: TerrainSampler) => {
       len;
     const north = -lateral; // z grows south; flip so + is the row's side
     const cy = heights[best];
+    if (!inGate(x, g.north) && north >= ROAD.half && north <= SIDEWALK_BACK)
+      return cy + (north < ROAD.half + ROAD.curb ? KERB : SIDEWALK);
     if (
-      north >= ROAD.half &&
-      north <= SIDEWALK_BACK + (inGate(x, g.north) ? 0.4 : 0)
+      !inGate(x, g.south) &&
+      north <= -ROAD.half &&
+      north >= -ROAD.half - ROAD.curb
     )
-      return (
-        cy +
-        (inGate(x, g.north)
-          ? APRON
-          : north < ROAD.half + ROAD.curb
-            ? KERB
-            : SIDEWALK)
-      );
-    if (north <= -ROAD.half) {
-      if (inGate(x, g.south) && north >= SOUTH_FENCE - 0.6) return cy + APRON;
-      if (north >= -ROAD.half - ROAD.curb) return cy + KERB;
-    }
+      return cy + KERB;
     return NaN;
   };
 };
@@ -316,7 +366,7 @@ export const startRowLandmark: Landmark = {
     // Cheap reject: the whole row lies within a few hundred metres of the Mileks site origin.
     if (Math.abs(x - ORIGIN.x) > 520 || Math.abs(z - ORIGIN.z) > 260)
       return false;
-    return within(x, z, margin);
+    return within(x, z, margin, true);
   },
 
   replaces: (b: BuildingDef) => {
@@ -431,7 +481,14 @@ export const startRowLandmark: Landmark = {
     return out;
   },
 
-  groundOverride: kerbGround,
+  groundOverride: (ground) => {
+    const yard = yardTop((x, z) => ground.height(x + ORIGIN.x, z + ORIGIN.z));
+    const kerb = kerbGround(ground, yard);
+    return (x, z) => {
+      const h = kerb(x, z);
+      return Number.isNaN(h) ? yard(x - ORIGIN.x, z - ORIGIN.z) : h;
+    };
+  },
 
   instances: (ground: TerrainSampler) =>
     startRowInstances((x, z) => ground.height(x, z)),

@@ -12,7 +12,8 @@ its UVs instead), joined, decimated to the triangle budgets in ASSETS, smoothed 
 Y up, origin centred on the footprint at ground level, front along +Z (ASSETS `turn`).
 
 Packed mesh (little endian, base64): u16 vertex count, u16 shift k, then per vertex i16 x3 position (/ (8192 >> k) m:
-k = 0 up to 4 m from the origin, more for a taller model), i8 x3 normal, u8 x3 colour (sRGB), then u16 indices.
+k = 0 up to 4 m from the origin, more for a taller model), i8 x3 normal, u8 x3 colour (sRGB)[, u16 x2 uv (/ 65535) when
+the header's bit 8 is set: a textured group, TEXTURED], then u16 indices.
 """
 
 import base64
@@ -30,7 +31,11 @@ from mathutils import Matrix, Vector
 #   drop: materials whose name contains one of these are left out (printed labels, which a colour per part turns into blobs);
 #   keep: the only objects used (a kit: pick its pieces by name);
 #   place: {object or "*": (dx, dy, dz, sx, sy, sz)} moved by d, then scaled about the origin (assembles kit pieces);
-#   copy: {new name: (object, (dx, dy, dz, sx, sy, sz))} a second placed copy of a kit piece (a negative scale mirrors it).
+#   copy: {new name: (object, (dx, dy, dz, sx, sy, sz))} a second placed copy of a kit piece (a negative scale mirrors it);
+#   tile: keep the model's own colour + normal textures (a Poly Haven model with one material) as this tile of the
+#     group's atlas (TEXTURED), white vertex colour; the UVs are packed too;
+#   smooth: the smoothing angle (deg, default 35): a decimated organic scan wants a wider one or it shows its facets;
+#   gain: (r, g, b) linear gain on the tile's colour map (a scan that reads too pale or blue in game).
 ASSETS = {
     "service": {
         "tool_chest": ("equipment_rolling_tool_chest_cabinet_combo_d01", [8000, 1500], -90),
@@ -116,7 +121,21 @@ ASSETS = {
         "forklift": ("vehicle_forklift_orange_a01", [6000, 1200], 0),
         "pallet_jack": ("palletJack_heavyDuty_a01", [3500, 700], 0),
     },
+    # Forest-floor debris (Poly Haven scans), scattered by the hundred: three levels each.
+    "forest": {
+        "stump_a": ("../polyhaven/tree_stump_01", [1600, 450, 140], 0, {"tile": 0, "smooth": 70}),
+        "stump_b": ("../polyhaven/tree_stump_02", [1600, 450, 140], 0, {"tile": 1, "smooth": 70}),
+        "log": ("../polyhaven/dead_tree_trunk", [1200, 350, 100], 0, {"tile": 2, "smooth": 70}),
+        "trunk": ("../polyhaven/dead_tree_trunk_02", [2400, 600, 180], 0, {"tile": 3, "smooth": 70}),
+        # The scan is a cool grey (blue / green 0.8): warmed and darkened to weathered brown-grey deadwood (~0.62, lum 0.062).
+        "branches": ("../polyhaven/dry_branches_medium_01", [1500, 450, 150], 0, {"tile": 4, "smooth": 70, "gain": (0.92, 0.86, 0.67)}),
+        "roots_a": ("../polyhaven/pine_roots", [1400, 400, 120], 0, {"tile": 5, "smooth": 70, "keep": ["pine_roots_a"]}),
+        "roots_b": ("../polyhaven/pine_roots", [1400, 400, 120], 0, {"tile": 6, "smooth": 70, "keep": ["pine_roots_b"]}),
+    },
 }
+# group -> (columns, rows, colour tile px, normal tile px): the groups whose models keep their own textures (option
+# `tile`), packed into src/games/rally/engine/props/simready-<group>.color.webp + .normal.webp.
+TEXTURED = {"forest": (4, 2, 512, 256)}
 SCALE = 8192
 
 args = sys.argv[sys.argv.index("--") + 1 :]
@@ -231,16 +250,23 @@ def bake(name, folder, budgets, turn, opts=()):
         if not o.data.polygons:
             meshes.remove(o)
             bpy.data.objects.remove(o)
+    tile = opts.get("tile")
+    if tile is not None:
+        use_tile(meshes, tile)
+        if "gain" in opts:
+            gains[tile] = opts["gain"]
     # Colour every face by its material, then join.
     for o in meshes:
         me = o.data
         attr = me.color_attributes.new("col", "BYTE_COLOR", "CORNER")
         cols = [material_colour(s.material) for s in o.material_slots] or [(0.5, 0.5, 0.5)]
-        atlases = [atlas(s.material) if gltf else None for s in o.material_slots]
+        atlases = [atlas(s.material) if gltf and tile is None else None for s in o.material_slots]
         uv = me.uv_layers.active
         for poly in me.polygons:
             mi = min(poly.material_index, len(cols) - 1)
             c = cols[mi]
+            if tile is not None:
+                c = (1.0, 1.0, 1.0)
             if atlases and atlases[mi] and uv:
                 u = sum(uv.data[li].uv[0] for li in poly.loop_indices) / poly.loop_total
                 v = sum(uv.data[li].uv[1] for li in poly.loop_indices) / poly.loop_total
@@ -256,6 +282,13 @@ def bake(name, folder, budgets, turn, opts=()):
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     me = obj.data
     me.materials.clear()
+    if tile is not None:
+        # The glTF import splits a scan's vertices along its UV seams: weld them, or the decimator opens cracks there.
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+        bm.to_mesh(me)
+        bm.free()
     # Blender Z up -> three Y up, footprint centred, base on y = 0, turned so the front faces +Z.
     lo = Vector((min(v.co[i] for v in me.vertices) for i in range(3)))
     hi = Vector((max(v.co[i] for v in me.vertices) for i in range(3)))
@@ -291,8 +324,8 @@ def bake(name, folder, budgets, turn, opts=()):
                 break
         bpy.context.view_layer.objects.active = o
         o.select_set(True)
-        bpy.ops.object.shade_smooth_by_angle(angle=math.radians(35))
-        lods.append(pack(o.data))
+        bpy.ops.object.shade_smooth_by_angle(angle=math.radians(opts.get("smooth", 35)))
+        lods.append(pack(o.data, tile is not None))
         src_obj = o
         print(f"{name} lod {len(lods) - 1}: {lods[-1][1]} tris (budget {budget}, source {full})")
     size = [round(hi[i] - lo[i], 3) for i in (0, 2, 1)]
@@ -326,9 +359,64 @@ def drop_small_parts(o, size):
     return bpy.context.view_layer.objects.active
 
 
-def pack(me):
+TILE_PAD = 0.01
+tiles = {}
+gains = {}
+
+
+def use_tile(meshes, tile):
+    """Map a textured model's UVs into its atlas tile (TILE_PAD in from the edges) and note the tile's two images."""
+    mats = {s.material for o in meshes for s in o.material_slots if s.material}
+    assert len(mats) == 1, f"tile {tile}: one material expected, got {[m.name for m in mats]}"
+    nodes = mats.pop().node_tree.nodes
+    path = lambda n: bpy.path.abspath(n.image.filepath)
+    bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
+    nor = next(n for n in nodes if n.type == "NORMAL_MAP").inputs["Color"].links[0].from_node
+    tiles[tile] = (path(bsdf.inputs["Base Color"].links[0].from_node), path(nor))
+    cols, rows = TEXTURED[group][:2]
+    c, r = tile % cols, tile // cols
+    for o in meshes:
+        for d in o.data.uv_layers.active.data:
+            u, v = (min(1, max(0, x)) for x in d.uv)
+            # Tile rows count from the image top; Blender's v from its bottom.
+            d.uv = ((c + TILE_PAD + u * (1 - 2 * TILE_PAD)) / cols, (rows - 1 - r + TILE_PAD + v * (1 - 2 * TILE_PAD)) / rows)
+
+
+def write_atlas():
+    """The group's colour and normal atlases (webp) from the tiles' images, scaled to the tile size."""
+    import numpy as np
+
+    cols, rows, *px = TEXTURED[group]
+    for k, (kind, size, fill) in enumerate((("color", px[0], (0.3, 0.25, 0.2)), ("normal", px[1], (0.5, 0.5, 1.0)))):
+        buf = np.ones((rows * size, cols * size, 4), np.float32)
+        buf[..., :3] = fill
+        for t, paths in tiles.items():
+            img = bpy.data.images.load(paths[k])
+            img.scale(size, size)
+            tile = np.empty(size * size * 4, np.float32)
+            img.pixels.foreach_get(tile)
+            if k == 0 and t in gains:
+                # The byte image's pixels are sRGB: the gain is linear.
+                px = tile.reshape(-1, 4)[:, :3]
+                lin = np.where(px <= 0.04045, px / 12.92, ((px + 0.055) / 1.055) ** 2.4) * np.array(gains[t], np.float32)
+                lin = np.clip(lin, 0, 1)
+                px[:] = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * lin ** (1 / 2.4) - 0.055)
+            y = (rows - 1 - t // cols) * size  # pixel rows count from the bottom
+            buf[y : y + size, (t % cols) * size : (t % cols + 1) * size] = tile.reshape(size, size, 4)
+        img = bpy.data.images.new(f"{group}-{kind}", cols * size, rows * size, alpha=False)
+        if kind == "normal":
+            img.colorspace_settings.name = "Non-Color"
+        img.pixels.foreach_set(buf.ravel())
+        img.filepath_raw = os.path.join(root, "src", "games", "rally", "engine", "props", f"simready-{group}.{kind}.webp")
+        img.file_format = "WEBP"
+        img.save(quality=82)
+        print("wrote", img.filepath_raw)
+
+
+def pack(me, textured=False):
     me.calc_loop_triangles()
     col = me.color_attributes["col"]
+    uv = me.uv_layers.active.data if textured else None
     normals = me.corner_normals
     verts, index, out = {}, [], []
     reach = max(abs(c) for v in me.vertices for c in v.co)
@@ -347,13 +435,16 @@ def pack(me):
                 round(n.x * 127), round(n.z * 127), round(-n.y * 127),
                 round(c[0] * 255), round(c[1] * 255), round(c[2] * 255),
             )
+            if uv is not None:
+                t = uv[li].uv
+                key += (round(min(1, max(0, t[0])) * 65535), round(min(1, max(0, t[1])) * 65535))
             if key not in verts:
                 verts[key] = len(out)
                 out.append(key)
             index.append(verts[key])
-    buf = bytearray(struct.pack("<HH", len(out), shift))
+    buf = bytearray(struct.pack("<HH", len(out), shift | (0x100 if textured else 0)))
     for k in out:
-        buf += struct.pack("<hhhbbbBBB", *k)
+        buf += struct.pack("<hhhbbbBBBHH" if textured else "<hhhbbbBBB", *k)
     buf += struct.pack(f"<{len(index)}H", *index)
     return base64.b64encode(bytes(buf)).decode(), len(index) // 3
 
@@ -378,3 +469,5 @@ out = os.path.join(root, "src", "games", "rally", "assets", "builders", f"simrea
 with open(out, "w", encoding="utf8", newline="\n") as f:
     f.write("\n".join(ts) + "\n")
 print("wrote", out)
+if group in TEXTURED:
+    write_atlas()

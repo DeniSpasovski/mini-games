@@ -401,8 +401,11 @@ function deckBody(
   cov?: Coverage,
   arch = false,
   modern = false,
+  /** Solid slab of this depth (a small slab bridge): no girders or beams under it. */
+  slab = 0,
 ): void {
   const { conc, stone } = parts;
+  const depth = slab || DECK_DEPTH;
   const L = OVERHANG;
   const top = parapet ? PARAPET_H : 0;
   // Fascia (concrete) up to the road level, stone parapet above it.
@@ -441,25 +444,32 @@ function deckBody(
     stone.strip(low, [L, 0, 1], [-L, 0, -1], [0.6, 0.58, 0.54], false);
   } else {
     for (const rr of openRuns(rows, cov?.left))
-      conc.strip(rr, [L, 0, 1], [L, -GIRDER, 1], CONC);
+      conc.strip(rr, [L, 0, 1], [L, -depth, 1], CONC);
     for (const rr of openRuns(rows, cov?.right))
-      conc.strip(rr, [-L, 0, -1], [-L, -GIRDER, -1], CONC);
+      conc.strip(rr, [-L, 0, -1], [-L, -depth, -1], CONC);
     // Soffit (the underside of the slab, in shadow).
-    conc.strip(rows, [L, -SLAB_T, 1], [-L, -SLAB_T, -1], SOFFIT, false);
+    conc.strip(
+      rows,
+      [L, -(slab || SLAB_T), 1],
+      [-L, -(slab || SLAB_T), -1],
+      SOFFIT,
+      false,
+    );
   }
   // Beams hanging below the flat soffit.
   const hw = Math.min(...rows.map((r) => r.hw));
-  const nb = arch ? 0 : Math.max(2, Math.round((2 * hw) / BEAM_GAP) + 1);
+  const nb =
+    arch || slab ? 0 : Math.max(2, Math.round((2 * hw) / BEAM_GAP) + 1);
   for (let k = 0; k < nb; k++) {
     const f = -1 + (2 * k) / (nb - 1);
     for (const s of [-1, 1] as const) {
       const o = s * BEAM_W * 0.5;
-      conc.strip(rows, [o, -SLAB_T, f], [o, -GIRDER, f], BEAM);
+      conc.strip(rows, [o, -SLAB_T, f], [o, -depth, f], BEAM);
     }
     conc.strip(
       rows,
-      [-BEAM_W * 0.5, -GIRDER, f],
-      [BEAM_W * 0.5, -GIRDER, f],
+      [-BEAM_W * 0.5, -depth, f],
+      [BEAM_W * 0.5, -depth, f],
       SOFFIT,
       false,
     );
@@ -478,8 +488,8 @@ function deckBody(
       r.tz,
       0.25,
       hwr,
-      r.y - (arch ? SLAB_T + ARCH_RISE : GIRDER),
-      r.y - SLAB_T,
+      r.y - (arch ? SLAB_T + ARCH_RISE : depth),
+      r.y - (slab || SLAB_T),
       SOFFIT,
     );
   }
@@ -678,6 +688,9 @@ function besideStageSpan(world: World, r: Row): boolean {
   return !!sp && sp.to - sp.from >= STAGE_ARCH_MIN;
 }
 
+/** Depth of a small slab bridge's deck (MapDef.stageSpanSlab, m). */
+const STAGE_SLAB = 0.7;
+
 /** Shortest stage-road span with an arch soffit (m): a culvert-sized span keeps the flat girders. */
 const STAGE_ARCH_MIN = 12;
 
@@ -706,14 +719,34 @@ function stageSpans(world: World, tiles: TileParts): void {
     // The old stone-bridge look (as the street bridges over the parkway) unless the map's bridges are modern.
     const arch =
       world.map.bridgeStyle !== 'concrete' && sp.to - sp.from >= STAGE_ARCH_MIN;
-    deckBody(parts, rows, false, undefined, arch);
-    abutment(world, parts, rows[0], 1, (s) => world.road.at(sp.from - s).y);
+    const small = !!world.map.stageSpanSlab;
+    deckBody(
+      parts,
+      rows,
+      false,
+      undefined,
+      arch && !small,
+      false,
+      small ? STAGE_SLAB : 0,
+    );
+    const wings = !small;
+    abutment(
+      world,
+      parts,
+      rows[0],
+      1,
+      (s) => world.road.at(sp.from - s).y,
+      false,
+      wings,
+    );
     abutment(
       world,
       parts,
       rows[rows.length - 1],
       -1,
       (s) => world.road.at(sp.to + s).y,
+      false,
+      wings,
     );
   }
 }

@@ -68,6 +68,7 @@ import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
+import { CarSurround } from '../world/car-surround';
 import { canopyTone, FarForest } from '../world/far-forest';
 import { FarShadow } from '../world/far-shadow';
 import { TerrainLight } from '../world/terrain-light';
@@ -324,6 +325,8 @@ export class RallyGame {
   private canopy!: CanopyShadows;
   /** The canopy shell and far trees (world/far-forest.ts); the perf panel moves their forest distance. */
   farForest!: FarForest;
+  /** What the car reflects besides the sky: trees, far forest, terrain round it (world/car-surround.ts). */
+  private surround?: CarSurround;
   /** Hill shadows past the shadow maps and sky light in valleys, baked in the background (world/terrain-light.ts). */
   private terrainLight?: TerrainLight;
   private hazeAcc = 0;
@@ -575,6 +578,14 @@ export class RallyGame {
         this.renderer.extensions.has('EXT_color_buffer_half_float'),
     );
     this.farForest.renderer = this.renderer;
+    this.surround = new CarSurround(this.world, this.farForest);
+    // Off on low (the sky env alone, as before); `?surround=0..1` to compare.
+    this.surround.strength = paramNumber(
+      new URLSearchParams(location.search).get('surround'),
+      0,
+      1,
+      q.name === 'low' ? 0 : 1,
+    );
     this.trees.group.add(this.farForest.mesh);
     if (this.farForest.farTrees) this.trees.group.add(this.farForest.farTrees);
     // The land beyond: its woods in the stage's crown colour, inside the map the canopy map's.
@@ -2047,6 +2058,13 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       this.rig.update(dt, v, this.renderPos, this.renderFwd, this.renderUp);
     if (Math.abs(this.camera.fov - this.lastFov) > 0.5)
       this.updateParticleScale();
+    // Tyre detail (tyre-lod.ts): full tread at rest / close, smeared tread at speed, cheap tyres far from the camera.
+    // In a replay the wheels turn at the playback rate: paused (photo) = full detail, slow motion = less smear.
+    const playback = replay ? (dt > 0 ? fdt / dt : 0) : 1;
+    this.model.setTyreLod(
+      v.speed * 3.6 * playback,
+      this.camera.position.distanceTo(this.renderPos),
+    );
 
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;
@@ -2082,6 +2100,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
     this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
+    this.surround?.update(dt, this.renderPos, this.env);
     // The nearest roofed zones, looked up again only after the camera moved a few metres (a zone is ~12 m long).
     if (
       this.roofs.length &&

@@ -122,7 +122,7 @@ function windowsAlong(l: Local, pts: V2[], rows: number[]): void {
 export function buildLodge(l: Local): void {
   const pts: V2[] = LODGE_OUTLINE;
   const EAVE = 6.2;
-  ringWalls(l, pts, FOOT, EAVE, 'rubble', '#e6ded0');
+  ringWalls(l, pts, FOOT, EAVE, 'drystone', '#e6ded0');
   ringWalls(
     l,
     pts.map(([x, z]): V2 => [x * 1.012, z * 1.012]),
@@ -163,6 +163,6 @@ export function buildLodge(l: Local): void {
     l.roof([g(ax, az), g(bx, bz), apex], { trim: [0] });
   }
   // The fan's two straight sides: gable-like roof edges hide against the tower; a chimney on the hall.
-  l.box('rubble', [-3.6, EAVE, 3.0], [-2.7, EAVE + 3.4, 3.9], '#d6cdbd');
+  l.box('drystone', [-3.6, EAVE, 3.0], [-2.7, EAVE + 3.4, 3.9], '#d6cdbd');
   l.box('metal', [-3.65, EAVE + 3.4, 2.95], [-2.65, EAVE + 3.6, 3.95], TRIM);
 }

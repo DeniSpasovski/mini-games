@@ -106,6 +106,8 @@ export class ViewerShell {
   readonly ground?: Mesh;
   readonly grid: GridHelper;
   private callbacks: ((dt: number) => void)[] = [];
+  /** While true the loop draws nothing (a page still building: its first frame would compile every shader on the main thread). */
+  paused = false;
   private bloom?: PostFx;
   envDef: EnvironmentDef;
   /**
@@ -181,6 +183,7 @@ export class ViewerShell {
     let last = performance.now();
     const loop = (now: number) => {
       requestAnimationFrame(loop);
+      if (this.paused) return;
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       this.controls.update();

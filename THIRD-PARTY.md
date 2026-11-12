@@ -5,11 +5,11 @@ README files carry the same information in more detail. Keep this file current w
 
 ## Licence scope
 
-| Material                                                                                                                                                                              | Licence                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Source code, procedural assets, docs, screenshots (everything original)                                                                                                               | [PolyForm Noncommercial 1.0.0](LICENSE)                                 |
-| Baked map data of the real maps (`maps/<id>/`: `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg` renders) | ODbL 1.0 + attribution (derived from OpenStreetMap and other open data) |
-| Third-party models and data listed below                                                                                                                                              | their own licences; not relicensed by this project                      |
+| Material                                                                                                                                                                                                              | Licence                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Source code, procedural assets, docs, screenshots (everything original)                                                                                                                                               | [PolyForm Noncommercial 1.0.0](LICENSE)                                 |
+| Baked map data of the real maps (`maps/<id>/`: `data.json`, `route.json`, `horizon.json`, `junction*.json`, `canopy.json`, `culverts.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg` renders) | ODbL 1.0 + attribution (derived from OpenStreetMap and other open data) |
+| Third-party models and data listed below                                                                                                                                                                              | their own licences; not relicensed by this project                      |
 
 ## Software
 
@@ -53,6 +53,7 @@ The portal and game-cover `wordmark.svg` files are title text outlined from Arch
 | Building footprints                                      | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                                                                                                             | ODbL, © Microsoft                                                                                                                                  | Ajvatovci               |
 | Roads OSM does not have                                  | [Microsoft ML Road Detections](https://github.com/microsoft/RoadDetections)                                                                                                                                    | ODbL, © Microsoft                                                                                                                                  | Petralica, Ajvatovci    |
 | Land cover                                               | [ESA WorldCover 10 m 2021](https://esa-worldcover.org/)                                                                                                                                                        | CC BY 4.0, © ESA WorldCover project 2021 / contains modified Copernicus Sentinel data (2021)                                                       | all real maps           |
+| Tree positions and canopy height                         | [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/) (Meta and World Resources Institute)                                                                               | CC BY 4.0, imagery © Maxar 2018-2020                                                                                                               | Vodno                   |
 | Leaf type of the woods                                   | [Copernicus Sentinel-2 L2A](https://registry.opendata.aws/sentinel-2-l2a-cogs/)                                                                                                                                | free and open Copernicus data / contains modified Copernicus Sentinel data (2025)                                                                  | Vodno                   |
 | Elevation (30 m)                                         | [Copernicus DEM GLO-30](https://doi.org/10.5069/G9028PQB) via OpenTopography                                                                                                                                   | © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA                                    | Petralica               |
 | Elevation (5 m lidar)                                    | [USGS 3D Elevation Program](https://www.usgs.gov/3d-elevation-program)                                                                                                                                         | US public domain, credit USGS 3DEP                                                                                                                 | Jackie Robinson Parkway |
@@ -113,19 +114,31 @@ files are not in the repository).
 
 ### Ground textures (baked into `src/games/rally/engine/ground/`)
 
-CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni). No credit is required.
+CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni), Forest Ground 03 (Rob Tuytel; the pine-needle floor). No credit is required.
 
 ### Rocks (baked into `src/games/rally/assets/builders/rock-models.data.ts` and `src/games/rally/engine/props/`)
 
 CC0 scan from Poly Haven, simplified by `scripts/rocks/bake-rocks.mjs`: Rock Moss Set 01 (Kless Gyzen). No credit is required.
 
+The rock bands of steep hillsides (`rock_outcrop`, `outcrop-models.data.ts`, `engine/props/outcrop.*.webp`): CC0 scans from Poly
+Haven, simplified by `scripts/rocks/bake-outcrops.mjs`: [Rock Face 01](https://polyhaven.com/a/rock_face_01) (Dario Barresi),
+[Rock Face 02](https://polyhaven.com/a/rock_face_02) (Dario Barresi, Rico Cilliers). No credit is required.
+
+The road-cut rock faces (`engine/props/cut-face.*.webp`): CC0 scan from Poly Haven, toned to a light stone by
+`scripts/rocks/bake-cut-face.py`: [Cliff Side](https://polyhaven.com/a/cliff_side) (James Ray Cock, Dario Barresi, Jenelle van
+Heerden). It also skins the Vodno trail start's flat stones. No credit is required.
+
+The heaps of sand and crushed stone (`engine/props/pile-*.webp`, `maps/shared/piles.ts`): CC0 scans from Poly Haven, resized and
+toned by `scripts/props/bake-piles.py`: [Dense Sand](https://polyhaven.com/a/dense_sand) (Dimitrios Savva),
+[Gravel Floor 02](https://polyhaven.com/a/gravel_floor_02) (Jenelle van Heerden, Dimitrios Savva). No credit is required.
+
 ### Tree bark (baked into `src/games/rally/trees/bark/`)
 
-CC0 scans from Poly Haven, made grey (with their normal maps) by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva), Bark Willow (Dario Barresi, Dimitrios Savva), Japanese Cedar Bark (Charlotte Baglioni) for cypress and juniper. No credit is required.
+CC0 scans from Poly Haven, made grey (with their normal maps) by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva), Bark Willow (Dario Barresi, Dimitrios Savva), Japanese Cedar Bark (Charlotte Baglioni) for cypress and juniper; the pine bark also skins the Vodno trail start's roots. No credit is required.
 
 ### Grass, weeds and reeds (baked into `src/games/rally/engine/plants/`)
 
-CC0 plant models from Poly Haven, rendered into card atlases by `scripts/plants/bake-plants.mjs`: Grass Medium 01 (Rob Tuytel, Rico Cilliers), Grass Medium 02 (Rico Cilliers), Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02 (Rob Tuytel, Rico Cilliers). No credit is required.
+CC0 plant models from Poly Haven, rendered into card atlases by `scripts/plants/bake-plants.mjs`: Grass Medium 01 (Rob Tuytel, Rico Cilliers), Grass Medium 02 (Rico Cilliers), Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02, Fern 02 (Rob Tuytel, Rico Cilliers; the fern sheets `ferns.webp` / `ferns-autumn.webp`). No credit is required.
 
 The reeds sheet (`reeds.webp`) is rendered the same way from two CC BY 4.0 models (the reed plants, and the cattail
 clump of the showcase; the source files are not in the repository).
@@ -141,7 +154,7 @@ Four smoke sprites from Particle Pack 1.1 by Kenney (kenney.nl, CC0; the copy at
 
 ### Building textures (baked into `src/games/rally/engine/facades/`)
 
-CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.
+CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar), Stone Wall (Charlotte Baglioni, Dario Barresi; made grey for Vodno's dry-stone walls). No credit is required.
 
 ### Kaboom environment light (baked into `src/games/kaboom/assets/hdri/`)
 
@@ -193,6 +206,45 @@ repository).
 | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
 | ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
 
+### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*`)
+
+Model trees and shrubs kept in the asset catalog (asset debug page; no map places them now: the stages use the generated
+trees, whose leaf photos are credited under "Tree leaf photos") are a few models of seven CC BY 4.0 packs by LOLIPOP (Sketchfab account lolipop_1707) and
+two CC BY 4.0 collections by Jagobo: their own triangles, normals, uvs and textures, three levels of detail and the packs'
+far billboards (the birches', elms' and willows' cards rendered from the model); the elms and willows converted and
+simplified (bark simplified, leaf cards thinned, the willows' rig dropped for its rest pose); the textures shrunk and
+recompressed, the oak's spring / autumn leaves its own season textures, the other kinds' autumn leaves, the lilac's seed
+heads and the maple's summer green recoloured; packed by `scripts/trees/bake-tree-packs.py` (the source files are not in
+the repository).
+
+| Pack                                                                                                                                                               | Author                                    | Licence   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- | --------- |
+| ["Pine trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/pine-trees-pack-lowpoly-game-ready-lods-e1e9c07b8e2e445c943fec660beefba2)          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Lilac bush pack (12 vars, LODs, game ready)"](https://sketchfab.com/3d-models/lilac-bush-pack-12-vars-lods-game-ready-10312697ec994fc99355cb94f1963a2e)          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Bush models pack (gameready, LODs)"](https://sketchfab.com/3d-models/bush-models-pack-gameready-lods-f2d9ffd3e6a94cf0b9464ccd66a4c2f8)                           | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Oak trees pack (17var, LODs, seasons, gameready)"](https://sketchfab.com/3d-models/oak-trees-pack-17var-lods-seasons-gameready-a5e4e64f9f1d4089bdcc6170a9333393) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Realistic fir trees pack (LODS, gameready)"](https://sketchfab.com/3d-models/realistic-fir-trees-pack-lods-gameready-f58e8b6d733e4b0586e5b7db847b89e7)           | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Five Birch trees pack (lowpoly, LODs)"](https://sketchfab.com/3d-models/five-birch-trees-pack-lowpoly-lods-08fe5117138e4fdaa7ca440ef1201e07)                     | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Maple trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/maple-trees-pack-lowpoly-game-ready-lods-b5d2833c258f4054a01ee2b4ef85adf0)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["High Detail Elm Tree Collection"](https://sketchfab.com/3d-models/high-detail-elm-tree-collection-0fee36ee370244688c91ab430f87b039)                              | Jagobo (Sketchfab)                        | CC BY 4.0 |
+| ["Rigged & Animated Weeping Willows"](https://sketchfab.com/3d-models/rigged-animated-weeping-willows-c315c039042240dbbc0c2704f7cec83c)                            | Jagobo (Sketchfab)                        | CC BY 4.0 |
+
+### Tree leaf photos (`src/games/rally/trees/leaves/*.webp`)
+
+The generated trees' leaf and needle sprays on every map are cut from the leaf cluster textures (colour and normal map) of
+six CC BY 4.0 packs by LOLIPOP (Sketchfab account lolipop_1707): sprays cut out, turned, scaled, mirrored, the pine twig
+ends laid into bursts, the colours levelled to grey (the game tints them) and the lilac panicles removed, by
+`scripts/trees/bake-leaves.py` (outlines in `trees/leaf-photos.data.ts`; the source files are not in the repository).
+
+| Pack                                                                                                                                                        | Leaf style                   | Author                                    | Licence   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------- | --------- |
+| ["Oak trees pack (17var, LODs, seasons)"](https://sketchfab.com/3d-models/oak-trees-pack-17var-lods-seasons-gameready-a5e4e64f9f1d4089bdcc6170a9333393)     | oak (lobed)                  | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Maple trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/maple-trees-pack-lowpoly-game-ready-lods-b5d2833c258f4054a01ee2b4ef85adf0) | plane (palmate)              | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Five Birch trees pack (lowpoly, LODs)"](https://sketchfab.com/3d-models/five-birch-trees-pack-lowpoly-lods-08fe5117138e4fdaa7ca440ef1201e07)              | birch, bushes (small)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Bush models pack (gameready, LODs)"](https://sketchfab.com/3d-models/bush-models-pack-gameready-lods-f2d9ffd3e6a94cf0b9464ccd66a4c2f8)                    | beech, walnut (ovate, round) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Lilac bush pack (12 vars, LODs, game ready)"](https://sketchfab.com/3d-models/lilac-bush-pack-12-vars-lods-game-ready-10312697ec994fc99355cb94f1963a2e)   | hornbeam, hazel (serrate)    | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Pine trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/pine-trees-pack-lowpoly-game-ready-lods-e1e9c07b8e2e445c943fec660beefba2)   | pines (needle bursts)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+
 ### Straw texture (`src/games/rally/engine/props/straw.webp`)
 
 The hay bales wear a tile cut from the photo texture of a CC BY 4.0 scan (one bale side, made to repeat and levelled by
@@ -239,20 +291,27 @@ code; the source files are not in the repository).
 The service park table and chairs, generator and jerrycans, the underpass wall lamps, the wooden power poles and the village
 street furniture (benches, dustbins, utility cabinets, picnic tables, `simready-village.data.ts`): CC0 models from Poly Haven, coloured per face
 from their own texture under the face, decimated and packed by `scripts/props/bake-simready.py` (the source files are not in
-the repository). No credit is required.
+the repository). The forest-floor debris (stumps, logs, branches, roots, `simready-forest.data.ts`) keeps its own colour and
+normal maps, resized into `engine/props/simready-forest.*.webp`. No credit is required.
 
-| Model                                                                                                   | Author             | Licence |
-| ------------------------------------------------------------------------------------------------------- | ------------------ | ------- |
-| [Outdoor Table Chair Set 01](https://polyhaven.com/a/outdoor_table_chair_set_01)                        | James Ray Cock     | CC0     |
-| [Portable Generator](https://polyhaven.com/a/portable_generator)                                        | James Ray Cock     | CC0     |
-| [Industrial Wall Lamp](https://polyhaven.com/a/industrial_wall_lamp)                                    | Kuutti Siitonen    | CC0     |
-| [Metal Jerrycan Green](https://polyhaven.com/a/metal_jerrycan_green)                                    | Ulan Cabanilla     | CC0     |
-| [Modular Electricity Poles](https://polyhaven.com/a/modular_electricity_poles) (pole and one cross arm) | James Ray Cock     | CC0     |
-| [Utility Box 01](https://polyhaven.com/a/utility_box_01)                                                | James Ray Cock     | CC0     |
-| [Utility Box 02](https://polyhaven.com/a/utility_box_02)                                                | James Ray Cock     | CC0     |
-| [Metal Trash Can](https://polyhaven.com/a/metal_trash_can) (the plain can)                              | GurJas Studios     | CC0     |
-| [Modular Street Seating](https://polyhaven.com/a/modular_street_seating) (one bench)                    | Stuart Attenborrow | CC0     |
-| [Wooden Picnic Table](https://polyhaven.com/a/wooden_picnic_table)                                      | Ulan Cabanilla     | CC0     |
+| Model                                                                                                   | Author                             | Licence |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------- |
+| [Outdoor Table Chair Set 01](https://polyhaven.com/a/outdoor_table_chair_set_01)                        | James Ray Cock                     | CC0     |
+| [Portable Generator](https://polyhaven.com/a/portable_generator)                                        | James Ray Cock                     | CC0     |
+| [Industrial Wall Lamp](https://polyhaven.com/a/industrial_wall_lamp)                                    | Kuutti Siitonen                    | CC0     |
+| [Metal Jerrycan Green](https://polyhaven.com/a/metal_jerrycan_green)                                    | Ulan Cabanilla                     | CC0     |
+| [Modular Electricity Poles](https://polyhaven.com/a/modular_electricity_poles) (pole and one cross arm) | James Ray Cock                     | CC0     |
+| [Utility Box 01](https://polyhaven.com/a/utility_box_01)                                                | James Ray Cock                     | CC0     |
+| [Utility Box 02](https://polyhaven.com/a/utility_box_02)                                                | James Ray Cock                     | CC0     |
+| [Metal Trash Can](https://polyhaven.com/a/metal_trash_can) (the plain can)                              | GurJas Studios                     | CC0     |
+| [Modular Street Seating](https://polyhaven.com/a/modular_street_seating) (one bench)                    | Stuart Attenborrow                 | CC0     |
+| [Wooden Picnic Table](https://polyhaven.com/a/wooden_picnic_table)                                      | Ulan Cabanilla                     | CC0     |
+| [Tree Stump 01](https://polyhaven.com/a/tree_stump_01)                                                  | Rob Tuytel                         | CC0     |
+| [Tree Stump 02](https://polyhaven.com/a/tree_stump_02)                                                  | Rob Tuytel                         | CC0     |
+| [Dead Tree Trunk](https://polyhaven.com/a/dead_tree_trunk)                                              | Rob Tuytel                         | CC0     |
+| [Dead Tree Trunk 02](https://polyhaven.com/a/dead_tree_trunk_02)                                        | Jenelle van Heerden, Rico Cilliers | CC0     |
+| [Dry Branches Medium 01](https://polyhaven.com/a/dry_branches_medium_01)                                | Rico Cilliers                      | CC0     |
+| [Pine Roots](https://polyhaven.com/a/pine_roots)                                                        | Rob Tuytel                         | CC0     |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 

@@ -27,26 +27,44 @@ export interface PlacedTree {
 }
 
 /**
+ * Size ladder of a scattered stand (`ladder`): real woods mix ages, so a share of the trees are young (a fraction of the
+ * species' size) and a few are veterans, the rest the species' own range. [share, scale from, scale to].
+ */
+const YOUNG: [number, number, number] = [0.16, 0.38, 0.62];
+const VETERAN: [number, number, number] = [0.1, 1.12, 1.3];
+
+/**
  * Pose of the `index`-th tree placed on stage `stageId`, a tree type from the map data. `mapScale` is the scale the
  * map gave it (its scatter rule's range, a hand-placed sapling, a street tree sized by its trunk): it multiplies the
- * species' own size range.
+ * species' own size range. `ladder`: a scattered tree, sized on the stand's age ladder (YOUNG / VETERAN); trees the map
+ * sizes itself (measured heights, hand-placed) keep their size.
  */
 export function placeTree(
   stageId: string,
   index: number,
   asset: string,
   mapScale = 1,
+  ladder = false,
 ): PlacedTree {
   const def = speciesOfType(asset);
   const h = mix32(hashText(stageId), index);
   const u = (k: number) => unit(mix32(h, k));
+  const age = u(7);
+  const rung = !ladder
+    ? 1
+    : age < YOUNG[0]
+      ? YOUNG[1] + (YOUNG[2] - YOUNG[1]) * u(8)
+      : age > 1 - VETERAN[0]
+        ? VETERAN[1] + (VETERAN[2] - VETERAN[1]) * u(8)
+        : 1;
   return {
     variant: Math.min(
       variantCount(def) - 1,
       Math.floor(u(1) * variantCount(def)),
     ),
     rotY: u(2) * Math.PI * 2,
-    scale: (def.scale[0] + (def.scale[1] - def.scale[0]) * u(3)) * mapScale,
+    scale:
+      (def.scale[0] + (def.scale[1] - def.scale[0]) * u(3)) * mapScale * rung,
     pose: {
       species: def.name,
       hue: (u(4) - 0.5) * 0.06,
@@ -121,3 +139,41 @@ export function treeCanopy(asset: string): {
 }
 
 export { isTreeType };
+
+/** The leafless / dead tree a scattered tree type turns into inside a dead patch (`bareTwin`). */
+export const BARE_TWINS: Readonly<Record<string, string>> = {
+  oak_tree: 'bare_oak',
+  hornbeam_tree: 'bare_oak',
+  walnut_tree: 'bare_oak',
+  locust_tree: 'bare_locust',
+  black_pine: 'dead_pine',
+  tall_black_pine: 'dead_pine',
+  pine_tree: 'dead_pine',
+  plantation_pine: 'dead_pine',
+};
+/** Dead patches: one in DEAD_PATCH.share of the DEAD_PATCH.cell m cells, `radius` m round its centre, `dead` of its trees bare. */
+const DEAD_PATCH = { cell: 90, share: 0.05, radius: 9, dead: 0.55 };
+
+/**
+ * A scattered tree's type, or its bare twin where it stands in a dead patch (a lightning strike, a beetle or drought
+ * spot): a handful of dead trees together, rare, the same on every load (hash of the stage id and the cell).
+ */
+export function bareTwin(
+  stageId: string,
+  asset: string,
+  x: number,
+  z: number,
+  index: number,
+): string {
+  const twin = BARE_TWINS[asset];
+  if (!twin) return asset;
+  const { cell, share, radius, dead } = DEAD_PATCH;
+  const cx = Math.floor(x / cell);
+  const cz = Math.floor(z / cell);
+  const h = mix32(mix32(hashText(stageId), cx * 73856093), cz * 19349663);
+  if (unit(mix32(h, 1)) >= share) return asset;
+  const px = (cx + 0.2 + 0.6 * unit(mix32(h, 2))) * cell;
+  const pz = (cz + 0.2 + 0.6 * unit(mix32(h, 3))) * cell;
+  if (Math.hypot(x - px, z - pz) > radius) return asset;
+  return unit(mix32(index, 0xdead)) < dead ? twin : asset;
+}

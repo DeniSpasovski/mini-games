@@ -2,6 +2,10 @@ import { beforeAll, describe, expect, rs, test } from '@rstest/core';
 import { Texture } from 'three';
 import { ASSET_CATALOG } from '../../src/games/rally/assets/catalog';
 import { loadSimready } from '../../src/games/rally/assets/builders/simready';
+import {
+  LAZY_PACK_KINDS,
+  loadTreePacks,
+} from '../../src/games/rally/assets/builders/tree-packs';
 import { getAsset, getVariantSet } from '../../src/games/rally/assets/library';
 import * as grass from '../../src/games/rally/engine/grass' with {
   rstest: 'importActual',
@@ -21,7 +25,13 @@ rs.mock('../../src/games/rally/engine/grass', () => ({
  * exactly the ones `getAsset` builds for it, so a variant-set mesh draws the same thing as the per-variant meshes.
  */
 describe('variant sets', () => {
-  beforeAll(() => loadSimready('park', 'yard', 'village'));
+  // (no value back: a function returned from beforeAll would be its teardown)
+  beforeAll(async () => {
+    await Promise.all([
+      loadSimready('park', 'yard', 'village', 'forest'),
+      loadTreePacks(...LAZY_PACK_KINDS),
+    ]);
+  });
 
   const sets = ASSET_CATALOG.filter((a) => a.category !== 'textures').flatMap(
     (a) => a.lods.map((_, lod) => [a.id, lod] as const),

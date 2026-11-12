@@ -13,6 +13,7 @@ import {
   type ColorRepresentation,
 } from 'three';
 import { ORIGIN } from '../frame';
+import { fitPlane, type Plane } from '../yard-surfaces';
 import {
   castsShadow,
   groupCastsShadow,
@@ -36,40 +37,8 @@ import {
  * every edge keeps its length). Street dressing has no plane and drapes itself on the terrain.
  */
 
-/** y offset = a * X + b * Z + c in world metres. */
-export interface Plane {
-  a: number;
-  b: number;
-  c: number;
-}
-
-/** Least-squares plane through (x, z, y) samples. */
-export function fitPlane(samples: [number, number, number][]): Plane {
-  // Centre the data for conditioning, then solve the 3x3 normal equations.
-  const n = samples.length;
-  const mx = samples.reduce((s, p) => s + p[0], 0) / n;
-  const mz = samples.reduce((s, p) => s + p[1], 0) / n;
-  const my = samples.reduce((s, p) => s + p[2], 0) / n;
-  let sxx = 0;
-  let sxz = 0;
-  let szz = 0;
-  let sxy = 0;
-  let szy = 0;
-  for (const [x, z, y] of samples) {
-    const dx = x - mx;
-    const dz = z - mz;
-    const dy = y - my;
-    sxx += dx * dx;
-    sxz += dx * dz;
-    szz += dz * dz;
-    sxy += dx * dy;
-    szy += dz * dy;
-  }
-  const det = sxx * szz - sxz * sxz;
-  const a = Math.abs(det) < 1e-9 ? 0 : (sxy * szz - szy * sxz) / det;
-  const b = Math.abs(det) < 1e-9 ? 0 : (szy * sxx - sxy * sxz) / det;
-  return { a, b, c: my - a * mx - b * mz };
-}
+// (the yard planes: ../yard-surfaces.ts, shared with the physics)
+export { fitPlane, type Plane };
 
 /** Growing arrays of one mesh: positions, normals, uvs and vertex colours (all triangles). */
 export class Soup {
@@ -209,6 +178,7 @@ const colorOf = (c: ColorRepresentation): Color => {
 
 const _p = new Vector3();
 const _n = new Vector3();
+const _c = new Color();
 
 /** Options shared by the emit helpers. */
 export interface EmitOptions {
@@ -399,7 +369,7 @@ export class Frame {
 
   /**
    * Any three.js geometry (cylinders, lathes, icospheres...): positions / normals / uvs copied
-   * (uvs scaled by 1 / tile), indexed or not.
+   * (uvs scaled by 1 / tile), indexed or not; a `color` attribute multiplies `color` per vertex.
    */
   add(
     key: MatKey,
@@ -412,6 +382,7 @@ export class Frame {
     const pos = g.getAttribute('position');
     const nor = g.getAttribute('normal');
     const uv = g.getAttribute('uv');
+    const vc = g.getAttribute('color');
     const index = g.getIndex();
     const count = index ? index.count : pos.count;
     const nm = o.matrix ? new Matrix3().getNormalMatrix(o.matrix) : undefined;
@@ -422,7 +393,13 @@ export class Frame {
         [pos.getX(v), pos.getY(v), pos.getZ(v)],
         nor ? [nor.getX(v), nor.getY(v), nor.getZ(v)] : [0, 1, 0],
         uv ? [uv.getX(v), uv.getY(v)] : [0, 0],
-        col,
+        vc
+          ? _c.setRGB(
+              col.r * vc.getX(v),
+              col.g * vc.getY(v),
+              col.b * vc.getZ(v),
+            )
+          : col,
         o.matrix,
         nm,
       );
@@ -479,13 +456,21 @@ export class Frame {
    * Sweeps a cross-section along a polyline (site x, z). `section` is (offset to the left of the
    * direction of travel, height) pairs; each segment of it becomes a strip facing up / out of the
    * left. `lift(x, z)` drapes the line over the terrain. UVs: u along the line, v across, metres.
+   * `caps`: close both ends with the section, down to this far (m) under its lowest point (a kerb or a sidewalk that
+   * stops at a driveway is a solid block, not an open shell). `endX`: end at the x of the line's ends across the
+   * whole section (the street's gates are x ranges), not square to the line.
    */
   sweep(
     key: MatKey,
     line: Vector2[],
     section: [number, number][],
     color: ColorRepresentation,
-    o: { lift?: (x: number, z: number) => number; closed?: boolean } = {},
+    o: {
+      lift?: (x: number, z: number) => number;
+      closed?: boolean;
+      caps?: number;
+      endX?: boolean;
+    } = {},
   ): void {
     if (line.length < 2) return;
     const soup = this.bucket.soup(this.tile, key);
@@ -500,11 +485,32 @@ export class Frame {
     const along = [0];
     for (let i = 1; i < line.length; i++)
       along.push(along[i - 1] + line[i].distanceTo(line[i - 1]));
+    const last = line.length - 1;
+    // For `endX`: the neighbour an end slides towards (or away from) along the offset line - at least 0.5 m away,
+    // so a clipped end a hair from a sample does not swing the slide's direction.
+    const far = (i: number, dir: number) => {
+      let j = i + dir;
+      while (j > 0 && j < last && line[j].distanceTo(line[i]) < 0.5) j += dir;
+      return j;
+    };
+    const ends = o.endX ? [far(0, 1), far(last, -1)] : [];
     const at = (i: number, k: number): V3 => {
       const [off, h] = section[k];
-      const x = line[i].x + left[i].x * off;
-      const z = line[i].y + left[i].y * off;
-      return [x, h + (o.lift ? o.lift(line[i].x, line[i].y) : 0), z];
+      let x = line[i].x + left[i].x * off;
+      let z = line[i].y + left[i].y * off;
+      let y = o.lift ? o.lift(line[i].x, line[i].y) : 0;
+      if (o.endX && (i === 0 || i === last)) {
+        const j = ends[i === 0 ? 0 : 1];
+        const jx = line[j].x + left[j].x * off;
+        const jz = line[j].y + left[j].y * off;
+        if (Math.abs(jx - x) > 1e-6) {
+          const t = (line[i].x - x) / (jx - x);
+          z += (jz - z) * t;
+          x = line[i].x;
+          if (o.lift) y += (o.lift(line[j].x, line[j].y) - y) * t;
+        }
+      }
+      return [x, h + y, z];
     };
     const acrossAt = [0];
     for (let k = 1; k < section.length; k++)
@@ -557,6 +563,61 @@ export class Frame {
           emit(p0, p1, p2, uvs[0], uvs[1], uvs[2]);
         }
       }
+    }
+    if (o.caps !== undefined)
+      this.sweepCaps(soup, line, section, col, at, o.caps);
+  }
+
+  /** The end faces of a sweep (see `sweep`'s `caps`): its section closed underneath, facing out of each end. */
+  private sweepCaps(
+    soup: Soup,
+    line: Vector2[],
+    section: [number, number][],
+    col: Color,
+    at: (i: number, k: number) => V3,
+    depth: number,
+  ): void {
+    const low = Math.min(...section.map((s) => s[1])) - depth;
+    const last = line.length - 1;
+    for (const [i, j] of [
+      [0, 1],
+      [last, last - 1],
+    ] as const) {
+      // Out of the end: along the line, away from its neighbour.
+      const ox = line[i].x - line[j].x;
+      const oz = line[i].y - line[j].y;
+      const top = section.map((_, k) => at(i, k));
+      const n = top.length - 1;
+      const drop = (p: V3, k: number): V3 => [
+        p[0],
+        p[1] - section[k][1] + low,
+        p[2],
+      ];
+      const pts: V3[] = [...top, drop(top[n], n), drop(top[0], 0)];
+      const uvs = [
+        ...section.map(([off, h]): [number, number] => [off, h]),
+        [section[n][0], low] as [number, number],
+        [section[0][0], low] as [number, number],
+      ];
+      const c: V3 = [0, 0, 0];
+      for (const p of pts)
+        for (let k = 0; k < 3; k++) c[k] += p[k] / pts.length;
+      const cu: [number, number] = [
+        uvs.reduce((s, u) => s + u[0], 0) / uvs.length,
+        uvs.reduce((s, u) => s + u[1], 0) / uvs.length,
+      ];
+      pts.forEach((a, k) => {
+        const b = pts[(k + 1) % pts.length];
+        let tri: [V3, V3, V3] = [c, a, b];
+        let uv = [cu, uvs[k], uvs[(k + 1) % uvs.length]];
+        const nr = normalOf(...tri);
+        if (nr[0] * ox + nr[2] * oz < 0) {
+          tri = [c, b, a];
+          uv = [cu, uv[2], uv[1]];
+        }
+        const nn = normalOf(...tri);
+        tri.forEach((p, m) => this.write(soup, p, nn, uv[m], col));
+      });
     }
   }
 }
