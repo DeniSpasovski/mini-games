@@ -1,4 +1,5 @@
 import {
+  Box2,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -57,7 +58,8 @@ import type { GroundSample } from '../physics/types';
 import { SURFACES } from '../physics/surfaces';
 
 /**
- * Map viewer: aerial view of a whole map with one of its stages, for quick iteration.
+ * Map viewer: aerial view of one stage on its map, for quick iteration. Opens framed on the stage's route and streams
+ * around it; the rest of the map streams in where the camera goes.
  *   map-viewer.html?map=test&stage=test&scatter=1&road=1&grid=0&splat=0&drain=0&fog=0&labels=1&along=1100&zoom=0.5
  * `stage` = the stage shown (its route, start / splits / finish, closures and fans; default the map's first). Old links
  * `map=<stage id>` open that stage on its map. Distances (`along`, the 250 m ticks, "Drive from here") are along the
@@ -119,6 +121,8 @@ const LABEL_FONT = 'italic 700 40px "Barlow Condensed", sans-serif';
 const STREAM_MS = 6;
 /** The tree job's slice of it (ms). */
 const TREE_JOB_MS = 2;
+/** Land around the stage's route that the opening view frames and streams (m). */
+const STAGE_MARGIN = 300;
 // An old `map=<stage id>` link (or a map with several stages): the URL now names the map and its stage.
 sync();
 track('rally', 'select_content', {
@@ -130,13 +134,13 @@ track('rally', 'select_content', {
 const loaded = showViewerLoading(`Loading ${getMapInfo(state.map).name} …`);
 void loadMap(state.map).then(async (map) => {
   const b = map.bounds;
-  const size = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
+  const mapSize = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
   const stageDef = stagesOf(map.id).find((st) => st.id === state.stage);
   const shell = new ViewerShell({
     title: 'Map viewer',
     ground: false,
     // Long maps: the whole-map views sit further away than the default far plane.
-    far: Math.max(8000, size * 3),
+    far: Math.max(8000, mapSize * 3),
     env: {
       ...map.environment,
       fogDensity: state.fog ? map.environment.fogDensity : 0.00005,
@@ -151,12 +155,31 @@ void loadMap(state.map).then(async (map) => {
   });
   const season = seasonParam(state.season, ownSeason);
   const world = new World(mapInSeason(map, season), state.stage || undefined);
-  const center = new Vector3((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
+  // The stage's route (start -> finish) with STAGE_MARGIN around it: what the views frame and the streaming reaches,
+  // not the whole map (a map may hold several stages: Galichica's is 3x the size of one).
+  const route = new Box2();
+  for (let d = world.stage.start; ; d += 20) {
+    const p = world.stageRoad.at(Math.min(d, world.stage.finish));
+    route.expandByPoint(new Vector2(p.x, p.z));
+    if (d >= world.stage.finish) break;
+  }
+  route.expandByScalar(STAGE_MARGIN);
+  const size = Math.max(route.max.x - route.min.x, route.max.y - route.min.y);
+  const center = new Vector3(
+    (route.min.x + route.max.x) / 2,
+    0,
+    (route.min.y + route.max.y) / 2,
+  );
   // Mountain maps: orbit around the ground, not sea level.
   center.y = world.analytic.height(center.x, center.z);
 
   // --- world rendering -----------------------------------------------------------------
   const viewDistance = size + RENDER_MARGIN * 2;
+  // The trees load in the workers (trees/load.ts) while the road builds here.
+  const treesLoading = TreeLibrary.load(
+    TreeLibrary.speciesOf(world.placedAssets(), season),
+    renderer,
+  );
   const terrain = new TerrainRenderer(world, {
     viewDistance,
     lodDistances: [120, 260, 520],
@@ -189,18 +212,16 @@ void loadMap(state.map).then(async (map) => {
   });
   streamer.group.visible = state.scatter;
   scene.add(streamer.group);
-  const treeLibrary = await TreeLibrary.load(
-    TreeLibrary.speciesOf(world.placedAssets(), season),
-    renderer,
-  );
+  const treeLibrary = await treesLoading;
   // Trees as in the game (game/rally-game.ts) out to its forest distance, then its far trees and canopy shell: every
   // tree on the map drawn one by one (500 k impostors on Galichica's overview) was most of the viewer's frame. Not the
   // game's impostor-only trees far from the road (`fakeFrom`) nor its coarser levels on medium: seen from above, the
   // impostors read as blobs.
   const trees = new TreeRenderer(world, treeLibrary, {
     lodScale: quality.lodScale,
-    // The job still visits the whole map: its scatter fills the far forest's canopy map.
-    maxDistance: viewDistance,
+    // The job only visits the scatter it draws; the rest of the map's, for the far forest's canopy map, comes from
+    // `scatterFill` after the first frame (generated up front it held the first frame back for seconds).
+    maxDistance: quality.forestDistance + 2 * world.scatter.chunkSize,
     forestDistance: quality.forestDistance,
     shadowDistance: quality.treeShadowDistance,
     rebuildDistance: 25,
@@ -236,15 +257,20 @@ void loadMap(state.map).then(async (map) => {
   const plate = `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--ui-glass-rgb').trim() || '10 11 13'} / 0.85)`;
   const roadLine = buildRoadLine();
   const markers = buildMarkers();
-  const chunkGrid = buildChunkGrid();
   const stageLines = buildStageLines();
   const drainage = buildDrainage();
-  overlays.add(roadLine, stageLines, markers, chunkGrid, drainage);
+  overlays.add(roadLine, stageLines, markers, drainage);
   drainage.visible = state.drain;
   stageLines.visible = state.labels;
   roadLine.visible = state.road;
   markers.visible = state.labels;
-  chunkGrid.visible = state.grid;
+  // Built when first shown (a height sample every 8 m of every chunk edge on the map).
+  let chunkGrid: LineSegments | undefined;
+  const showGrid = (v: boolean): void => {
+    if (v && !chunkGrid) overlays.add((chunkGrid = buildChunkGrid()));
+    if (chunkGrid) chunkGrid.visible = v;
+  };
+  showGrid(state.grid);
   getTerrainMaterial().userData.uniforms.uDebugSplat.value = state.splat
     ? 1
     : 0;
@@ -600,7 +626,7 @@ void loadMap(state.map).then(async (map) => {
   });
   layers.checkbox('Chunk grid (64 m)', state.grid, (v) => {
     state.grid = v;
-    chunkGrid.visible = v;
+    showGrid(v);
     sync();
   });
   if (map.culverts)
@@ -849,6 +875,39 @@ void loadMap(state.map).then(async (map) => {
   controls.addEventListener('start', groundTarget);
 
   // --- loop ----------------------------------------------------------------------------------------
+  /**
+   * The scatter of the whole map, a few chunks a frame from the first one on, nearest the opening view first: the far
+   * forest's canopy map takes each as it comes (world/far-forest.ts `update`) and shows its estimate until then.
+   */
+  function* scatterFill(from: Vector3): Generator<void> {
+    const cs = world.scatter.chunkSize;
+    const cells: [number, number, number][] = [];
+    // The canopy map's own reach around the map (world/far-forest.ts).
+    const pad = 300;
+    for (
+      let cz = Math.floor((b.minZ - pad) / cs);
+      cz * cs <= b.maxZ + pad;
+      cz++
+    )
+      for (
+        let cx = Math.floor((b.minX - pad) / cs);
+        cx * cs <= b.maxX + pad;
+        cx++
+      )
+        cells.push([
+          cx,
+          cz,
+          Math.hypot((cx + 0.5) * cs - from.x, (cz + 0.5) * cs - from.z),
+        ]);
+    cells.sort((p, q) => p[2] - q[2]);
+    for (const [cx, cz] of cells) {
+      if (world.scatter.cachedChunk(cx, cz)) continue;
+      world.scatter.chunk(cx, cz);
+      yield;
+    }
+  }
+  // Sorted at its first step: by then the opening view (overview, `along`, a camera link) is set.
+  const fill = scatterFill(controls.target);
   let statsAt = 0;
   shell.onFrame(() => {
     const t = controls.target;
@@ -872,6 +931,9 @@ void loadMap(state.map).then(async (map) => {
       ),
     );
     trees.update(camera);
+    // The map's scatter fills in with what is left of half the frame's budget (one chunk at least).
+    do if (fill.next().done) break;
+    while (performance.now() - t0 < STREAM_MS / 2);
     farForest.update(camera.position);
     treeStats.update();
     // A few times a second (the counters change while streaming; `info` only touches changed values).
@@ -902,7 +964,14 @@ void loadMap(state.map).then(async (map) => {
   // frame would otherwise compile them all on the main thread, a frozen page. The rest streams in as usual.
   {
     const t = controls.target;
-    terrain.update(new Vector3(t.x, 0, t.z), 30, 0);
+    // The tiles the first frames want (the frame loop's focus and height): from the air those are the coarse ones.
+    terrain.update(
+      new Vector3(camera.position.x, 0, camera.position.z).lerp(t, 0.5),
+      30,
+      (camera.position.y -
+        world.gen.height(camera.position.x, camera.position.z)) *
+        0.8,
+    );
     for (let i = 0; i < 6; i++) streamer.update(t);
     trees.updateNow(camera);
     farForest.fillNow(camera.position);
@@ -939,6 +1008,7 @@ void loadMap(state.map).then(async (map) => {
     }
     // The instance streamer builds its chunks over several updates.
     for (let i = 0; i < 80; i++) streamer.update(controls.target);
+    while (!fill.next().done);
     trees.updateNow(camera);
     farForest.fillNow(camera.position);
     return n;
