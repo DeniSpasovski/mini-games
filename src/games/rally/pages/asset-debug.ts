@@ -1,6 +1,7 @@
 import {
   Box3,
   Box3Helper,
+  BoxGeometry,
   CylinderGeometry,
   Group,
   InstancedMesh,
@@ -18,6 +19,7 @@ import {
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import {
   ASSET_CATALOG,
+  BOX_BUILDINGS,
   getAssetMeta,
   hasAsset,
   HOUSE_WALL_FRACTION,
@@ -60,6 +62,14 @@ import {
   type SpeciesDef,
 } from '../trees/species';
 import { DEFAULT_SEASON, SEASONS, seasonParam } from '../season';
+import type { BuildingDef } from '../maps/shared/types';
+import {
+  BUILDING_SINK,
+  buildingDoor,
+  buildingInstance,
+  buildingWindows,
+} from '../world/buildings';
+import type { TerrainSampler } from '../world/heightfield';
 import type { RoadQuery } from '../world/road';
 import type { ScatterChunk, ScatterInstance } from '../world/scatter';
 import type { World } from '../world/world';
@@ -256,6 +266,24 @@ const colliderCtl = vars.checkbox('Colliders', state.collider, (v) => {
   sync();
   rebuild();
 });
+/** Box buildings: the footprint shown (`size` = width, wall height, depth in metres). */
+const SIZE_DEFAULT = [10, 3.3, 7];
+const sizeOf = (): number[] => parseVec3(state.size) ?? SIZE_DEFAULT;
+const sizeCtls = (
+  [
+    ['Width (m)', 2, 50, 0.5],
+    ['Wall height (m)', 2, 12, 0.1],
+    ['Depth (m)', 2, 30, 0.5],
+  ] as const
+).map(([label, min, max, step], k) =>
+  vars.slider(label, sizeOf()[k], { min, max, step }, (v) => {
+    const next = sizeOf();
+    next[k] = v;
+    state.size = next.join(',');
+    sync();
+    rebuild();
+  }),
+);
 vars.checkbox('Turntable', state.turntable, (v) => {
   state.turntable = v;
   sync();
@@ -355,7 +383,12 @@ shell.addHelp(
  * instances, wire, bounds, colliders; trees = seed, variant, instances, season, leaves; cars = livery seed;
  * textures = repeat. `variants` / `lods` = the picked asset's counts.
  */
-function showOptions(kind: AssetKind, variants = 1, lods = 1): void {
+function showOptions(
+  kind: AssetKind,
+  variants = 1,
+  lods = 1,
+  boxBuilding = false,
+): void {
   const show = (ctl: { el: HTMLElement }, on: boolean) => (ctl.el.hidden = !on);
   const asset = kind === 'asset';
   const tree = kind === 'tree';
@@ -379,6 +412,7 @@ function showOptions(kind: AssetKind, variants = 1, lods = 1): void {
   show(wireCtl, asset);
   show(boundsCtl, asset);
   show(colliderCtl, asset);
+  for (const c of sizeCtls) show(c, asset && boxBuilding);
   tune.el.hidden = !tree;
 }
 
@@ -396,8 +430,8 @@ function frame(size: Vector3, center: Vector3): void {
 }
 
 /** Instance scale of a building shown at `size` = "width,wall height,depth" (m; default a 10 x 7 m house, 3.3 m walls). */
-function buildingScale(id: string, size: string): Vector3 {
-  const [w, h, d] = parseVec3(size) ?? [10, 3.3, 7];
+function buildingScale(id: string): Vector3 {
+  const [w, h, d] = sizeOf();
   return new Vector3(
     w,
     id.startsWith('house') ? h / HOUSE_WALL_FRACTION : h,
@@ -432,7 +466,12 @@ function rebuild(reframe = false): void {
   if (isTree(id)) return showTree(id.slice(5), reframe);
   if (!hasAsset(id)) return;
   const meta = getAssetMeta(id);
-  showOptions('asset', meta.variants, meta.lods.length);
+  showOptions(
+    'asset',
+    meta.variants,
+    meta.lods.length,
+    BOX_BUILDINGS.includes(id),
+  );
   if (isPack(id)) {
     seasonCtl.el.hidden = false;
     setPackSeason(seasonParam(state.season, DEFAULT_SEASON));
@@ -457,9 +496,9 @@ function rebuild(reframe = false): void {
     part.geometry.computeBoundingBox();
     box.union(part.geometry.boundingBox!);
   }
-  // Buildings are unit boxes scaled per instance to a footprint: show them at `size` (width, wall height, depth in m).
-  const fit =
-    meta.category === 'buildings' ? buildingScale(id, state.size) : undefined;
+  // Box buildings are unit boxes scaled per instance to a footprint: show them at `size` (width, wall height, depth
+  // in m), with the front door the world stands at them (world/buildings.ts).
+  const fit = BOX_BUILDINGS.includes(id) ? buildingScale(id) : undefined;
   if (fit) {
     box.min.multiply(fit);
     box.max.multiply(fit);
@@ -478,7 +517,8 @@ function rebuild(reframe = false): void {
       for (let x = 0; x < n; x++) {
         m.makeRotationY(n > 1 ? (x * 7 + z * 13) % 6.28 : 0).setPosition(
           (x - (n - 1) / 2) * spacing,
-          0,
+          // (A building goes a little into the ground, as in the world.)
+          fit ? -BUILDING_SINK : 0,
           (z - (n - 1) / 2) * spacing,
         );
         if (fit) m.scale(fit);
@@ -490,8 +530,20 @@ function rebuild(reframe = false): void {
     holder.add(mesh);
     tris += triCount(part.geometry) * n * n;
   }
+  const extra: BufferGeometry[] = [];
+  if (fit && lod === 0) tris += addOpenings(id, fit, n, spacing, extra);
   if (state.bounds) holder.add(new Box3Helper(box, 0xffcc00));
-  if (state.collider) addColliders(meta.colliders ?? []);
+  if (state.collider)
+    addColliders(
+      meta.colliders ?? [],
+      // A building's collider is its footprint box up to the wall top.
+      fit &&
+        new Vector3(
+          fit.x,
+          id.startsWith('house') ? fit.y * HOUSE_WALL_FRACTION : fit.y,
+          fit.z,
+        ),
+    );
 
   info({
     id,
@@ -515,28 +567,90 @@ function rebuild(reframe = false): void {
   if (reframe) frame(size, box.getCenter(new Vector3()));
   disposeCurrent = () => {
     for (const p of built.parts) p.geometry.dispose();
+    for (const g of extra) g.dispose();
     for (const m of mats) m.dispose();
     holder.traverse((o) => o instanceof InstancedMesh && o.dispose());
   };
 }
 
+/** The colliders as wireframes; `scale` = the instance scale of a box building (its collider is the unit box). */
 function addColliders(
   cols: NonNullable<ReturnType<typeof getAssetMeta>['colliders']>,
+  scale?: Vector3,
 ): void {
   const mat = new MeshBasicMaterial({ color: 0xff3366, wireframe: true });
   for (const c of cols) {
+    const h = c.h ?? 1;
     const g =
       c.kind === 'cylinder'
-        ? new CylinderGeometry(c.r, c.r, c.h ?? 1, 16).translate(
-            0,
-            (c.h ?? 1) / 2,
-            0,
-          )
-        : new SphereGeometry(c.r, 16, 10);
+        ? new CylinderGeometry(c.r, c.r, h, 16).translate(0, h / 2, 0)
+        : c.kind === 'box' && c.hx && c.hz
+          ? new BoxGeometry(c.hx * 2, h, c.hz * 2).translate(0, h / 2, 0)
+          : new SphereGeometry(c.r, 16, 10);
     const mesh = new Mesh(g, mat);
     mesh.position.set(c.x ?? 0, c.y ?? 0, c.z ?? 0);
+    if (scale) {
+      mesh.scale.copy(scale);
+      mesh.position.y -= BUILDING_SINK;
+    }
     holder.add(mesh);
   }
+}
+
+/** The windows and front doors of the box buildings on show, as the world adds them; returns their triangles. */
+function addOpenings(
+  id: string,
+  fit: Vector3,
+  n: number,
+  spacing: number,
+  built: BufferGeometry[],
+): number {
+  const variant = state.variant % getAssetMeta(id).variants;
+  const def: BuildingDef = {
+    id: 0,
+    x: 0,
+    z: 0,
+    w: fit.x,
+    d: fit.z,
+    angle: 0,
+    h: sizeOf()[1],
+    floors: variant >= (id === 'house_stone' ? 2 : 4) ? 2 : 1,
+    type: id === 'building_flat' ? 'flat' : 'house',
+    source: 'viewer',
+    along: 0,
+  };
+  const flat = { height: () => 0 } as unknown as TerrainSampler;
+  // (The style is the variant on show, not the one the building's id would pick.)
+  const body = { ...buildingInstance(def, flat), asset: id, variant };
+  let tris = 0;
+  for (const inst of [
+    buildingWindows(def, body),
+    buildingDoor(def, flat, body),
+  ]) {
+    if (!inst) continue;
+    const local = new Matrix4()
+      .makeTranslation(inst.x, inst.y, inst.z)
+      .scale(new Vector3(inst.sx ?? 1, inst.sy ?? 1, inst.sz ?? 1));
+    for (const part of buildAsset(inst.asset, 0, inst.variant, 0).parts) {
+      const mesh = new InstancedMesh(part.geometry, part.material, n * n);
+      const m = new Matrix4();
+      let i = 0;
+      for (let z = 0; z < n; z++)
+        for (let x = 0; x < n; x++) {
+          m.makeRotationY(n > 1 ? (x * 7 + z * 13) % 6.28 : 0).setPosition(
+            (x - (n - 1) / 2) * spacing,
+            0,
+            (z - (n - 1) / 2) * spacing,
+          );
+          mesh.setMatrixAt(i++, m.multiply(local));
+        }
+      mesh.receiveShadow = true;
+      holder.add(mesh);
+      built.push(part.geometry);
+      tris += triCount(part.geometry) * n * n;
+    }
+  }
+  return tris;
 }
 
 function showTexture(id: TextureId, reframe: boolean): void {

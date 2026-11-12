@@ -5,6 +5,7 @@ import { getMaterial } from '../../engine/materials';
 import { HOUSE_WALL_FRACTION } from '../catalog';
 import {
   FIX,
+  HOUSE_EAVE,
   HOUSE_LAYER,
   houseSlot,
   SLOT,
@@ -16,8 +17,11 @@ import type { AssetBuilder, BuiltAsset } from '../types';
  * Placeholder buildings for real-world maps. UNIT footprint: x (long side / width) and
  * z (depth) in [-0.5, 0.5], y in [0, 1]. Instances are scaled per axis to the real
  * footprint and height (ScatterInstance sx / sy / sz): the walls and the roof shape stretch with it,
- * everything of a fixed real size (windows, door, eaves, chimney, plinth, roof edge) is given in metres
+ * everything of a fixed real size (windows, eaves, chimney, plinth, roof edge) is given in metres
  * and placed by the house shader (`fix` attribute, engine/house-walls.ts) - windows repeat along the wall.
+ * The windows and the front door are assets of their own (`house_windows` on the same box, `house_door` on the
+ * ground at it; world/buildings.ts `buildingInstances`): the box stays light for the shadow pass and for the variant
+ * set, which runs every variant's vertices for each house.
  *
  * Variants: v % 4 = style, v >= 4 = two floors of windows (else one).
  * Buildings get detailed one by one later ("stage 1 - building N - lat, lon").
@@ -227,7 +231,10 @@ const PROUD = 0.035;
 /** Ground level on the wall of a building standing on flat ground (m above its base: world/buildings.ts sinks it). */
 const GROUND = 0.15;
 
-/** One window at a wall anchor; `out` = the wall's outward axis and sign. */
+/**
+ * One window at a wall anchor (`axis` / `sign` = the wall's outward direction): flat layers a centimetre apart (frame,
+ * glass, mullion and transom) and a wedge sill, 12 triangles - every house carries all its window slots.
+ */
 function windowAt(
   parts: BufferGeometry[],
   anchor: V3,
@@ -237,53 +244,63 @@ function windowAt(
   frame: string,
   sillColor: string,
 ): void {
-  const face: Face =
-    axis === 'z' ? (sign > 0 ? 'pz' : 'nz') : sign > 0 ? 'px' : 'nx';
-  const back: Face =
-    axis === 'z' ? (sign > 0 ? 'nz' : 'pz') : sign > 0 ? 'nx' : 'px';
-  // (along the wall, up, out of the wall) -> x, y, z.
-  const v = (a: number, y: number, o: number): V3 =>
-    axis === 'z' ? [a, y, o * sign] : [o * sign, y, a];
-  const piece = (
-    size: [number, number, number],
-    off: [number, number, number],
-    color: string,
-    only?: Face[],
-  ) =>
+  // (along the wall, up, out of the wall) -> metres x, y, z.
+  const v = (a: number, y: number, o: number): Pt =>
+    axis === 'z'
+      ? [...anchor, a, y, o * sign, code]
+      : [...anchor, o * sign, y, a, code];
+  const out = axis === 'z' ? [0, 0, sign] : [sign, 0, 0];
+  const rect = (w: number, h: number, y: number, o: number, color: string) =>
     parts.push(
-      mbox(anchor, v(...size).map(Math.abs) as V3, v(...off), color, {
-        code,
-        only,
-        skip: only ? undefined : [back],
-      }),
+      quad(
+        v(-w / 2, y - h / 2, o),
+        v(w / 2, y - h / 2, o),
+        v(w / 2, y + h / 2, o),
+        v(-w / 2, y + h / 2, o),
+        out,
+        color,
+      ),
     );
-  piece([WIN_W + 2 * FRAME, WIN_H + 2 * FRAME, PROUD * 2], [0, 0, 0], frame);
-  piece([WIN_W, WIN_H, 0.02], [0, 0, PROUD + 0.004], GLASS, [face]);
+  rect(WIN_W + 2 * FRAME, WIN_H + 2 * FRAME, 0, PROUD, frame);
+  rect(WIN_W, WIN_H, 0, PROUD + 0.01, GLASS);
   // Mullion and transom: a two-leaf window with a top light.
-  piece([0.05, WIN_H, 0.03], [0, 0, PROUD + 0.01], frame);
-  piece([WIN_W, 0.045, 0.03], [0, WIN_H * 0.24, PROUD + 0.01], frame);
-  // Sill.
-  piece(
-    [WIN_W + 2 * FRAME + 0.12, 0.05, 0.16],
-    [0, -WIN_H / 2 - FRAME - 0.025, 0.07],
-    sillColor,
+  rect(0.05, WIN_H, 0, PROUD + 0.02, frame);
+  rect(WIN_W, 0.045, WIN_H * 0.24, PROUD + 0.02, frame);
+  // Sill: its top and a face sloping back to the wall under it.
+  const sw = (WIN_W + 2 * FRAME + 0.12) / 2;
+  const sy = -WIN_H / 2 - FRAME;
+  parts.push(
+    quad(
+      v(-sw, sy, 0),
+      v(sw, sy, 0),
+      v(sw, sy, 0.15),
+      v(-sw, sy, 0.15),
+      [0, 1, 0],
+      sillColor,
+    ),
+    quad(
+      v(-sw, sy, 0.15),
+      v(sw, sy, 0.15),
+      v(sw, sy - 0.07, 0),
+      v(-sw, sy - 0.07, 0),
+      [out[0] * 0.42, -0.906, out[2] * 0.42],
+      sillColor,
+    ),
   );
 }
 
 /**
- * Windows on the four walls (fixed size, repeated along the wall by the shader) and the front door with its step,
- * `rows` floors of them up to the wall top (unit height `wallTop`).
+ * The windows of a box building, on a unit box scaled to its footprint and WALL height: every slot of the four walls
+ * (fixed size, repeated along the wall by the shader), one or two floors of them. Variants: 0 / 1 one floor (white
+ * frames / grey, on unfinished brick), 2 / 3 two floors.
  */
-function openings(
-  parts: BufferGeometry[],
-  rows: number,
-  wallTop: number,
-  frame: string,
-  door: string,
-): void {
+export const houseWindows: AssetBuilder = ({ variant }) => {
+  const rows = variant >= 2 ? 2 : 1;
+  const frame = variant % 2 ? '#9a9890' : '#f2f0ea';
+  const parts: BufferGeometry[] = [];
   const sill = '#b9b6ae';
   for (let r = 0; r < rows; r++) {
-    const y = (wallTop / rows) * (r + 0.56);
+    const y = (r + 0.56) / rows;
     for (let col = 0; col < SLOT_COLUMNS.long; col++) {
       windowAt(
         parts,
@@ -316,36 +333,70 @@ function openings(
           sill,
         );
   }
-  // Front door: frame, leaf with a light in its top, a concrete step.
-  const code = houseSlot(SLOT.door);
-  const at: V3 = [0, 0, 0.5];
-  const DW = 0.95;
-  const DH = 2.05;
-  const y0 = GROUND + 0.18;
-  const opt = { code, skip: ['nz'] as Face[] };
-  parts.push(
+  return {
+    parts: [{ geometry: merge(parts), material: getMaterial('house') }],
+  };
+};
+
+/** Door (m) and the step under it. */
+const DOOR_W = 0.95;
+const DOOR_H = 2.05;
+const STEP = 0.18;
+/** [frame, leaf] of the front doors: white frame / wood, grey frame / wood (unfinished brick), white frame / dark. */
+const DOORS: [string, string][] = [
+  ['#f2f0ea', '#5b3b28'],
+  ['#9a9890', '#5b3b28'],
+  ['#f2f0ea', '#4a3a30'],
+  ['#9a9890', '#4a3a30'],
+];
+
+/**
+ * Front door of a box building, real size (never scaled): frame, leaf with a light in its top, handle, a concrete
+ * step that goes 0.6 m into the ground (a slope under it). Origin = the foot of the wall under the door's middle,
+ * the wall behind it at z = 0, opening to +Z. world/buildings.ts `buildingDoor` stands one at every house.
+ */
+export const houseDoor: AssetBuilder = ({ variant }) => {
+  const [frame, leaf] = DOORS[variant % DOORS.length];
+  const at: V3 = [0, 0, 0];
+  const parts = [
     mbox(
       at,
-      [DW + 0.16, DH + 0.08, 0.07],
-      [0, y0 + (DH + 0.08) / 2, 0],
+      [DOOR_W + 0.16, DOOR_H + 0.08, 0.07],
+      [0, STEP + (DOOR_H + 0.08) / 2, 0],
       frame,
-      opt,
+      { skip: ['nz', 'ny'] },
     ),
-    mbox(at, [DW, DH, 0.03], [0, y0 + DH / 2, 0.035], door, opt),
-    mbox(at, [DW - 0.3, 0.42, 0.01], [0, y0 + DH - 0.42, 0.052], GLASS, {
-      code,
+    mbox(at, [DOOR_W, DOOR_H, 0.03], [0, STEP + DOOR_H / 2, 0.035], leaf, {
       only: ['pz'],
     }),
     mbox(
       at,
-      [0.035, 0.12, 0.05],
-      [DW / 2 - 0.1, y0 + 1.0, 0.06],
-      '#c9c6bd',
-      opt,
+      [DOOR_W - 0.3, 0.42, 0.01],
+      [0, STEP + DOOR_H - 0.42, 0.052],
+      GLASS,
+      { only: ['pz'] },
     ),
-    mbox(at, [1.5, y0, 0.55], [0, y0 / 2, 0.275], sill, opt),
-  );
-}
+    mbox(
+      at,
+      [0.035, 0.12, 0.05],
+      [DOOR_W / 2 - 0.1, STEP + 1.0, 0.06],
+      '#c9c6bd',
+      { skip: ['nz', 'ny', 'py'] },
+    ),
+    mbox(at, [1.5, STEP + 0.6, 0.55], [0, (STEP - 0.6) / 2, 0.275], '#b9b6ae', {
+      skip: ['nz', 'ny'],
+    }),
+  ];
+  // Real positions (the metres of `mbox` moved out of the `fix`): the door is never scaled.
+  const g = merge(parts);
+  const pos = g.getAttribute('position');
+  const fix = g.getAttribute('fix');
+  for (let i = 0; i < pos.count; i++) {
+    pos.setXYZ(i, fix.getX(i), fix.getY(i), fix.getZ(i));
+    fix.setXYZW(i, 0, 0, 0, FIX.plain);
+  }
+  return { parts: [{ geometry: g, material: getMaterial('house') }] };
+};
 
 // Styles: 0-2 render in three paints, 3 unfinished red clay brick, 4 / 5 lime-plastered rubble stone (hip / gable).
 const WALLS = [
@@ -367,8 +418,8 @@ const WALL_LAYER = [
 // Multiplied onto the roof-tile scan: near white keeps the terracotta, the rest weathers it.
 const ROOFS = ['#ffffff', '#f1e3da', '#e2cfc2', '#f7ebe3'];
 
-/** Roof (m): overhang at the eaves, at a gable end, slab thickness, gutter. */
-const EAVE = 0.5;
+/** Roof (m): overhang at the eaves, at a gable end, slab thickness. */
+const EAVE = HOUSE_EAVE;
 const VERGE = 0.3;
 const ROOF_T = 0.09;
 
@@ -398,7 +449,6 @@ function houseBuilder(
     if (style === 3)
       for (let r = 1; r <= rows; r++)
         parts.push(slab((W / rows) * r, -0.24, 0, 0.025, '#b9b6ae'));
-    openings(parts, rows, W, style === 3 ? '#9a9890' : '#f2f0ea', '#5b3b28');
   }
   // Roof: a slab with a top, an underside and edges (tile thickness `ROOF_T`), so it holds up from below and from the
   // side. The eaves stand `EAVE` metres out and drop with the pitch; a hip's ends slope like its sides (the shader
@@ -659,7 +709,6 @@ export const buildingFlat: AssetBuilder = ({ seed, variant, lod }) => {
       if (style === 2)
         for (let r = 1; r < rows; r++)
           parts.push(slab((1 / rows) * r, -0.24, 0, 0.025, '#b9b6ae'));
-      openings(parts, rows, 1, style === 2 ? '#9a9890' : '#f2f0ea', '#4a3a30');
     }
   }
   return {

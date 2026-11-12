@@ -36,13 +36,21 @@ Rules (performance — late-2000s look must not lag):
   band-tested) sets the tone, vertex colour only varies it. Rebake to change a sheet's look, never repaint the webp.
 - Buildings (`assets/builders/buildings.ts`): UNIT footprint (x, z in [-0.5, 0.5], y 0..1), scaled per
   instance with `ScatterInstance.sx / sy / sz` (width / height / depth) and a `box` collider. The walls and roof
-  planes scale with it; everything of a real size (windows, door, eaves, gutters, chimney, plinth) sits at a unit anchor
+  planes scale with it; everything of a real size (windows, eaves, gutters, chimney, plinth) sits at a unit anchor
   with its metres in the `fix` attribute, and the house material's vertex shader (`engine/house-walls.ts`: `FIX`,
-  `SLOT`, `houseSlot`) divides them by the instance scale, repeats the window slots along the wall (one per 3.2 m) and
-  drops the ones a short wall has no room for. Build such parts with `mbox` / `slab` / `tris`, never as unit-sized
-  detail (it would stretch). Check sizes with `asset-debug.html?asset=house_pitched&size=12,3.3,8`. `house_pitched`
-  walls end at `HOUSE_WALL_FRACTION` of the height (roof above), `building_flat` styles 0/1 hall, 2 brick block,
-  3 rendered block; variants 4-7 = two floors of windows. The door is on +Z (`buildingInstance` turns it downhill).
+  `SLOT`, `houseSlot`) divides them by the instance scale. Build such parts with `mbox` / `slab` / `tris` / `quad`,
+  never as unit-sized detail (it would stretch). A building is three instances (`world/buildings.ts`
+  `buildingInstances`): the box (`house_pitched` / `house_stone` / `building_flat`), `house_windows` on the same box
+  up to its wall top, and `house_door` (real size) on the ground at the front wall. Windows: about one per 3.2 m of
+  wall (`slotAt`), at most `SLOT_COLUMNS` (8 long / 4 short) - a longer wall keeps the pitch round its middle and
+  leaves the ends blank; the columns a wall has no room for fold away. Keep them at 12 triangles each: every house
+  carries all its slots, and the box's variants are drawn as one set (every variant's vertices per house, shadow pass
+  too) - `tests/rally/box-buildings.test.ts` holds the budgets. Eaves: a steep roof overhangs less (`eaveScale`), so
+  they never drop over the upper windows. The front (door, a hall's roller door) is local +Z: `buildingInstance`
+  turns it to the downhill long wall, on flat ground to the nearest road. Check sizes with
+  `asset-debug.html?asset=house_pitched&size=12,3.3,8` (or the Width / Wall height / Depth sliders).
+  `house_pitched` walls end at `HOUSE_WALL_FRACTION` of the height (roof above), `building_flat` styles 0/1 hall,
+  2 brick block, 3 rendered block; variants 4-7 = two floors.
 - Vegetation palette so far (trees: one L-system species each, `trees/species.ts` `TREE_TYPES`, most built with
   `shrub` / `conifer` / `broadleaf` from shape numbers, `.claude/reference/trees/Species.md#builders`; check one at `asset-debug.html?asset=tree:<type>`): `pine_tree`, `plantation_pine` (a cheaper pine for dense stands), `black_pine`
   (umbrella crown), `juniper`, `birch_tree`, `oak_tree`, `beech_tree` (mountain beech), `hornbeam_tree` (bright-green coppice), `walnut_tree`, `willow_tree` (weeping), `poplar_tree` (columnar), `cypress_tree` (dark column), `locust_tree` (black locust), `bramble_shrub`,

@@ -839,7 +839,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'House (sloped roof)',
     category: 'buildings',
     description:
-      'Village house: rendered / brick walls, red tile hip or gable roof with eaves, gutters and a chimney, real-size windows repeated along the walls, a front door. Unit 1x1x1, scaled to the real footprint. Variants 0-3 one floor (0-2 render, 3 clay brick; hip on even, gable on odd), 4-7 two floors.',
+      'Village house: rendered / brick walls, red tile hip or gable roof with eaves, gutters and a chimney (windows = `house_windows`, front door = `house_door`). Unit 1x1x1, scaled to the real footprint. Variants 0-3 one floor (0-2 render, 3 clay brick; hip on even, gable on odd), 4-7 two floors.',
     variants: 8,
     lods: [
       { maxDistance: 160, castShadow: true },
@@ -853,7 +853,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'House (rubble stone)',
     category: 'buildings',
     description:
-      'Old mountain-village house in lime-plastered rubble stone, red tile roof with eaves and a chimney, real-size windows and a front door (a separate asset so the render houses stay a small variant set). Variants 0 hip / 1 gable one floor, 2-3 two floors.',
+      'Old mountain-village house in lime-plastered rubble stone, red tile roof with eaves and a chimney (a separate asset so the render houses stay a small variant set). Variants 0 hip / 1 gable one floor, 2-3 two floors.',
     variants: 4,
     lods: [
       { maxDistance: 160, castShadow: true },
@@ -867,7 +867,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Building (flat roof)',
     category: 'buildings',
     description:
-      'Flat-roofed building: 0/1 industrial hall (roof fascia, roller door, side door), 2 unfinished brick block, 3 rendered block (overhanging roof slab, real-size windows, a front door). Unit 1x1x1, scaled to the footprint. Variants 4-7 two floors of windows.',
+      'Flat-roofed building: 0/1 industrial hall (roof fascia, roller door, side door), 2 unfinished brick block, 3 rendered block (overhanging roof slab; windows = `house_windows`, front door = `house_door`). Unit 1x1x1, scaled to the footprint. Variants 4-7 two floors.',
     variants: 8,
     lods: [
       { maxDistance: 160, castShadow: true },
@@ -875,6 +875,24 @@ export const ASSET_CATALOG: AssetMeta[] = [
     ],
     colliders: [{ kind: 'box', hx: 0.5, hz: 0.5, h: 1, r: 0.71 }],
     tint: 0.05,
+  },
+  {
+    id: 'house_windows',
+    name: 'House windows',
+    category: 'buildings',
+    description:
+      'The windows of a box building, on the same unit box scaled to its footprint and wall height: real size (frame, glass, mullion and transom, sill), about one per 3.2 m of wall, at most 8 along the long walls and 4 along the short ones (a longer wall keeps the pitch and leaves its ends blank); the front wall leaves a column to the door. Their own asset, without shadows, so the box stays light. Variants: 0 / 1 one floor (white / grey frames), 2 / 3 two floors.',
+    variants: 4,
+    lods: [{ maxDistance: 160, castShadow: false, separateVariants: true }],
+  },
+  {
+    id: 'house_door',
+    name: 'House door',
+    category: 'buildings',
+    description:
+      'Front door of the box buildings, real size (never scaled): frame, leaf with a top light, handle, a concrete step that goes into the ground. Stands on the ground at the wall the building faces the road or the slope with (world/buildings.ts). Variants: 0 house, 1 unfinished brick house, 2 rendered block, 3 brick block. Opens to +Z.',
+    variants: 4,
+    lods: [{ maxDistance: 160, castShadow: false }],
   },
   // --- street vehicles (city maps) --------------------------------------------------
   {
@@ -1554,6 +1572,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     breakable: { r: 0.65, h: 1.6, slow: 0.93 },
   },
 ];
+
+/** The box buildings: unit boxes scaled per instance to a real footprint (world/buildings.ts). */
+export const BOX_BUILDINGS = ['house_pitched', 'house_stone', 'building_flat'];
 
 /** house_pitched: wall top as a fraction of the total (unit) height; the roof is the rest. */
 export const HOUSE_WALL_FRACTION = 0.68;
