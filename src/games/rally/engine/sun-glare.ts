@@ -62,7 +62,7 @@ const GLARE_FRAGMENT = /* glsl */ `
   void main() {
     float r = length( ( vNdc - uSun ) * vec2( uAspect, 1.0 ) );
     // Veiling glare: light scattered in the eye / lens, ~1 / r^2 near the sun, and a wide faint haze round it.
-    vec3 c = uColor * ( 0.01 / ( r * r + 0.01 ) + 0.05 * exp( - r * 2.2 ) );
+    vec3 c = uColor * ( 0.01 / ( r * r + 0.01 ) + 0.03 * exp( - r * 3.0 ) );
     // Ghosts: reflections between lens elements, on the line from the sun through the centre, faintly tinted.
     c += uColor * vec3( 0.55, 0.75, 1.0 ) * ( 0.07 * ghost( uSun * 0.4, 0.07 ) );
     c += uColor * vec3( 1.0, 0.8, 0.5 ) * ( 0.05 * ghost( uSun * -0.25, 0.11 ) );
