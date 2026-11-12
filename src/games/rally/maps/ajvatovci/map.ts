@@ -1,5 +1,6 @@
 import { buildingsFromData, routePoints, routeSpans } from '../shared/real-map';
 import type {
+  DitchDef,
   HeightmapDef,
   HorizonDef,
   LandcoverDef,
@@ -63,71 +64,165 @@ const seasonalGrass = (r: ScatterRule): ScatterRule[] => [
 ];
 
 /**
- * The canal and drain growth by season (ref photos of the bridge canal: July thicket, November straw). Spring: last
- * year's straw stems standing with the new green shoots through them, young thistles and rosettes; summer: green reed beds
- * and cattails, tall straw-brown thistles with pale heads; autumn: straw reeds, grey-brown dead thistles. Shrubs
- * (box elder / elder-like bushes) green in spring and summer, yellowing in autumn (the pack bushes' season tints).
+ * The drains and the canal are field ditches (`terrain.ditches`): a V about 7 m across and 1.7 m deep, a trickle in its
+ * bed, the reed bed drawn as one volume over it (world/reed-bed.ts). The mown strip and the maintenance track run on the
+ * ditch's right (looking along it; at the stage bridge the side away from the start), the dredged spoil and brush heaps
+ * beyond them; the other bank is weeds, saplings and bramble down to the field.
+ */
+const DITCHES: DitchDef = {
+  kinds: ['drain', 'ditch'],
+  topWidth: 7,
+  bedWidth: 1,
+  depth: 1.7,
+  water: 0,
+  track: 1,
+  mown: 3,
+  trackWidth: 2.6,
+  reedBed: { height: [0.15, 0.45], cover: 0.86, reach: 700 },
+};
+
+/**
+ * What grows in and along the ditches by season (ref photos of the bridge canal: July thicket, November). Distances are
+ * from the drain's mapped edge (2.5 m out from its line; the ditch lip is 1 m beyond it, its bed 2 m inside it).
+ *
+ * - The reed bed itself is the volume; reed cards stand along its edges and through its top for the silhouette and the
+ *   plumes (`ditchTop`: the tops level, 0.8-1.4 m above the bank): green in summer, the November stand in autumn (olive
+ *   below, straw above, beige plumes), last year's bleached stems over the new shoots in spring. A few cattails.
+ * - The weedy bank (the left): broadleaf saplings and shrubs 1-2 m (ash / elm, box elder), bramble tangles, nettles,
+ *   rust-red dead docks and knotweed in autumn, dry brush, rank grass.
+ * - The track side (the right): a mown strip and the track (painted on the ground), short grass, the row of spoil heaps
+ *   and dead brush beyond the track.
  */
 const canalGrowth = (): ScatterRule[] => {
-  const bed = {
-    channelDist: [-6, 5] as [number, number],
+  const reedEdge = {
+    channelDist: [-0.6, 1.0] as [number, number],
     detail: true,
     minRoadDist: 1.5,
-    // Reeds grow out of the water too (the stems stand in the channel, as in the photos).
     inChannel: true,
     minPathDist: 0.3,
-    scale: [0.8, 1.3] as [number, number],
+    ditchTop: { top: [0.7, 1.3] as [number, number], height: 2.4 },
+    // (replaced by `ditchTop` on a ditch)
+    scale: [0.9, 1.1] as [number, number],
   };
-  const bank = {
-    channelDist: [0.8, 7] as [number, number],
-    detail: true,
-    minRoadDist: 1.5,
-    minPathDist: 0.3,
-    mask: { scale: 22, threshold: 0.02 },
-    scale: [0.95, 1.4] as [number, number],
-  };
-  const slope = {
-    channelDist: [0.3, 6] as [number, number],
+  const reedTop = { ...reedEdge, channelDist: [-2.4, 1.0] as [number, number] };
+  const wild = {
+    channelDist: [0.4, 6] as [number, number],
+    channelSide: -1 as const,
     detail: true,
     minRoadDist: 1,
     minPathDist: 0.3,
     scale: [0.8, 1.3] as [number, number],
   };
-  const shrub = {
-    channelDist: [0.8, 6] as [number, number],
-    minRoadDist: 3,
+  const lip = {
+    channelDist: [0.4, 1.6] as [number, number],
+    channelSide: 1 as const,
+    detail: true,
+    minRoadDist: 1,
+    minPathDist: 0.3,
+    scale: [0.8, 1.2] as [number, number],
+  };
+  const sapling = {
+    channelDist: [0.2, 3] as [number, number],
+    channelSide: -1 as const,
+    minRoadDist: 2.5,
     minPathDist: 0.8,
-    mask: { scale: 30, threshold: 0.0 },
-    scale: [0.8, 1.4] as [number, number],
+    mask: { scale: 26, threshold: -0.1 },
     sink: 0.05,
   };
+  // Beyond the mown strip (3 m) and the track (2.6 m): e = 1 + 5.6 m on.
+  const heaps = {
+    channelDist: [7.0, 9.8] as [number, number],
+    channelSide: 1 as const,
+    minRoadDist: 4,
+    minPathDist: 1,
+    mask: { scale: 35, threshold: -0.2 },
+  };
   return [
-    // Summer: green reeds and cattails, tall straw thistles.
-    { ...bed, asset: 'reeds', density: 1000, season: ['summer'] },
-    { ...bank, asset: 'thistle', density: 170, season: ['summer'] },
-    // Cattails (Typha) stand in the water in every season: green with brown spikes in summer, new shoots among the
-    // spikes of the year before in spring, straw in autumn.
-    { ...bed, asset: 'cattails', density: 420, season: ['summer'] },
-    { ...bed, asset: 'cattails_young', density: 380, season: ['spring'] },
-    { ...bed, asset: 'cattails_dry', density: 380, season: ['autumn'] },
-    // Nettles (Urtica) and other tall weeds of the nutrient-rich banks, every season (green / dried cards).
-    { ...slope, asset: 'tall_weeds', density: 60 },
-    // Autumn: straw reeds, grey-brown dead thistles.
-    { ...bed, asset: 'reeds_dry', density: 900, season: ['autumn'] },
-    { ...bank, asset: 'thistle_dead', density: 140, season: ['autumn'] },
-    // Spring: last year's stems standing (thinner) with the new shoots, young thistles.
-    { ...bed, asset: 'reeds_dry', density: 170, season: ['spring'] },
-    { ...bed, asset: 'reeds_young', density: 900, season: ['spring'] },
-    { ...bank, asset: 'thistle_young', density: 150, season: ['spring'] },
-    { ...bank, asset: 'thistle_dead', density: 16, season: ['spring'] },
-    // The banks themselves: grass over the bare slope (fresh in spring, straw in summer, both in autumn).
-    { ...slope, asset: 'spring_grass', density: 700, season: ['spring'] },
-    { ...slope, asset: 'dry_grass', density: 650, season: ['summer'] },
-    { ...slope, asset: 'dry_grass', density: 300, season: ['autumn'] },
-    { ...slope, asset: 'grass_tuft', density: 350, season: ['autumn'] },
-    // Shrubs along the slope, every season.
-    { ...shrub, asset: 'pack_bush', density: 14 },
-    { ...shrub, asset: 'pack_lilac', density: 1.2, scale: [0.7, 1.0] },
+    // The reed bed's edges and top.
+    { ...reedEdge, asset: 'reeds', density: 900, season: ['summer'] },
+    { ...reedTop, asset: 'reeds', density: 900, season: ['summer'] },
+    { ...reedEdge, asset: 'reeds_dry', density: 900, season: ['autumn'] },
+    { ...reedTop, asset: 'reeds_dry', density: 900, season: ['autumn'] },
+    {
+      ...reedEdge,
+      asset: 'reeds_old',
+      density: 600,
+      season: ['spring'],
+      ditchTop: { top: [0.3, 0.9], height: 1.75 },
+    },
+    {
+      ...reedEdge,
+      asset: 'reeds_young',
+      density: 500,
+      season: ['spring'],
+      ditchTop: { top: [-0.2, 0.3], height: 1.1 },
+    },
+    // Cattails (Typha) by the water, their spikes up in the bed's top.
+    {
+      ...reedTop,
+      asset: 'cattails',
+      density: 60,
+      season: ['summer'],
+      ditchTop: { top: [0.3, 0.8], height: 1.7 },
+    },
+    {
+      ...reedTop,
+      asset: 'cattails_dry',
+      density: 60,
+      season: ['autumn'],
+      ditchTop: { top: [0.3, 0.8], height: 1.7 },
+    },
+    // The weedy bank: nettles and docks (green in spring / summer), rust-red dead docks and knotweed in autumn.
+    { ...wild, asset: 'tall_weeds', density: 90, season: ['spring', 'summer'] },
+    {
+      ...wild,
+      asset: 'rust_weeds',
+      density: 520,
+      season: ['autumn'],
+      channelDist: [-1.2, 2.2],
+      inChannel: true,
+      mask: { scale: 9, threshold: -0.25 },
+    },
+    { ...wild, asset: 'tall_weeds', density: 40, season: ['autumn'] },
+    // Rank grass over the rest of the bank (fresh in spring, straw in summer, both in autumn).
+    { ...wild, asset: 'spring_grass', density: 700, season: ['spring'] },
+    { ...wild, asset: 'dry_grass', density: 650, season: ['summer'] },
+    { ...wild, asset: 'dry_grass', density: 300, season: ['autumn'] },
+    { ...wild, asset: 'grass_tuft', density: 350, season: ['autumn'] },
+    // The track side: weeds only on the lip, short grass on the mown strip.
+    { ...lip, asset: 'tall_weeds', density: 60 },
+    { ...lip, asset: 'rust_weeds', density: 120, season: ['autumn'] },
+    {
+      ...lip,
+      asset: 'grass_tuft',
+      density: 260,
+      channelDist: [1.2, 4] as [number, number],
+      scale: [0.6, 0.9] as [number, number],
+    },
+    // Broadleaf saplings and shrubs (ash / elm, box elder) 1-2 m on the weedy bank and out of the reed bed's edge, and
+    // the dark bramble tangles between them.
+    { ...sapling, asset: 'young_tree', density: 20, scale: [0.32, 0.5] },
+    { ...sapling, asset: 'bush', density: 28, scale: [1.1, 1.6] },
+    { ...sapling, asset: 'thicket_shrub', density: 12, scale: [0.8, 1.2] },
+    {
+      ...sapling,
+      asset: 'bramble_shrub',
+      density: 34,
+      scale: [0.9, 1.3],
+      mask: { scale: 14, threshold: 0.1 },
+    },
+    // Dry brush: cut branches and stems thrown on the bank.
+    {
+      ...wild,
+      detail: false,
+      asset: 'forest_branches',
+      density: 5,
+      scale: [0.9, 1.3],
+      channelDist: [1, 5],
+    },
+    // The dredged spoil and brush heaps in a row beyond the track.
+    { ...heaps, asset: 'spoil_heap', density: 80, scale: [0.9, 1.25] },
+    { ...heaps, asset: 'forest_branches', density: 30, scale: [1.1, 1.6] },
   ];
 };
 
@@ -163,6 +258,7 @@ export const ajvatovciMap: MapDef = {
     // Level yards for the start row's lots (levelled to the sidewalk in front of each).
     // + the service park's gravel yards: beside the start and in the field NW of it (./service-park.ts).
     pads: [...startRowPads(), startLotPad(), fieldLotPad(), ...fieldLinkPads()],
+    ditches: DITCHES,
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
@@ -387,10 +483,9 @@ export const ajvatovciMap: MapDef = {
       tilt: 3,
       sink: 0.2,
     },
-    // The canal and drains grow over in every season (the bridge canal is a thicket of reed, thistle and young shrubs):
-    // reeds fill the bed and the foot of the banks, thistles stand on the banks, shrubs grow along the slope.
+    // The ditches grow over in every season (the bridge canal: a reed bed, saplings, bramble and dead weeds).
     ...canalGrowth(),
-    // Tall dry weeds / thistles on the field margins.
+    // Tall dry weeds on the field margins.
     {
       asset: 'tall_weeds',
       cover: ['crop', 'grass'],

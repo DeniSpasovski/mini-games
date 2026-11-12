@@ -53,6 +53,8 @@ export interface ScatterContext {
    * the stage road there. Nothing roots on a cut, and no tree stands where its crown would hang over the face.
    */
   cutAt?: (x: number, z: number, q: RoadQuery) => number;
+  /** Bank line height of a ditch (`terrain.ditches`) channel at `along` m; undefined for any other channel. */
+  ditchBank?: (channel: number, along: number) => number | undefined;
 }
 
 /** Rock cuts (`ScatterContext.cutAt`) lie within this distance of the stage road's edge (m): no look-up beyond. */
@@ -826,11 +828,23 @@ export class ScatterField {
           const f = h / c.period - Math.floor(h / c.period);
           if (f < c.width === !!c.invert) continue;
         }
+        let ditchBank = NaN;
         if (rule.channelDist) {
           const cq = this.ctx.channels?.query(x, z, this.pq);
           if (!cq?.found) continue;
           const e = cq.distance - cq.halfWidth;
           if (e < rule.channelDist[0] || e > rule.channelDist[1]) continue;
+          if (
+            rule.channelSide &&
+            this.ctx.channels!.sideOf(cq.path, cq.along, x, z) !==
+              rule.channelSide
+          )
+            continue;
+          if (rule.ditchTop) {
+            const bank = this.ctx.ditchBank?.(cq.path, cq.along);
+            if (bank === undefined) continue;
+            ditchBank = bank;
+          }
         }
         const n = ground.normal(x, z, this.n);
         if (rule.maxSlope !== undefined && 1 - n.y > rule.maxSlope) continue;
@@ -866,14 +880,24 @@ export class ScatterField {
           tiltX += Math.atan2(n.z, n.y);
           tiltZ += -Math.atan2(n.x, n.y);
         }
+        // A ditch's reeds: sized so the top stands at one level above its bank line, from the slope or the bed.
+        let fit = scale;
+        if (rule.ditchTop && !Number.isNaN(ditchBank)) {
+          const [t0, t1] = rule.ditchTop.top;
+          const top = ditchBank + t0 + (t1 - t0) * rng.next();
+          fit = Math.max(
+            0.5,
+            Math.min(2, (top - ground.height(x, z)) / rule.ditchTop.height),
+          );
+        }
         const inst: ScatterInstance = {
           asset: rule.asset,
           variant,
           x,
-          y: ground.height(x, z) - (rule.sink ?? 0) * scale,
+          y: ground.height(x, z) - (rule.sink ?? 0) * fit,
           z,
           rotY,
-          scale,
+          scale: fit,
           tiltX,
           tiltZ,
         };

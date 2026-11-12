@@ -22,6 +22,8 @@ describe.each(
   test('water fills the channels between bed and banks', () => {
     const fails: string[] = [];
     net.paths.forEach((p, ci) => {
+      // (a dry field ditch, `terrain.ditches` with no water: nothing to fill)
+      if (gen.channelWaterHalfWidth(ci) <= 0) return;
       const L = net.lengths[ci];
       // Shallower than a ditch (a 0.2 m brook): depth / freeboard limits scale with the channel, and roads cross it on a
       // culvert whose embankment reaches further over it.
@@ -85,6 +87,8 @@ describe.each(
 
   test('water level never rises downstream', () => {
     net.paths.forEach((_, ci) => {
+      // (a field ditch follows the land: no flow to keep falling)
+      if (gen.ditchOf(ci)) return;
       const L = net.lengths[ci];
       const first = gen.channelWaterLevel(ci, 0);
       const last = gen.channelWaterLevel(ci, L);

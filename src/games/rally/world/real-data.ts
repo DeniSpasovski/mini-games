@@ -556,6 +556,18 @@ export class PathNetwork {
     return out;
   }
 
+  private sideA = { x: 0, z: 0 };
+  private sideB = { x: 0, z: 0 };
+  /** Side of path `pi` that (x, z) lies on, near `along` m: 1 = right looking along the path, -1 = left. */
+  sideOf(pi: number, along: number, x: number, z: number): 1 | -1 {
+    const a = this.sideA;
+    const b = this.sideB;
+    this.pointAt(pi, along - 1, a);
+    this.pointAt(pi, along + 1, b);
+    // Right of the direction (tx, tz) is (-tz, tx).
+    return (x - a.x) * -(b.z - a.z) + (z - a.z) * (b.x - a.x) >= 0 ? 1 : -1;
+  }
+
   /** Point at `along` metres on path `pi` (clamped to its ends). */
   pointAt(pi: number, along: number, out: { x: number; z: number }): void {
     const pts = this.paths[pi].pts;

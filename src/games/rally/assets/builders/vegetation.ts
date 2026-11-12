@@ -1,3 +1,4 @@
+import { BufferAttribute, BufferGeometry, MeshStandardMaterial } from 'three';
 import { Rng } from '../../../../shared/rng';
 import { merge } from '../../engine/geo';
 import {
@@ -151,15 +152,27 @@ function tallCards(
 }
 
 /**
- * Reeds (canal and drain banks): cards of the reeds sheet, baked from CC BY reed and cattail models; the last variant
- * is a cattail stand. `green` = the summer stand, `dry` = straw (autumn, and last year's stems standing in spring),
- * `young` = the new green shoots of spring (0.8 - 1.4 m, the water hides their foot).
+ * Reed stands (Phragmites) of canals and ditches: three crossed cards of the reeds sheet, dark in the lower two thirds
+ * (inside a dense bed little light reaches the stems). `green` summer; `dry` the November stand (olive below, straw
+ * above, beige plumes: the reeds-autumn sheet); `young` the spring shoots; `old` last year's bleached stand in spring.
  */
-function reedStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
+type ReedLook = 'green' | 'dry' | 'young' | 'old';
+const REED_SHEET = {
+  green: 'reeds',
+  young: 'reeds',
+  dry: 'reeds-autumn',
+  old: 'reeds-winter',
+} as const;
+const REED_MATERIAL: Record<ReedLook, MaterialId> = {
+  green: 'foliage_card_reeds',
+  young: 'foliage_card_reeds',
+  dry: 'foliage_card_reeds_dry',
+  old: 'foliage_card_reeds_old',
+};
+
+function reedStand(look: ReedLook): AssetBuilder {
   const height: [number, number] =
-    look === 'young' ? [0.8, 1.4] : look === 'dry' ? [1.8, 2.5] : [1.7, 2.3];
-  const material: MaterialId =
-    look === 'dry' ? 'foliage_card_reeds_dry' : 'foliage_card_reeds';
+    look === 'young' ? [0.8, 1.4] : look === 'old' ? [1.4, 2.1] : [2.1, 2.7];
   return ({ seed, variant }) => {
     const rng = new Rng(seed);
     const h = rng.range(...height);
@@ -168,15 +181,15 @@ function reedStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
         {
           geometry: plantCards(
             rng,
-            'reeds',
-            // The straw stand has no cattails: their green grass base would stay green.
-            variant === 2 && look !== 'dry' ? CELLS.cattails : CELLS.reeds,
+            REED_SHEET[look],
+            variant === 2 && look === 'green' ? CELLS.cattails : CELLS.reeds,
             h * 0.5,
             h,
             3,
-            0.6,
+            0.35,
+            0.7,
           ),
-          material: getMaterial(material),
+          material: getMaterial(REED_MATERIAL[look]),
         },
       ],
     };
@@ -186,14 +199,14 @@ function reedStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
 export const reeds = reedStand('green');
 export const reedsDry = reedStand('dry');
 export const reedsYoung = reedStand('young');
+export const reedsOld = reedStand('old');
 
 /**
- * Cattail stands (Typha): the cells of the cattail clumps (green blades, brown spikes), standing in the water of canals
- * and drains. `dry` = the same clumps gone to straw (autumn); `young` = the spring shoots (the spikes of the year
- * before stand among them, so the cells are the same, drawn lower).
+ * Cattail stands (Typha): the cells of the cattail clumps (blades, brown spikes), standing in the water of canals and
+ * drains. `dry` = the November clumps (the reeds-autumn sheet); `young` = the spring shoots, drawn lower.
  */
 function cattailStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
-  const height: [number, number] = look === 'young' ? [0.7, 1.2] : [1.3, 1.9];
+  const height: [number, number] = look === 'young' ? [0.7, 1.2] : [1.4, 2.0];
   return ({ seed }) => {
     const rng = new Rng(seed);
     const h = rng.range(...height);
@@ -202,12 +215,13 @@ function cattailStand(look: 'green' | 'dry' | 'young'): AssetBuilder {
         {
           geometry: plantCards(
             rng,
-            'reeds',
+            look === 'dry' ? 'reeds-autumn' : 'reeds',
             CELLS.cattails,
             h * 0.5,
             h,
             3,
-            0.6,
+            0.4,
+            0.65,
           ),
           material: getMaterial(
             look === 'dry' ? 'foliage_card_reeds_dry' : 'foliage_card_reeds',
@@ -223,43 +237,123 @@ export const cattailsDry = cattailStand('dry');
 export const cattailsYoung = cattailStand('young');
 
 /**
- * Thistles of the canal banks (cells 0.8 x 1.6 m, a clump of two or three plants each): the straw stand with pale heads
- * (summer), young green plants and rosettes (spring), grey-brown skeletons (autumn).
+ * Dead docks and knotweed of the ditch banks in autumn (rust red and brown, dark seed spikes): the nettle cells of the
+ * weeds-rust sheet, 0.6-1.1 m, three crossed cards in a patch.
  */
-function thistleStand(
-  sheet: 'thistle-dry' | 'thistle-green' | 'thistle-autumn',
-  material: MaterialId,
-  height: [number, number],
-): AssetBuilder {
-  return ({ seed }) => {
-    const rng = new Rng(seed);
-    const h = rng.range(...height);
-    return {
-      parts: [
-        {
-          geometry: plantCards(rng, sheet, [0, 1, 2, 3], h * 0.5, h, 3, 0.75),
-          material: getMaterial(material),
-        },
-      ],
-    };
+export const rustWeeds: AssetBuilder = ({ seed }) => {
+  const rng = new Rng(seed);
+  const h = rng.range(0.6, 1.1);
+  return {
+    parts: [
+      {
+        geometry: plantCards(
+          rng,
+          'weeds-rust',
+          [...CELLS.nettles, ...CELLS.dryNettles],
+          h * 0.6,
+          h,
+          3,
+          0.45,
+          0.6,
+        ),
+        material: getMaterial('foliage_card_weeds_rust'),
+      },
+    ],
   };
-}
+};
 
-export const thistle = thistleStand(
-  'thistle-dry',
-  'foliage_card_thistle',
-  [1.3, 1.8],
-);
-export const thistleYoung = thistleStand(
-  'thistle-green',
-  'foliage_card_thistle_young',
-  [0.7, 1.1],
-);
-export const thistleDead = thistleStand(
-  'thistle-autumn',
-  'foliage_card_thistle_dead',
-  [1.2, 1.7],
-);
+/**
+ * A heap of spoil dredged out of a ditch (dark wet earth, lumpy, 2.5-4 m long and 0.6-1 m high) with the cut reed stems
+ * and weeds thrown on it: a mound of vertex-coloured soil (lighter where the top has dried) with cards of bleached straw
+ * stems sticking out of it.
+ */
+export const spoilHeap: AssetBuilder = ({ seed, variant }) => {
+  const rng = new Rng(seed + variant * 977);
+  const len = rng.range(2.5, 4);
+  const wid = rng.range(1.6, 2.4);
+  const hgt = rng.range(0.6, 1.0);
+  const NU = 18;
+  const NV = 9;
+  const pos: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  const bumps = Array.from({ length: 6 }, () => [
+    rng.range(-0.8, 0.8),
+    rng.range(-0.7, 0.7),
+    rng.range(0.1, 0.25),
+    rng.range(0.25, 0.5),
+  ]);
+  for (let j = 0; j <= NV; j++) {
+    const v = j / NV; // 0 = rim on the ground, 1 = the crest
+    for (let i = 0; i < NU; i++) {
+      const a = (i / NU) * Math.PI * 2;
+      const r = Math.cos((v * Math.PI) / 2);
+      let x = Math.cos(a) * r;
+      let z = Math.sin(a) * r;
+      let y = Math.sin((v * Math.PI) / 2);
+      // Clods and dents.
+      let lift = 0;
+      for (const [bx, bz, bh, br] of bumps) {
+        const d2 = (x - bx) ** 2 + (z - bz) ** 2;
+        lift += bh * Math.exp(-d2 / (br * br));
+      }
+      const jit = rng.range(-0.06, 0.06);
+      y = Math.max(0, y * (0.75 + lift) + (j > 0 ? jit : 0));
+      x *= 1 + jit;
+      z *= 1 + jit;
+      pos.push(x * len * 0.5, y * hgt - 0.05, z * wid * 0.5);
+      // Dark wet earth, lighter where it has dried on top, grey-brown clods.
+      const dry = 0.6 + 0.5 * v + rng.range(-0.15, 0.15);
+      col.push(0.17 * dry, 0.135 * dry, 0.1 * dry);
+    }
+  }
+  const top = pos.length / 3;
+  pos.push(0, hgt * 0.95, 0);
+  col.push(0.2, 0.16, 0.12);
+  for (let j = 0; j < NV; j++)
+    for (let i = 0; i < NU; i++) {
+      const a = j * NU + i;
+      const b = j * NU + ((i + 1) % NU);
+      idx.push(a, a + NU, b, b, a + NU, b + NU);
+    }
+  for (let i = 0; i < NU; i++)
+    idx.push(NV * NU + i, top, NV * NU + ((i + 1) % NU));
+  const mound = new BufferGeometry();
+  mound.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  mound.setAttribute('color', new BufferAttribute(new Float32Array(col), 3));
+  mound.setIndex(idx);
+  // Faceted (clods), not a smooth dome.
+  const clods = mound.toNonIndexed();
+  clods.computeVertexNormals();
+  // Cut straw stems thrown on it, sticking out of the earth at angles.
+  const stems = plantCards(
+    rng,
+    'reeds-winter',
+    CELLS.reeds,
+    len * 0.8,
+    1.1,
+    4,
+    0.5,
+    0.5,
+  );
+  stems.rotateZ(rng.range(-0.25, 0.25));
+  stems.translate(0, hgt * 0.35, 0);
+  return {
+    parts: [
+      { geometry: clods, material: soilMaterial() },
+      { geometry: stems, material: getMaterial('foliage_card_reeds_old') },
+    ],
+  };
+};
+
+let soil: MeshStandardMaterial | undefined;
+/** Bare earth lit like the ground (vertex colour only). */
+function soilMaterial(): MeshStandardMaterial {
+  soil ??= new MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  soil.defines = { RALLY_GROUND: 1 };
+  soil.name = 'spoil_soil';
+  return soil;
+}
 
 /**
  * Ferns of the shaded woods (male fern / bracken): three crossed cards of the fern sheet (2.4 x 1.2 m cells, the stand

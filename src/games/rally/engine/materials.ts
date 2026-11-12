@@ -34,9 +34,8 @@ export type MaterialId =
   | 'foliage_card_weeds'
   | 'foliage_card_reeds'
   | 'foliage_card_reeds_dry'
-  | 'foliage_card_thistle'
-  | 'foliage_card_thistle_young'
-  | 'foliage_card_thistle_dead'
+  | 'foliage_card_reeds_old'
+  | 'foliage_card_weeds_rust'
   | 'foliage_card_ferns'
   | 'foliage_card_ferns_autumn'
   | 'grass_blade'
@@ -148,9 +147,8 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card_weeds',
   'foliage_card_reeds',
   'foliage_card_reeds_dry',
-  'foliage_card_thistle',
-  'foliage_card_thistle_young',
-  'foliage_card_thistle_dead',
+  'foliage_card_reeds_old',
+  'foliage_card_weeds_rust',
   'foliage_card_ferns',
   'foliage_card_ferns_autumn',
 ];
@@ -244,30 +242,17 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 1,
       });
       break;
-    case 'foliage_card_reeds_dry': {
-      // The same reed sheet gone to straw (autumn, last year's stems in spring): the colour gain turns green to tan.
-      const [r, g, b] = cardColor('reeds');
-      m = new MeshStandardMaterial({
-        vertexColors: true,
-        map: plantSheet('reeds'),
-        color: new Color(r * 2.4, g * 1.12, b * 0.5),
-        alphaTest: 0.5,
-        side: DoubleSide,
-        roughness: 1,
-      });
-      break;
-    }
-    case 'foliage_card_thistle':
-    case 'foliage_card_thistle_young':
-    case 'foliage_card_thistle_dead': {
-      // Thistle stands of the canal banks (engine/plants/thistle-*.webp): straw with pale heads (summer), young
-      // green plants (spring), grey-brown skeletons (autumn).
+    case 'foliage_card_reeds_dry':
+    case 'foliage_card_reeds_old':
+    case 'foliage_card_weeds_rust': {
+      // Season sheets recoloured per texel (scripts/plants/bake-seasons.py): the November reed stand (olive below,
+      // straw above, beige plumes), last year's bleached stand (spring), dead rust-red docks and knotweed (autumn).
       const sheet =
-        id === 'foliage_card_thistle'
-          ? 'thistle-dry'
-          : id === 'foliage_card_thistle_young'
-            ? 'thistle-green'
-            : 'thistle-autumn';
+        id === 'foliage_card_reeds_dry'
+          ? 'reeds-autumn'
+          : id === 'foliage_card_reeds_old'
+            ? 'reeds-winter'
+            : 'weeds-rust';
       m = new MeshStandardMaterial({
         vertexColors: true,
         map: plantSheet(sheet),

@@ -17,7 +17,7 @@ import { Rng } from '../../../shared/rng';
 import { coverageMips } from '../trees/materials';
 import { merge } from './geo';
 import { PLANT_SHEETS as BAKED_SHEETS } from './plants/plant-atlas.data';
-import { THISTLE_SHEETS } from './plants/thistle.data';
+import { SEASON_SHEETS } from './plants/season-sheets.data';
 import greenUrl from './plants/grass-green.webp';
 import dryUrl from './plants/grass-dry.webp';
 import springUrl from './plants/grass-spring.webp';
@@ -25,12 +25,12 @@ import weedsUrl from './plants/weeds.webp';
 import reedsUrl from './plants/reeds.webp';
 import fernsUrl from './plants/ferns.webp';
 import fernsAutumnUrl from './plants/ferns-autumn.webp';
-import thistleGreenUrl from './plants/thistle-green.webp';
-import thistleDryUrl from './plants/thistle-dry.webp';
-import thistleAutumnUrl from './plants/thistle-autumn.webp';
+import reedsAutumnUrl from './plants/reeds-autumn.webp';
+import reedsWinterUrl from './plants/reeds-winter.webp';
+import weedsRustUrl from './plants/weeds-rust.webp';
 
-/** The baked atlases plus the thistle ones (scripts/plants/bake-thistle.py). */
-const PLANT_SHEETS = { ...BAKED_SHEETS, ...THISTLE_SHEETS };
+/** The baked atlases plus their season sheets (scripts/plants/bake-seasons.py). */
+const PLANT_SHEETS = { ...BAKED_SHEETS, ...SEASON_SHEETS };
 
 type RGB = [number, number, number];
 export type GrassKind = 'green' | 'dry' | 'spring';
@@ -44,9 +44,9 @@ const URLS: Record<PlantSheet, string> = {
   reeds: reedsUrl,
   ferns: fernsUrl,
   'ferns-autumn': fernsAutumnUrl,
-  'thistle-green': thistleGreenUrl,
-  'thistle-dry': thistleDryUrl,
-  'thistle-autumn': thistleAutumnUrl,
+  'reeds-autumn': reedsAutumnUrl,
+  'reeds-winter': reedsWinterUrl,
+  'weeds-rust': weedsRustUrl,
 };
 
 /** The grass sheet of a kind. */
@@ -95,9 +95,9 @@ export const SHEET_GAIN: Record<PlantSheet, RGB> = {
   reeds: [0.95, 1.05, 0.95],
   ferns: [1.0, 1.0, 1.4],
   'ferns-autumn': [1.0, 1.0, 1.0],
-  'thistle-green': [1.0, 1.0, 1.0],
-  'thistle-dry': [1.0, 1.0, 1.0],
-  'thistle-autumn': [1.0, 1.0, 1.0],
+  'reeds-autumn': [0.72, 0.62, 0.46],
+  'reeds-winter': [0.66, 0.64, 0.6],
+  'weeds-rust': [1.15, 1.1, 1.05],
 };
 
 /**
@@ -246,13 +246,12 @@ const ASSET_SHEETS: Record<string, PlantSheet[]> = {
   tall_weeds: ['weeds'],
   reeds: ['reeds'],
   cattails: ['reeds'],
-  cattails_dry: ['reeds'],
+  cattails_dry: ['reeds-autumn'],
   cattails_young: ['reeds'],
-  reeds_dry: ['reeds'],
+  reeds_dry: ['reeds-autumn'],
+  reeds_old: ['reeds-winter'],
   reeds_young: ['reeds'],
-  thistle: ['thistle-dry'],
-  thistle_young: ['thistle-green'],
-  thistle_dead: ['thistle-autumn'],
+  rust_weeds: ['weeds-rust'],
   fern: ['ferns'],
   fern_autumn: ['ferns-autumn'],
 };
@@ -296,7 +295,8 @@ export function cellRect(
 
 /**
  * Crossed plant cards: `planes` cards w x h (m) standing on y = 0, each showing one of `cells` of the sheet. Normals
- * point up (lit like the ground under them), the vertex colour darkens the roots a little and varies the tone.
+ * point up (lit like the ground under them), the vertex colour darkens the roots (to `root`, lit from `rootSpan` of
+ * the height up: a dense stand is dark inside) and varies the tone.
  */
 export function plantCards(
   rng: Rng,
@@ -306,6 +306,7 @@ export function plantCards(
   h: number,
   planes = 3,
   root = 0.7,
+  rootSpan = 0.6,
 ): BufferGeometry {
   const parts: BufferGeometry[] = [];
   const turn = rng.next() * Math.PI;
@@ -330,7 +331,8 @@ export function plantCards(
     const p = g.getAttribute('position');
     const col = new Float32Array(p.count * 3);
     for (let k = 0; k < p.count; k++) {
-      const c = tone * (root + (1 - root) * Math.min(1, p.getY(k) / (h * 0.6)));
+      const c =
+        tone * (root + (1 - root) * Math.min(1, p.getY(k) / (h * rootSpan)));
       col[k * 3] = c;
       col[k * 3 + 1] = c;
       col[k * 3 + 2] = c;

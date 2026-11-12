@@ -264,6 +264,8 @@ export function* waterMeshJob(
     const n = Math.max(2, Math.ceil(L / STEP) + 1);
     const step = L / (n - 1);
     const hw = gen.channelWaterHalfWidth(ci) * OVERLAP;
+    // (a dry ditch: no water)
+    if (hw <= 0) return;
     // Ripples run downstream: v grows the way the water level falls.
     const down =
       gen.channelWaterLevel(ci, L) <= gen.channelWaterLevel(ci, 0) ? 1 : -1;

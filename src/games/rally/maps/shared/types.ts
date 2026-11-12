@@ -661,6 +661,33 @@ export interface FlatArea {
   label?: boolean;
 }
 
+export interface DitchDef {
+  kinds: string[];
+  topWidth: number;
+  bedWidth: number;
+  depth: number;
+  water: number;
+  /** Side of the mown strip and track (1 = right of the channel's direction, -1 = left); none when unset. */
+  track?: 1 | -1;
+  /** Mown grass strip from the bank lip (m). Default 3. */
+  mown?: number;
+  /** Dirt maintenance track beyond the mown strip (m). Default 2.6. */
+  trackWidth?: number;
+  reedBed?: ReedBedDef;
+}
+
+/**
+ * A reed bed drawn as one volume along a ditch (world/reed-bed.ts): bank to bank, its top `height` m above the bank
+ * line (noise between the two), dark inside; reed card cells stand round its sides for the silhouette. `cover`: share
+ * of the length grown over (the rest open: a sapling, a cleared stretch). `reach`: only within this far of the stage
+ * road (m). Per season: summer green, autumn olive below / straw above, spring last year's straw cut lower.
+ */
+export interface ReedBedDef {
+  height: [number, number];
+  cover: number;
+  reach: number;
+}
+
 export interface TerrainDef {
   baseHeight: number;
   /** Real elevation data; `layers` then add small-scale detail on top. */
@@ -677,6 +704,15 @@ export interface TerrainDef {
   talus?: { slope: [number, number]; reach?: number };
   /** Channel kinds (e.g. `stream`) whose bed is washed pebbles and stones instead of earth. */
   streamBeds?: string[];
+  /**
+   * Field ditches: channel kinds cut as a narrow V ditch instead of the default open canal (world/terrain-gen.ts):
+   * `topWidth` m across at the bank line, a `bedWidth` m bed `depth` m down, `water` m of water in it (0 = dry). The
+   * bank line follows the land (no long cut to keep the water falling), the banks stay earth and grass (no rock, no
+   * pale edge). Optional dressing per side (`track`: 1 = the channel's right looking along it, -1 = left): a mown
+   * strip `mown` m wide and a dirt maintenance track beyond it (`trackWidth`). `reedBed`: a reed bed drawn as one
+   * volume along the ditch (world/reed-bed.ts).
+   */
+  ditches?: DitchDef;
   flatAreas: FlatArea[];
   /** Graded lots / yards (real-world maps with landmarks), applied after the flat areas. */
   pads?: PadDef[];
@@ -1095,6 +1131,14 @@ export interface ScatterRule {
   inChannel?: boolean;
   /** Only this far from the EDGE of a canal / drain / river [min, max] (m, max <= 10): willows, reeds. */
   channelDist?: [number, number];
+  /** With `channelDist`: only on this side of the channel (1 = right looking along it, -1 = left). */
+  channelSide?: 1 | -1;
+  /**
+   * On a ditch (`terrain.ditches`): sized so its top stands `top` m above the ditch's bank line [min, max], wherever it
+   * stands on the slope or in the bed (the reeds of a bed reach one level top). `height`: the asset's height at scale 1
+   * (m). Replaces `scale` there (kept elsewhere); clamped to 0.5-2x.
+   */
+  ditchTop?: { top: [number, number]; height: number };
   /**
    * Thin and size by the real canopy (`landcover.canopy`; ignored without it): the full density where the canopy share
    * is `full` or more, none under `min`, in proportion between. `height` = the stand height (m) the rule's `scale`

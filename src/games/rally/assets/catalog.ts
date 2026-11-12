@@ -218,9 +218,39 @@ export const ASSET_CATALOG: AssetMeta[] = [
     category: 'vegetation',
     fade: true,
     description:
-      "The reed stand as straw (autumn, and last year's stems in spring): the reed cards recoloured (no collision, detail layer only).",
+      'The November reed stand: olive green below, straw above, beige plumes (the reeds-autumn sheet; no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'reeds_old',
+    name: 'Reeds (last year)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      "Last year's reed stand in spring, bleached straw-grey (the reeds-winter sheet; no collision, detail layer only).",
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'rust_weeds',
+    name: 'Dead weeds (rust)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Dead docks and knotweed of ditch banks in autumn, rust red and brown with dark seed spikes, 0.6-1.1 m (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 100, castShadow: false }],
+  },
+  {
+    id: 'spoil_heap',
+    name: 'Ditch spoil heap',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'A heap of earth dredged out of a ditch, 2.5-4 m long and 0.6-1 m high, with cut straw stems sticking out of it. No collision.',
+    variants: 4,
+    lods: [{ maxDistance: 220, castShadow: true }],
   },
   {
     id: 'reeds_young',
@@ -231,36 +261,6 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'New reed shoots of spring (0.8-1.4 m): the reed cards drawn short (no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 140, castShadow: false }],
-  },
-  {
-    id: 'thistle',
-    name: 'Thistle',
-    category: 'vegetation',
-    fade: true,
-    description:
-      'Tall thistles of canal banks and verges gone to straw, with pale seed heads (summer): clumps of two or three plants on cards of AI-generated art (no collision, detail layer only).',
-    variants: 3,
-    lods: [{ maxDistance: 120, castShadow: false }],
-  },
-  {
-    id: 'thistle_young',
-    name: 'Thistle (young)',
-    category: 'vegetation',
-    fade: true,
-    description:
-      'Young green thistles and leaf rosettes (spring): cards of AI-generated art (no collision, detail layer only).',
-    variants: 3,
-    lods: [{ maxDistance: 100, castShadow: false }],
-  },
-  {
-    id: 'thistle_dead',
-    name: 'Thistle (dead)',
-    category: 'vegetation',
-    fade: true,
-    description:
-      'Grey-brown dead thistle stalks with torn heads (autumn): cards of AI-generated art (no collision, detail layer only).',
-    variants: 3,
-    lods: [{ maxDistance: 120, castShadow: false }],
   },
   {
     id: 'fern',

@@ -274,6 +274,10 @@ export class World implements GroundProvider {
         paths: this.gen.paths,
         channels: this.gen.channels,
         lakes: this.gen.lakes,
+        ditchBank: (ci, along) =>
+          this.gen.ditchOf(ci)
+            ? this.gen.channelBankHeight(ci, along)
+            : undefined,
         cropAt: (x, z) => this.gen.cropAt(x, z),
         fieldEdgeAt: (x, z) => this.gen.fieldEdgeAt(x, z),
         fieldAngle: map.landcover?.fields?.angle,
