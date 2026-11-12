@@ -32,7 +32,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   (`beam`, `lamps`), wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` / `brakes` / `body`, axle camera `wcam`), debug (`wire`, `hull`, `fallback`),
   specs (numbers, torque / power chart, test-drive links, model credit) and sound (`debug/sound-debug.ts`). Console: `__carViewer`.
 - **Asset debugger** (`pages/asset-debug.ts`): the assets plus the options of the picked kind only (props seed / variant / LOD / instances / gap / wire /
-  bounds / colliders; trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
+  bounds / colliders; buildings `size=width,wall height,depth` in metres; trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
 
 **URL parameters** (any of the play ones skips the menu):
 
