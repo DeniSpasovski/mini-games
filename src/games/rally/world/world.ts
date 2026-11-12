@@ -1223,7 +1223,6 @@ export class World implements GroundProvider {
   }
   private rq = newRoadQuery();
 
-  /** Spawn on the stage road at `along` metres (default: just behind the start line). */
   /**
    * The nearest road point to a building at (x, z): on a side road or track within reach, else on the map's road at
    * `along` (BuildingDef.along) when that is within 150 m. Its front door faces it (world/buildings.ts).
@@ -1251,6 +1250,7 @@ export class World implements GroundProvider {
     return dMain < 150 ? { x: main.x, z: main.z } : undefined;
   }
 
+  /** Spawn on the stage road at `along` metres (default: just behind the start line). */
   roadSpawn(along = this.stage.start - 9): Spawn {
     const s = this.stageRoad.at(along);
     return {

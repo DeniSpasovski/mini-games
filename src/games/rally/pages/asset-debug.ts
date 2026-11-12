@@ -434,7 +434,9 @@ function buildingScale(id: string): Vector3 {
   const [w, h, d] = sizeOf();
   return new Vector3(
     w,
-    id.startsWith('house') ? h / HOUSE_WALL_FRACTION : h,
+    BOX_BUILDINGS.includes(id) && id.startsWith('house')
+      ? h / HOUSE_WALL_FRACTION
+      : h,
     d,
   );
 }
@@ -470,7 +472,7 @@ function rebuild(reframe = false): void {
     'asset',
     meta.variants,
     meta.lods.length,
-    BOX_BUILDINGS.includes(id),
+    BOX_BUILDINGS.includes(id) || id === 'house_windows',
   );
   if (isPack(id)) {
     seasonCtl.el.hidden = false;
@@ -498,7 +500,9 @@ function rebuild(reframe = false): void {
   }
   // Box buildings are unit boxes scaled per instance to a footprint: show them at `size` (width, wall height, depth
   // in m), with the front door the world stands at them (world/buildings.ts).
-  const fit = BOX_BUILDINGS.includes(id) ? buildingScale(id) : undefined;
+  // (The windows alone are shown on the same footprint: on a unit wall no window fits.)
+  const isBox = BOX_BUILDINGS.includes(id);
+  const fit = isBox || id === 'house_windows' ? buildingScale(id) : undefined;
   if (fit) {
     box.min.multiply(fit);
     box.max.multiply(fit);
@@ -531,18 +535,20 @@ function rebuild(reframe = false): void {
     tris += triCount(part.geometry) * n * n;
   }
   const extra: BufferGeometry[] = [];
-  if (fit && lod === 0) tris += addOpenings(id, fit, n, spacing, extra);
+  if (fit && isBox && lod === 0)
+    tris += addOpenings(id, fit, n, spacing, extra);
   if (state.bounds) holder.add(new Box3Helper(box, 0xffcc00));
   if (state.collider)
     addColliders(
       meta.colliders ?? [],
       // A building's collider is its footprint box up to the wall top.
-      fit &&
-        new Vector3(
-          fit.x,
-          id.startsWith('house') ? fit.y * HOUSE_WALL_FRACTION : fit.y,
-          fit.z,
-        ),
+      fit && isBox
+        ? new Vector3(
+            fit.x,
+            id.startsWith('house') ? fit.y * HOUSE_WALL_FRACTION : fit.y,
+            fit.z,
+          )
+        : undefined,
     );
 
   info({
