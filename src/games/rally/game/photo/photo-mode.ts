@@ -69,6 +69,8 @@ export class PhotoMode {
     focal: 50,
     fStop: 2.8,
     ev: 0,
+    filter: 'none',
+    filterStrength: 1,
     autoFocus: true,
     roll: 0,
     shutter: 0,
@@ -199,7 +201,14 @@ export class PhotoMode {
   /** The lens for the post pass. */
   get lens(): PhotoLens {
     const s = this.settings;
-    return { focus: s.focus, focal: s.focal, fStop: s.fStop, ev: s.ev };
+    return {
+      focus: s.focus,
+      focal: s.focal,
+      fStop: s.fStop,
+      ev: s.ev,
+      filter: s.filter,
+      filterStrength: s.filterStrength,
+    };
   }
 
   /** Put the game's camera back. */

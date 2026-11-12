@@ -117,7 +117,50 @@
   display: flex;
   gap: 4px;
 }
-.ph-follow.off .ph-chips {
+/* Filter dropdown: a native select with our own chevron (as .menu-select). */
+.ph-select {
+  grid-column: 2 / -1;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.ph-select::after {
+  content: '';
+  position: absolute;
+  right: 9px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--ui-text-2);
+  border-bottom: 2px solid var(--ui-text-2);
+  transform: translateY(-2px) rotate(45deg);
+  pointer-events: none;
+}
+.ph-select select {
+  min-width: 9.5em;
+  padding: 3px 26px 3px 9px;
+  appearance: none;
+  border: 0;
+  border-left: 3px solid var(--ui-accent);
+  border-radius: 0;
+  background: var(--ui-raised-hover);
+  color: var(--ui-text);
+  font: 700 14px/1.2 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.ph-select select option {
+  background: var(--ui-raised-solid);
+  color: var(--ui-text);
+  font: 500 14px var(--ui-font-body);
+  text-transform: none;
+}
+.ph-select select:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 1px;
+}
+.ph-follow.off .ph-chips,
+.ph-strength.off {
   opacity: 0.45;
 }
 .ph-row:has(.ph-af) > b {
@@ -224,6 +267,28 @@
 }
 .ph-toast.on {
   animation: ph-toast 2.2s ease-out;
+}
+/* A picture being drawn: the note holds, an amber bar along its foot fills with the progress. */
+.ph-toast.busy {
+  opacity: 1;
+  min-width: 220px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ph-toast.busy::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--ui-accent);
+  transform-origin: left;
+  transform: scaleX(var(--ph-progress, 0));
+}
+.ph-shoot:disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 @keyframes ph-toast {
   0%,

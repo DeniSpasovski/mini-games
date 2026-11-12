@@ -394,6 +394,8 @@ export class RallyGame {
   private photoRatio = 0;
   /** Size of the last picture (px). */
   photoSize = { width: 0, height: 0 };
+  /** How much of the picture being taken is drawn, 0..1 (motion blur takes several frames; photo-ui.ts shows it). */
+  photoProgress = 0;
   /** The lens of the picture being drawn (held with the camera until all its images are in). */
   private photoLens?: PhotoLens;
   /** What the motion blur's images so far were drawn with (camera, shutter); a change starts them over. */
@@ -1682,6 +1684,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   takePhoto(): Promise<Blob | null> {
     return new Promise((resolve) => {
       const prev = this.photoShot;
+      if (!prev) this.photoProgress = 0;
       this.photoShot = (b) => {
         prev?.(b);
         resolve(b);
@@ -2341,6 +2344,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       if (post?.active) post.render();
       else this.renderer.render(this.scene, this.camera);
     }
+    if (this.photoShot)
+      this.photoProgress = blur > 0 && post ? post.shutterProgress : 1;
     if (this.photoShot && whole) {
       // Read the canvas in the same task as its render (no preserveDrawingBuffer needed).
       const done = this.photoShot;

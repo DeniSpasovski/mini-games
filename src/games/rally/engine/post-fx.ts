@@ -14,6 +14,7 @@ import {
   SRGBColorSpace,
   SrcAlphaFactor,
   Vector2,
+  Vector3,
   type WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
@@ -278,6 +279,67 @@ const PHOTO = /* glsl */ `
     gl_FragColor = vec4( acc / wsum * exposure, 1.0 );
   }`;
 
+/**
+ * Photo mode filters (the finished picture's look, `PHOTO_LOOK`): saturation (1 = as is), contrast (0 = as is, an
+ * S-curve), a colour tint, faded blacks (0..1) and dark corners (0..1, the share taken off in a corner).
+ */
+const FILTER = {
+  sat: 1,
+  contrast: 0,
+  tint: [1, 1, 1] as readonly number[],
+  fade: 0,
+  vignette: 0,
+};
+export const PHOTO_FILTERS = {
+  none: { ...FILTER, label: 'None' },
+  vivid: { ...FILTER, label: 'Vivid', sat: 1.35, contrast: 0.4 },
+  warm: {
+    ...FILTER,
+    label: 'Warm',
+    sat: 1.1,
+    contrast: 0.15,
+    tint: [1.06, 1, 0.9],
+  },
+  cool: {
+    ...FILTER,
+    label: 'Cool',
+    sat: 1.02,
+    contrast: 0.15,
+    tint: [0.93, 1, 1.08],
+  },
+  faded: {
+    ...FILTER,
+    label: 'Faded',
+    sat: 0.78,
+    tint: [1.03, 1, 0.96],
+    fade: 1,
+  },
+  mono: { ...FILTER, label: 'Black & white', sat: 0, contrast: 0.35 },
+  vignette: { ...FILTER, label: 'Vignette', vignette: 0.7 },
+};
+export type PhotoFilter = keyof typeof PHOTO_FILTERS;
+
+/**
+ * Photo mode, last pass: the filter on the finished picture (sRGB, as the screen gets it), mixed in by `strength`.
+ */
+const PHOTO_LOOK = /* glsl */ `
+  uniform sampler2D tDiffuse;
+  uniform vec3 tint;
+  uniform float sat, contrast, fade, vignette, aspect, strength;
+  varying vec2 vUv;
+  void main() {
+    vec3 c0 = clamp( texture2D( tDiffuse, vUv ).rgb, 0.0, 1.0 );
+    vec3 c = mix( vec3( dot( c0, vec3( 0.2126, 0.7152, 0.0722 ) ) ), c0, sat );
+    c = clamp( c * tint, 0.0, 1.0 );
+    c = mix( c, c * c * ( 3.0 - 2.0 * c ), contrast );
+    c = mix( c, c * 0.84 + 0.1, fade );
+    // Darker towards the corners (0 at the middle, 1 in a corner).
+    vec2 p = ( vUv - 0.5 ) * vec2( aspect, 1.0 );
+    float d = length( p ) / length( vec2( aspect, 1.0 ) * 0.5 );
+    c *= 1.0 - vignette * smoothstep( 0.3, 1.05, d );
+    gl_FragColor = vec4( mix( c0, c, strength ), 1.0 );
+  }`;
+
 /** Photo mode camera (game/photo/photo-mode.ts): what the lens pass needs. */
 export interface PhotoLens {
   /** Focus distance (m). */
@@ -288,6 +350,10 @@ export interface PhotoLens {
   fStop: number;
   /** Exposure compensation (EV). */
   ev: number;
+  /** The picture's look (`PHOTO_FILTERS`). */
+  filter: PhotoFilter;
+  /** How much of the filter is mixed in, 0..1. */
+  filterStrength: number;
 }
 
 /** Sensor height of a 35 mm full-frame camera (mm): the focal length to field of view. */
@@ -426,6 +492,16 @@ export class PostFx {
     lens: { value: 0 },
     maxPx: { value: 24 },
     exposure: { value: 1 },
+  });
+  private readonly look = quadMaterial(PHOTO_LOOK, {
+    tDiffuse: { value: null },
+    tint: { value: new Vector3(1, 1, 1) },
+    sat: { value: 1 },
+    contrast: { value: 0 },
+    fade: { value: 0 },
+    vignette: { value: 0 },
+    aspect: { value: 1 },
+    strength: { value: 1 },
   });
   private readonly nightBloom: UnrealBloomPass;
   private readonly gtao: GTAOPass;
@@ -655,6 +731,12 @@ export class PostFx {
     this.pass(this.shutterOut, this.a);
   }
 
+  /** Motion blur: the share of the shutter's images drawn so far, 0..1. */
+  get shutterProgress(): number {
+    const st = this.shutter;
+    return st.total > 0 ? Math.min(1, st.done / st.total) : 1;
+  }
+
   /** Motion blur off: free its image (as large as the picture). */
   releaseShutter(): void {
     this.shutterMean?.dispose();
@@ -736,20 +818,38 @@ export class PostFx {
       this.swap();
     }
 
+    // Photo mode filter: the finished picture goes through `b` and PHOTO_LOOK to the screen.
+    const look =
+      !!photo && photo.filter !== 'none' && photo.filterStrength > 0
+        ? this.b
+        : null;
     if (this.display) {
       this.encode.uniforms.tDiffuse.value = this.a.texture;
-      this.pass(this.encode, null);
+      this.pass(this.encode, look);
     } else {
       // Draws onto `a` in place.
       if (this.nightOn) this.nightBloom.render(r, this.b, this.a, 0, false);
-      this.output.renderToScreen = true;
+      this.output.renderToScreen = !look;
       this.output.render(
         r,
-        null as unknown as WebGLRenderTarget,
+        look as unknown as WebGLRenderTarget,
         this.a,
         0,
         false,
       );
+    }
+    if (look && photo) {
+      const f = PHOTO_FILTERS[photo.filter];
+      const u = this.look.uniforms;
+      u.tDiffuse.value = look.texture;
+      u.tint.value.fromArray(f.tint);
+      u.sat.value = f.sat;
+      u.contrast.value = f.contrast;
+      u.fade.value = f.fade;
+      u.vignette.value = f.vignette;
+      u.strength.value = photo.filterStrength;
+      u.aspect.value = look.width / look.height;
+      this.pass(this.look, null);
     }
     r.autoClear = autoClear;
     return !shutter || this.shutter.done >= this.shutter.total;
@@ -770,6 +870,7 @@ export class PostFx {
       this.mixer,
       this.drops,
       this.lens,
+      this.look,
     ])
       m.dispose();
     this.quad.dispose();

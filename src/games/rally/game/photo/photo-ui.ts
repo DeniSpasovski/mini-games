@@ -1,11 +1,12 @@
 /**
  * Photo mode UI (STYLEGUIDE.md "Photo mode"): the lens panel on the left (focal length, aperture, focus, exposure,
- * roll, motion blur and what it keeps sharp), the actions bottom right (Take photo, Hide, Reset view, Back), a PHOTO plate top right. The view orbits by
+ * roll, shutter speed (motion blur) and what it keeps sharp), the actions bottom right (Take photo, Hide, Reset view, Back), a PHOTO plate top right. The view orbits by
  * drag / one finger, pans by right-drag / two fingers, zooms by wheel / pinch; keys and pad too (see `key`, `pollPad`).
  * Pictures are saved as JPEG downloads.
  */
 import './photo.css';
 import type { RallyGame } from '../rally-game';
+import { PHOTO_FILTERS, type PhotoFilter } from '../../engine/post-fx';
 import {
   F_STOPS,
   FOCAL_MAX,
@@ -63,10 +64,18 @@ export class PhotoUi {
           <input type="range" data-ref="ev" min="-2" max="2" step="0.1" aria-label="Exposure"></label>
         <label class="ph-row"><span>Roll</span><b data-ref="rollVal"></b>
           <input type="range" data-ref="roll" min="-30" max="30" step="1" aria-label="Roll"></label>
-        <label class="ph-row"><span>Motion blur</span><b data-ref="shutterVal"></b>
-          <input type="range" data-ref="shutter" min="0" max="${SHUTTERS.length - 1}" step="1" aria-label="Motion blur (shutter time)"></label>
+        <label class="ph-row"><span>Shutter speed</span><b data-ref="shutterVal"></b>
+          <input type="range" data-ref="shutter" min="0" max="${SHUTTERS.length - 1}" step="1" aria-label="Shutter speed (motion blur)"></label>
         <div class="ph-row ph-follow" data-ref="followRow"><span>Sharp</span>
           <span class="ph-chips"><button class="ph-af" data-follow="car" title="The camera pans with the car: the background streaks">Car</button><button class="ph-af" data-follow="ground" title="The camera holds still: the car streaks">Background</button></span></div>
+        <label class="ph-row"><span>Filter</span>
+          <span class="ph-select"><select data-ref="filter" aria-label="Filter">${Object.entries(
+            PHOTO_FILTERS,
+          )
+            .map(([id, f]) => `<option value="${id}">${f.label}</option>`)
+            .join('')}</select></span></label>
+        <label class="ph-row ph-strength" data-ref="strengthRow"><span>Strength</span><b data-ref="strengthVal"></b>
+          <input type="range" data-ref="strength" min="0" max="1" step="0.05" aria-label="Filter strength"></label>
       </div>
       <div class="ph-actions" data-ref="actions">
         <button class="menu-btn small" data-a="hide">Hide</button>
@@ -149,9 +158,10 @@ export class PhotoUi {
       ? `1/${Math.round(1 / s.shutter)} s`
       : 'Off';
     r.followRow.classList.toggle('off', !s.shutter);
-    r.followRow
-      .querySelectorAll<HTMLElement>('[data-follow]')
-      .forEach((b) => b.classList.toggle('on', b.dataset.follow === s.follow));
+    (r.filter as HTMLSelectElement).value = s.filter;
+    (r.strength as HTMLInputElement).value = String(s.filterStrength);
+    r.strengthVal.textContent = `${Math.round(s.filterStrength * 100)} %`;
+    r.strengthRow.classList.toggle('off', s.filter === 'none');
     this.syncFocus();
     r.focalVal.textContent = `${Math.round(s.focal)} mm`;
     r.fStopVal.textContent = `f/${s.fStop}`;
@@ -180,8 +190,14 @@ export class PhotoUi {
   private input(e: Event): void {
     const t = e.target as HTMLInputElement;
     const p = this.photo;
-    if (!p || t.type !== 'range') return;
+    if (!p) return;
     const s = p.settings;
+    if (t.dataset.ref === 'filter') {
+      s.filter = t.value as PhotoFilter;
+      this.sync();
+      return;
+    }
+    if (t.type !== 'range') return;
     const v = Number(t.value);
     switch (t.dataset.ref) {
       case 'focal':
@@ -202,6 +218,9 @@ export class PhotoUi {
         break;
       case 'shutter':
         s.shutter = SHUTTERS[v];
+        break;
+      case 'strength':
+        s.filterStrength = v;
         break;
     }
     this.sync();
@@ -247,14 +266,13 @@ export class PhotoUi {
   /** Take the picture: rendered at up to 4K over the next frame(s) (`RallyGame.takePhoto`), as a JPEG download. */
   private async shoot(): Promise<void> {
     if (this.busy) return;
-    this.busy = true;
-    // A big picture with motion blur takes a moment: the note shows before that frame starts.
-    this.toast('Taking photo…');
+    this.setBusy(true);
+    // A big picture with motion blur takes a while: the note stays up with its progress (`tick`).
     await new Promise((r) =>
       requestAnimationFrame(() => requestAnimationFrame(r)),
     );
     const blob = await this.game.takePhoto();
-    this.busy = false;
+    this.setBusy(false);
     const flash = this.refs.flash;
     flash.classList.remove('on');
     void flash.offsetWidth;
@@ -273,6 +291,19 @@ export class PhotoUi {
     );
   }
 
+  /** A picture is being drawn: the note holds with a progress bar, Take photo is off. */
+  private setBusy(on: boolean): void {
+    this.busy = on;
+    const t = this.refs.toast;
+    t.classList.toggle('busy', on);
+    t.style.setProperty('--ph-progress', '0');
+    if (on) {
+      t.classList.remove('on');
+      t.textContent = 'Taking photo…';
+    }
+    this.el.querySelector<HTMLButtonElement>('.ph-shoot')!.disabled = on;
+  }
+
   private toast(text: string): void {
     const t = this.refs.toast;
     t.textContent = text;
@@ -282,8 +313,18 @@ export class PhotoUi {
   }
 
   private tick(dt: number): void {
-    // The camera holds still while a picture is drawn.
-    if (this.busy) return;
+    // The camera holds still while a picture is drawn; the note shows how far it is.
+    if (this.busy) {
+      const k = this.game.photoProgress;
+      const t = this.refs.toast;
+      t.style.setProperty('--ph-progress', String(k));
+      const text =
+        k > 0 && k < 1
+          ? `Taking photo… ${Math.round(k * 100)} %`
+          : 'Taking photo…';
+      if (t.textContent !== text) t.textContent = text;
+      return;
+    }
     const p = this.photo!;
     const h = this.held;
     const turn = 1.4 * dt * (p.fov / 50);
@@ -304,7 +345,11 @@ export class PhotoUi {
 
   private key(e: KeyboardEvent, down: boolean): void {
     if (!this.photo) return;
-    const typing = e.target instanceof HTMLInputElement;
+    // A focused slider or dropdown keeps its own keys.
+    const typing =
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLSelectElement;
+    if (e.target instanceof HTMLSelectElement && e.code !== 'Escape') return;
     if (!down) {
       this.held.delete(e.code);
       return;
