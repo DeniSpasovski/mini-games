@@ -59,7 +59,7 @@ import type {
 } from './people-looks';
 import { dress } from './people-wear';
 import type { AssetBuilder } from '../types';
-import { TEAMS } from './teams';
+import { EVENT_COLOR, TEAMS } from './teams';
 
 /**
  * People kit. Close up (LOD 0 / 1) a figure is one of two base bodies (people-body.ts: CC BY models, credits in
@@ -1704,14 +1704,14 @@ export const driver: AssetBuilder = ({ seed, variant, lod }) => {
   return finishFigure(pose, o, lod, rng);
 };
 
-/** Marshals and officials: orange / yellow / white tabards with reflective bands, caps, flags and signs. */
+/** Marshals and officials: orange / yellow / white / event-blue tabards with reflective bands, caps, flags and signs. */
 const MARSHAL_VESTS = [
   '#f05a10',
   '#f05a10',
   '#d4e21c',
   '#d4e21c',
   '#f2f2f2',
-  '#2a6fd0',
+  EVENT_COLOR,
 ];
 /** Variants 0-11 (pose = variant % 4); 12+ cycle these. */
 const MARSHAL_POSES: PoseName[] = ['stand2', 'point', 'pockets', 'phone'];

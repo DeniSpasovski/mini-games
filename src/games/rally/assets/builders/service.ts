@@ -295,10 +295,14 @@ export const carTrailer: AssetBuilder = ({ variant, lod }) => {
           steel,
         ),
       );
-    for (let i = 0; i < 9; i++) {
-      const d = 0.08 + (i * (RAMP - 0.16)) / 8;
+    // Rungs: flat bars lying in the ramp's plane.
+    for (let i = 0; i < 10; i++) {
+      const [x, y, z] = up(0.08 + (i * (RAMP - 0.16)) / 9, foot[2]);
       parts.push(
-        bar(up(d, foot[2] - 0.24), up(d, foot[2] + 0.24), 0.07, 0.014, plate),
+        solid(
+          new BoxGeometry(0.014, 0.085, 0.48).rotateZ(-lean).translate(x, y, z),
+          plate,
+        ),
       );
     }
     parts.push(
@@ -332,8 +336,8 @@ export const carTrailer: AssetBuilder = ({ variant, lod }) => {
       box(0.02, 0.075, 0.07, XB - 0.035, 0.42, s * 0.885, '#d88a1a'),
       box(0.07, 0.03, 0.012, 1.7, 0.42, s * 0.961, '#d88a1a'),
       box(0.07, 0.03, 0.012, -2.2, 0.42, s * 0.961, '#d88a1a'),
-      // Rubber chocks before and behind the wheels.
-      ...[AXLES[0] - 0.37, AXLES[1] + 0.37].map((x) =>
+      // Rubber chocks before and behind the wheels, their points against the tyres.
+      ...[AXLES[0] - 0.255, AXLES[1] + 0.255].map((x) =>
         solid(
           new CylinderGeometry(0.1, 0.1, 0.16, 3)
             .rotateX(Math.PI / 2)
@@ -364,9 +368,9 @@ export const carTrailer: AssetBuilder = ({ variant, lod }) => {
     ),
     bar([3.86, 0.49, 0], [4.0, 0.55, 0], 0.035, 0.02, DARK),
     box(0.05, 0.06, 0.8, 3.0, 0.42, 0, steel),
-    // Handbrake lever.
-    bar([3.5, 0.46, 0], [3.36, 0.74, 0], 0.02, 0.025, steel),
-    bar([3.36, 0.74, 0], [3.33, 0.84, 0], 0.03, 0.035, DARK),
+    // Handbrake lever on the coupling housing.
+    bar([3.74, 0.46, 0], [3.6, 0.74, 0], 0.02, 0.025, steel),
+    bar([3.6, 0.74, 0], [3.57, 0.84, 0], 0.03, 0.035, DARK),
     // Jockey wheel clamped beside the drawbar, its crank on top.
     solid(
       new CylinderGeometry(0.028, 0.028, 0.5, 8).translate(3.3, 0.55, 0.24),
@@ -384,6 +388,8 @@ export const carTrailer: AssetBuilder = ({ variant, lod }) => {
     box(0.04, 0.34, 0.04, XF, 0.64, 0.93, steel),
     box(0.04, 0.34, 0.04, XF, 0.64, -0.93, steel),
     box(0.04, 0.04, 1.9, XF, 0.81, 0, steel),
+    // Its foot is a cross member between the drawbar sides.
+    box(0.06, 0.06, 1.2, XF + 0.3, 0.42, 0, steel),
     box(0.05, 0.5, 0.05, XF + 0.3, 0.7, 0, steel),
     box(0.16, 0.13, 0.12, XF + 0.3, 0.98, 0, DARK),
     bar([XF + 0.3, 0.98, 0.07], [XF + 0.42, 1.08, 0.07], 0.016, 0.02, steel),
@@ -425,8 +431,8 @@ function gazebo(variant: number, lod: number, long: boolean): BufferGeometry[] {
   const near = lod === 0;
   const L = long ? 6 : 3;
   const W = 3;
-  const EAVE = 2.3;
-  const PEAK = 3.16;
+  const EAVE = 2.45;
+  const PEAK = 3.3;
   const DROP = 0.27;
   const hx = L / 2 + 0.02;
   const hz = W / 2 + 0.02;
@@ -439,13 +445,13 @@ function gazebo(variant: number, lod: number, long: boolean): BufferGeometry[] {
   // Canopy: hip ends, the long sides up to the peak / ridge.
   const tris: P3[][] = [
     [
-      [-hx, EAVE, hz],
       [-hx, EAVE, -hz],
+      [-hx, EAVE, hz],
       [p0, PEAK, 0],
     ],
     [
-      [hx, EAVE, -hz],
       [hx, EAVE, hz],
+      [hx, EAVE, -hz],
       [p1, PEAK, 0],
     ],
   ];
@@ -494,8 +500,9 @@ function gazebo(variant: number, lod: number, long: boolean): BufferGeometry[] {
   // Legs: the outer tube from the eave, the thinner inner one down to a foot plate, a weight on the foot.
   const xs = long ? [-L / 2, 0, L / 2] : [-L / 2, L / 2];
   const legZ = W / 2 - 0.05;
+  // The trusses hang 0.4 m: their low joints stay above head height (crew stand along the tent's edge).
   const TOP = EAVE - 0.03;
-  const LOW = EAVE - 0.58;
+  const LOW = EAVE - 0.43;
   for (const x of xs)
     for (const z of [legZ, -legZ]) {
       const lx = x - Math.sign(x) * 0.05;

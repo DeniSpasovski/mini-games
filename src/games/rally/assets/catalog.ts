@@ -1010,13 +1010,14 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Pop-up tent 3 x 3 m, open sides: peaked canopy with a valance on a folding frame, weighted feet (variant = team, 12 = white timekeeper tent). Solid legs.',
     variants: 13,
     lods: PROP_LODS,
-    colliders: [-1.5, 1.5].flatMap((x) =>
+    // The legs with the weights on their feet.
+    colliders: [-1.45, 1.45].flatMap((x) =>
       [-1.45, 1.45].map((z) => ({
         kind: 'cylinder' as const,
         x,
         z,
-        r: 0.06,
-        h: 2.5,
+        r: 0.18,
+        h: 2.45,
       })),
     ),
   },
@@ -1028,13 +1029,13 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Pop-up tent 6 x 3 m (long side along X), open sides: canopy with a ridge between two peaks, valance, folding frame, weighted feet (variant = team, 12 = white timekeeper tent). Solid legs.',
     variants: 13,
     lods: PROP_LODS,
-    colliders: [-3, 0, 3].flatMap((x) =>
+    colliders: [-2.95, 0, 2.95].flatMap((x) =>
       [-1.45, 1.45].map((z) => ({
         kind: 'cylinder' as const,
         x,
         z,
-        r: 0.06,
-        h: 2.5,
+        r: 0.18,
+        h: 2.45,
       })),
     ),
   },

@@ -112,8 +112,8 @@ export const TEAMS: readonly Team[] = [
   },
 ];
 
-/** The organiser's colour (start arch, timekeeper tent): a quiet blue next to white. */
-export const EVENT_COLOR = '#2f5a9c';
+/** The organiser's colour (start arch and its banners, timekeeper tent, officials' blue tabards): the dressing blue. */
+export const EVENT_COLOR = DRESS.blue;
 
 /** Trim on the dressing (thin stripes, flag tips): a mid grey that sits on both neutrals. */
 const TRIM = '#8d9096';
