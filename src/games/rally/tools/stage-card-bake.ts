@@ -2,6 +2,7 @@ import {
   Color,
   FloatType,
   Group,
+  MathUtils,
   OrthographicCamera,
   Scene,
   Vector3,
@@ -47,9 +48,11 @@ const THUMB_QUALITY = 0.6;
 /**
  * The canopy discs against the far forest (world/far-forest.ts), which is what the woods look like from this far: its
  * crowns are the full crown radius and FAR_FILL denser, and brighter than a plain lit disc (its GAIN). Random discs
- * overlap where its cover adds up, hence a little more radius than that alone.
+ * overlap where its cover adds up, hence a little more radius than that alone. Only where a crown is a pixel or two
+ * (CANOPY_GROW_SCALE, metres per pixel: none below, all of it above): on a small card the discs are drawn true to size.
  */
 const CANOPY_GROW = 1.5;
+const CANOPY_GROW_SCALE = [1.5, 3.5];
 const CANOPY_GAIN = 1.6;
 
 /** Yield to the browser now and then while a long job runs (keeps the page responsive). */
@@ -160,7 +163,16 @@ export async function bakeStageCard(
   }
 
   log(`${mapId}: trees`);
-  const trees = new AerialTrees(world, CANOPY_GROW, CANOPY_GAIN);
+  const grow = MathUtils.lerp(
+    1,
+    CANOPY_GROW,
+    MathUtils.smoothstep(
+      long / IMAGE,
+      CANOPY_GROW_SCALE[0],
+      CANOPY_GROW_SCALE[1],
+    ),
+  );
+  const trees = new AerialTrees(world, grow, CANOPY_GAIN);
   trees.mesh.castShadow = true;
   trees.mesh.receiveShadow = true;
   content.add(trees.mesh);

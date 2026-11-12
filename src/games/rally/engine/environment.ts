@@ -192,6 +192,8 @@ const LOOKS: Record<string, Partial<EnvironmentDef>> = {
  * - `fill`: the hemisphere light's sky side (`fillIntensity`).
  * - `envDiffuse`: the share of the env map's diffuse light that is used (reflections keep the whole `envIntensity`).
  * - `bounce`: the ground's albedo x how much of it a wall sees unshaded.
+ * - `warmLow`: how fast a sinking sun turns golden (exponent on its lowness): with the sun carrying the light, a
+ *   mid-morning sun (~20 deg) must stay near white or the whole scene goes yellow.
  * `CLASSIC_LIGHT` = the sky at three quarters of the sun, no bounce: the studio's softboxes are tuned for it, and
  * `?look=classic` shows it in game (dry weather only).
  */
@@ -201,6 +203,7 @@ export const DAY_LIGHT = {
   fill: 0.15,
   envDiffuse: 0.57,
   bounce: 0.75,
+  warmLow: 2,
 };
 const CLASSIC_LIGHT: typeof DAY_LIGHT = {
   sun: 3.1,
@@ -208,6 +211,7 @@ const CLASSIC_LIGHT: typeof DAY_LIGHT = {
   fill: 0.26,
   envDiffuse: 1,
   bounce: 0,
+  warmLow: 1,
 };
 /** The env map's diffuse light on flat ground at `envIntensity` 1, about (the sky's share of the light the ground bounces). */
 const ENV_SKY_IRRADIANCE = 2.3;
@@ -543,7 +547,10 @@ export class Environment {
       // Warmer, dimmer sun near the horizon (golden below ~25 deg), unless the map sets it.
       const low = MathUtils.clamp(1 - elevation / 40, 0, 1);
       if (def.sunColor) this.sun.color.set(def.sunColor);
-      else this.sun.color.setRGB(1, 0.93 - low * 0.2, 0.84 - low * 0.38);
+      else {
+        const warm = low ** light.warmLow;
+        this.sun.color.setRGB(1, 0.93 - warm * 0.2, 0.84 - warm * 0.38);
+      }
       this.sun.intensity =
         (def.sunIntensity ?? light.sun - low * light.sunLow) *
         this.weatherLook.sun;

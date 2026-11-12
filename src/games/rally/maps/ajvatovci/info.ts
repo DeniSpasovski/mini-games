@@ -77,7 +77,7 @@ export const ajvatovciInfo: MapInfo = {
       vignette: 0.15,
     },
     // Summer: green meadows, wheat parcels the dull straw of the ground between the stalks (not yellow).
-    groundTint: { grass: '#6f8a3c', amount: 0.6, crop: '#b38a4c' },
+    groundTint: { grass: '#6f8a3c', amount: 0.6, crop: '#a08f63' },
     groundTints: {
       spring: { grass: '#5fae2e', amount: 0.85, crop: '#6c9550', variety: 1 },
       autumn: { grass: '#847636', amount: 0.85, crop: '#7e5f2e' },
