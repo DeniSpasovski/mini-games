@@ -13,6 +13,7 @@ import {
   Vector2,
   type Texture,
 } from 'three';
+import { EVENT_COLOR } from '../assets/builders/teams';
 import { merge, paint, planarUV } from '../engine/geo';
 import { getMaterial } from '../engine/materials';
 import {
@@ -161,7 +162,7 @@ interface Colors {
 
 const PALETTE: Record<GantryPlan['kind'], Colors> = {
   start: {
-    main: new Color('#1f5fd6'),
+    main: new Color(EVENT_COLOR),
     accent: new Color('#f4f4f0'),
     flag: ['#22b04b', '#22b04b'],
   },

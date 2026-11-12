@@ -987,7 +987,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Car trailer',
     category: 'props',
     description:
-      'Car trailer: deck with side rails and a ramp folded onto it, round wheels under fenders, A-frame tow bar to +X (variant 0 grey, 1 dark). Solid.',
+      'Car transporter trailer, tandem axle: two runways on a ladder chassis, ramps pinned upright at the back, wheel stops, tie-down rails, mudguards, tail lamps, A-frame drawbar with jockey wheel to +X (variant 0 galvanised, 1 dark). Solid.',
     variants: 2,
     lods: VEHICLE_LODS,
     colliders: [{ kind: 'box', hx: 2.6, hz: 1.05, h: 0.9, r: 2.9 }],
@@ -1007,7 +1007,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Gazebo 3 x 3',
     category: 'props',
     description:
-      'Pop-up tent 3 x 3 m, open sides (variant = team, 12 = white timekeeper tent). Solid legs.',
+      'Pop-up tent 3 x 3 m, open sides: peaked canopy with a valance on a folding frame, weighted feet (variant = team, 12 = white timekeeper tent). Solid legs.',
     variants: 13,
     lods: PROP_LODS,
     colliders: [-1.5, 1.5].flatMap((x) =>
@@ -1025,7 +1025,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Gazebo 3 x 6',
     category: 'props',
     description:
-      'Pop-up tent 6 x 3 m (long side along X), open sides (variant = team, 12 = white timekeeper tent). Solid legs.',
+      'Pop-up tent 6 x 3 m (long side along X), open sides: canopy with a ridge between two peaks, valance, folding frame, weighted feet (variant = team, 12 = white timekeeper tent). Solid legs.',
     variants: 13,
     lods: PROP_LODS,
     colliders: [-3, 0, 3].flatMap((x) =>
@@ -1139,7 +1139,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Ground sheet',
     category: 'props',
     description:
-      'Flat tarp 1 x 1 m, scaled by the instance (sx / sz) to a work area; variants blue, grey, green, black. No collision.',
+      'Flat tarp 1 x 1 m, scaled by the instance (sx / sz) to a work area; variants slate, grey, olive, black. No collision.',
     variants: 4,
     lods: [{ maxDistance: 160, castShadow: false }],
   },

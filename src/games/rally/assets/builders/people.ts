@@ -128,6 +128,15 @@ const limb = (p: number, ab = 0.1, bend = 0.1, ab2?: number): Limb => ({
   ab2,
 });
 
+/**
+ * Down on the left knee: the knee on the ground under the hip, the shin back along the ground with the foot on its
+ * toes, the right thigh level and its foot flat in front (the angles put all three on the ground).
+ */
+const KNEEL_LEGS = {
+  legL: limb(0, 0.1, 2),
+  legR: limb(1.66, 0.15, 1.56),
+};
+
 const POSES = {
   stand: {
     legL: limb(0, 0.05, 0),
@@ -247,8 +256,7 @@ const POSES = {
   kneel: {
     lean: 0.35,
     head: -0.3,
-    legL: limb(0.05, 0.1, 1.55),
-    legR: limb(1.3, 0.15, 1.2),
+    ...KNEEL_LEGS,
     armL: limb(0.8, 0.1, 0.9, -0.1),
     armR: limb(1.05, 0.12, 0.6, -0.1),
   },
@@ -294,8 +302,7 @@ const POSES = {
   shootKneel: {
     lean: 0.2,
     head: -0.1,
-    legL: limb(0.05, 0.1, 1.55),
-    legR: limb(1.3, 0.15, 1.25),
+    ...KNEEL_LEGS,
     armL: limb(1.3, 0.12, 1.1, -0.1),
     armR: limb(1.25, 0.1, 1.35, -0.1),
     prop: 'lens',

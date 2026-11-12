@@ -1,14 +1,17 @@
 import {
   BoxGeometry,
   BufferGeometry,
+  Color,
   CylinderGeometry,
   Float32BufferAttribute,
   LatheGeometry,
+  Matrix4,
   SphereGeometry,
   Vector2,
+  Vector3,
 } from 'three';
 import type { AssetBuilder } from '../types';
-import { TEAM_COUNT, TEAMS } from './teams';
+import { EVENT_COLOR, TEAM_COUNT, teamDress, TEAMS } from './teams';
 import {
   serviceVehicleModel,
   streetCarIndex,
@@ -19,7 +22,7 @@ import {
   recoveryTruck,
   teamSemi,
 } from '../../maps/ajvatovci/start-row/build/vehicles';
-import { tyreOnRim, TYRE_W } from './simready';
+import { tyreOnRim, TYRE_R, TYRE_W } from './simready';
 import { box, EXTRAS_LOD, finish, solid, wheel, withExtras } from './vehicles';
 
 /**
@@ -86,6 +89,42 @@ function sheet(pts: [number, number, number][], color: string): BufferGeometry {
   return solid(g, color);
 }
 
+type P3 = [number, number, number];
+
+/** A straight beam `w` wide (sideways) and `h` deep (up) from `a` to `b`. */
+function bar(
+  a: P3,
+  b: P3,
+  w: number,
+  h: number,
+  color: string,
+): BufferGeometry {
+  const from = new Vector3(...a);
+  const to = new Vector3(...b);
+  const m = new Matrix4().lookAt(to, from, new Vector3(0, 1, 0));
+  const mid = from.clone().add(to).multiplyScalar(0.5);
+  return solid(
+    new BoxGeometry(w, h, from.distanceTo(to))
+      .applyMatrix4(m)
+      .translate(mid.x, mid.y, mid.z),
+    color,
+  );
+}
+
+/** Triangles seen from both sides (fabric): the `under` colour on the back faces. */
+function cloth(tris: P3[][], color: string, under = color): BufferGeometry[] {
+  const face = (flip: boolean): BufferGeometry => {
+    const pos: number[] = [];
+    for (const [a, b, c] of tris)
+      for (const p of flip ? [a, c, b] : [a, b, c]) pos.push(...p);
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return solid(g, flip ? under : color);
+  };
+  return [face(false), face(true)];
+}
+
 // --- team vehicles ---------------------------------------------------------------------------------
 
 /** Half width of the baked vans' body (mirrors excluded); side stripes sit just outside it. */
@@ -105,21 +144,22 @@ const sideStripe = (
 /** Box truck (8 m, the background box truck) in team colours with a side awning on +Z (4.6 x 3.8 m, two legs). */
 export const serviceTruck: AssetBuilder = ({ variant, lod }) => {
   const t = team(variant);
+  const d = teamDress(t);
   const parts: BufferGeometry[] =
     lod <= EXTRAS_LOD
       ? [
-          ...sideStripe(4.6, 0.38, -1.65, 1.55, t.accent),
+          ...sideStripe(4.6, 0.38, -1.65, 1.55, d.band),
           ...sideStripe(4.6, 0.12, -1.65, 1.9, t.accent2),
         ]
       : [];
   // Awning: canopy sloping down to the valance, two legs.
   parts.push(
     tilted(4.6, 0.07, 3.8, -1.65, 2.85, 3.0, 0.07, WHITE),
-    box(4.6, 0.3, 0.05, -1.65, 2.6, 4.9, t.accent),
+    box(4.6, 0.3, 0.05, -1.65, 2.6, 4.9, t.dress),
   );
   for (const x of [-3.8, 0.5]) parts.push(post(x, 4.8, 2.7, 0.04, '#b8bcc2'));
   return withExtras(
-    serviceVehicleModel('box_truck', lod).geometry(t.base),
+    serviceVehicleModel('box_truck', lod).geometry(d.main),
     parts,
   );
 };
@@ -129,7 +169,7 @@ export const serviceTruck: AssetBuilder = ({ variant, lod }) => {
  * colour, drawn with its own textures (`teamSemi`).
  */
 export const serviceSemi: AssetBuilder = ({ variant, lod }) => ({
-  parts: teamSemi(team(variant).base, lod),
+  parts: teamSemi(team(variant).dress, lod),
 });
 
 /**
@@ -143,11 +183,12 @@ export const serviceTow: AssetBuilder = ({ variant, lod }) => ({
 /** Panel van (5.6 m, the background high-roof van) in team colours with side stripes. */
 export const serviceVan: AssetBuilder = ({ variant, lod }) => {
   const t = team(variant);
+  const d = teamDress(t);
   return withExtras(
-    serviceVehicleModel('van_high', lod).geometry(t.base),
+    serviceVehicleModel('van_high', lod).geometry(d.main),
     lod <= EXTRAS_LOD
       ? [
-          ...sideStripe(3.4, 0.28, -1.1, 1.1, t.accent),
+          ...sideStripe(3.4, 0.28, -1.1, 1.1, d.band),
           ...sideStripe(3.4, 0.09, -1.1, 1.38, t.accent2),
         ]
       : [],
@@ -155,86 +196,393 @@ export const serviceVan: AssetBuilder = ({ variant, lod }) => {
 };
 
 /**
- * Flat car trailer (5.5 m): deck with side rails and a ramp folded onto its back, round wheels outside the deck under
- * fenders, an A-frame tow bar with a coupler and jockey wheel to +X. Variant 0 grey, 1 dark.
+ * Car transporter trailer (4.8 m bed, tandem axle), parked unhitched: two tread-plate runways on a ladder chassis, the
+ * loading ramps pinned upright at the back, wheel stops and a winch post at the front, tie-down rails along the sides,
+ * curved mudguards over the wheels (outside the bed), tail lamps on the rear member, an A-frame drawbar with coupling,
+ * handbrake and jockey wheel to +X, rubber chocks under the wheels. Variant 0 galvanised, 1 painted dark.
  */
 export const carTrailer: AssetBuilder = ({ variant, lod }) => {
-  const deck = variant ? '#3b3e44' : '#8d9096';
-  const parts: BufferGeometry[] = [
-    box(5.2, 0.1, 2.1, 0, 0.72, 0, deck),
-    box(5.2, 0.12, 0.1, 0, 0.61, 0.85, DARK),
-    box(5.2, 0.12, 0.1, 0, 0.61, -0.85, DARK),
-    // Tow bar: two bars of the A-frame meeting at the coupler.
+  const steel = variant ? '#3b3e44' : '#8d9096';
+  const plate = variant ? '#4a4d53' : '#a3a6aa';
+  const near = lod === 0;
+  const XB = -2.5;
+  const XF = 2.3;
+  const LEN = XF - XB;
+  const MID = (XF + XB) / 2;
+  const TOP = 0.5;
+  const AXLES = [-1.0, -0.2];
+  const WZ = 1.1;
+  const parts: BufferGeometry[] = [];
+  for (const s of [1, -1]) {
+    parts.push(
+      // Runway, its inner edge, the chassis rail outside it.
+      box(LEN, 0.03, 0.58, MID, TOP - 0.015, s * 0.62, plate),
+      box(LEN, 0.07, 0.03, MID, TOP - 0.05, s * 0.33, steel),
+      box(LEN, 0.11, 0.05, MID, TOP - 0.075, s * 0.93, steel),
+      // Drawbar side of the A-frame.
+      bar([XF, 0.42, s * 0.72], [3.72, 0.42, s * 0.05], 0.06, 0.08, steel),
+    );
+    // Mudguard: flat over the two wheels, rounded down at both ends, a lip along its outer edge.
+    const R = 0.2;
+    const x0 = AXLES[0] - 0.42;
+    const x1 = AXLES[1] + 0.42;
+    const GY = 0.69;
+    const arc = near ? 5 : 2;
+    const profile: [number, number][] = [[x0, 0.4]];
+    for (let i = 0; i <= arc; i++) {
+      const t = ((i / arc) * Math.PI) / 2;
+      profile.push([x0 + R - Math.cos(t) * R, GY - R + Math.sin(t) * R]);
+    }
+    for (let i = arc; i >= 0; i--) {
+      const t = ((i / arc) * Math.PI) / 2;
+      profile.push([x1 - R + Math.cos(t) * R, GY - R + Math.sin(t) * R]);
+    }
+    profile.push([x1, 0.4]);
+    const zIn = s * 0.965;
+    const zOut = s * 1.27;
+    parts.push(
+      sheet(
+        profile.flatMap(([x, y]): P3[] => [
+          [x, y, zIn],
+          [x, y, zOut],
+        ]),
+        steel,
+      ),
+    );
+    if (near)
+      parts.push(
+        sheet(
+          profile.flatMap(([x, y]): P3[] => {
+            // Towards the inside of the outline: across on the ends, to the corner centres on the arcs, down on top.
+            const cx = Math.min(x1 - R, Math.max(x0 + R, x));
+            const cy = Math.min(GY - R, y);
+            const d = Math.hypot(cx - x, cy - y) || 1;
+            return [
+              [x, y, zOut],
+              [x + ((cx - x) / d) * 0.045, y + ((cy - y) / d) * 0.045, zOut],
+            ];
+          }),
+          steel,
+        ),
+      );
+    // Wheels.
+    for (const x of AXLES) {
+      if (lod < 2)
+        for (const g of tyreOnRim(lod))
+          parts.push(g.rotateY(Math.PI / 2).translate(x, TYRE_R, s * WZ));
+      else parts.push(box(0.6, 0.6, 0.2, x, 0.3, s * WZ, DARK));
+    }
+    // Loading ramp pinned upright on the back of its runway.
+    const lean = 0.16;
+    const foot: P3 = [XB - 0.03, TOP, s * 0.62];
+    const up = (d: number, z: number): P3 => [
+      foot[0] + Math.sin(lean) * d,
+      foot[1] + Math.cos(lean) * d,
+      z,
+    ];
+    const RAMP = 1.5;
+    if (!near) {
+      parts.push(bar(foot, up(RAMP, foot[2]), 0.5, 0.04, plate));
+      continue;
+    }
+    for (const side of [-0.24, 0.24])
+      parts.push(
+        bar(
+          up(0, foot[2] + side),
+          up(RAMP, foot[2] + side),
+          0.03,
+          0.055,
+          steel,
+        ),
+      );
+    for (let i = 0; i < 9; i++) {
+      const d = 0.08 + (i * (RAMP - 0.16)) / 8;
+      parts.push(
+        bar(up(d, foot[2] - 0.24), up(d, foot[2] + 0.24), 0.07, 0.014, plate),
+      );
+    }
+    parts.push(
+      // The stay that holds the ramp up.
+      bar(
+        up(0.75, s * 0.9),
+        [XB + 0.62, TOP - 0.03, s * 0.9],
+        0.014,
+        0.022,
+        DARK,
+      ),
+      // Wheel stop at the front of the runway.
+      bar(
+        [1.98, TOP, s * 0.62],
+        [1.84, TOP + 0.15, s * 0.62],
+        0.56,
+        0.014,
+        steel,
+      ),
+      bar(
+        [1.84, TOP + 0.15, s * 0.62],
+        [1.74, TOP, s * 0.62],
+        0.56,
+        0.014,
+        steel,
+      ),
+      // Tie-down rail on its stanchions.
+      box(4.3, 0.024, 0.024, MID, TOP + 0.11, s * 0.93, steel),
+      // Tail lamp cluster (red, amber outside), amber side markers.
+      box(0.02, 0.075, 0.16, XB - 0.035, 0.42, s * 0.76, '#b03024'),
+      box(0.02, 0.075, 0.07, XB - 0.035, 0.42, s * 0.885, '#d88a1a'),
+      box(0.07, 0.03, 0.012, 1.7, 0.42, s * 0.961, '#d88a1a'),
+      box(0.07, 0.03, 0.012, -2.2, 0.42, s * 0.961, '#d88a1a'),
+      // Rubber chocks before and behind the wheels.
+      ...[AXLES[0] - 0.37, AXLES[1] + 0.37].map((x) =>
+        solid(
+          new CylinderGeometry(0.1, 0.1, 0.16, 3)
+            .rotateX(Math.PI / 2)
+            .rotateZ(Math.PI)
+            .translate(x, 0.05, s * WZ),
+          '#1c1c1e',
+        ),
+      ),
+    );
+    for (const x of [-2.25, -1.6, 0.4, 1.2, 2.05])
+      parts.push(box(0.024, 0.11, 0.024, x, TOP + 0.055, s * 0.93, steel));
+  }
+  // Cross members of the ladder chassis, the axles.
+  const members = near ? 9 : 3;
+  for (let i = 0; i < members; i++)
+    parts.push(
+      box(0.05, 0.08, 1.86, XB + (i * LEN) / (members - 1), 0.43, 0, steel),
+    );
+  if (lod < 2)
+    for (const x of AXLES) parts.push(box(0.06, 0.06, 2.1, x, 0.3, 0, DARK));
+  // Coupling head on the point of the A-frame.
+  parts.push(box(0.36, 0.07, 0.1, 3.85, 0.44, 0, steel));
+  if (!near) return finish(parts);
+  parts.push(
     solid(
-      new BoxGeometry(2.0, 0.08, 0.08).rotateY(0.3).translate(3.05, 0.62, 0.4),
-      DARK,
+      new CylinderGeometry(0.06, 0.06, 0.08, 10).translate(4.03, 0.44, 0),
+      steel,
+    ),
+    bar([3.86, 0.49, 0], [4.0, 0.55, 0], 0.035, 0.02, DARK),
+    box(0.05, 0.06, 0.8, 3.0, 0.42, 0, steel),
+    // Handbrake lever.
+    bar([3.5, 0.46, 0], [3.36, 0.74, 0], 0.02, 0.025, steel),
+    bar([3.36, 0.74, 0], [3.33, 0.84, 0], 0.03, 0.035, DARK),
+    // Jockey wheel clamped beside the drawbar, its crank on top.
+    solid(
+      new CylinderGeometry(0.028, 0.028, 0.5, 8).translate(3.3, 0.55, 0.24),
+      steel,
     ),
     solid(
-      new BoxGeometry(2.0, 0.08, 0.08)
-        .rotateY(-0.3)
-        .translate(3.05, 0.62, -0.4),
-      DARK,
+      new CylinderGeometry(0.02, 0.02, 0.2, 8).translate(3.3, 0.22, 0.24),
+      steel,
     ),
-    box(0.3, 0.14, 0.2, 4.05, 0.62, 0, DARK),
-    // Ramp folded flat onto the back of the deck.
-    box(1.1, 0.05, 1.9, -2.0, 0.795, 0, deck),
-  ];
-  for (const z of [1.05, -1.05]) {
-    parts.push(box(5.2, 0.08, 0.06, 0, 0.8, z, deck));
-    parts.push(box(0.1, 0.12, 2.0, 2.55, 0.82, 0, deck));
-  }
-  for (const z of [1.17, -1.17]) {
-    parts.push(box(0.95, 0.05, 0.3, -0.3, 0.74, z, deck));
-    if (lod < 2)
-      for (const g of tyreOnRim(lod))
-        parts.push(
-          g
-            .scale(1.1, 1.1, 1.1)
-            .rotateY(Math.PI / 2)
-            .translate(-0.3, 0.33, z),
-        );
-    else parts.push(box(0.66, 0.5, 0.22, -0.3, 0.33, z, DARK));
-  }
-  if (lod <= EXTRAS_LOD) parts.push(post(3.6, 0, 0.5, 0.04, DARK, 6));
+    box(0.03, 0.14, 0.09, 3.3, 0.13, 0.24, steel),
+    wheel(0.1, 0.06, 3.3, 0.24),
+    box(0.13, 0.016, 0.016, 3.355, 0.81, 0.24, steel),
+    box(0.02, 0.07, 0.02, 3.41, 0.84, 0.24, DARK),
+    // Headboard rail, the winch post behind it.
+    box(0.04, 0.34, 0.04, XF, 0.64, 0.93, steel),
+    box(0.04, 0.34, 0.04, XF, 0.64, -0.93, steel),
+    box(0.04, 0.04, 1.9, XF, 0.81, 0, steel),
+    box(0.05, 0.5, 0.05, XF + 0.3, 0.7, 0, steel),
+    box(0.16, 0.13, 0.12, XF + 0.3, 0.98, 0, DARK),
+    bar([XF + 0.3, 0.98, 0.07], [XF + 0.42, 1.08, 0.07], 0.016, 0.02, steel),
+    // Blank number plate on the rear member.
+    box(0.012, 0.11, 0.5, XB - 0.032, 0.42, 0, '#e4e4de'),
+  );
   return finish(parts);
 };
 
 /** Double-cab pickup (5.2 m, the background pickup) in team colours with an open bed. */
 export const pickup: AssetBuilder = ({ variant, lod }) => {
-  const t = team(variant);
+  const d = teamDress(team(variant));
   const m = streetCarModel(streetCarIndex('pickup'), lod);
   return withExtras(
-    m.geometry(t.base),
+    m.geometry(d.main),
     lod <= EXTRAS_LOD
-      ? sideStripe(1.6, 0.14, -1.45, 0.98, t.accent, m.sideZ)
+      ? sideStripe(1.6, 0.14, -1.45, 0.98, d.band, m.sideZ)
       : [],
   );
 };
 
+/** Aluminium of the tent frames, the cast weights on their feet. */
+const ALU = '#c3c7cc';
+const WEIGHT = '#2b2d31';
+
 /**
- * Pop-up gazebo, long side along X, open on every side: pitched canopy in team colours with a white-striped valance,
- * corner legs. Variant % 13 = team (12 = white timekeeper tent), variant / 13 = 3 x 3 / 3 x 6 m.
+ * Pop-up gazebo, long side along X, open on every side: a peaked canopy (one peak on the 3 x 3, a ridge between two on
+ * the 3 x 6) in the team colour with a valance all round and an accent band along its hem, on a folding frame - telescopic
+ * legs on foot plates with a weight each, scissor trusses under the eaves and from the sides to the hub of every peak
+ * pole. Variant % 13 = team (12 = white timekeeper tent), variant / 13 = 3 x 3 / 3 x 6 m.
  */
 function gazebo(variant: number, lod: number, long: boolean): BufferGeometry[] {
   const idx = variant % 13;
-  const roof = idx === TEAM_COUNT ? WHITE : team(idx).base;
-  const trim = idx === TEAM_COUNT ? '#2a6fd0' : team(idx).accent;
-  const trim2 = idx === TEAM_COUNT ? WHITE : team(idx).accent2;
+  const { main: roof, band } =
+    idx === TEAM_COUNT
+      ? { main: WHITE, band: EVENT_COLOR }
+      : teamDress(team(idx));
+  const under = `#${new Color(roof).multiplyScalar(0.8).getHexString()}`;
+  const near = lod === 0;
   const L = long ? 6 : 3;
   const W = 3;
-  const parts: BufferGeometry[] = [
-    tilted(L, 0.05, W / 2 + 0.05, 0, 2.62, W / 4, 0.2, roof),
-    tilted(L, 0.05, W / 2 + 0.05, 0, 2.62, -W / 4, -0.2, roof),
-    box(L, 0.24, 0.04, 0, 2.38, W / 2 + 0.02, trim),
-    box(L, 0.24, 0.04, 0, 2.38, -W / 2 - 0.02, trim),
-    box(0.04, 0.24, W, L / 2 + 0.02, 2.38, 0, trim2),
-    box(0.04, 0.24, W, -L / 2 - 0.02, 2.38, 0, trim2),
-    box(L, 0.06, 0.06, 0, 2.77, 0, '#c8cbd0'),
+  const EAVE = 2.3;
+  const PEAK = 3.16;
+  const DROP = 0.27;
+  const hx = L / 2 + 0.02;
+  const hz = W / 2 + 0.02;
+  /** Peak poles (x): the canopy rises to each, a ridge between two. */
+  const peaks = long ? [-1.5, 1.5] : [0];
+  const p0 = peaks[0];
+  const p1 = peaks[peaks.length - 1];
+  const parts: BufferGeometry[] = [];
+
+  // Canopy: hip ends, the long sides up to the peak / ridge.
+  const tris: P3[][] = [
+    [
+      [-hx, EAVE, hz],
+      [-hx, EAVE, -hz],
+      [p0, PEAK, 0],
+    ],
+    [
+      [hx, EAVE, -hz],
+      [hx, EAVE, hz],
+      [p1, PEAK, 0],
+    ],
   ];
+  for (const s of [1, -1]) {
+    const a: P3 = [-hx * s, EAVE, hz * s];
+    const b: P3 = [hx * s, EAVE, hz * s];
+    const pa: P3 = [s > 0 ? p0 : p1, PEAK, 0];
+    const pb: P3 = [s > 0 ? p1 : p0, PEAK, 0];
+    tris.push([a, b, pb]);
+    if (long) tris.push([a, pb, pa]);
+  }
+  parts.push(...cloth(tris, roof, under));
+
+  // Valance: hangs from the eave all round, the band along its hem.
+  const HEM = 0.08;
+  const skirt = (y0: number, y1: number, out: number): P3[][] => {
+    const x = hx + out;
+    const z = hz + out;
+    const ring: [number, number][] = [
+      [-x, z],
+      [x, z],
+      [x, -z],
+      [-x, -z],
+    ];
+    return ring.flatMap(([ax, az], i) => {
+      const [bx, bz] = ring[(i + 1) % 4];
+      return [
+        [
+          [ax, y0, az],
+          [bx, y0, bz],
+          [bx, y1, bz],
+        ],
+        [
+          [ax, y0, az],
+          [bx, y1, bz],
+          [ax, y1, az],
+        ],
+      ] as P3[][];
+    });
+  };
+  parts.push(
+    ...cloth(skirt(EAVE - DROP + HEM, EAVE, 0), roof, under),
+    ...cloth(skirt(EAVE - DROP, EAVE - DROP + HEM, 0), band, under),
+  );
+
+  // Legs: the outer tube from the eave, the thinner inner one down to a foot plate, a weight on the foot.
   const xs = long ? [-L / 2, 0, L / 2] : [-L / 2, L / 2];
+  const legZ = W / 2 - 0.05;
+  const TOP = EAVE - 0.03;
+  const LOW = EAVE - 0.58;
   for (const x of xs)
-    for (const z of [W / 2 - 0.05, -W / 2 + 0.05])
-      parts.push(post(x, z, 2.45, 0.035, '#c8cbd0', lod ? 4 : 6));
+    for (const z of [legZ, -legZ]) {
+      const lx = x - Math.sign(x) * 0.05;
+      if (!near) {
+        parts.push(box(0.04, EAVE, 0.04, lx, EAVE / 2, z, ALU));
+        continue;
+      }
+      parts.push(
+        box(0.042, EAVE - 0.95, 0.042, lx, (EAVE + 0.95) / 2, z, ALU),
+        box(0.032, 1, 0.032, lx, 0.5, z, ALU),
+        box(0.12, 0.008, 0.12, lx, 0.004, z, ALU),
+        box(0.06, 0.07, 0.06, lx, LOW, z, WEIGHT),
+        box(0.06, 0.06, 0.06, lx, TOP, z, WEIGHT),
+        box(0.05, 0.03, 0.05, lx, 0.97, z, WEIGHT),
+        solid(
+          new CylinderGeometry(0.17, 0.18, 0.09, 14).translate(lx, 0.053, z),
+          WEIGHT,
+        ),
+      );
+    }
+  if (!near) return parts;
+
+  // Scissor trusses: crossed bars between two uprights (top and bottom joints `a` / `b` are x, z).
+  const scissor = (
+    a: [number, number],
+    b: [number, number],
+    topA = TOP,
+    lowA = LOW,
+    topB = TOP,
+    lowB = LOW,
+  ): void => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    // The two bars pass side by side.
+    const ox = (-(b[1] - a[1]) / len) * 0.009;
+    const oz = ((b[0] - a[0]) / len) * 0.009;
+    parts.push(
+      bar(
+        [a[0] + ox, topA, a[1] + oz],
+        [b[0] + ox, lowB, b[1] + oz],
+        0.014,
+        0.028,
+        ALU,
+      ),
+      bar(
+        [a[0] - ox, lowA, a[1] - oz],
+        [b[0] - ox, topB, b[1] - oz],
+        0.014,
+        0.028,
+        ALU,
+      ),
+    );
+  };
+  const legX = L / 2 - 0.05;
+  // Eave trusses: 1.5 m units along the sides and the ends (and between the middle legs of the 3 x 6).
+  const stops = long ? [-legX, -1.5, 0, 1.5, legX] : [-legX, 0, legX];
+  for (const z of [legZ, -legZ])
+    for (let i = 0; i + 1 < stops.length; i++)
+      scissor([stops[i], z], [stops[i + 1], z]);
+  for (const x of long ? [-legX, 0, legX] : [-legX, legX]) {
+    scissor([x, -legZ], [x, 0]);
+    scissor([x, 0], [x, legZ]);
+  }
+  // Peak poles on a hub the inner trusses hold up; the hub sits a little higher than the eave trusses.
+  const HUB_TOP = TOP + 0.16;
+  const HUB_LOW = LOW + 0.16;
+  for (const px of peaks) {
+    parts.push(
+      box(
+        0.03,
+        PEAK - 0.01 - HUB_LOW,
+        0.03,
+        px,
+        (PEAK - 0.01 + HUB_LOW) / 2,
+        0,
+        ALU,
+      ),
+      box(0.055, 0.05, 0.055, px, HUB_TOP, 0, WEIGHT),
+      box(0.055, 0.05, 0.055, px, HUB_LOW, 0, WEIGHT),
+    );
+    const from: [number, number][] = [
+      [px, legZ],
+      [px, -legZ],
+      [Math.max(px - 1.5, -legX), 0],
+      [Math.min(px + 1.5, legX), 0],
+    ];
+    for (const f of from) scissor(f, [px, 0], TOP, LOW, HUB_TOP, HUB_LOW);
+  }
   return parts;
 }
 
@@ -282,7 +630,7 @@ export const featherFlag: AssetBuilder = ({ variant }) => {
         [0, poleH - 2.2, 0],
         [0.3, poleH - 1.5, 0],
       ],
-      t.base,
+      t.dress,
     ),
     sheet(
       [
@@ -296,7 +644,7 @@ export const featherFlag: AssetBuilder = ({ variant }) => {
   ]);
 };
 
-/** Ground sheet, unit 1 x 1 m scaled to the bay (variants: blue, grey, green, black tarp). */
+/** Ground sheet, unit 1 x 1 m scaled to the bay (variants: slate, grey, olive, black tarp). */
 export const groundSheet: AssetBuilder = ({ variant }) =>
   finish([
     box(
@@ -306,7 +654,7 @@ export const groundSheet: AssetBuilder = ({ variant }) =>
       0,
       0.01,
       0,
-      ['#3d4f6b', '#6a6f76', '#2f5a3c', '#26282c'][variant % 4],
+      ['#63656a', '#7b7c7d', '#4d5349', '#2a2c30'][variant % 4],
     ),
   ]);
 

@@ -126,8 +126,8 @@ function speedStripes(
 
 const THEME = {
   start: {
-    top: '#2a6ee0',
-    bottom: '#0a2766',
+    top: '#3a68ad',
+    bottom: '#17305c',
     accent: '#f5c518',
     word: 'START',
   },
