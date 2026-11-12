@@ -109,6 +109,8 @@ export class AerialTrees {
     private world: World,
     /** Radius multiplier (thinned scatter: bigger circles keep the woods' coverage). */
     private grow = 1,
+    /** Colour multiplier (a baked card matches the far forest's brighter crowns). */
+    private gain = 1,
   ) {
     disc ??= new CircleGeometry(1, 10).rotateX(-Math.PI / 2);
     this.mesh = new InstancedMesh(disc, this.material, 0);
@@ -146,7 +148,7 @@ export class AerialTrees {
             (hash3(Math.floor(inst.x * 7), Math.floor(inst.z * 7), 9) /
               4294967296) *
               0.24;
-          tint.copy(c.color).multiplyScalar(j);
+          tint.copy(c.color).multiplyScalar(j * this.gain);
           cols.push(tint.r, tint.g, tint.b);
         }
         yield;

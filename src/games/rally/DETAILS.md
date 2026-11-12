@@ -84,7 +84,7 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 |          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                                                                                                             |
 |          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                                                                                                       |
 | Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset); steering mode: Options -> Pad steering (PHYSICS.md "Steering input")                                                                    |
-| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `P` photo mode, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit                                                                        |
+| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `P` photo mode, `V` export, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit                                                                       |
 | Photo    | drag orbit, right-drag / `Shift`-drag pan, wheel zoom, `W` `A` `S` `D` / arrows orbit, `Q` / `E` zoom, `R` recentre, `Enter` / `P` take photo, `H` hide, `Esc` back; pad left stick orbit, right stick zoom / pan, LT / RT focal length, A take photo, Y hide, B back; touch drag orbit, two fingers pan / pinch zoom |
 | Touch    | floating steering stick (or arrows: Options -> Touch steering), BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                                                                       |
 
@@ -93,7 +93,8 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 - **Menus** (`game/menu.ts`): welcome -> **select stage** (route outline of the stage and 150 m either side, orbiting 3D view of
   the stage, length, splits, best time; every stage shows a pre-baked stage card, `tools/stage-card.ts`, cropped to the stage +
   500 m and re-baked with `?bakecard=<stage id>&season=all` / `?bakecards=1&season=all` only when asked, one picture per
-  season; `stageCardHash` covers only what the card draws, so text edits need no re-bake) -> **select car** ->
+  season, each with a small copy in the JSON that shows until the full picture has loaded; `stageCardHash` covers only
+  what the card draws, so text edits need no re-bake) -> **select car** ->
   **Start stage** with the recommended set-up, or **Setup car** (small button left of the livery picker). The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
@@ -180,10 +181,13 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
   in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). Broadcast shows big corners from their trackside camera and cycles
   the others between them; no cut under 2.5 s or in the air.
 - **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed 0.25-2x, camera picker (a dropdown
-  under 1360 px), Save (name; an inactive "Saved" once named, absent for a replay opened from the menu: rename it in Stage times), Clean feed, Record video
-  (not in the release build), Exit (back to results, or the menu for a URL replay).
-- **Video** (`video.ts`; dev server and `build:test` only until it is fixed, `videoSupported()`): `MediaRecorder` on the canvas + game audio (mp4 / webm),
-  clean feed, real time; downloads on stop.
+  under 1360 px), Save (name; an inactive "Saved" once named, absent for a replay opened from the menu: rename it in Stage times), Clean feed, Export, Exit (back to results, or the menu for a URL replay).
+- **Export** (`export.ts`, `audio-tape.ts`, `RallyGame.exportReplay`): a section (amber handles on the timeline, `I` / `O` at the
+  playhead) at 720p / 1080p / 1440p / 4K, 60 fps, rendered offline frame by frame at exactly that size, so no frame is dropped on a slow machine.
+  MP4 at Standard / High / Maximum quality: WebCodecs H.264 (else HEVC / VP9 / AV1) at a fixed quantizer (else a constant 25 / 50 / 100 Mbps at
+  1080p, scaled by pixels), muxed by Mediabunny (loaded on the first export). Chrome / Edge ask where to save first and write while it renders;
+  elsewhere the MP4 downloads at the end. The sound is the same synth on an OfflineAudioContext fed what each frame told the live one. Before the section (not in the file) the camera
+  holds until the ground tiles and trees around it have loaded, then a 1.5 s run-up; the panel shows each step and the time left.
 - **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`; `trace(s, every)` / `copyTrace()` /
   `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel load / slip / forces) as TSV (the F2 panel has buttons); `load` of
   another stage / car reloads into it.
@@ -198,6 +202,10 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 
 - **Light:** the sun follows `timeOfDay` (or `sunElevation` / `sunAzimuth`); a lower sun is warmer and dimmer (raise `exposure`).
   Cool sky fill + warm ground bounce; a PMREM of the sky gives paint, glass and water reflections.
+- **Sun against sky** (`DAY_LIGHT` in `engine/environment.ts`): on flat ground the sky gives about a third of the sun's
+  light, so cast shadows are dark; faces turned from the sun get the ground's bounce (the hemisphere light's ground
+  colour). Only the env map's diffuse share is cut (`envDiffuse`, `wsEnvCut`); reflections keep `envIntensity`. Under a
+  cloud deck it eases back to the full sky. The studio uses `CLASSIC_LIGHT` (sky at three quarters of the sun); `?look=classic` shows it in game.
 - **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
   (`SUN_TERMS`, `SUN_SHADOW`):
   - the sun's shadow map ahead of the camera (`quality.shadowExtent`, snapped to texels), every frame. Trees cast into
@@ -777,6 +785,37 @@ colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`
 |                                                              | autumn | **12 / 13**   | 17 / 26     | 19 / 27     | 19 / 23 | 14 / 14 |
 
 <!-- /temps-matrix -->
+
+## Screenshots
+
+README / map / cover pictures are retaken with `scripts/rally/screenshots.mjs` (dev server up; `--only <id>` for some, ids and
+every setting in `scripts/rally/screenshots.json`). Each is the game canvas at 1536x864 (no HUD), `quality=high`, car dropped on
+the road at `?spawn=<m>` (`start` = the stage start) in free drive, default chase camera, dry weather, default livery, and the stage's
+own season and hour unless the row says otherwise (night = 01:00). The same link plays the spot:
+`/games/rally/?stage=<stage>&car=<car>&season=<season>&tod=<hour>&spawn=<m>&mute=1`.
+
+| Picture                        | Stage            | Car         | Position                    | Season, time  | Shows                                                                                                          |
+| ------------------------------ | ---------------- | ----------- | --------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `ajvatovci/start-street.jpg`   | ajvatovci        | skoda_rally | 200 m                       | summer 07:30  | Start street between the warehouses                                                                            |
+| `ajvatovci/farmland-road.jpg`  | ajvatovci        | skoda_rally | 1500 m                      | summer 07:30  | Farmland road: wheat left, meadow right, power line ahead                                                      |
+| `ajvatovci/hill-road.jpg`      | ajvatovci        | skoda_rally | 2950 m                      | summer 07:30  | Village edge: first houses, crew at the junction                                                               |
+| `ajvatovci/night.jpg`          | ajvatovci        | skoda_rally | 1500 m                      | summer 01:00  | The farmland road at night, headlights on                                                                      |
+| `galichica/livada-pass.jpg`    | galichica_west   | skoda_rally | 14000 m                     | autumn 09:00  | Climb to the Livada pass, bare slope                                                                           |
+| `galichica/prespa-climb.jpg`   | galichica_east   | skoda_rally | 24000 m                     | spring 09:00  | Climb from Lake Prespa, lake on the right                                                                      |
+| `jackie/city-start.jpg`        | jackie           | skoda_rally | start                       | summer 08:00  | Just short of the START arch                                                                                   |
+| `jackie/parkway-bridge.jpg`    | jackie           | skoda_rally | 2700 m                      | summer 08:00  | Parkway, left bend, parked cars and crowd on the right                                                         |
+| `jackie/night.jpg`             | jackie           | skoda_rally | 2700 m                      | summer 01:00  | The parkway at night, street lamps lit                                                                         |
+| `petralica/valley-road.jpg`    | petralica        | skoda_rally | 1900 m                      | summer 16:30  | Tarmac valley road, open fields, farms in the distance                                                         |
+| `petralica/mountain-climb.jpg` | petralica        | skoda_rally | 5500 m                      | summer 16:30  | Gravel climb, forested hill ahead                                                                              |
+| `petralica/night.jpg`          | petralica        | skoda_rally | 5600 m                      | summer 01:00  | The gravel at night, headlights on                                                                             |
+| `test/forest-stage.jpg`        | test             | skoda_rally | 600 m                       | summer 15:48  | Forest gravel between the pines, white marker posts                                                            |
+| `vodno/start-line.jpg`         | vodno            | skoda_rally | start                       | summer 10:00  | Car just short of the VODNO HILLCLIMB arch                                                                     |
+| `vodno/hairpins.jpg`           | vodno            | skoda_rally | 1325 m                      | summer 10:00  | Left-hand hairpin with the wooden guard rail and the red chevron sign                                          |
+| `vodno/cross-ridge.jpg`        | vodno            | skoda_rally | 4400 m (free camera)        | summer 10:00  | Free camera 100 m above the north slope at [170, -31], aimed at [-600, 775]: mast, cable car, Millennium Cross |
+| `start.jpg`                    | ajvatovci        | zastava_101 | start                       | summer 07:30  | Zastava 101 at the start line of Ajvatovci Hill                                                                |
+| `ui-stage.jpg`                 | menu             | -           | Start rally -> Select stage | stage default | first stage highlighted, 1280x720                                                                              |
+| `thumbnail.jpg`                | jackie           | skoda_rally | 3500 m                      | summer 08:00  | Portal cover, with thumbnail-640.jpg                                                                           |
+| `public/og-image.jpg`          | portal home page | -           | -                           | -             | link preview 1200x630, taken after the cover                                                                   |
 
 ## Known limitations
 

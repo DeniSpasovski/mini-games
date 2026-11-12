@@ -296,7 +296,7 @@ export class World implements GroundProvider {
               const wall = this.gen.rockCutWall(q.along, q.lateral);
               if (wall) {
                 const face = q.halfWidth + wall.offset;
-                return q.distance > face - 0.4 && q.distance < face + 1.6
+                return q.distance > face - 0.4 && q.distance < face + 2.4
                   ? 1
                   : 0;
               }
@@ -379,7 +379,10 @@ export class World implements GroundProvider {
         );
         if (q.found && q.distance <= q.halfWidth + 0.5) continue;
       }
-      this.scatter.addFixed(inst);
+      // Bushes on top of a retaining wall stand on its ground, not on the carve under it.
+      const top = this.gen.wallGroundAt(inst.x, inst.z);
+      if (top !== undefined) inst.y = Math.max(inst.y, top);
+      this.scatter.addFixed(inst, top !== undefined);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
     if (map.realTrees) this.scatter.addRealTrees(map.realTrees);
