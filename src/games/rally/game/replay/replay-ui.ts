@@ -36,6 +36,8 @@ export class ReplayUi {
   private dragging = false;
   private padPrev: boolean[] = [];
   private onKey = (e: KeyboardEvent) => this.key(e);
+  /** Photo mode is open over the replay: the bar is hidden and its keys / pad buttons rest. */
+  private suspended = false;
 
   constructor(
     private root: HTMLElement,
@@ -45,6 +47,8 @@ export class ReplayUi {
       exitLabel: string;
       /** False for a replay opened from the menu (already saved, renamed in Stage times): no Save button. */
       canSave: boolean;
+      /** Photo mode from the paused replay (the bar hides meanwhile, `suspend`). */
+      onPhoto?: () => void;
     },
   ) {
     this.el = document.createElement('div');
@@ -77,11 +81,12 @@ export class ReplayUi {
           <div class="rp-actions">
             <button class="menu-btn small" data-a="name" data-ref="save" title="Name this replay: a named save is never deleted with the auto saves">Save</button>
             <button class="menu-btn small" data-a="clean">Clean feed</button>
+            ${opts.onPhoto ? '<button class="menu-btn small" data-a="photo">Photo</button>' : ''}
             ${videoSupported() ? `<button class="menu-btn small rp-video" data-a="video" data-ref="video">${ICON.rec}<span>Record video</span></button>` : ''}
             <button class="menu-btn small primary" data-a="exit">${opts.exitLabel}</button>
           </div>
         </div>
-        <div class="rp-keys"><b>Space</b> play · <b>← →</b> ${SKIP} s · <b>, .</b> frame · <b>[ ]</b> speed · <b>1–7</b> camera · <b>C</b> next camera · <b>H</b> clean feed${videoSupported() ? ' · <b>V</b> video' : ''} · <b>Esc</b> exit</div>
+        <div class="rp-keys"><b>Space</b> play · <b>← →</b> ${SKIP} s · <b>, .</b> frame · <b>[ ]</b> speed · <b>1–7</b> camera · <b>C</b> next camera · <b>H</b> clean feed${opts.onPhoto ? ' · <b>P</b> photo' : ''}${videoSupported() ? ' · <b>V</b> video' : ''} · <b>Esc</b> exit</div>
       </div>
       <div class="rp-clean-hint" data-ref="hint">Clean feed · <b>H</b> or tap to show the controls</div>`;
     if (!opts.canSave) this.el.querySelector('[data-a="name"]')?.remove();
@@ -134,7 +139,15 @@ export class ReplayUi {
     this.refs.play.focus({ preventScroll: true });
   }
 
+  /** Hide the bar while photo mode is open (the replay stays open, paused). */
+  suspend(on: boolean): void {
+    this.suspended = on;
+    this.el.classList.toggle('hidden', on || !this.session);
+    if (!on) this.refs.play.focus({ preventScroll: true });
+  }
+
   hide(): void {
+    this.suspended = false;
     if (this.video) void this.stopVideo();
     this.session = undefined;
     cancelAnimationFrame(this.raf);
@@ -170,7 +183,7 @@ export class ReplayUi {
 
   private tick(now: number): void {
     const s = this.session!;
-    this.pollPad();
+    if (!this.suspended) this.pollPad();
     // The playhead every frame (a transform), the text 10 times a second.
     const f = s.duration ? s.time / s.duration : 0;
     const pct = `${(f * 100).toFixed(2)}%`;
@@ -240,6 +253,9 @@ export class ReplayUi {
         break;
       case 'clean':
         this.setClean(true);
+        break;
+      case 'photo':
+        this.opts.onPhoto?.();
         break;
       case 'video':
         void this.toggleVideo();
@@ -353,6 +369,7 @@ export class ReplayUi {
     const s = this.session;
     if (
       !s ||
+      this.suspended ||
       e.target instanceof HTMLSelectElement ||
       e.target instanceof HTMLInputElement
     )
@@ -397,6 +414,10 @@ export class ReplayUi {
         break;
       case 'KeyH':
         this.setClean(!s.clean);
+        break;
+      case 'KeyP':
+        if (this.opts.onPhoto) this.opts.onPhoto();
+        else used = false;
         break;
       case 'KeyV':
         if (videoSupported()) void this.toggleVideo();
