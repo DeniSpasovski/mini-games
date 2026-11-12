@@ -29,20 +29,19 @@ const tris = (b: ReturnType<typeof streetCar>) =>
   );
 
 describe('street cars', () => {
-  test.each([0, 3, 5, 9, 10, 11, 12])(
-    'variant %i: one part, within budget',
-    (variant) => {
-      const near = streetCar({ seed: 1, variant, lod: 0 });
-      const mid = streetCar({ seed: 1, variant, lod: 1 });
-      const far = streetCar({ seed: 1, variant, lod: 2 });
-      expect(near.parts.length).toBe(1);
-      // The model plus its rounded wheels (wheel-rounding.ts).
-      expect(tris(near)).toBeLessThan(10500);
-      expect(tris(near)).toBeGreaterThan(3000);
-      expect(tris(mid)).toBeLessThan(2500);
-      expect(tris(far)).toBeLessThan(1500);
-    },
-  );
+  test.each(
+    Array.from({ length: getAssetMeta('street_car').variants }, (_, i) => i),
+  )('variant %i: one part, within budget', (variant) => {
+    const near = streetCar({ seed: 1, variant, lod: 0 });
+    const mid = streetCar({ seed: 1, variant, lod: 1 });
+    const far = streetCar({ seed: 1, variant, lod: 2 });
+    expect(near.parts.length).toBe(1);
+    // The model plus its rounded wheels (wheel-rounding.ts).
+    expect(tris(near)).toBeLessThan(9000);
+    expect(tris(near)).toBeGreaterThan(3000);
+    expect(tris(mid)).toBeLessThan(2500);
+    expect(tris(far)).toBeLessThan(1500);
+  });
 
   test('variants: the models, then the cars a map places (white hatch, dark sedan, white minivan)', () => {
     expect(STREET_CAR_COUNT).toBe(10);
@@ -108,7 +107,7 @@ describe('street cars', () => {
       const near = b({ seed: 1, variant: 0, lod: 0 });
       // The taxi's lit roof sign is a part of its own.
       expect(near.parts.length).toBe(b === taxi ? 3 : 2);
-      expect(tris(near)).toBeLessThan(10500);
+      expect(tris(near)).toBeLessThan(9500);
     }
     expect(taxi({ seed: 1, variant: 0, lod: 2 }).parts.length).toBe(1);
   });

@@ -361,7 +361,7 @@ export function getMaterial(id: MaterialId): Material {
       });
       break;
     case 'taxi_sign':
-      // The lit roof sign of the taxi: its face texture, glowing (engine/night-glow.ts `sign`).
+      // The roof sign of the taxi: its face texture, lit at night (engine/night-glow.ts `sign`).
       m = new MeshStandardMaterial({
         map: getTexture('taxi_sign'),
         roughness: 0.35,

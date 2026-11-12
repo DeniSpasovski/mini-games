@@ -31,7 +31,7 @@ import {
  * `fire-truck-models.ts`). The lettering is generic words on purpose (no real agency names, badges or exact liveries). Every vehicle is one draw call in the shared
  * `streetCarMaterial` (atlas + paint tint), its add-ons (sign base, light bar, ladder, stripes, lettering) a second one in
  * the `vehicle` material (vertex colour paint + the decals atlas); the taxi's lit roof sign is a third (`taxi_sign`). Models face +X with the origin on the ground under
- * their middle. A car is ~8-10k triangles up close (wheels rounded, `wheel-rounding.ts`), ~2k at LOD 1, ~1k at LOD 2.
+ * their middle. A car is ~6.5-8.5k triangles up close (wheels rounded, `wheel-rounding.ts`), ~2k at LOD 1, ~1k at LOD 2.
  */
 
 /** u / v of the plain-white corner of the decals atlas (every painted face samples it). */

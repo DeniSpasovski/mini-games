@@ -87,7 +87,7 @@ export function serviceVehicleModel(id: string, lod: number): StreetCarShape {
 
 /**
  * A model of any baked list (`street-cars.data.ts` layout) at `lod`: also the fire engines' (`fire-truck-models.ts`).
- * `round`: its wheels get more sides at LOD 0 (`wheel-rounding.ts`); a list is either always or never asked rounded.
+ * `round`: its wheels get more sides at LOD 0 (`wheel-rounding.ts`); a model is either always or never asked rounded.
  */
 export function vehicleModel(
   list: StreetCarData[],

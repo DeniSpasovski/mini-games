@@ -67,14 +67,14 @@ describe('team vehicles of the service park', () => {
     ['service_truck', serviceTruck],
     ['service_van', serviceVan],
     ['pickup', pickup],
-  ])('%s: the model plus its stripes, within budget', (id, build) => {
+  ])('%s: the model plus its stripes, within budget', (_, build) => {
     for (let team = 0; team < TEAM_COUNT; team++) {
       const near = build({ seed: 1, variant: team, lod: 0 });
       const mid = build({ seed: 1, variant: team, lod: 1 });
       const far = build({ seed: 1, variant: team, lod: 2 });
       expect(near.parts.length).toBe(2);
       // The pickup is a street car: its wheels are rounded up close (wheel-rounding.ts).
-      expect(tris(near)).toBeLessThan(id === 'pickup' ? 10500 : 8200);
+      expect(tris(near)).toBeLessThan(8200);
       expect(tris(mid)).toBeLessThan(2400);
       expect(tris(far)).toBeLessThan(1700);
     }
