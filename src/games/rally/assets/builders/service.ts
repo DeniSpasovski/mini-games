@@ -149,7 +149,7 @@ export const serviceTruck: AssetBuilder = ({ variant, lod }) => {
     lod <= EXTRAS_LOD
       ? [
           ...sideStripe(4.6, 0.38, -1.65, 1.55, d.band),
-          ...sideStripe(4.6, 0.12, -1.65, 1.9, t.accent2),
+          ...sideStripe(4.6, 0.12, -1.65, 1.9, d.trim),
         ]
       : [];
   // Awning: canopy sloping down to the valance, two legs.
@@ -189,7 +189,7 @@ export const serviceVan: AssetBuilder = ({ variant, lod }) => {
     lod <= EXTRAS_LOD
       ? [
           ...sideStripe(3.4, 0.28, -1.1, 1.1, d.band),
-          ...sideStripe(3.4, 0.09, -1.1, 1.38, t.accent2),
+          ...sideStripe(3.4, 0.09, -1.1, 1.38, d.trim),
         ]
       : [],
   );
@@ -411,7 +411,7 @@ const WEIGHT = '#2b2d31';
 
 /**
  * Pop-up gazebo, long side along X, open on every side: a peaked canopy (one peak on the 3 x 3, a ridge between two on
- * the 3 x 6) in the team colour with a valance all round and an accent band along its hem, on a folding frame - telescopic
+ * the 3 x 6) in the team dressing colour with a valance all round and a band along its hem, on a folding frame - telescopic
  * legs on foot plates with a weight each, scissor trusses under the eaves and from the sides to the hub of every peak
  * pole. Variant % 13 = team (12 = white timekeeper tent), variant / 13 = 3 x 3 / 3 x 6 m.
  */
@@ -639,7 +639,7 @@ export const featherFlag: AssetBuilder = ({ variant }) => {
         [0, poleH - 1.5, 0.002],
         [0.45, poleH - 1.3, 0.002],
       ],
-      t.accent,
+      t.neutral,
     ),
   ]);
 };
