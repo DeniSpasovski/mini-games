@@ -302,14 +302,18 @@ export class TreeLibrary {
     diskBytes: 0,
   };
 
-  /** Species of every tree type in `assets` (map rules / fixed instances), in the leaf colours of `season`. */
+  /**
+   * Species of every tree type in `assets` (map rules / fixed instances), in the leaf colours of `season` in `month`
+   * (`seasonMonth`: a November autumn is late autumn, trees/seasons.ts).
+   */
   static speciesOf(
     assets: Iterable<string>,
     season: Season = DEFAULT_SEASON,
+    month?: number,
   ): SpeciesDef[] {
     const out = new Set<SpeciesDef>();
     for (const a of assets)
-      if (isTreeType(a)) out.add(seasonal(speciesOfType(a), season));
+      if (isTreeType(a)) out.add(seasonal(speciesOfType(a), season, month));
     return [...out];
   }
 

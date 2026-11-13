@@ -40,7 +40,7 @@ export const ROAD_LINES: RoadLine[] = [
     offset: 2.6,
   },
   // (no wall at the road edge before the big hairpin: the hikers' car park there has its own, trail-lot.ts)
-  // past the big hairpin: the island's own log fence (trail-lot.ts, to ~2 060 m) carries on behind a white gravel strip
+  // past the big hairpin: the island's own log fence (trail-lot.ts, to ~2 064 m) carries on behind a white gravel strip
   // to the roofed notice board
   {
     kind: 'fence',

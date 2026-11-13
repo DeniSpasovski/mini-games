@@ -134,6 +134,8 @@ export interface CutShape {
 }
 /** An earth cut (RoadDef.earthCuts) needs the land this far (m) further from the road to stand at least as high. */
 const EARTH_OUT = 6;
+/** (m) An earth cut fades in and out over this length centred on the ends of an excluded stretch (`earthCuts.exclude`). */
+const EARTH_EXCLUDE_FADE = 12;
 /** Rise per m across of the carve behind a low retaining wall (RoadDef.rockCuts `walls`): the wall mesh stands vertical in
  * front of it (world/rock-cut-mesh.ts), the carve only has to stay behind the face. */
 const WALL_SLOPE = 5;
@@ -2096,7 +2098,9 @@ export class TerrainGenerator {
         base = Math.min(base, this.plazas.height(x, z)! - 0.05);
     }
     if (!q.found) return base;
-    const carved = this.carveRoad(x, z, base, q);
+    let carved = this.carveRoad(x, z, base, q);
+    if (this.pads && q.distance > q.halfWidth)
+      carved = this.pads.applyHeld(x, z, carved);
     // On a junction area beside the stage road at grade: the area's surface (the road's embankment stops at it).
     if (
       !this.plazas.empty &&
@@ -2304,13 +2308,17 @@ export class TerrainGenerator {
   ): number {
     const ec = this.map.road.earthCuts;
     if (!ec || !(rise > ec.minRise)) return 0;
-    if (
-      ec.exclude?.some(
-        ([a, b, s]) =>
-          along > a && along < b && (!s || s === (side >= 0 ? 1 : -1)),
-      )
-    )
-      return 0;
+    // (an excluded stretch fades in over EARTH_EXCLUDE_FADE m centred on its ends: a hard edge left a step in the bank)
+    let fade = 1;
+    for (const [a, b, s] of ec.exclude ?? []) {
+      if (s && s !== (side >= 0 ? 1 : -1)) continue;
+      const past = Math.max(a - along, along - b);
+      fade = Math.min(
+        fade,
+        smoothstep(-EARTH_EXCLUDE_FADE / 2, EARTH_EXCLUDE_FADE / 2, past),
+      );
+    }
+    if (fade <= 0) return 0;
     if (this.rockCutWall(along, side)) return 0;
     // Only where the land keeps rising away from the road (a hump beside it keeps the gentle bank, not a dug ridge).
     const p = this.road.at(along);
@@ -2318,7 +2326,7 @@ export class TerrainGenerator {
     const out =
       this.naturalHeight(x + p.tz * sd * EARTH_OUT, z - p.tx * sd * EARTH_OUT) -
       p.y;
-    let w = smoothstep(ec.minRise, ec.minRise + 1, Math.min(rise, out));
+    let w = fade * smoothstep(ec.minRise, ec.minRise + 1, Math.min(rise, out));
     if (w <= 0) return 0;
     if (this.paths) {
       const pq = this.paths.query(x, z, this.pq, undefined, this.roadOnGround);

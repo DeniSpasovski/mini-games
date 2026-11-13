@@ -284,8 +284,8 @@ export const TRAIL_SCRUB: [number, number, string, number][] = [];
 
 /**
  * The grass island inside the hairpin (the owner's photos): a log rail fence 1.6 m off the road edge round the loop
- * (world x, z along the inner edge, 1 960-2 045 m; open at the gazebo's side), a green-roofed gazebo in the widest part
- * and two picnic tables beside it.
+ * (world x, z along the inner edge, 1 960-2 064 m, where the log fence of road-lines.ts carries on), a green-roofed
+ * gazebo right behind it on the hairpin's exit (~2 052 m, ~6 m off the edge: both references) and two picnic tables.
  */
 // prettier-ignore
 const ISLAND_RAIL: V2[][] = [
@@ -294,18 +294,18 @@ const ISLAND_RAIL: V2[][] = [
     [2144.9, -75], [2144.6, -71.9], [2143.3, -68.8], [2141, -66.3], [2138.3, -64.6], [2135.1, -64], [2132.1, -64.5],
   ],
   [
-    [2126.1, -69], [2123.1, -72.4], [2120.6, -76],
+    [2126.1, -69], [2123.1, -72.4], [2120.6, -76], [2118.4, -78.9], [2116.4, -81.6], [2113.3, -86.6], [2109.7, -91.9],
   ],
 ];
-export const ISLAND_GAZEBO: Site = { x: 2132.5, z: -78, yaw: 0.7 };
+export const ISLAND_GAZEBO: Site = { x: 2120.2, z: -83.8, yaw: -2.1 };
 const ISLAND_GAZEBO_APOTHEM = 3;
 const ISLAND_TABLES: [number, number, number][] = [
-  [2126.5, -82.5, 0.7],
+  [2129.5, -79.5, 0.7],
   [2137.5, -72.5, 2.2],
 ];
 export const ISLAND_PLANTS: [number, number, string][] = [
   [2140.5, -80.5, 'bush'],
-  [2122.5, -86, 'young_tree'],
+  [2132.5, -77, 'young_tree'],
   [2131, -68.5, 'bush'],
 ];
 

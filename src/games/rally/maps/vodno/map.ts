@@ -41,7 +41,13 @@ import {
   WIDE_FROM,
   WIDE_TO,
 } from './crossroad';
-import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
+import {
+  countryRoad,
+  dropLotAisles,
+  LAWNS,
+  LOT_MESH_SINK,
+  LOT_PADS,
+} from './lots';
 import { SKYLINE } from './skyline';
 import { JUNCTION_PAINT, PATCHES, SURFACE_SECTIONS } from './surface';
 import { START_SIDEWALKS, startBuildings, startStreets } from './start-area';
@@ -75,15 +81,16 @@ const VIDIKOVEC_RAIL = {
   runs: [
     [2478, 2575],
     [2680, 2715],
-    // (to the lot's lower entrance: the game's lot opens ~30 m below the real one)
-    [2775, 2796],
+    // (on to the lot's west tip, where its kerb railing takes over)
+    [2775, 2826],
   ] as const,
-  lot: [2834, 2900] as const,
+  lot: [2854, 2900] as const,
 };
-/** The dark stone retaining wall on the uphill side opposite the upper half of the Vidikovec lot (`road.rockCuts.walls`):
- * ~1.8 m high, 3.5 m back from the road edge behind a grass strip with bushes ~1 m off the road (the owner's photos). */
+/** The dark stone retaining wall on the uphill side across from the Vidikovec lot (`road.rockCuts.walls`), one run from
+ * below the lot to past its upper end: ~1.8 m high, 3.5 m back from the road edge behind a grass strip with bushes ~1 m
+ * off the road (the owner's photos and both references). */
 const VIDIKOVEC_WALL = {
-  from: 2860,
+  from: 2814,
   to: 2928,
   side: 1,
   height: 1.8,
@@ -151,10 +158,10 @@ const VIDEO_RAILS: BarrierRule[] = [
   rail('right', 1388, 1400),
   // (rusty single beams, galvanised two-tier only over the steepest drop)
   // (as on the real road: from opposite the limestone cut, two-tier between the two bends, rusty again to the
-  // hikers' car park's entrance (trail-lot.ts, ~1 830 m); galvanised past the lot to the big hairpin)
+  // hikers' car park, its mouth (trail-lot.ts, ~1 822 m) left open; galvanised past the lot to the big hairpin)
   rail('left', 1520, 1668, { rusty: true }),
   rail('left', 1668, 1700, { tiers: 2 }),
-  rail('left', 1700, 1830, { rusty: true }),
+  rail('left', 1700, 1820, { rusty: true }),
   rail('left', 1895, 1940),
   // (past the hairpin island's log fence and board, road-lines.ts: on the outside of the left bend only)
   rail('right', 2093, 2125),
@@ -251,7 +258,7 @@ const NO_DROP_RAIL: NonNullable<DropRails['exclude']> = [
   { from: 2005, to: 2050, side: 'left' },
   { from: 4040, to: 4290, side: 'right' },
   // the Vidikovec approach: its own rail runs and the gaps between them
-  { from: 2440, to: 2834, side: 'right' },
+  { from: 2440, to: 2856, side: 'right' },
 ];
 
 /** Where the crowns close over the road (the references, m along): young broadleaf right at the verge, leaning out. */
@@ -638,6 +645,7 @@ export const vodnoMap: MapDef = {
       START_LOT_PAD,
     ],
     lawns: LAWNS,
+    meshSink: LOT_MESH_SINK,
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
@@ -755,7 +763,7 @@ export const vodnoMap: MapDef = {
     // Rock faces where the land stands 3 m above the road, only on the stretches the owner's photos and the references
     // show (elsewhere the bank is an earth cut, below): the layered shale of the big hairpin, grey bedrock and dark rock
     // on the right at 1.7 km, the pale limestone outcrops on the left below Vidikovec, the dark shale round the 3.6 km
-    // bend, a rocky bank at 3.85 km. At Vidikovec the uphill bank is held by a low dark stone wall along the upper half
+    // bend, a rocky bank at 3.85 km. At Vidikovec the uphill bank is held by a low dark stone wall the whole length
     // of the lot.
     rockCuts: {
       // (only on the listed stretches: low enough that the shallow one at 1 770 m keeps its face with the foot close in)
@@ -1332,6 +1340,33 @@ export const vodnoMap: MapDef = {
       tilt: 4,
       sink: 0.1,
     },
+    // The feet of the banks along the whole road (both references): a band of dry straw-coloured grass and loose
+    // stones fallen from the cut, 0.5-2.5 m past the road edge where the ground starts to rise or fall.
+    ...greenInSpring({
+      asset: 'dry_grass',
+      cover: [...WOODS, ...DRY, 'trees'],
+      density: 320,
+      detail: true,
+      minRoadDist: 0.5,
+      maxRoadDist: 2.5,
+      minSlope: 0.06,
+      along: [[WIDE_TO, ROAD_LENGTH]],
+      scale: [0.8, 1.3],
+    }),
+    {
+      asset: 'rock_small',
+      cover: [...WOODS, ...DRY, 'trees'],
+      density: 40,
+      detail: true,
+      minRoadDist: 0.6,
+      maxRoadDist: 2.4,
+      minSlope: 0.1,
+      along: [[WIDE_TO, ROAD_LENGTH]],
+      mask: { scale: 9, threshold: -0.2 },
+      scale: [0.18, 0.5],
+      alignToGround: true,
+      sink: 0.04,
+    },
     // Detail: dry grass in the open (green in spring), green tufts in the woods.
     ...greenInSpring({
       asset: 'dry_grass',
@@ -1359,6 +1394,34 @@ export const vodnoMap: MapDef = {
     }),
   ],
   roadside: [
+    // The finish junction (both references): mature broadleaf standing in the grass triangle between the regional road's
+    // mouth and the side street, then dark conifers along the kerbed grass strip before the parking.
+    {
+      asset: 'walnut_tree',
+      at: [4219, 4228, 4256, 4265],
+      side: 'right',
+      offset: 7,
+      depth: 6,
+      scale: [0.85, 1.1],
+    },
+    {
+      asset: 'oak_tree',
+      at: [4224, 4260],
+      side: 'right',
+      offset: 13,
+      depth: 4,
+      scale: [0.9, 1.15],
+    },
+    {
+      asset: 'black_pine',
+      every: 9,
+      side: 'right',
+      offset: 3.2,
+      depth: 1,
+      from: 4281,
+      to: 4310,
+      scale: [0.8, 1],
+    },
     // The Vidikovec wall (the owner's photos): a few rounded bushes in the grass strip in front of it, a fringe of bushes
     // right on its top edge and small trees behind them on the bank.
     {

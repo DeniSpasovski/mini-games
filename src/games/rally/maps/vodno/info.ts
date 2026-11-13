@@ -79,7 +79,8 @@ export const vodnoInfo: MapInfo = {
     sunAzimuth: 35,
     // 10:00: the valley haze of Skopje, the pine slope in the mountain's shade.
     timeOfDay: 10,
-    months: { spring: 4, summer: 7, autumn: 10 },
+    // Autumn is November: the oaks, hornbeams and locusts nearly bare (late autumn, trees/seasons.ts), the pines green.
+    months: { spring: 4, summer: 7, autumn: 11 },
     cloudCoverage: 0.25,
     // Green forest with warm sun patches; keeps the valley haze of Skopje, a light warm grade.
     turbidity: 4,

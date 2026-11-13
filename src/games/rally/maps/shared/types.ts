@@ -290,13 +290,20 @@ export interface PadDef {
   /** Surface inside the outline (physics + ground texture), default the land's own. */
   surface?: SurfaceId;
   /**
+   * Applied again over the stage road's embankment, which otherwise blends the ground near the road towards the road's
+   * height: a lot that lies well under the road behind a wall.
+   */
+  hold?: boolean;
+  /**
    * A sloped pad (a ramp between two levelled terraces): instead of `lift` the level is the road's height at the frontage plus
-   * `lift[0]` at `from`, `lift[1]` at `to` (world x, z), eased between them along that line and held beyond its ends.
+   * `lift[0]` at `from`, `lift[1]` at `to` (world x, z), eased between them along that line and held beyond its ends
+   * (`linear`: an even slope instead).
    */
   ramp?: {
     from: [number, number];
     to: [number, number];
     lift: [number, number];
+    linear?: boolean;
   };
 }
 
@@ -689,6 +696,15 @@ export interface TerrainDef {
    * park strips: paint the ground instead of laying a green decal over a terrain that pokes through it.
    */
   lawns?: number[][];
+  /**
+   * A cut in the DRAWN terrain only (m, + = down; world x, z, `height` = the levelled terrain): where a wall holds a step the
+   * 1 m terrain mesh cannot (a lot under a raised verge). Physics keeps the levelled heights.
+   */
+  meshSink?: (
+    x: number,
+    z: number,
+    height: (x: number, z: number) => number,
+  ) => number;
 }
 
 /**

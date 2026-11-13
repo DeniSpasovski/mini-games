@@ -129,7 +129,8 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 - **Season** (`season.ts`): spring / summer / autumn, the stage's own (`StageDef.season`, else `environment.season`, default summer;
   `stageSeason`) or `?season=` (the stage screen mirrors the pick into the URL; every stage has it). It sets the tree leaf colours
   (`trees/seasons.ts`), the ground and the air / road temperatures (`StageDef.temps`, "Temperatures" below). The card lists the
-  **Month** the stage is driven in (`environment.months`, default April / July / October).
+  **Month** the stage is driven in (`environment.months`, default April / July / October). An autumn in November or later is
+  late autumn (`LATE_AUTUMN_MONTH`, Vodno): broadleaves nearly bare, the last leaves dull brown; impostors and the far forest follow.
 - **Season ground**: `environment.groundTint` is the map's own season; `environment.groundTints` has the other seasons' tints (fresh
   green / young crops in spring, dry olive / stubble in autumn). `mapInSeason` (`maps/shared/season-map.ts`) returns the map in that
   season and `RallyGame` builds its `World` from it, so terrain, horizon and sky follow. The stage card has one picture per season
@@ -734,7 +735,9 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   [Drawing](../../../.claude/reference/trees/Drawing.md), [Performance](../../../.claude/reference/trees/Performance.md)).
   Measure with the tree overlay (`F6`) and `?treebench=1`.
 - Past `forestDistance` the far forest takes over (`world/far-forest.ts`: far tree impostors to `FAR_REACH`, then the
-  canopy shell).
+  canopy shell). Its canopy map comes from the generated scatter chunks, elsewhere the tree rules (`estimate`); a map
+  with a real canopy raster (`landcover.canopy`) raises it to the real canopy share and stand height (`realCanopy`), as
+  the scatter's woods are thinner than the real ones. The far trees ramp from the scatter's cover to it (`FAR_RAMP`).
 - Render scale option (Auto / 100 / 85 / 70 %, `RENDER_SCALE`). Auto (`adaptScale`) steps down only while the GPU falls
   behind, stops when a step saved under 5 % and waits longer after each step up that did not hold. A step lands before
   the frame renders (a resize clears the canvas: after the render it showed a black frame). Not the default: each step is
@@ -789,7 +792,7 @@ colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`
 |                                                              | autumn | **14 / 18**   | 21 / 28     | 22 / 28     | 21 / 22 | 11 / 11 |
 | `vodno` (10:00; early morning 08:00)                         | spring | 9 / 14        | **14 / 26** | 18 / 28     | 17 / 19 | 7 / 7   |
 |                                                              | summer | 30 / 40       | **35 / 54** | 38 / 55     | 36 / 44 | 26 / 26 |
-|                                                              | autumn | 6 / 9         | **11 / 19** | 15 / 21     | 14 / 16 | 4 / 4   |
+|                                                              | autumn | 2 / 3         | **6 / 11**  | 10 / 15     | 8 / 9   | 1 / 1   |
 | `petralica` (16:30)                                          | spring | 11 / 14       | 19 / 37     | **21 / 35** | 20 / 31 | 11 / 11 |
 |                                                              | summer | 16 / 20       | 26 / 47     | **28 / 46** | 28 / 42 | 17 / 17 |
 |                                                              | autumn | 11 / 11       | 21 / 35     | **24 / 34** | 23 / 30 | 14 / 14 |

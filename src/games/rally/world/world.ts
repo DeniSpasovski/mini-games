@@ -211,7 +211,11 @@ export class World implements GroundProvider {
       splits.push(start + ((finish - start) * i) / (timing.splits + 1));
     this.stage = { start, finish, splits };
     this.slab = new RoadSlab(this.gen, map);
-    this.gen.sink = (x, z) => this.slab.sink(x, z);
+    const meshSink = map.terrain.meshSink;
+    const levelled = (x: number, z: number): number => this.gen.height(x, z);
+    this.gen.sink = meshSink
+      ? (x, z) => this.slab.sink(x, z) + meshSink(x, z, levelled)
+      : (x, z) => this.slab.sink(x, z);
     this.heightfield = new Heightfield(this.gen);
     this.analytic = new AnalyticTerrain(this.gen);
     this.landmarks = landmarksOf(map);

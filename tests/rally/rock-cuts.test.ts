@@ -56,7 +56,7 @@ describe('Vodno rock cuts', () => {
     while (!r.done) r = job.next();
     const stretches = vodnoMap.road.rockCuts!.stretches!;
     const seen = new Set<number>();
-    const wall = vodnoMap.road.rockCuts!.walls![0];
+    const walls = vodnoMap.road.rockCuts!.walls!;
     for (const m of (r.value?.children ?? []) as Mesh[]) {
       const p = (m.geometry as BufferGeometry).attributes.position;
       let lo = Infinity;
@@ -72,15 +72,19 @@ describe('Vodno rock cuts', () => {
           );
           seen.add(k);
         } else {
-          expect(q.along).toBeGreaterThan(wall.from - 5);
-          expect(q.along).toBeLessThan(wall.to + 5);
+          expect(
+            walls.some((w) => q.along > w.from - 5 && q.along < w.to + 5),
+            `wall at ${q.along.toFixed(0)} m`,
+          ).toBe(true);
           lo = Math.min(lo, p.getY(i) - world.road.at(q.along).y);
           hi = Math.max(hi, p.getY(i) - world.road.at(q.along).y);
         }
       }
       // The wall is about its height above the road, not a cliff.
       if (m.name === 'rock-cut-wall')
-        expect(hi - Math.max(lo, 0)).toBeLessThan(wall.height + 1);
+        expect(hi - Math.max(lo, 0)).toBeLessThan(
+          Math.max(...walls.map((w) => w.height)) + 1,
+        );
     }
     expect([...seen].sort((a, b) => a - b)).toEqual(stretches.map((_, k) => k));
   });

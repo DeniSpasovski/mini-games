@@ -131,7 +131,7 @@ import {
   timesVersion,
 } from './stage';
 import { infoOf, stageInfo } from '../maps';
-import { stageSeason } from '../maps/shared/climate';
+import { seasonMonth, stageSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import { stageClimate } from '../maps/shared/day-temperature';
 import { seasonParam, type Season } from '../season';
@@ -471,7 +471,11 @@ export class RallyGame {
     // scatter chunk is used (their colliders come from the same skeletons).
     progress(0.08, 'Trees');
     this.treeLibrary = await TreeLibrary.load(
-      TreeLibrary.speciesOf(this.world.placedAssets(), this.season),
+      TreeLibrary.speciesOf(
+        this.world.placedAssets(),
+        this.season,
+        seasonMonth(this.world.map.environment),
+      ),
       this.renderer,
       (f) => progress(0.08 + 0.06 * f, 'Trees'),
     );

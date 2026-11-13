@@ -446,6 +446,7 @@ describe('vodno car parks', () => {
       'vidikovec_garden_ramp_1',
       'vidikovec_garden_ramp_2',
       'sredno_lot',
+      'sredno_between',
       'sredno_bus_lot',
       'trail_lot',
       'trail_mouth',
@@ -807,7 +808,7 @@ describe('vodno car park surroundings', () => {
     expect(
       rails.filter((b) => !b.rusty).map((b) => [b.side, b.from, b.tiers ?? 1]),
     ).toEqual([
-      ['right', 2834, 2],
+      ['right', 2854, 2],
       ['left', 500, 1],
       ['left', 780, 1],
       ['right', 1322, 2],
@@ -827,19 +828,19 @@ describe('vodno car park surroundings', () => {
         if (a !== b && a.side === b.side)
           expect(a.from! < b.to! && a.to! > b.from!).toBe(false);
     // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is; the
-    // re-laid upper road in fresh asphalt, the old tarmac again past the finish junction.
+    // re-laid upper road in fresh asphalt, the old tarmac again past the finish joint (no lines there).
     expect(map.road.texture).toBe('road_tarmac_lines');
     expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([
       ['road_tarmac_plain', WIDE_FROM],
       ['road_tarmac_lines', WIDE_TO],
       ['road_tarmac_new', NEW_FROM],
       ['road_tarmac_new', NEW_JOINT],
-      ['road_tarmac_lines', NEW_TO],
+      ['road_tarmac_plain', NEW_TO],
     ]);
-    // The big repairs lie on the old road, on it (not past its edges).
+    // The big repairs lie on the old road (below the re-laid stretch or past its far joint), on it (not past its edges).
     for (const p of PATCHES) {
       if (p.kind !== 'patch') continue;
-      expect(p.to).toBeLessThan(NEW_FROM);
+      expect(p.to < NEW_FROM || p.from > NEW_TO).toBe(true);
       expect(p.offset + p.width).toBeLessThanOrEqual(5.8);
     }
   });

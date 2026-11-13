@@ -23,6 +23,8 @@ interface Pad {
   slope: number;
   /** A terrace (`PadDef.level` with `at`): this one level over the whole pad. */
   flat?: number;
+  /** `PadDef.hold`: applied again over the stage road's embankment. */
+  hold?: boolean;
   /** A ramp (`PadDef.ramp`): its start, the unit direction and length, the lifts at the two ends. */
   ramp?: {
     x0: number;
@@ -32,6 +34,7 @@ interface Pad {
     len: number;
     a: number;
     b: number;
+    linear?: boolean;
   };
 }
 
@@ -133,9 +136,11 @@ export class PadField {
         len,
         a: d.ramp.lift[0],
         b: d.ramp.lift[1],
+        linear: d.ramp.linear,
       };
     }
     this.pads.push({
+      hold: d.hold,
       ramp,
       pts,
       minX: minX - d.blend,
@@ -180,7 +185,7 @@ export class PadField {
       1,
       Math.max(0, ((x - r.x0) * r.dx + (z - r.z0) * r.dz) / r.len),
     );
-    return base + r.a + (r.b - r.a) * smoothstep(0, 1, u);
+    return base + r.a + (r.b - r.a) * (r.linear ? u : smoothstep(0, 1, u));
   }
 
   /** Surface of a pad with one at (x, z) (inside its outline), else undefined. */
@@ -208,6 +213,19 @@ export class PadField {
       w = Math.max(w, 1 - smoothstep(0, 3, distance(p.pts, x, z)));
     }
     return w;
+  }
+
+  /** `h` (the ground beside the stage road, its embankment in) with the pads that hold their level over it (`PadDef.hold`). */
+  applyHeld(x: number, z: number, h: number): number {
+    for (const p of this.pads) {
+      if (!p.hold || x < p.minX || x > p.maxX || z < p.minZ || z > p.maxZ)
+        continue;
+      const d = distance(p.pts, x, z);
+      if (d > p.blend) continue;
+      const target = this.level(p, x, z);
+      h += (target - h) * (1 - smoothstep(0, p.blend, d));
+    }
+    return h;
   }
 
   /** `h` (the land height) with every pad applied. */

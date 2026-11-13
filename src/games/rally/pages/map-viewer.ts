@@ -36,7 +36,7 @@ import {
   stagesOf,
 } from '../maps';
 import { isTestMap, isTestStage, listLabel, TEST_NOTE } from '../release';
-import { stageSeason } from '../maps/shared/climate';
+import { seasonMonth, stageSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import { SEASON_LABELS, SEASONS, seasonParam } from '../season';
 import { offeredWeathers } from '../weather';
@@ -184,7 +184,11 @@ void loadMap(state.map).then(async (map) => {
   const viewDistance = size + RENDER_MARGIN * 2;
   // The trees load in the workers (trees/load.ts) while the road builds here.
   const treesLoading = TreeLibrary.load(
-    TreeLibrary.speciesOf(world.placedAssets(), season),
+    TreeLibrary.speciesOf(
+      world.placedAssets(),
+      season,
+      seasonMonth(world.map.environment),
+    ),
     renderer,
   );
   const terrain = new TerrainRenderer(world, {

@@ -72,6 +72,13 @@ const FAR_REACH = 1500;
 const FAR_MARGIN = 200;
 const FAR_FILL = 1.2;
 /**
+ * The far trees go from the scatter's own cover (where the trees end) to the far cover (the real canopy, `realCanopy`)
+ * over this many m past their start, so the forest's density does not step at the handover.
+ */
+const FAR_RAMP = 500;
+/** A real canopy cell's stand height is at least this (m): the canopy raster's 20 m cells blur the woods' edges. */
+const STAND_MIN = 6;
+/**
  * The far trees are drawn by tiles of FAR_TILE x FAR_TILE cells (world-fixed): each frame only the tiles in the view
  * and the trees' ring (at most MAX_TILES) get instances, so the vertex shader runs for few cells off screen.
  */
@@ -84,6 +91,13 @@ const COARSE = 4;
  * trees/materials.ts) is brighter than the shell's plain Lambert; matched by eye at the handover.
  */
 const GAIN = 1.7;
+/** The shell's crown pattern times this (matched by eye to the far trees at the handover). */
+const SHELL_SHADE = 1.25;
+/**
+ * ... and this with a real canopy (`realCanopy`): its closed canopy is darker than the lit tops of the scatter's thin
+ * woods (the shade between the crowns); matched to the far trees, which draw the same woods up to the shell.
+ */
+const SHELL_SHADE_REAL = 0.95;
 /** The tint map holds colour / TINT_RANGE (world/horizon.ts reads it too). */
 export const TINT_RANGE = 2;
 
@@ -96,7 +110,9 @@ export const TINT_RANGE = 2;
  *   ground height (sampled every COARSE cells at load), canopy height (TOP of the trees' heights), crown
  *   cover and the crowns' colour as drawn (`LoadedVariant.canopyColor`, so the season's; tinted per tree as the trees
  *   are). Incremental like world/canopy-shadows.ts: only chunks the streamers have generated, BUDGET ms a frame, and
- *   only the changed rows uploaded, at most every UPLOAD_EVERY.
+ *   only the changed rows uploaded, at most every UPLOAD_EVERY. Where no chunk is generated, the map's tree rules
+ *   (`estimate`). A map with a real canopy raster (`LandcoverDef.canopy`) raises the cover to its canopy share at its
+ *   stand height (`realCanopy`): the scatter thins its woods for the frame budget, a far slope shows the closed canopy.
  * - **Shell:** square rings of a grid (spacing SPACING, doubling per ring), centred on the camera snapped to the
  *   coarsest ring's spacing (no swimming); the vertex shader lifts each vertex to the canopy, edge vertices of a
  *   finer ring average their coarser neighbours (no cracks). Fragments: the cover dithers the forest's edge and gaps,
@@ -200,6 +216,12 @@ export class FarForest {
   /** Per cell: one tree's impostor slot + 1 (0 = none), picked by crown area; the summed area so far. */
   private kind: Uint8Array;
   private kindArea: Float32Array;
+  /** Per cell, with a real canopy raster: its canopy share (x 255) and stand height (m); null without one. */
+  private real: Uint8Array | null = null;
+  private stand: Uint8Array | null = null;
+  /** Per COARSE block: the tree rules' mean crown colour there (the map's mean where none grow), for the real canopy. */
+  private estRgb: Float32Array;
+  private estCols: number;
   private nx: number;
   private nz: number;
   private res: number;
@@ -236,6 +258,8 @@ export class FarForest {
     ffFrom: { value: 0 },
     /** View distance (m): the horizon backdrop takes over there; the shell dissolves out just before it. */
     ffTo: { value: 0 },
+    /** The crown pattern's gain (SHELL_SHADE / SHELL_SHADE_REAL). */
+    ffShade: { value: SHELL_SHADE },
   };
 
   constructor(
@@ -269,8 +293,14 @@ export class FarForest {
     );
     this.shapeData = new Uint16Array(n * 4);
     this.tintData = new Uint8Array(n * 4);
+    this.estCols = Math.ceil(this.nx / COARSE);
+    this.estRgb = new Float32Array(
+      this.estCols * Math.ceil(this.nz / COARSE) * 3,
+    );
     this.coarseGround();
     this.estimate();
+    this.realCanopy();
+    if (this.real) this.uniforms.ffShade.value = SHELL_SHADE_REAL;
 
     const cs = world.scatter.chunkSize;
     const keys: number[] = [];
@@ -520,7 +550,7 @@ export class FarForest {
       for (let k = j * this.nx + i0; k <= j * this.nx + i1; k++) {
         if (this.splatted[k]) continue;
         this.splatted[k] = 1;
-        this.kind[k] = 0;
+        // (`kind` stays the estimate's until a tree takes the cell: the real canopy's tree where the scatter has none)
         this.kindArea[k] = 0;
         this.area[k] = 0;
         this.top[k] = 0;
@@ -584,6 +614,10 @@ export class FarForest {
       h += w * k.height;
       for (let c = 0; c < 3; c++) rgb[c] += w * k.color[c];
     };
+    // The map's mean crown (colour, rules by their crowns) for the blocks where no rule grows: the real canopy's there.
+    const mean = [0, 0, 0];
+    const all = new Map<Kind, number>();
+    const bare: number[] = [];
     for (let j = 0; j < this.nz; j += step)
       for (let i = 0; i < this.nx; i += step) {
         a = h = rgb[0] = rgb[1] = rgb[2] = 0;
@@ -593,7 +627,16 @@ export class FarForest {
           this.z0 + (j + step / 2) * res,
           visit,
         );
-        if (a <= 0) continue;
+        if (a <= 0) {
+          bare.push(i, j);
+          continue;
+        }
+        const b = ((j / step) * this.estCols + i / step) * 3;
+        for (let c = 0; c < 3; c++) {
+          this.estRgb[b + c] = rgb[c] / a;
+          mean[c] += rgb[c];
+        }
+        for (const x of rules) all.set(x.k, (all.get(x.k) ?? 0) + x.w);
         const ca = Math.min(a, 4) * cell;
         for (let jj = j; jj < Math.min(this.nz, j + step); jj++)
           for (let ii = i; ii < Math.min(this.nx, i + step); ii++) {
@@ -615,6 +658,57 @@ export class FarForest {
               : 0;
           }
       }
+    if (!this.world.gen.landcover?.canopy || !all.size) return;
+    // No rule grows there (open land, outside the scatter's bounds): the map's mean crown, a tree by its share.
+    let total = 0;
+    for (const w of all.values()) total += w;
+    for (let c = 0; c < 3; c++) mean[c] /= total;
+    const list = [...all];
+    for (let n = 0; n < bare.length; n += 2) {
+      const i = bare[n];
+      const j = bare[n + 1];
+      this.estRgb.set(mean, ((j / step) * this.estCols + i / step) * 3);
+      for (let jj = j; jj < Math.min(this.nz, j + step); jj++)
+        for (let ii = i; ii < Math.min(this.nx, i + step); ii++) {
+          const hc = hash3(ii, jj, 11, 0xfa7);
+          let r = ((hc & 0xffff) / 65536) * total;
+          let pick = list[0][0];
+          for (const [k, w] of list)
+            if ((r -= w) < 0) {
+              pick = k;
+              break;
+            }
+          this.kind[jj * this.nx + ii] =
+            pick.slots[(hc >>> 16) % pick.slots.length] + 1;
+        }
+    }
+  }
+
+  /**
+   * The real canopy (`LandcoverDef.canopy`, scripts/realmap/canopy.py) per cell: its share of the ground under crowns
+   * and its stand height. The scatter's woods are thinner than the real ones (the frame budget); seen from afar a
+   * forest is its closed canopy, so the far cover is the larger of the two (`cellCanopy`).
+   */
+  private realCanopy(): void {
+    const canopy = this.world.gen.landcover?.canopy;
+    if (!canopy) return;
+    const n = this.nx * this.nz;
+    const real = (this.real = new Uint8Array(n));
+    const stand = (this.stand = new Uint8Array(n));
+    const res = this.res;
+    const x = this.x0 + 0.5 * res;
+    const share = new Float32Array(this.nx);
+    const height = new Float32Array(this.nx);
+    for (let j = 0, k = 0; j < this.nz; j++) {
+      const z = this.z0 + (j + 0.5) * res;
+      canopy.cover.row(x, z, res, share);
+      canopy.height.row(x, z, res, height);
+      for (let i = 0; i < this.nx; i++, k++) {
+        if (share[i] <= 0.02) continue;
+        real[k] = Math.round(Math.min(1, share[i]) * 255);
+        stand[k] = Math.min(255, Math.round(height[i]));
+      }
+    }
   }
 
   private coarseGround(): void {
@@ -645,29 +739,56 @@ export class FarForest {
     }
   }
 
-  /** Cells i0..i1 x j0..j1 -> the textures: shape = (canopy, cover, ground, splatted), heights relative to `base`. */
+  /**
+   * Cell k's far canopy: returns its cover 0..1, the larger of the scatter's own and the real canopy's; `out` gets
+   * [canopy top height (m), r, g, b (linear crown colour), the scatter's own cover].
+   */
+  private cellCanopy(k: number, out: Float32Array): number {
+    const g = this.ground[k];
+    const a = this.area[k];
+    const own = Math.min(1, a / (this.res * this.res));
+    const cover = this.real ? Math.max(own, this.real[k] / 255) : own;
+    out[0] = a > 0 ? this.top[k] / a : g;
+    for (let c = 0; c < 3; c++)
+      out[c + 1] = a > 0 ? this.rgb[k * 3 + c] / a : 0;
+    out[4] = own;
+    // The real crowns the scatter lacks: at the stand height, in the crown colour of the rules there.
+    const extra = cover - own;
+    if (extra > 0) {
+      const top = g + Math.max(STAND_MIN, this.stand![k]) * TOP;
+      const b =
+        (Math.floor(k / this.nx / COARSE) * this.estCols +
+          Math.floor((k % this.nx) / COARSE)) *
+        3;
+      out[0] = (own * out[0] + extra * top) / cover;
+      for (let c = 0; c < 3; c++)
+        out[c + 1] = (own * out[c + 1] + extra * this.estRgb[b + c]) / cover;
+    }
+    return cover;
+  }
+
+  /**
+   * Cells i0..i1 x j0..j1 -> the textures: shape = (canopy, far cover, ground, the scatter's own cover), heights
+   * relative to `base`.
+   */
   private encode(i0: number, i1: number, j0: number, j1: number): void {
-    const cell = this.res * this.res;
     const half = DataUtils.toHalfFloat;
+    const v = _cell;
     for (let j = j0; j <= j1; j++)
       for (let i = i0; i <= i1; i++) {
         const k = j * this.nx + i;
-        const g = this.ground[k];
-        const a = this.area[k];
-        const top = a > 0 ? this.top[k] / a : g;
+        const cover = this.cellCanopy(k, v);
         const o = k * 4;
-        this.shapeData[o] = half(top - this.base);
-        this.shapeData[o + 1] = half(Math.min(1, a / cell));
-        this.shapeData[o + 2] = half(g - this.base);
-        this.shapeData[o + 3] = half(this.splatted[k]);
-        if (a > 0) {
+        this.shapeData[o] = half(v[0] - this.base);
+        this.shapeData[o + 1] = half(cover);
+        this.shapeData[o + 2] = half(this.ground[k] - this.base);
+        this.shapeData[o + 3] = half(v[4]);
+        if (cover > 0) {
           // sqrt: dark greens keep their steps in 8 bits (the shader squares it back); / TINT_RANGE: bright autumn
           // reds times GAIN pass 1 (clipped, they turned yellow-green next to the far trees).
           for (let c = 0; c < 3; c++)
             this.tintData[o + c] = Math.round(
-              Math.sqrt(
-                Math.min(1, ((this.rgb[k * 3 + c] / a) * GAIN) / TINT_RANGE),
-              ) * 255,
+              Math.sqrt(Math.min(1, (v[c + 1] * GAIN) / TINT_RANGE)) * 255,
             );
           // The cell's tree for the far trees (exact: read with texelFetch).
           this.tintData[o + 3] = Math.min(255, this.kind[k]);
@@ -847,12 +968,9 @@ export class FarForest {
     const i = Math.floor((x - this.x0) / this.res);
     const j = Math.floor((z - this.z0) / this.res);
     if (i < 0 || j < 0 || i >= this.nx || j >= this.nz) return 0;
-    const k = j * this.nx + i;
-    const a = this.area[k];
-    if (a <= 0) return 0;
-    out[0] = this.top[k] / a;
-    for (let c = 0; c < 3; c++) out[c + 1] = this.rgb[k * 3 + c] / a;
-    return Math.min(1, a / (this.res * this.res));
+    const cover = this.cellCanopy(j * this.nx + i, _cell);
+    if (cover > 0) out.set(_cell.subarray(0, 4));
+    return cover;
   }
 
   dispose(): void {
@@ -883,6 +1001,7 @@ interface Kind {
 }
 
 const _frustum = new Frustum();
+const _cell = new Float32Array(5);
 const _vp = new Matrix4();
 const _box = new Box3();
 
@@ -1030,6 +1149,7 @@ uniform sampler2D ffCrown;
 uniform vec4 ffMap;
 uniform float ffFrom;
 uniform float ffTo;
+uniform float ffShade;
 varying vec2 vFfXZ;
 varying float vFfY;
 varying vec3 vFfN;
@@ -1059,22 +1179,22 @@ const FRAGMENT_COLOR = /* glsl */ `
 	ffWt /= ffWt.x + ffWt.y + ffWt.z;
 	// The crown tile (crownTexture): r = the crown's shade, gb = the offset from its centre; mipmapped, so a far slope
 	// keeps its crowns down to about a pixel each and then their mean tone, never a flat blanket.
-	float ffShade = 0.0;
+	float ffCrownShade = 0.0;
 	// The crown's offset back on the world axes of its face (the dome's bend of the normal).
 	vec3 ffBend = vec3( 0.0 );
 	if ( ffWt.y > 0.02 ) {
 		vec4 c = texture2D( ffCrown, vFfXZ / ${(CROWN * CROWN_TILE).toFixed(2)} ); vec2 o = c.gb * 2.0 - 1.0;
-		ffShade += c.r * ffWt.y; ffBend += vec3( o.x, 0.0, o.y ) * ffWt.y;
+		ffCrownShade += c.r * ffWt.y; ffBend += vec3( o.x, 0.0, o.y ) * ffWt.y;
 	}
 	if ( ffWt.x > 0.02 ) {
 		vec4 c = texture2D( ffCrown, vec2( vFfXZ.y, vFfY ) / ${(CROWN * CROWN_TILE).toFixed(2)} ); vec2 o = c.gb * 2.0 - 1.0;
-		ffShade += c.r * ffWt.x; ffBend += vec3( 0.0, o.y, o.x ) * ffWt.x;
+		ffCrownShade += c.r * ffWt.x; ffBend += vec3( 0.0, o.y, o.x ) * ffWt.x;
 	}
 	if ( ffWt.z > 0.02 ) {
 		vec4 c = texture2D( ffCrown, vec2( vFfXZ.x, vFfY ) / ${(CROWN * CROWN_TILE).toFixed(2)} ); vec2 o = c.gb * 2.0 - 1.0;
-		ffShade += c.r * ffWt.z; ffBend += vec3( o.x, o.y, 0.0 ) * ffWt.z;
+		ffCrownShade += c.r * ffWt.z; ffBend += vec3( o.x, o.y, 0.0 ) * ffWt.z;
 	}
-	diffuseColor.rgb *= ffShade * 1.25;
+	diffuseColor.rgb *= ffCrownShade * ffShade;
 `;
 
 /** After normal_fragment_maps: the crown domes bend the shell's normal (view space). */
@@ -1183,7 +1303,9 @@ const FAR_TREE_MAIN = /* glsl */ `
 			int ftSlot = int( ftTint.a * 255.0 + 0.5 ) - 1;
 			vec4 ftShape = textureLod( ffShape, ftUV, 0.0 );
 			float ftH = ( ftShape.r - ftShape.b ) / ${TOP.toFixed(2)} * ( 0.85 + 0.3 * ftRand( ftC, 3u ) );
-			if ( ftSlot >= 0 && ftRand( ftC, 2u ) < ftShape.g * ${FAR_FILL.toFixed(2)} && ftH > 2.0 ) {
+			// The scatter's own cover where the trees end, the far cover (the real canopy) FAR_RAMP m on.
+			float ftCover = mix( ftShape.a, ftShape.g, smoothstep( ftNear, ftNear + ${FAR_RAMP.toFixed(1)}, ftD ) );
+			if ( ftSlot >= 0 && ftRand( ftC, 2u ) < ftCover * ${FAR_FILL.toFixed(2)} && ftH > 2.0 ) {
 				float ftGround = ffBase + ftShape.b;
 				// Off screen (its centre, padded by its height): skipped.
 				vec4 ftClip = projectionMatrix * viewMatrix * vec4( ftXZ.x, ftGround + ftH * 0.5, ftXZ.y, 1.0 );

@@ -4,7 +4,7 @@ import { WIDE_FROM, WIDE_TO } from './crossroad';
 /**
  * The road's surfaces (as on the real road): old tarmac from the start to the lay-by before the big hairpin -
  * cracked, patched, its edge lines worn - then the re-laid road in dark asphalt with crisp lines (a paler lay above the
- * joint past the hairpin), then the old tarmac again from the joint before the finish junction. Visual only: the grip
+ * joint past the hairpin), then the old tarmac again from the joint before the finish junction, unlined and broken up. Visual only: the grip
  * is the same (`surface` stays tarmac).
  */
 export const NEW_FROM = 1890;
@@ -24,7 +24,8 @@ export const SURFACE_SECTIONS: NonNullable<RoadDef['sections']> = [
     texture: 'road_tarmac_new',
     tone: 1.22,
   },
-  { from: NEW_TO, surface: 'tarmac', texture: 'road_tarmac_lines' },
+  // (past the joint before the finish junction: the old road again, broken up, no lines)
+  { from: NEW_TO, surface: 'tarmac', texture: 'road_tarmac_plain' },
 ];
 
 /** Half the road's width on the hill (m): the centre line is this far in from either edge. */
@@ -116,6 +117,17 @@ export const PATCHES: RoadMarking[] = [
     ),
   ),
   cracks(1738, 1832, 'right', 0.25, 2.5),
+  // past the joint before the finish junction: dense alligator cracking over both lanes, square repairs in it
+  cracks(NEW_TO + 2, 4474, 'right', 0.2, 2.6),
+  cracks(NEW_TO + 4, 4474, 'left', 0.2, 2.6),
+  ...[4290, 4312, 4337, 4361, 4395, 4428].map((at, i) =>
+    fill(
+      at,
+      i % 2 ? 'left' : 'right',
+      0.5 + (i % 3) * 0.6,
+      0.9 + (i % 2) * 0.5,
+    ),
+  ),
 ];
 
 const stripe = (
