@@ -138,7 +138,7 @@ export const SPRITE_PREPASS = (() => {
 /** Share of the sprite pixels that may miss the EQUAL test before the load check turns the prepass off. */
 const PREPASS_MISS_LIMIT = 0.002;
 /** Bump when the prepass or the check changes: earlier verdicts no longer count. */
-const PREPASS_CHECK_VERSION = 1;
+const PREPASS_CHECK_VERSION = 2;
 
 /** The GPU + driver the verdict of `checkPrepass` belongs to. */
 function prepassVerdictKey(renderer: WebGLRenderer): string {
