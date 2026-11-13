@@ -32,7 +32,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   (`beam`, `lamps`), wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` / `brakes` / `body`, axle camera `wcam`), debug (`wire`, `hull`, `fallback`),
   specs (numbers, torque / power chart, test-drive links, model credit) and sound (`debug/sound-debug.ts`). Console: `__carViewer`.
 - **Asset debugger** (`pages/asset-debug.ts`): the assets plus the options of the picked kind only (props seed / variant / LOD / instances / gap / wire /
-  bounds / colliders; trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
+  bounds / colliders; box buildings Width / Wall height / Depth (`size=width,wall height,depth` in metres; shown with their windows and door); trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
 
 **URL parameters** (any of the play ones skips the menu):
 
@@ -497,7 +497,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   the bed is the `rail_track` canvas (sleepers, rust) with the gravel ground scan's stones between the sleepers.
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
   footprints (`world/building-mesh.ts`). Box houses take wall / roof scans from one texture array (`engine/house-walls.ts`, UVs from the
-  instance scale in the shader; tiles in `engine/facades/`, `scripts/facades/bake.py`); on Galichica / Petralica the share of rubble-stone houses
+  instance scale in the shader, which also keeps eaves, chimney and windows at their real size on any footprint; tiles in `engine/facades/`, `scripts/facades/bake.py`). A house is three instances (`world/buildings.ts` `buildingInstances`): the box, `house_windows` repeated along its walls and `house_door` on the ground at the front wall (downhill, else facing the nearest road). On Galichica / Petralica the share of rubble-stone houses
   grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace: `PadDef.level`); the
