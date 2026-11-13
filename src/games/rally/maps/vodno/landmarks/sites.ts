@@ -153,11 +153,55 @@ export const NEREZI_CHURCH: Site = { x: -2356.1, z: -524.6, yaw: rad(8) };
 export const LOOKOUT: Site = { x: -1731.8, z: 919.2, yaw: rad(20) };
 export const RUINS: Site = { x: 2365.5, z: 440.5, yaw: rad(-25) };
 
-/** A landmark's protected ground (scatter stays off it): a local rectangle (x0, x1, z0, z1) or a circle of `r` m. */
+/** A landmark's protected ground (scatter stays off it): a local rectangle (x0, x1, z0, z1), a circle of `r` m or a local polygon. */
 export interface Area {
   site: Site;
   rect?: readonly [number, number, number, number];
   r?: number;
+  poly?: readonly (readonly [number, number])[];
+}
+
+/** (x, z) inside the polygon (even-odd ray cast). */
+export function inPolygon(
+  poly: readonly (readonly [number, number])[],
+  x: number,
+  z: number,
+): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, az] = poly[i];
+    const [bx, bz] = poly[j];
+    if (az > z !== bz > z && x < ((bx - ax) * (z - az)) / (bz - az) + ax)
+      inside = !inside;
+  }
+  return inside;
+}
+
+/** (x, z) within `margin` of the polygon's edge. */
+function nearEdge(
+  poly: readonly (readonly [number, number])[],
+  x: number,
+  z: number,
+  margin: number,
+): boolean {
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, az] = poly[j];
+    const ex = poly[i][0] - ax;
+    const ez = poly[i][1] - az;
+    const u = Math.max(
+      0,
+      Math.min(1, ((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez || 1)),
+    );
+    if (Math.hypot(x - ax - ex * u, z - az - ez * u) < margin) return true;
+  }
+  return false;
+}
+
+/** How far an area reaches from its site (m). */
+function areaReach({ rect, r, poly }: Area): number {
+  if (r !== undefined) return r;
+  if (poly) return Math.max(...poly.map(([x, z]) => Math.hypot(x, z)));
+  return Math.hypot(rect![1] - rect![0], rect![3] - rect![2]);
 }
 
 /** True when (x, z), grown by `margin`, lies inside one of the areas. */
@@ -167,12 +211,14 @@ export function onAreas(
   z: number,
   margin: number,
 ): boolean {
-  return areas.some(({ site, rect, r }) => {
-    const reach = r ?? Math.hypot(rect![1] - rect![0], rect![3] - rect![2]);
+  return areas.some((area) => {
+    const { site, rect, r, poly } = area;
+    const reach = areaReach(area);
     if (Math.abs(x - site.x) > reach + margin + 2) return false;
     if (Math.abs(z - site.z) > reach + margin + 2) return false;
     const [lx, lz] = toLocal(site, x, z);
     if (r !== undefined) return Math.hypot(lx, lz) < r + margin;
+    if (poly) return inPolygon(poly, lx, lz) || nearEdge(poly, lx, lz, margin);
     return (
       lx > rect![0] - margin &&
       lx < rect![1] + margin &&
@@ -192,9 +238,9 @@ export function areasBox(
     Infinity,
     -Infinity,
   ];
-  for (const { site, rect, r } of areas) {
-    const reach =
-      (r ?? Math.hypot(rect![1] - rect![0], rect![3] - rect![2])) + 2;
+  for (const area of areas) {
+    const { site } = area;
+    const reach = areaReach(area) + 2;
     box[0] = Math.min(box[0], site.x - reach);
     box[1] = Math.max(box[1], site.x + reach);
     box[2] = Math.min(box[2], site.z - reach);
@@ -245,7 +291,7 @@ export const VODNO_FLATS: FlatArea[] = [
     name: 'cross',
     x: PLATFORM.x,
     z: PLATFORM.z,
-    radius: 16,
+    radius: 17.5,
     blend: 10,
     label: false,
   },

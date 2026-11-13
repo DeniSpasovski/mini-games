@@ -1,3 +1,4 @@
+import { hash3 } from '../../../../../shared/rng';
 import type { StaticCollider } from '../../../physics/types';
 import {
   LOT_ASPHALT,
@@ -17,6 +18,7 @@ import {
   SREDNO_LOT_CENTRE,
   SREDNO_LOT_HW,
   SREDNO_LOT_WIDTHS,
+  inPolygon,
   toLocal,
   toWorld,
   VIDIKOVEC_LOT,
@@ -70,7 +72,90 @@ export interface Lot {
   wallThick?: number;
   /** The strip's first end stops short of the road and opens to it through a flared apron of asphalt (`buildMouth`). */
   mouth?: boolean;
+  /**
+   * The outer edge as a polyline (local, in the centre line's order) for a lot that is not a band: each row of the strip ends
+   * where it meets it, its corners become rows of their own, rows that miss it go.
+   */
+  outer?: V2[];
+  /** The outer edge's rim at a point (local) of a walled lot: the rock wall with its railing (default), a low parapet, or open (stairs). */
+  rim?: (p: V2) => RimKind;
+  /**
+   * The road side moved in by this much (m) at `s` m along it (from the band's first row): a verge between the road and a lot
+   * that lies under the road's level (`flat`), held back by a wall (`rimLeft` 'bank').
+   */
+  insetLeft?: (s: number) => number;
+  /** The road side's rim at `s` m along it (default: open near the road, else the rock wall). */
+  rimLeft?: (s: number) => RimKind;
 }
+
+/**
+ * A walled lot's rim: the rock wall with its railing, a low parapet (`low`), a 20 cm stone kerb with a railing set in it
+ * (`kerb`), a retaining wall under a raised verge, its top at the verge's grass, no railing (`bank`), or open
+ * (stairs).
+ */
+export type RimKind = 'wall' | 'low' | 'kerb' | 'bank' | 'open';
+
+/**
+ * The Vidikovec's outer edge (local frame, from the owner's level diagrams): a lens from the west tip at the road (`W`, a
+ * stone kerb with a railing) to the green terrace's tip (`T`), the corner where the wall between the two terraces starts
+ * (`R1`), the red terrace's landing (`P1`-`Q1`), the grey strip's start (`G`), its end (`Eend`) and the lot's east end
+ * (`M`-`D`). Past T-R1 the stairs go down to the green terrace, past Q1-G to the red one, past M-D the stone steps to the
+ * green terrace's east end; G-Eend is the grey strip's low parapet (lot-park.ts `drawGarden`).
+ */
+export const VIDIKOVEC_RIM = {
+  W: [33.71, -0.76] as V2,
+  T: [0.14, -18.57] as V2,
+  // (the green stairs' head T-R1 sits where the wall P1-Q1 starts: R1-P1 runs on in line with it, no corner)
+  R1: [-2.11, -14.69] as V2,
+  // (the red terrace's stairs: a landing at the lot's level out to the line P1-Q1 that runs parallel to the wall between
+  // the terraces, then the flight from Q1-G down along the grey strip's wall)
+  P1: [-2.61, -15.02] as V2,
+  Q1: [-7.78, -18.48] as V2,
+  G: [-13.76, -16.28] as V2,
+  /** The grey strip's lot edge ends here; Eend-M-D is the lot's east end above the stone steps down to the green terrace. */
+  Eend: [-61.99, 3.77] as V2,
+  M: [-59.26, 9.62] as V2,
+  D: [-63.6, 10.96] as V2,
+  F: [-72.16, -1.48] as V2,
+};
+
+/** Distance from p to the segment a-b. */
+export function segDist(p: V2, a: V2, b: V2): number {
+  const ex = b[0] - a[0];
+  const ez = b[1] - a[1];
+  const u = Math.max(
+    0,
+    Math.min(
+      1,
+      ((p[0] - a[0]) * ex + (p[1] - a[1]) * ez) / (ex * ex + ez * ez || 1),
+    ),
+  );
+  return Math.hypot(p[0] - a[0] - ex * u, p[1] - a[1] - ez * u);
+}
+
+const vidikovecRim = (p: V2): RimKind => {
+  const { W, T, R1, P1, Q1, G, Eend, M, D } = VIDIKOVEC_RIM;
+  const runs: [V2, V2, RimKind][] = [
+    [W, T, 'kerb'],
+    [T, R1, 'open'],
+    [R1, P1, 'wall'],
+    [P1, Q1, 'wall'],
+    [Q1, G, 'open'],
+    [G, Eend, 'low'],
+    [Eend, M, 'wall'],
+    [M, D, 'open'],
+  ];
+  let best = runs[0];
+  let d = Infinity;
+  for (const r of runs) {
+    const dr = segDist(p, r[0], r[1]);
+    if (dr < d) {
+      d = dr;
+      best = r;
+    }
+  }
+  return best[2];
+};
 
 export const SREDNO: Lot = {
   site: SREDNO_LOT,
@@ -101,17 +186,47 @@ export const SREDNO_BUS: Lot = {
     straight: true,
   },
 };
+/**
+ * The Vidikovec's grass island along the road (m along the lot's road side, `Lot.insetLeft`): a round head (`head` to
+ * `nose`, `noseW` wide: the notice board's bed and the island are one lawn), then `width` m wide. Its lawn is the verge at
+ * the road's level, which runs on past `to` to the lot's east end; the lot lies under it, behind a stone wall.
+ */
+export const VIDIKOVEC_ISLAND = {
+  head: 36.5,
+  nose: 40.8,
+  noseW: 4.7,
+  from: 42,
+  to: 98,
+  width: 2.7,
+};
+export function vidikovecIslandInset(s: number): number {
+  const { head, nose, noseW, width } = VIDIKOVEC_ISLAND;
+  if (s <= head) return 0;
+  if (s <= nose)
+    return noseW * Math.sqrt(1 - ((nose - s) / (nose - head)) ** 2);
+  const t = Math.min(1, (s - nose) / 4);
+  return noseW + (width - noseW) * (0.5 - 0.5 * Math.cos(Math.PI * t));
+}
+
 export const VIDIKOVEC: Lot = {
   site: VIDIKOVEC_LOT,
-  centre: VIDIKOVEC_LOT_CENTRE,
+  // (on past the old end: the east cap runs straight from the road down to D)
+  centre: [...VIDIKOVEC_LOT_CENTRE, [-63.4, 14.7]],
   hw: VIDIKOVEC_LOT_HW,
-  bays: { depth: 4.8, pitch: 2.6, from: 0.3, to: 0.8, both: false },
+  // (along the straight edge of the grey strip only, from G: the bend before it skews them)
+  bays: { depth: 4.8, pitch: 2.6, from: 0.5, to: 0.9, both: false },
   wall: true,
-  // The lowered garden north of it (lot-park.ts `GARDEN`) is 3 m under the lot: a thick rock wall, straight down, holds that back
-  // (and hides the ground's step beside it, so the slab's own ground is never touched).
-  wallDepth: 3.4,
-  wallThick: 1.5,
-  stairsAt: 0.2,
+  // The lowered garden north of it (lot-park.ts `GARDEN`) lies 1-2 m under the lot: a thin rock wall, straight down, holds that
+  // back (and hides the ground's step beside it, so the slab's own ground is never touched).
+  wallDepth: 2.8,
+  wallThick: 0.45,
+  outer: (() => {
+    const { W, T, R1, P1, Q1, G, Eend, M, D } = VIDIKOVEC_RIM;
+    return [W, T, R1, P1, Q1, G, Eend, M, D];
+  })(),
+  rim: vidikovecRim,
+  insetLeft: vidikovecIslandInset,
+  rimLeft: (s) => (s > VIDIKOVEC_ISLAND.head ? 'bank' : 'open'),
 };
 
 /**
@@ -218,6 +333,8 @@ export interface LotShape {
   /** Distance of each edge point to the stage road centre line (m). */
   dl: number[];
   dr: number[];
+  /** Distance of each row's road-side point along that side from the band's first row (m; `Lot.insetLeft`). */
+  sl: number[];
 }
 
 /**
@@ -261,7 +378,7 @@ function computeShape(lot: Lot, grow: number): LotShape {
     const r = resampleWidths(lot.centre, lot.widths, 2);
     centre = r.pts;
     widths = r.ws;
-  } else centre = resample(lot.centre, 2);
+  } else centre = resample(lot.centre, lot.insetLeft ? 1 : 2);
   if (grow > 0) {
     // The ends run on by `grow` along their direction.
     const a = centre[0];
@@ -340,8 +457,32 @@ function computeShape(lot: Lot, grow: number): LotShape {
   let j1 = left.length - 1;
   while (j0 < j1 - 2 && width(j0) < 2.5) j0++;
   while (j1 > j0 + 2 && width(j1) < 2.5) j1--;
-  left = left.slice(j0, j1 + 1);
-  right = right.slice(j0, j1 + 1);
+  // (the road side's length from the band's first row: `insetLeft` is measured along it)
+  let sl = [0];
+  for (let i = 1; i < left.length; i++)
+    sl.push(
+      sl[i - 1] +
+        Math.hypot(left[i][0] - left[i - 1][0], left[i][1] - left[i - 1][1]),
+    );
+  const s0 = sl[j0];
+  sl = sl.map((s) => s - s0);
+  if (lot.insetLeft) {
+    const inset = lot.insetLeft;
+    left = left.map((p, i): V2 => {
+      const d = inset(sl[i]);
+      if (!d) return p;
+      const k = d / (Math.hypot(right[i][0] - p[0], right[i][1] - p[1]) || 1);
+      return [p[0] + (right[i][0] - p[0]) * k, p[1] + (right[i][1] - p[1]) * k];
+    });
+  }
+  // (a lot cut to an outer line keeps its narrow tip: that line is its edge)
+  if (lot.outer)
+    [left, right, sl] = cutToOuter(left, right, sl, lot.outer, grow);
+  else {
+    left = left.slice(j0, j1 + 1);
+    right = right.slice(j0, j1 + 1);
+    sl = sl.slice(j0, j1 + 1);
+  }
   // The centre line follows the squeezed strip.
   centre = left.map((p, i): V2 => [
     (p[0] + right[i][0]) / 2,
@@ -356,7 +497,75 @@ function computeShape(lot: Lot, grow: number): LotShape {
     hr: half,
     dl: left.map(dist),
     dr: right.map(dist),
+    sl,
   };
+}
+
+/**
+ * The strip's rows cut to an outer edge polyline: each row runs from its left point to where it meets the line (`grow` m
+ * past it), rows that miss it go; each point of the line between two rows (its ends too) becomes a row of its own. `sl`
+ * (the road side's length at each row) is carried along.
+ */
+function cutToOuter(
+  left: V2[],
+  right: V2[],
+  sl: number[],
+  outer: V2[],
+  grow: number,
+): [V2[], V2[], number[]] {
+  const unit = (x: number, z: number): V2 => {
+    const k = Math.hypot(x, z) || 1;
+    return [x / k, z / k];
+  };
+  const hitAt = (o: V2, d: V2): V2 | undefined => {
+    let best = Infinity;
+    for (let k = 0; k + 1 < outer.length; k++) {
+      const ex = outer[k + 1][0] - outer[k][0];
+      const ez = outer[k + 1][1] - outer[k][1];
+      const den = d[0] * ez - d[1] * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const wx = outer[k][0] - o[0];
+      const wz = outer[k][1] - o[1];
+      const t = (wx * ez - wz * ex) / den;
+      const u = (wx * d[1] - wz * d[0]) / den;
+      if (t > 0.3 && u >= -1e-6 && u <= 1 + 1e-6 && t < best) best = t;
+    }
+    return best < Infinity
+      ? [o[0] + d[0] * (best + grow), o[1] + d[1] * (best + grow)]
+      : undefined;
+  };
+  const dirs = left.map((p, i) => unit(right[i][0] - p[0], right[i][1] - p[1]));
+  /** Which side of row k's line the point lies on (signed). */
+  const side = (k: number, v: V2): number =>
+    dirs[k][0] * (v[1] - left[k][1]) - dirs[k][1] * (v[0] - left[k][0]);
+  const L: V2[] = [];
+  const R: V2[] = [];
+  const S: number[] = [];
+  for (let i = 0; i < left.length; i++) {
+    const h = hitAt(left[i], dirs[i]);
+    if (h) {
+      L.push(left[i]);
+      R.push(h);
+      S.push(sl[i]);
+    }
+    if (i + 1 === left.length) break;
+    const corners = outer
+      .map((v) => ({ v, a: side(i, v), b: side(i + 1, v) }))
+      .filter((c) => c.a * c.b < 0)
+      .map((c) => ({ v: c.v, u: c.a / (c.a - c.b) }))
+      .sort((x, y) => x.u - y.u);
+    for (const { v, u } of corners) {
+      const lp: V2 = [
+        left[i][0] + (left[i + 1][0] - left[i][0]) * u,
+        left[i][1] + (left[i + 1][1] - left[i][1]) * u,
+      ];
+      const d = unit(v[0] - lp[0], v[1] - lp[1]);
+      L.push(lp);
+      R.push([v[0] + d[0] * grow, v[1] + d[1] * grow]);
+      S.push(sl[i] + (sl[i + 1] - sl[i]) * u);
+    }
+  }
+  return [L, R, S];
 }
 
 /** Where a lot's stairs through its wall start: the vertex `k` of the outer (+z) edge, its tangent and outward normal (local frame). */
@@ -378,31 +587,196 @@ export function stairsAnchor(
 }
 
 /** The lot's outline in world metres, flat [x0, z0, x1, z1, ...] (the slab, or with `grow` the terrain pad round it). */
-export function lotPolygon(lot: Lot, grow = 0): number[] {
-  const { left, right } = lotShape(lot, grow);
-  return [...left, ...right.slice().reverse()].flatMap(([x, z]) =>
+export function lotPolygon(
+  lot: Lot,
+  grow = 0,
+  /** Only the rows whose centre point passes (a run of them). */
+  keep?: (centre: V2) => boolean,
+): number[] {
+  const { left, right, centre } = lotShape(lot, grow);
+  const k = keep ? centre.map(keep) : centre.map(() => true);
+  const l = left.filter((_, i) => k[i]);
+  const r = right.filter((_, i) => k[i]);
+  return [...l, ...r.slice().reverse()].flatMap(([x, z]) =>
     toWorld(lot.site, x, z),
   );
 }
 
-const inPolygon = (poly: V2[], lx: number, lz: number): boolean => {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [ax, az] = poly[i];
-    const [bx, bz] = poly[j];
-    if (az > lz !== bz > lz && lx < ((bx - ax) * (lz - az)) / (bz - az) + ax)
-      inside = !inside;
+/**
+ * The verge of a lot that lies under the road (`Lot.insetLeft`): from the road's edge to the lot's wall, from `from` m along
+ * the road side to the far end and on round the end cap (`beyond` m past it); world, flat.
+ */
+export function vergePolygon(lot: Lot, from: number, beyond = 6): number[] {
+  const { left, right, sl, centre } = lotShape(lot);
+  const n = left.length;
+  const inner: V2[] = [];
+  const road: V2[] = [];
+  for (let i = 0; i < n; i++) {
+    if (sl[i] < from) continue;
+    inner.push(left[i]);
+    // (out across the row to the road ribbon's edge)
+    const [wx, wz] = toWorld(lot.site, left[i][0], left[i][1]);
+    const h = nearestRoad(wx, wz);
+    const side = Math.sign(h.lat) || 1;
+    road.push(
+      toLocal(
+        lot.site,
+        h.x + side * MOUTH_EDGE * -h.tz,
+        h.z + side * MOUTH_EDGE * h.tx,
+      ) as V2,
+    );
   }
-  return inside;
-};
+  // Round the far cap: along it to 3/4 of its width, then out past it.
+  const a = centre[n - 2];
+  const b = centre[n - 1];
+  const ol = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const out: V2 = [(b[0] - a[0]) / ol, (b[1] - a[1]) / ol];
+  const capAt = (t: number, o: number): V2 => [
+    left[n - 1][0] + (right[n - 1][0] - left[n - 1][0]) * t + out[0] * o,
+    left[n - 1][1] + (right[n - 1][1] - left[n - 1][1]) * t + out[1] * o,
+  ];
+  const r = road[road.length - 1];
+  const pts: V2[] = [
+    ...inner,
+    capAt(0.75, 0.05),
+    capAt(0.75, beyond),
+    [r[0] + out[0] * beyond, r[1] + out[1] * beyond],
+    ...road.slice().reverse(),
+  ];
+  return pts.flatMap(([x, z]) => toWorld(lot.site, x, z));
+}
+
+/** A wall for `wallMeshCut`: its line, unit normals to its outer side, the faces' offsets along them (m). */
+export interface CutWall {
+  p: V2[];
+  n: V2[];
+  inner: number;
+  outer: number;
+  /** Under a raised verge (the land behind it is higher, the lot in front of it is a slab). */
+  bank?: boolean;
+}
+
+/**
+ * The drawn terrain's cut at walls (`MapDef.terrain.meshSink`; local frame of `site`): the 1 m terrain mesh cannot hold a
+ * wall's step. Inside a wall over lower land its points drop to that land's level, so the slope lies behind the wall's top
+ * (under a slab, or a narrow dip behind a parapet) instead of rising in teeth at its foot. At a verge's wall (`bank`) the
+ * points in front of it (under the slab) drop far down and those inside it rise to the verge's level, which leaves the
+ * slope between them a near-vertical sliver inside the wall's face. `height` = the levelled terrain (world); the physics
+ * ground is not changed.
+ */
+export function wallMeshCut(
+  site: Site,
+  walls: () => CutWall[],
+): (x: number, z: number, height: (x: number, z: number) => number) => number {
+  interface Seg {
+    a: V2;
+    n: V2;
+    t: V2;
+    len: number;
+    T: number;
+    bank: boolean;
+  }
+  let segs: Seg[] | undefined;
+  let box: [number, number, number, number] = [0, 0, 0, 0];
+  return (x, z, height) => {
+    if (!segs) {
+      segs = [];
+      for (const w of walls())
+        for (let k = 0; k + 1 < w.p.length; k++) {
+          const [nx, nz] = [
+            (w.n[k][0] + w.n[k + 1][0]) / 2,
+            (w.n[k][1] + w.n[k + 1][1]) / 2,
+          ];
+          const nl = Math.hypot(nx, nz) || 1;
+          const n: V2 = [nx / nl, nz / nl];
+          const a: V2 = [
+            w.p[k][0] + n[0] * w.inner,
+            w.p[k][1] + n[1] * w.inner,
+          ];
+          const b: V2 = [
+            w.p[k + 1][0] + n[0] * w.inner,
+            w.p[k + 1][1] + n[1] * w.inner,
+          ];
+          const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          if (len < 0.01) continue;
+          segs.push({
+            a,
+            n,
+            t: [(b[0] - a[0]) / len, (b[1] - a[1]) / len],
+            len,
+            T: w.outer - w.inner,
+            bank: !!w.bank,
+          });
+        }
+      const xs = segs.flatMap((g) => [g.a[0], g.a[0] + g.t[0] * g.len]);
+      const zs = segs.flatMap((g) => [g.a[1], g.a[1] + g.t[1] * g.len]);
+      box = [
+        Math.min(...xs) - 3,
+        Math.min(...zs) - 3,
+        Math.max(...xs) + 3,
+        Math.max(...zs) + 3,
+      ];
+    }
+    const [lx, lz] = toLocal(site, x, z);
+    if (lx < box[0] || lz < box[1] || lx > box[2] || lz > box[3]) return 0;
+    let best: Seg | undefined;
+    let bd = 0;
+    let bAbs = Infinity;
+    for (const g of segs) {
+      const dx = lx - g.a[0];
+      const dz = lz - g.a[1];
+      const u = dx * g.t[0] + dz * g.t[1];
+      if (u < -0.3 || u > g.len + 0.3) continue;
+      const d = dx * g.n[0] + dz * g.n[1];
+      // (a plain wall also takes the upper pad's overhang past its face: 0.05 + 0.1 blend)
+      if (d < (g.bank ? -1.8 : 0) || d > g.T + (g.bank ? 0.05 : 0.3)) continue;
+      const ad = Math.abs(d - g.T / 2);
+      if (ad < bAbs) {
+        bAbs = ad;
+        best = g;
+        bd = d;
+      }
+    }
+    if (!best) return 0;
+    // (the land's level 1.6 m past the wall against the ground's at the point)
+    const back = 1.6 + best.T - bd;
+    const [bx, bz] = toWorld(
+      site,
+      lx + best.n[0] * back,
+      lz + best.n[1] * back,
+    );
+    const step = height(bx, bz) - height(x, z);
+    if (!best.bank) return step < -0.05 ? -step : 0;
+    if (step < 0.05) return 0;
+    return bd < 0 ? step * 12 : -step;
+  };
+}
+
+/** `wallMeshCut` for a walled lot: its verge walls and its rock walls (not the kerbs or the low parapets). */
+export function lotMeshSink(
+  lot: Lot,
+): (x: number, z: number, height: (x: number, z: number) => number) => number {
+  const T = lot.wallThick ?? 0.6;
+  return wallMeshCut(lot.site, () =>
+    wallRuns(lot)
+      .filter((r) => r.bank || (r.rail && !r.kerb))
+      .map((r) => ({
+        p: r.p,
+        n: r.n,
+        inner: 0.05,
+        outer: 0.05 + (r.bank ? 0.5 : T),
+        bank: r.bank,
+      })),
+  );
+}
 
 /** A lot's slab outline (local frame) and its world bounding box [minX, minZ, maxX, maxZ]. */
-interface SlabOutline {
+export interface SlabOutline {
   poly: V2[];
   box: [number, number, number, number];
 }
 const outlines = new Map<Lot, SlabOutline>();
-const slabOutline = (lot: Lot): SlabOutline => {
+export const slabOutline = (lot: Lot): SlabOutline => {
   let o = outlines.get(lot);
   if (!o) {
     const { left, right } = lotShape(lot);
@@ -432,6 +806,17 @@ export interface WallRun {
   p: V2[];
   n: V2[];
   rail: boolean;
+  /** A low parapet (`Lot.rim` 'low'): 30 cm over the slab, thin, no railing. */
+  low?: boolean;
+  /** A 20 cm stone kerb, its railing set in it (`RimKind` 'kerb'). */
+  kerb?: boolean;
+  /** A retaining wall under a raised verge, its top at the verge's grass (`RimKind` 'bank'). */
+  bank?: boolean;
+}
+
+/** A wall run's thickness (m): the drawn wall and its collider share it. `lotT` = the lot's `wallThick`. */
+export function runThick(run: WallRun, lotT: number): number {
+  return run.low ? 0.4 : run.kerb ? 0.35 : run.bank ? 0.5 : lotT;
 }
 
 /** A cap across the strip's end is open (no kerb, no wall) where it meets the road: a narrow mouth, or a cap that runs along the road. */
@@ -450,10 +835,10 @@ function capOpenOf(shape: LotShape, i: number, lot: Lot): boolean {
  * side is open, the outer edge opens where the stairs go down - and the end caps, which run on past the corners so the corner
  * squares are solid.
  */
-export function wallRuns(lot: Lot): WallRun[] {
+export function wallRuns(lot: Lot, solid = false): WallRun[] {
   if (!lot.wall) return [];
   const shape = lotShape(lot);
-  const { centre, left, right, dl, dr } = shape;
+  const { centre, left, right, dl, dr, sl } = shape;
   const n = centre.length;
   const OUT = 0.05 + (lot.wallThick ?? 0.6);
   const stairs = stairsAnchor(lot);
@@ -468,6 +853,7 @@ export function wallRuns(lot: Lot): WallRun[] {
     [right, dr, 1],
   ] as const) {
     let from = -1;
+    let kindNow: RimKind = 'wall';
     const close = (to: number): void => {
       if (from >= 0 && to - from >= 1) {
         const seg: V2[] = [];
@@ -492,19 +878,43 @@ export function wallRuns(lot: Lot): WallRun[] {
                       ),
               )
             : [],
-          rail: true,
+          rail: kindNow === 'wall' || kindNow === 'kerb',
+          low: kindNow === 'low',
+          kerb: kindNow === 'kerb',
+          bank: kindNow === 'bank',
         });
       }
       from = -1;
     };
     for (let i = 0; i + 1 < n; i++) {
+      // (a rim the lot spells out is kept up to just short of the road: the edge there is the road's own)
+      const ruled = s === 1 ? lot.rim : lot.rimLeft;
+      let kind: RimKind =
+        s === 1 && lot.rim
+          ? lot.rim([
+              (pts[i][0] + pts[i + 1][0]) / 2,
+              (pts[i][1] + pts[i + 1][1]) / 2,
+            ])
+          : s === -1 && lot.rimLeft
+            ? lot.rimLeft((sl[i] + sl[i + 1]) / 2)
+            : 'wall';
+      // (the colliders close the stairs' openings in the outer rim: a car never drives down them; the road side stays open)
+      if (solid && s === 1 && kind === 'open') kind = 'wall';
+      const near = ruled ? ROAD_CLEAR + 0.6 : ROAD_SIDE;
       const open =
-        (d[i] < ROAD_SIDE && d[i + 1] < ROAD_SIDE) ||
+        kind === 'open' ||
+        (s === 1 || !ruled ? d[i] < near && d[i + 1] < near : false) ||
         (s === 1 &&
           stairs !== undefined &&
           (i === stairs.k || i + 1 === stairs.k));
       if (open) close(i);
-      else if (from < 0) from = i;
+      else {
+        if (from >= 0 && kind !== kindNow) close(i);
+        if (from < 0) {
+          from = i;
+          kindNow = kind;
+        }
+      }
     }
     close(n - 1);
   }
@@ -528,7 +938,8 @@ export function wallRuns(lot: Lot): WallRun[] {
       ]);
     if (!(dr[i] < ROAD_SIDE && dr[j] < ROAD_SIDE))
       p.push([right[i][0] + along[0] * OUT, right[i][1] + along[1] * OUT]);
-    runs.push({ p, n: p.map(() => out), rail: false });
+    // (a lot under a raised verge: its far cap holds the land behind it too)
+    runs.push({ p, n: p.map(() => out), rail: false, bank: !!lot.rimLeft });
   }
   return runs;
 }
@@ -650,14 +1061,15 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
    * top (not on the caps). The caps run on past the corners, so the corner squares are solid.
    */
   const drawWall = (): void => {
-    const T = lot.wallThick ?? 0.6;
+    const lotT = lot.wallThick ?? 0.6;
     const IN = 0.05;
-    const OUT = IN + T;
     const depth = lot.wallDepth ?? 1.4;
     const runs = wallRuns(lot);
     for (const run of runs) {
       const m = run.p.length;
       if (m < 2) continue;
+      const T = runThick(run, lotT);
+      const OUT = IN + T;
       const at = (k: number, o: number): V2 => [
         run.p[k][0] + run.n[k][0] * o,
         run.p[k][1] + run.n[k][1] * o,
@@ -668,26 +1080,58 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
         v.map((x, k) =>
           k === 0 || k === m - 1 ? x : (v[k - 1] + 2 * x + v[k + 1]) / 4,
         );
-      const hi = smooth(smooth(run.p.map((q) => y(q) + 0.55)));
+      // (a bank's top is the verge's grass behind it, a kerb 20 cm over the asphalt)
+      const top = (q: V2, k: number): number =>
+        run.bank
+          ? Math.max(y(q) + 0.15, y(at(k, OUT + 1.6), 0) + 0.05)
+          : y(q) + (run.low ? 0.3 : run.kerb ? 0.2 : 0.55);
+      const hi = smooth(smooth(run.p.map(top)));
+      const sunk = run.kerb ? 0.6 : run.bank ? 1 : depth;
       const foot = run.p.map(
-        (_, k) => Math.min(y(at(k, IN)), y(at(k, OUT))) - depth,
+        (_, k) => Math.min(y(at(k, IN)), y(at(k, OUT))) - sunk,
       );
       const lo = foot.map((v, k) =>
         Math.min(v, foot[Math.max(0, k - 1)], foot[Math.min(m - 1, k + 1)]),
       );
-      wallRibbon(l, { p: run.p, n: run.n, hi, lo, inner: IN, outer: OUT });
+      wallRibbon(
+        l,
+        { p: run.p, n: run.n, hi, lo, inner: IN, outer: OUT },
+        // (the kerb: white limestone rubble)
+        run.kerb ? '#e6e2d8' : undefined,
+      );
       if (!run.rail) continue;
-      // The railing: a post at every vertex, two rails sloping with the top; on the outer edge of a thick wall.
+      // The railing: posts about every 2 m set into the top, rails sloping with it; on the outer edge of a thick wall, along
+      // the middle of a thin one or a kerb (three rails on a kerb).
       const ro = T > 0.6 ? OUT - 0.2 : IN + T / 2;
+      const ks = [0];
+      for (let k = 1, acc = 0; k < m; k++) {
+        acc += Math.hypot(
+          run.p[k][0] - run.p[k - 1][0],
+          run.p[k][1] - run.p[k - 1][1],
+        );
+        if (acc >= 1.8 || k === m - 1) {
+          ks.push(k);
+          acc = 0;
+        }
+      }
       const post = (k: number, h: number): V3 => {
         const q = at(k, ro);
         return [q[0], hi[k] + h, q[1]];
       };
-      for (let k = 0; k < m; k++)
-        strut(l, post(k, 0), post(k, 1), 0.07, 'paint', '#2f7a45');
-      for (let k = 0; k + 1 < m; k++)
-        for (const h of [0.5, 0.95])
-          strut(l, post(k, h), post(k + 1, h), 0.06, 'paint', '#2f7a45');
+      const rails = run.kerb ? [0.15, 0.45, 0.8] : [0.5, 0.95];
+      const postTop = run.kerb ? 0.82 : 1;
+      for (const k of ks)
+        strut(l, post(k, 0), post(k, postTop), 0.07, 'paint', '#2f7a45');
+      for (let j = 0; j + 1 < ks.length; j++)
+        for (const h of rails)
+          strut(
+            l,
+            post(ks[j], h),
+            post(ks[j + 1], h),
+            0.06,
+            'paint',
+            '#2f7a45',
+          );
     }
   };
 
@@ -879,21 +1323,45 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
   // Marked bays: a white line every `pitch`, depth `depth` from the edge, and the line closing the bays.
   const bays = lot.bays;
   if (bays) {
-    const line = (a: V2, b: V2, w: number): void => {
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      const nx = (-(b[1] - a[1]) / len) * (w / 2);
-      const nz = ((b[0] - a[0]) / len) * (w / 2);
-      quad(
-        'marking',
-        [
-          [a[0] - nx, a[1] - nz],
-          [b[0] - nx, b[1] - nz],
-          [b[0] + nx, b[1] + nz],
-          [a[0] + nx, a[1] + nz],
-        ],
-        '#f1f1ec',
-        SLAB + 0.02,
+    // Old paint: each line its own faded grey-white, worn through in short gaps (seeded by where it lies).
+    const line = (a0: V2, b0: V2, w: number): void => {
+      const len = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]) || 1;
+      const nx = (-(b0[1] - a0[1]) / len) * (w / 2);
+      const nz = ((b0[0] - a0[0]) / len) * (w / 2);
+      const seed = hash3(
+        Math.round(a0[0] * 10),
+        Math.round(a0[1] * 10),
+        5,
+        811,
       );
+      const v = 200 + (seed % 36);
+      const color = `rgb(${v},${v},${v - 6})`;
+      const pieces = Math.max(1, Math.round(len / 1.6));
+      for (let k = 0; k < pieces; k++) {
+        const h = hash3(seed, k, 3, 97) % 100;
+        if (h < 22) continue;
+        const t0 = k / pieces + (h < 40 ? 0.25 / pieces : 0);
+        const t1 = (k + 1) / pieces;
+        const a: V2 = [
+          a0[0] + (b0[0] - a0[0]) * t0,
+          a0[1] + (b0[1] - a0[1]) * t0,
+        ];
+        const b: V2 = [
+          a0[0] + (b0[0] - a0[0]) * t1,
+          a0[1] + (b0[1] - a0[1]) * t1,
+        ];
+        quad(
+          'marking',
+          [
+            [a[0] - nx, a[1] - nz],
+            [b[0] - nx, b[1] - nz],
+            [b[0] + nx, b[1] + nz],
+            [a[0] + nx, a[1] + nz],
+          ],
+          color,
+          SLAB + 0.02,
+        );
+      }
     };
     const cum = centre.map((_, i) =>
       centre
@@ -1021,10 +1489,10 @@ export function wallColliders(
   lot: Lot,
   ground: (x: number, z: number) => number,
 ): StaticCollider[] {
-  const T = lot.wallThick ?? 0.6;
-  const mid = 0.05 + T / 2;
+  const lotT = lot.wallThick ?? 0.6;
   const out: StaticCollider[] = [];
-  const box = (a: V2, b: V2, nx: number, nz: number): void => {
+  const box = (a: V2, b: V2, nx: number, nz: number, T = lotT): void => {
+    const mid = 0.05 + T / 2;
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (len < 0.05) return;
     const cx = (a[0] + b[0]) / 2 + nx * mid;
@@ -1049,13 +1517,14 @@ export function wallColliders(
       ),
     );
   };
-  for (const run of wallRuns(lot))
+  for (const run of wallRuns(lot, true))
     for (let k = 0; k + 1 < run.p.length; k++)
       box(
         run.p[k],
         run.p[k + 1],
         (run.n[k][0] + run.n[k + 1][0]) / 2,
         (run.n[k][1] + run.n[k + 1][1]) / 2,
+        runThick(run, lotT),
       );
   const stairs = stairsAnchor(lot);
   if (stairs) {
@@ -1077,4 +1546,86 @@ export function slabHeight(
     for (const lot of lots) if (onLot(lot, x, z)) return ground(x, z) + SLAB;
     return NaN;
   };
+}
+
+/**
+ * Parked cars in a lot's edge bays (the bays `buildLot` paints): one in `share` of them (seeded), nose in, in the lot's
+ * local frame - (x, z), `turn` = the car's +x from the site's +x (rad) - and a `street_car` variant.
+ */
+export function bayCars(
+  lot: Lot,
+  share: number,
+  seed: number,
+): { x: number; z: number; turn: number; variant: number }[] {
+  const bays = lot.bays;
+  if (!bays) return [];
+  const { centre, left, right, hl, hr } = lotShape(lot);
+  const n = centre.length;
+  const cum = [0];
+  for (let i = 1; i < n; i++)
+    cum.push(
+      cum[i - 1] +
+        Math.hypot(
+          centre[i][0] - centre[i - 1][0],
+          centre[i][1] - centre[i - 1][1],
+        ),
+    );
+  const total = cum[n - 1];
+  const sample = (s: number) => {
+    let i = 1;
+    while (i < n - 1 && cum[i] < s) i++;
+    const seg = cum[i] - cum[i - 1] || 1;
+    const t = Math.min(1, Math.max(0, (s - cum[i - 1]) / seg));
+    const mix = (a: number, b: number): number => a + (b - a) * t;
+    return {
+      p: [
+        mix(centre[i - 1][0], centre[i][0]),
+        mix(centre[i - 1][1], centre[i][1]),
+      ],
+      n: [
+        -(centre[i][1] - centre[i - 1][1]) / seg,
+        (centre[i][0] - centre[i - 1][0]) / seg,
+      ],
+      hl: mix(hl[i - 1], hl[i]),
+      hr: mix(hr[i - 1], hr[i]),
+    };
+  };
+  // (as buildLot: the bays begin 1.2 m past the first station of the straight far end)
+  let straightS = 0;
+  if (bays.straight) {
+    const zl = left[n - 1][1];
+    const zr = right[n - 1][1];
+    let k = n - 1;
+    while (
+      k > 0 &&
+      Math.abs(left[k - 1][1] - zl) < 0.05 &&
+      Math.abs(right[k - 1][1] - zr) < 0.05
+    )
+      k--;
+    straightS = cum[k] + 1.2;
+  }
+  const out: { x: number; z: number; turn: number; variant: number }[] = [];
+  let k = 0;
+  for (const sd of bays.both ? [-1, 1] : [1]) {
+    const s0 = Math.max(bays.from * total, straightS);
+    const s1 = bays.to * total;
+    for (let s = s0; s + bays.pitch <= s1 + 0.01; s += bays.pitch, k++) {
+      const at = sample(s + bays.pitch / 2);
+      const h = (sd < 0 ? at.hl : at.hr) - 0.35;
+      const inner = h - bays.depth;
+      if (inner < 1.6) continue;
+      const r = hash3(k, seed, 7, 4111);
+      if ((r % 1000) / 1000 >= share) continue;
+      const d = (inner + h) / 2 + 0.2;
+      const [nx, nz] = [at.n[0] * sd, at.n[1] * sd];
+      out.push({
+        x: at.p[0] + nx * d,
+        z: at.p[1] + nz * d,
+        // nose towards the lot's edge, a little off square
+        turn: Math.atan2(nz, nx) + (((r >>> 10) % 100) / 100 - 0.5) * 0.12,
+        variant: (r >>> 4) % 10,
+      });
+    }
+  }
+  return out;
 }

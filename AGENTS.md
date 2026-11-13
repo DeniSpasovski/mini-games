@@ -113,7 +113,7 @@ into `DETAILS.md`, never up.
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
-  the DEM), `culverts.py` (`culverts.json`: culverts where the DEM's drainage crosses the stage road), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
+  the DEM), `dem_heightmap.py` (re-bakes only the heightmap from a local DEM, GLO-30 on Vodno), `culverts.py` (`culverts.json`: culverts where the DEM's drainage crosses the stage road), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
   from a winter + summer Sentinel-2 scene, run after `bake.py`), `canopy.py` (`canopy.json`: canopy share / stand height grids and the
   real trees from the Meta / WRI canopy height map, run after `leaf_type.py`), `features.py` (config `osm.features`: park furniture,
   barriers, single trees, signs and fence / wall / guard-rail lines -> `data.json` "features"; runs inside `bake.py` or alone)

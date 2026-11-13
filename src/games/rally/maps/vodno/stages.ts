@@ -44,12 +44,13 @@ const TEMPS: StageTemps = {
     evening: [36, 44],
     night: [26, 26],
   },
+  // November (`months`): Skopje's ~12 °C days and ~2 °C nights, a low sun that warms the road a few degrees.
   autumn: {
-    early: [6, 9],
-    midday: [11, 19],
-    afternoon: [15, 21],
-    evening: [14, 16],
-    night: [4, 4],
+    early: [2, 3],
+    midday: [6, 11],
+    afternoon: [10, 15],
+    evening: [8, 9],
+    night: [1, 1],
   },
 };
 

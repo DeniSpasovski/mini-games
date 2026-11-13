@@ -1,14 +1,24 @@
 import type { PadDef, PathDef } from '../shared/types';
 import { LOT_ROADS } from './landmarks/lot-road';
 import { PLAZA, roadZ } from './landmarks/restaurant';
-import { RESTAURANT, toWorld } from './landmarks/sites';
+import {
+  LOT_WEST_X,
+  RESTAURANT,
+  SREDNO_BANDS,
+  SREDNO_LOT,
+  toWorld,
+} from './landmarks/sites';
 import {
   GARDEN,
+  gardenMeshSink,
+  gardenFlightPolygon,
   gardenPadPolygon,
   lawnPolygons,
   rampPad,
+  vidikovecVerge,
 } from './landmarks/lot-park';
 import {
+  lotMeshSink,
   lotPolygon,
   SLAB,
   SREDNO,
@@ -29,48 +39,125 @@ const PAD_LIFT = -(SLAB + 0.1);
 /** The trail lot's fall from the road to its far end (m): a gentle slant, not the land's 6.5 m. */
 const TRAIL_FALL = 3;
 /** Stage road points along the Vidikovec lot (its pad takes their heights). */
+/**
+ * The Vidikovec's level (world m, the ground under its slab) at the garden's west end (R1): the stage road's height there
+ * less the pad's 30 cm. West of `VIDIKOVEC_MOUTH_X` (lot-local x) its mouth follows the road down to the west tip.
+ */
+const VIDIKOVEC_LEVEL = 133.2;
+/**
+ * East of the mouth the lot and its garden levels climb `VIDIKOVEC_RISE` m to the far end, an even slope gentler than the
+ * road's (about 5 m), so the wall along the road side grows to about 2 m there.
+ */
+const VIDIKOVEC_RISE = 2.8;
+const vidikovecRise = (lift: number): PadDef['ramp'] => ({
+  from: toWorld(VIDIKOVEC.site, 1, -5) as [number, number],
+  to: toWorld(VIDIKOVEC.site, -60, 3.5) as [number, number],
+  lift: [lift, lift + VIDIKOVEC_RISE],
+  linear: true,
+});
+const VIDIKOVEC_MOUTH_X = 1;
+/**
+ * The mouth west of it: an even slope from the road's height at the west tip (the slab's top at the road, lot-local x 33.7)
+ * up to `VIDIKOVEC_LEVEL` at `VIDIKOVEC_MOUTH_X`, level across (the road's own heights would tilt it and leave a step there).
+ */
+const vidikovecMouthRamp: PadDef['ramp'] = {
+  from: toWorld(VIDIKOVEC.site, 33.7, -1) as [number, number],
+  to: toWorld(VIDIKOVEC.site, VIDIKOVEC_MOUTH_X, -5) as [number, number],
+  lift: [-2.64, 0],
+  linear: true,
+};
+const vidikovecMouth = (c: [number, number]): boolean =>
+  c[0] > VIDIKOVEC_MOUTH_X;
 const VIDIKOVEC_FRONTAGE = [
   1500.2, -557.2, 1535, -574.6, 1553, -580.7, 1570.4, -584.9, 1591.3, -584.5,
   1603.7, -581.2,
 ];
 
 export const LOT_PADS: PadDef[] = [
+  // The Vidikovec: at `VIDIKOVEC_LEVEL`, rising `VIDIKOVEC_RISE` to its far end (its mouth at the west tip follows the road down to it), the verge between the
+  // road and its wall at the road's level, the garden's three levels behind it (landmarks/lot-park.ts `GARDEN`), the lower
+  // first; then the slab's own ground once more (a lower level's blend reaches under it) and the stone steps at the east end.
+  // The ones under the road's level `hold` it over the road's embankment.
   {
     name: 'vidikovec_lot',
     polygon: lotPolygon(VIDIKOVEC, GRADED_MARGIN),
-    blend: 6,
-    frontage: VIDIKOVEC_FRONTAGE,
-    lift: PAD_LIFT,
+    // (a long, gentle embankment down to the land, no cliff under the west kerb)
+    blend: 14,
+    level: VIDIKOVEC_LEVEL,
+    ramp: vidikovecRise(0),
   },
-  // The lowered garden north of it: two terraces `drop` m under the lot's ground (landmarks/lot-park.ts `GARDEN`). Applied
-  // after the lot's pad, which they override beyond its wall; a small blend, the retaining walls hide the step.
-  ...([1, 0] as const).map((k): PadDef => ({
-    name: `vidikovec_garden_${k + 1}`,
-    polygon: gardenPadPolygon(k),
-    // (terrace 2 falls away to the land below as a grassed embankment, terrace 1's step is a wall)
-    blend: k ? 7 : 0.4,
+  {
+    name: 'vidikovec_mouth',
+    polygon: lotPolygon(VIDIKOVEC, GRADED_MARGIN, vidikovecMouth),
+    blend: 6,
+    level: VIDIKOVEC_LEVEL,
+    ramp: vidikovecMouthRamp,
+  },
+  {
+    name: 'vidikovec_verge',
+    polygon: vidikovecVerge(),
+    blend: 2,
     frontage: VIDIKOVEC_FRONTAGE,
-    lift: PAD_LIFT - GARDEN.drop[k] - GARDEN.sink,
+    lift: PAD_LIFT + SLAB,
+  },
+  ...(
+    [
+      [1, 'green', 6],
+      [0, 'red', 0.1],
+      [2, 'grey', 0.1],
+    ] as const
+  ).map(([k, name, blend]): PadDef => ({
+    name: `vidikovec_garden_${name}`,
+    polygon: gardenPadPolygon(k),
+    // (the green terrace falls away to the land below as a grassed embankment)
+    blend,
+    level: VIDIKOVEC_LEVEL,
+    ramp: vidikovecRise(SLAB + GARDEN.level[name]),
+    hold: true,
   })),
-  // The ramps between the terraces at both ends of the dividing wall: a sloped pad from terrace 1's level to terrace 2's, applied
-  // last (its ends meet the two terraces' levels); the blend grades its sides into the terraces as grassy banks.
-  ...([0, 1] as const).map((end): PadDef => {
-    const { polygon, from, to } = rampPad(end);
+  {
+    name: 'vidikovec_slab',
+    polygon: lotPolygon(VIDIKOVEC, 0.4),
+    blend: 0.1,
+    // (well under the road at its east end: the road's embankment must not reach in over it)
+    hold: true,
+    level: VIDIKOVEC_LEVEL,
+    ramp: vidikovecRise(0),
+  },
+  {
+    name: 'vidikovec_mouth_slab',
+    polygon: lotPolygon(VIDIKOVEC, 0.4, vidikovecMouth),
+    blend: 0.1,
+    level: VIDIKOVEC_LEVEL,
+    ramp: vidikovecMouthRamp,
+    hold: true,
+  },
+  // The ground under the two flights down from the lot, at the terrace each leads to (the slab's edge pad reaches under them).
+  ...(['green', 'red'] as const).map((name): PadDef => ({
+    name: `vidikovec_flight_${name}`,
+    polygon: gardenFlightPolygon(name),
+    blend: 0.1,
+    level: VIDIKOVEC_LEVEL,
+    ramp: vidikovecRise(SLAB + GARDEN.level[name]),
+    hold: true,
+  })),
+  // The stone steps from the lot's east end down to the green terrace (`drawGarden`): a sloped pad, applied last.
+  (() => {
+    const { polygon, from, to } = rampPad();
     return {
-      name: `vidikovec_garden_ramp_${end + 1}`,
+      name: 'vidikovec_garden_steps',
       polygon,
       blend: 3,
-      frontage: VIDIKOVEC_FRONTAGE,
+      // (at the lot's far end: all of its rise)
+      level: VIDIKOVEC_LEVEL + VIDIKOVEC_RISE,
+      hold: true,
       ramp: {
         from,
         to,
-        lift: [
-          PAD_LIFT - GARDEN.drop[0] - GARDEN.sink,
-          PAD_LIFT - GARDEN.drop[1] - GARDEN.sink,
-        ],
+        lift: [SLAB + GARDEN.level.green, 0] as [number, number],
       },
     };
-  }),
+  })(),
   {
     name: 'sredno_lot',
     polygon: lotPolygon(SREDNO, GRADED_MARGIN),
@@ -80,6 +167,25 @@ export const LOT_PADS: PadDef[] = [
       497.1, -315.3, 520.2, -321.7, 540.3, -327.9, 560.9, -331.8, 584.8, -332.6,
     ],
     lift: PAD_LIFT,
+  },
+  {
+    // The strip of land between the two lots, levelled with them (left at its own height it stood ~0.8 m above both
+    // by the road, a kerbed ramp off the road's edge; the real one is flush): from the road (clipped to its clearance)
+    // to the lots' west line.
+    name: 'sredno_between',
+    polygon: (
+      [
+        [-75, SREDNO_BANDS.low[1] - 0.5],
+        [LOT_WEST_X, SREDNO_BANDS.low[1] - 0.5],
+        [LOT_WEST_X, SREDNO_BANDS.top[0] + 0.5],
+        [-75, SREDNO_BANDS.top[0] + 0.5],
+      ] as const
+    ).flatMap(([x, z]) => toWorld(SREDNO_LOT, x, z)),
+    blend: 3,
+    frontage: [
+      497.1, -315.3, 520.2, -321.7, 540.3, -327.9, 560.9, -331.8, 584.8, -332.6,
+    ],
+    lift: -0.05,
   },
   {
     // The smaller lot below it: a neck off the stage road, then the bay area.
@@ -169,6 +275,17 @@ const REPLACED = new Set([
 
 /** Painted lawns (`MapDef.terrain.lawns`): the Sredno park strip, the two garden terraces and the trail start's bank. */
 export const LAWNS: number[][] = lawnPolygons();
+const vidikovecCut = lotMeshSink(VIDIKOVEC);
+/** The drawn terrain's cut at the Vidikovec's walls and its garden's (`MapDef.terrain.meshSink`): the larger one. */
+export const LOT_MESH_SINK = (
+  x: number,
+  z: number,
+  height: (x: number, z: number) => number,
+): number => {
+  const a = vidikovecCut(x, z, height);
+  const b = gardenMeshSink(x, z, height);
+  return Math.abs(a) >= Math.abs(b) ? a : b;
+};
 
 /**
  * The one-way pair of short curved arcs round the junction of the street "Сончев Град" with the hairpin at 2000 m (OSM draws the

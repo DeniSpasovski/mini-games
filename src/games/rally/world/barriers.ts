@@ -446,6 +446,7 @@ export function barrierColliders(
 ): StaticCollider[] {
   const out: StaticCollider[] = [];
   for (const run of runs) {
+    if (run.rule.kind === 'edge' || run.rule.kind === 'gutter') continue;
     const guard = run.rule.kind === 'guardrail';
     const half = guard ? 0.12 : 0.3;
     for (let a = run.from; a < run.to; a += 4) {

@@ -13,8 +13,11 @@ import { Bucket } from '../../ajvatovci/start-row/build/kit';
 import type { BuildingDef } from '../../shared/types';
 import { boxCollider, cylinderCollider, turnedBoxCollider } from './common';
 import {
+  bayCars,
   buildLot,
+  slabOutline,
   onLot,
+  SLAB,
   slabHeight,
   SREDNO,
   wallColliders,
@@ -428,6 +431,11 @@ export const carParksLandmark = landmark({
       },
       r: 11,
     })),
+    // The Vidikovec's whole slab (wider than those circles at its lens and east end).
+    {
+      site: VIDIKOVEC.site,
+      poly: slabOutline(VIDIKOVEC).poly,
+    },
     // The stone road from the Sredno park entrance to the lower cable car station.
     ...stoneRoadAreas().map(({ x, z, r }) => ({
       site: { ...SREDNO_LOT, x, z },
@@ -453,6 +461,25 @@ export const carParksLandmark = landmark({
     { asset: 'flagpole', site: LOT_FLAGPOLE, x: 0, z: 0, scale: 1 },
     ...parkPlants(SREDNO),
     ...parkPlants(VIDIKOVEC),
+    // Cars in most of the bays at the top (the references), fewer in the lot below it.
+    ...(
+      [
+        [SREDNO, 0.75, 1],
+        [SREDNO_BUS, 0.45, 2],
+      ] as const
+    ).flatMap(([lot, share, seed]) =>
+      bayCars(lot, share, seed).map((c) => ({
+        asset: 'street_car',
+        site: lot.site,
+        x: c.x,
+        z: c.z,
+        scale: 1,
+        variant: c.variant,
+        lift: SLAB,
+        // The car model faces +x: turned `turn` from the site's x axis (three.js yaws the other way round).
+        rotY: -(lot.site.yaw + c.turn),
+      })),
+    ),
   ],
   surfaceAt: (x, z) =>
     onLot(SREDNO, x, z) ||

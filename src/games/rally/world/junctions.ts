@@ -49,6 +49,7 @@ export const JUNCTION_ASPHALT: Readonly<Record<string, string>> = {
   road_tarmac: 'road_tarmac_junction',
   road_tarmac_kerbed: 'road_tarmac_junction',
   road_tarmac_lines: 'road_tarmac_plain_junction',
+  road_tarmac_new: 'road_tarmac_plain_junction',
   road_tarmac_plain: 'road_tarmac_plain_junction',
   road_tarmac_plain_kerbed: 'road_tarmac_plain_junction',
 };

@@ -13,6 +13,7 @@ import { TreeRenderer } from '../trees/draw';
 import { TreeLibrary } from '../trees/load';
 import type { QualitySettings } from '../engine/quality';
 import type { Season } from '../season';
+import { seasonMonth } from '../maps/shared/climate';
 
 /**
  * What a viewer car stands on: the plain grass studio, or a short flat road (`ROAD_LENGTH` x `ROAD_WIDTH`, the car in
@@ -139,7 +140,11 @@ export class StageBackdrop {
     road.getObjectByName('stage-signs')?.removeFromParent();
     scene.add(road);
     const library = await TreeLibrary.load(
-      TreeLibrary.speciesOf(world.placedAssets(), season),
+      TreeLibrary.speciesOf(
+        world.placedAssets(),
+        season,
+        seasonMonth(environment, season),
+      ),
       renderer,
     );
     const trees = new TreeRenderer(world, library, {

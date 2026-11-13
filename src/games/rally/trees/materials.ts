@@ -455,7 +455,10 @@ const FRAGMENT_DITHER = /* glsl */ `
 	if ( tD < vTreeKeep.x || tD >= vTreeKeep.y ) discard;
 `;
 
-/** After color_fragment: per-tree tint, baked AO, the debug colours (1 = level, 2 = lighting only: white albedo). */
+/**
+ * After color_fragment (sprites: after the alpha test): per-tree tint, baked AO, the debug colours (1 = level, 2 =
+ * lighting only: white albedo).
+ */
 const FRAGMENT_COLOR = /* glsl */ `
 	// Baked AO darkens the albedo a little (the ambient gets the rest, FRAGMENT_AMBIENT); sprites: the ambient only.
 	#ifdef TREE_SPRITE
@@ -505,6 +508,20 @@ const FRAGMENT_AMBIENT = /* glsl */ `
 		// The sky's sheen on rough bark (IBL specular, strong at grazing angles) is hidden by the same canopy.
 		reflectedLight.indirectSpecular *= vTreeAO * TREE_BARK_SHEEN;
 	#endif
+`;
+
+/**
+ * The sprite depth prepass (`tlDepthOnly`, the lit program itself) stops right after the colour: only the coverage
+ * counts, so it skips the tint and underside maths. Same alpha as the lit pass (neither touches it), so the same
+ * pixels pass. It writes depth and discards, so every sprite layer it draws runs this far (no early depth test).
+ */
+const SPRITE_DEPTH_EXIT = /* glsl */ `
+	if ( tlDepthOnly > 0.5 ) {
+		#include <alphamap_fragment>
+		#include <alphatest_fragment>
+		gl_FragColor = vec4( 1.0, 0.0, 1.0, diffuseColor.a );
+		return;
+	}
 `;
 
 /** At the very end: debug 3 = the shading normal (view space) as colour. */
@@ -576,11 +593,24 @@ function hookStandard(
     Object.assign(shader.uniforms, treeUniforms, extra);
     injectVertex(shader, true, sprite);
     injectFragment(shader);
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <color_fragment>',
-        `#include <color_fragment>\n${FRAGMENT_COLOR}`,
-      )
+    shader.fragmentShader = (
+      sprite
+        ? shader.fragmentShader
+            // Sprites tint after the alpha test (it only reads alpha): the pixels it discards, most of a far quad's,
+            // skip the hue maths. First: the depth exit below brings its own alpha test, earlier in the source.
+            .replace(
+              '#include <alphatest_fragment>',
+              `#include <alphatest_fragment>\n${FRAGMENT_COLOR}`,
+            )
+            .replace(
+              '#include <color_fragment>',
+              `#include <color_fragment>\n${SPRITE_DEPTH_EXIT}`,
+            )
+        : shader.fragmentShader.replace(
+            '#include <color_fragment>',
+            `#include <color_fragment>\n${FRAGMENT_COLOR}`,
+          )
+    )
       .replace(
         '#include <lights_fragment_end>',
         `#include <lights_fragment_end>\n${FRAGMENT_AMBIENT}`,
@@ -594,16 +624,10 @@ function hookStandard(
         '#include <beginnormal_vertex>',
         `#include <beginnormal_vertex>\n${SPRITE_CLUMP_FADE}`,
       );
-      shader.fragmentShader = `${NO_ENVMAP}\n${shader.fragmentShader}`
-        .replace(
-          '#include <normal_fragment_begin>',
-          `#include <normal_fragment_begin>\n${SPRITE_NORMAL}`,
-        )
-        // The depth prepass (same program): stop after the alpha test (A2C keeps its alpha as the coverage).
-        .replace(
-          '#include <alphatest_fragment>',
-          '#include <alphatest_fragment>\n\tif ( tlDepthOnly > 0.5 ) { gl_FragColor = vec4( 1.0, 0.0, 1.0, diffuseColor.a ); return; }',
-        );
+      shader.fragmentShader = `${NO_ENVMAP}\n${shader.fragmentShader}`.replace(
+        '#include <normal_fragment_begin>',
+        `#include <normal_fragment_begin>\n${SPRITE_NORMAL}`,
+      );
     }
   };
   m.customProgramCacheKey = () => key;
@@ -1114,7 +1138,7 @@ export function proxyMaterial(): MeshBasicMaterial {
 /**
  * A sprite material on the ONE sprite program (same source, defines and cache key for the prepass and the lit pass:
  * the same compiled vertex code, so the depths match bit for bit; two different programs did not on every driver,
- * `invariant` or not). `depthOnly` = the prepass: `tlDepthOnly` returns right after the alpha test.
+ * `invariant` or not). `depthOnly` = the prepass: `tlDepthOnly` returns after the alpha test (SPRITE_DEPTH_EXIT).
  * Lambert, not standard: a leaf cluster at roughness ~0.85 has next to no specular, and the sprites are most of the
  * tree pixels (trees/Performance.md#hotspots); the same sun, sky ambient, shadows, fog and leaf translucency.
  */
@@ -1140,7 +1164,7 @@ function spriteLit(style: LeafStyle, depthOnly: boolean): MeshLambertMaterial {
     ...(style === 'pine' || style === 'juniper' ? {} : { TREE_UNDERSIDE: 1 }),
   };
   multi(m);
-  hookStandard(m, 'tree-sprite-v18', true, {
+  hookStandard(m, 'tree-sprite-v19', true, {
     tlSprNormal: { value: tex.normal },
     tlDepthOnly: { value: depthOnly ? 1 : 0 },
   });

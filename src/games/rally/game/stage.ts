@@ -351,7 +351,7 @@ export const STAGE_TIMES_VERSIONS: Record<string, number> = {
   galichica_west: 1,
   galichica_east: 1,
   prespa_ohrid: 1,
-  vodno: 2,
+  vodno: 3,
 };
 export const CAR_TIMES_VERSIONS: Record<string, number> = {
   skoda_rally: 3,

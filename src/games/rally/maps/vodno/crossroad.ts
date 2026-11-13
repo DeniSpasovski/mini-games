@@ -5,7 +5,7 @@ import type { PadDef, RoadMarking } from '../shared/types';
  * its right side stands as a terrace above it, held back by a concrete retaining wall (`road.cutWalls` over `WALL_RANGE`).
  * The terrace is a graded pad that keeps `BANK` m above the road, between the road's right side and 17 m off it.
  */
-export const BANK = 3.2;
+export const BANK = 4.2;
 /** Distances along the road (m) between which the cut is sheer and walled. */
 export const WALL_RANGE: [number, number] = [398, 492];
 
