@@ -76,6 +76,11 @@ export interface Lot {
    * where it meets it, its corners become rows of their own, rows that miss it go.
    */
   outer?: V2[];
+  /**
+   * Drop the tip of a lot cut to an `outer` line where its outer edge still lies within ROAD_SIDE of the road (no kerb or wall
+   * stands there): the strip ends where its kerb starts, not in a bare sliver of asphalt past it.
+   */
+  trimOpenStart?: boolean;
   /** The outer edge's rim at a point (local) of a walled lot: the rock wall with its railing (default), a low parapet, or open (stairs). */
   rim?: (p: V2) => RimKind;
   /**
@@ -218,6 +223,8 @@ export const VIDIKOVEC: Lot = {
   // back (and hides the ground's step beside it, so the slab's own ground is never touched).
   wallDepth: 2.8,
   wallThick: 0.45,
+  // (no bare sliver of asphalt west of the kerb's start: the strip begins where the kerb does)
+  trimOpenStart: true,
   outer: (() => {
     const { W, T, R1, P1, Q1, G, Eend, M, D } = VIDIKOVEC_RIM;
     return [W, T, R1, P1, Q1, G, Eend, M, D];
@@ -474,9 +481,17 @@ function computeShape(lot: Lot, grow: number): LotShape {
     });
   }
   // (a lot cut to an outer line keeps its narrow tip: that line is its edge)
-  if (lot.outer)
+  if (lot.outer) {
     [left, right, sl] = cutToOuter(left, right, sl, lot.outer, grow);
-  else {
+    if (lot.trimOpenStart) {
+      // (the first row whose outer edge, to the next row, is no longer open to the road: where the kerb starts)
+      let k = 0;
+      while (k < right.length - 3 && dist(right[k + 1]) < ROAD_SIDE) k++;
+      left = left.slice(k);
+      right = right.slice(k);
+      sl = sl.slice(k);
+    }
+  } else {
     left = left.slice(j0, j1 + 1);
     right = right.slice(j0, j1 + 1);
     sl = sl.slice(j0, j1 + 1);
