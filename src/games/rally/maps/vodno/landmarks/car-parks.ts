@@ -103,11 +103,12 @@ export type RimKind = 'wall' | 'low' | 'kerb' | 'bank' | 'open';
  */
 export const VIDIKOVEC_RIM = {
   W: [33.71, -0.76] as V2,
-  T: [2.56, -17.16] as V2,
-  R1: [0.89, -14.28] as V2,
+  T: [0.14, -18.57] as V2,
+  // (the green stairs' head T-R1 sits where the wall P1-Q1 starts: R1-P1 runs on in line with it, no corner)
+  R1: [-2.11, -14.69] as V2,
   // (the red terrace's stairs: a landing at the lot's level out to the line P1-Q1 that runs parallel to the wall between
   // the terraces, then the flight from Q1-G down along the grey strip's wall)
-  P1: [-2.11, -14.69] as V2,
+  P1: [-2.61, -15.02] as V2,
   Q1: [-7.78, -18.48] as V2,
   G: [-13.76, -16.28] as V2,
   /** The grey strip's lot edge ends here; Eend-M-D is the lot's east end above the stone steps down to the green terrace. */

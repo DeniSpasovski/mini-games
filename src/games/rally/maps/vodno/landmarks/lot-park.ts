@@ -1318,6 +1318,64 @@ export function drawGarden(l: Local, gy: LocalGround): void {
   };
   for (const w of gardenWallRuns()) wall(w);
   const { G, Q1 } = VIDIKOVEC_RIM;
+  /**
+   * The slab's edge over a flight's head (p0-p1 on the lot's rim): a concrete lip just inside it, flush with the asphalt,
+   * down to under the top tread, so the slab shows its thickness and no ground shows between it and the steps.
+   */
+  const lip = (p0: V2, p1: V2, inward: V2, yLo: number): void => {
+    const len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+    const m = Math.max(1, Math.ceil(len / 0.5));
+    const tan = unitV(p1[0] - p0[0], p1[1] - p0[1]);
+    const out: V2 = [-inward[0], -inward[1]];
+    const W = 0.24;
+    // (sloping with the asphalt, a few mm over it)
+    const pt = (k: number, o: number, top: boolean): V3 => {
+      const q = push(
+        [p0[0] + ((p1[0] - p0[0]) * k) / m, p0[1] + ((p1[1] - p0[1]) * k) / m],
+        inward,
+        o,
+      );
+      return [q[0], top ? gy(...q) + SLAB + 0.004 : yLo, q[1]];
+    };
+    const face = (pts: V3[], want: V3, uv: (q: V3) => [number, number]): void =>
+      l.fan('concrete', pts, '#cfcac0', want, uv);
+    const along = (q: V3): [number, number] => [
+      q[0] * tan[0] + q[2] * tan[1],
+      q[1],
+    ];
+    for (let k = 0; k < m; k++) {
+      face(
+        [
+          pt(k, 0, true),
+          pt(k + 1, 0, true),
+          pt(k + 1, W, true),
+          pt(k, W, true),
+        ],
+        [0, 1, 0],
+        (q) => [q[0], q[2]],
+      );
+      face(
+        [
+          pt(k, 0, false),
+          pt(k + 1, 0, false),
+          pt(k + 1, 0, true),
+          pt(k, 0, true),
+        ],
+        [out[0], 0, out[1]],
+        along,
+      );
+    }
+    // (its ends, where a wall does not hide them)
+    for (const [k, s] of [
+      [0, -1],
+      [m, 1],
+    ] as const)
+      face(
+        [pt(k, 0, false), pt(k, W, false), pt(k, W, true), pt(k, 0, true)],
+        [tan[0] * s, 0, tan[1] * s],
+        (q) => [q[0] * tan[1] - q[2] * tan[0], q[1]],
+      );
+  };
   // (the lot and its levels slope up to the east: each flight runs from the slab's top at its head to the floor at its foot)
   // The green terrace's flight from the lot: concrete treads from the terrace wall to the kerb, about 17 cm a step, a green
   // handrail each side.
@@ -1333,6 +1391,7 @@ export function drawGarden(l: Local, gy: LocalGround): void {
     const slabTop = gy(...at(-1.5)) + SLAB;
     const yF = gy(...at(run * count + 0.8));
     const riser = (slabTop - yF) / (count + 1);
+    lip(a, VIDIKOVEC_RIM.R1, [-n[0], -n[1]], yF - 0.4);
     treads.forEach(({ d, lo, hi }, k) => {
       const top = slabTop - riser * (k + 1);
       wallSeg(
@@ -1386,6 +1445,8 @@ export function drawGarden(l: Local, gy: LocalGround): void {
     const foot = redRiser(count + 1);
     const yF = gy(...push(mid(foot.w, foot.s), g, 0.8));
     const riser = (slabTop - yF) / (count + 1);
+    const outN = edgeNormal(Q1, G, LOT_INSIDE);
+    lip(Q1, G, [-outN[0], -outN[1]], yF - 0.4);
     const depth =
       run * Math.abs(RED_FLIGHT.g[0] * across[1] - RED_FLIGHT.g[1] * across[0]);
     const cheek: V2[] = [Q1];

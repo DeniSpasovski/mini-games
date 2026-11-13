@@ -618,8 +618,10 @@ export class FarForest {
     const mean = [0, 0, 0];
     const all = new Map<Kind, number>();
     const bare: number[] = [];
-    for (let j = 0; j < this.nz; j += step)
-      for (let i = 0; i < this.nx; i += step) {
+    const { nx, nz, area, top, ground, kind } = this;
+    const cellRgb = this.rgb;
+    for (let j = 0; j < nz; j += step)
+      for (let i = 0; i < nx; i += step) {
         a = h = rgb[0] = rgb[1] = rgb[2] = 0;
         rules.length = 0;
         this.world.scatter.treeRulesAt(
@@ -638,22 +640,26 @@ export class FarForest {
         }
         for (const x of rules) all.set(x.k, (all.get(x.k) ?? 0) + x.w);
         const ca = Math.min(a, 4) * cell;
-        for (let jj = j; jj < Math.min(this.nz, j + step); jj++)
-          for (let ii = i; ii < Math.min(this.nx, i + step); ii++) {
-            const k = jj * this.nx + ii;
-            this.area[k] = ca;
-            this.top[k] = ca * (this.ground[k] + h / a);
-            for (let c = 0; c < 3; c++) this.rgb[k * 3 + c] = (ca * rgb[c]) / a;
+        const nr = rules.length;
+        const jEnd = Math.min(nz, j + step);
+        const iEnd = Math.min(nx, i + step);
+        // (plain indexed loops over locals: this runs for every cell of the map)
+        for (let jj = j; jj < jEnd; jj++)
+          for (let ii = i; ii < iEnd; ii++) {
+            const k = jj * nx + ii;
+            area[k] = ca;
+            top[k] = ca * (ground[k] + h / a);
+            for (let c = 0; c < 3; c++) cellRgb[k * 3 + c] = (ca * rgb[c]) / a;
             // A rule by its share of the crowns, then one of its variants (hashed per cell).
             const hc = hash3(ii, jj, 11, 0xfa7);
             let r = ((hc & 0xffff) / 65536) * a;
-            let rule = rules[0];
-            for (const x of rules)
-              if ((r -= x.w) < 0) {
-                rule = x;
+            let rule = nr ? rules[0] : undefined;
+            for (let q = 0; q < nr; q++)
+              if ((r -= rules[q].w) < 0) {
+                rule = rules[q];
                 break;
               }
-            this.kind[k] = rule
+            kind[k] = rule
               ? rule.k.slots[(hc >>> 16) % rule.k.slots.length] + 1
               : 0;
           }
@@ -663,23 +669,32 @@ export class FarForest {
     let total = 0;
     for (const w of all.values()) total += w;
     for (let c = 0; c < 3; c++) mean[c] /= total;
-    const list = [...all];
+    // A kind by its share: the first whose running sum of weights passes r (binary search: the real canopy's cells
+    // make thousands of kinds, and this runs for every bare cell, most of the map).
+    const listK = [...all.keys()];
+    const sums = new Float64Array(listK.length);
+    let run = 0;
+    listK.forEach((k, q) => (sums[q] = run += all.get(k)!));
+    const last = listK.length - 1;
     for (let n = 0; n < bare.length; n += 2) {
       const i = bare[n];
       const j = bare[n + 1];
       this.estRgb.set(mean, ((j / step) * this.estCols + i / step) * 3);
-      for (let jj = j; jj < Math.min(this.nz, j + step); jj++)
-        for (let ii = i; ii < Math.min(this.nx, i + step); ii++) {
+      const jEnd = Math.min(nz, j + step);
+      const iEnd = Math.min(nx, i + step);
+      for (let jj = j; jj < jEnd; jj++)
+        for (let ii = i; ii < iEnd; ii++) {
           const hc = hash3(ii, jj, 11, 0xfa7);
-          let r = ((hc & 0xffff) / 65536) * total;
-          let pick = list[0][0];
-          for (const [k, w] of list)
-            if ((r -= w) < 0) {
-              pick = k;
-              break;
-            }
-          this.kind[jj * this.nx + ii] =
-            pick.slots[(hc >>> 16) % pick.slots.length] + 1;
+          const r = ((hc & 0xffff) / 65536) * total;
+          let lo = 0;
+          let hi = last;
+          while (lo < hi) {
+            const m = (lo + hi) >> 1;
+            if (r < sums[m]) hi = m;
+            else lo = m + 1;
+          }
+          const pick = listK[lo];
+          kind[jj * nx + ii] = pick.slots[(hc >>> 16) % pick.slots.length] + 1;
         }
     }
   }
