@@ -392,10 +392,14 @@ export class World implements GroundProvider {
         this.gen.portals.inside(inst.x, inst.z)
       )
         continue;
-      // No roadside tree or bush growing through a landmark (a gate tower, a block of flats).
+      // No roadside tree or bush growing through a landmark (a gate tower, a block of flats), a house or a paved lot.
       if (
         isTreeType(inst.asset) &&
-        this.landmarks.some((l) => l.occupies(inst.x, inst.z, 0.5))
+        (this.landmarks.some(
+          (l) =>
+            l.occupies(inst.x, inst.z, 0.5) || !!l.surfaceAt?.(inst.x, inst.z),
+        ) ||
+          this.buildings.contains(inst.x, inst.z, 0.5))
       )
         continue;
       // No crowd standing in a house (a crowd spot in a village).
