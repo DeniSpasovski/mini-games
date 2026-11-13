@@ -170,6 +170,12 @@ const carLods = (full: number, reduced: number, far: number): LodSpec[] => [
 /** Service park vans and trucks (pack models, `carLods`): the full model near, shadows out to the end of the park. */
 const PACK_VEHICLE_LODS = carLods(50, 140, 480);
 
+/**
+ * Reed, cattail and weed cards of the ditches end here (m): past it the reed bed's volume (world/reed-bed.ts) and
+ * the ground carry the look on their own.
+ */
+const DITCH_CARDS = 100;
+
 export const ASSET_CATALOG: AssetMeta[] = [
   // --- vegetation (detail layer; trees and bushes grow from L-systems: trees/species.ts) ---
   {
@@ -180,7 +186,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Reeds for canal / drain banks, one variant cattails: cards baked from CC BY reed and cattail models (no collision, detail layer only).',
     variants: 3,
-    lods: [{ maxDistance: 140, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'cattails',
@@ -190,7 +196,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Cattail (Typha) stands for the water of canals and drains: green blades with brown spikes, cards of the reed sheet (no collision, detail layer only).',
     variants: 3,
-    lods: [{ maxDistance: 140, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'cattails_dry',
@@ -200,7 +206,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'The cattail stands gone to straw (autumn): the cattail cards recoloured (no collision, detail layer only).',
     variants: 3,
-    lods: [{ maxDistance: 140, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'cattails_young',
@@ -210,7 +216,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'New cattail shoots of spring (0.7-1.2 m) among the spikes of the year before: the cattail cards drawn short (no collision, detail layer only).',
     variants: 3,
-    lods: [{ maxDistance: 140, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'reeds_dry',
@@ -220,7 +226,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'The November reed stand: olive green below, straw above, beige plumes (the reeds-autumn sheet; no collision, detail layer only).',
     variants: 3,
-    lods: [{ maxDistance: 140, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'reeds_old',
@@ -230,7 +236,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       "Last year's reed stand in spring, bleached straw-grey (the reeds-winter sheet; no collision, detail layer only).",
     variants: 3,
-    lods: [{ maxDistance: 140, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'rust_weeds',
@@ -250,7 +256,11 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'A heap of earth dredged out of a ditch, 2.5-4 m long and 0.6-1 m high, with cut straw stems sticking out of it. No collision.',
     variants: 4,
-    lods: [{ maxDistance: 220, castShadow: true }],
+    // Near: the clods and the straw, with a shadow; far: a low mound of the same colours (one variant, one draw).
+    lods: [
+      { maxDistance: DITCH_CARDS, castShadow: true },
+      { maxDistance: 220, castShadow: false, oneVariant: true },
+    ],
   },
   {
     id: 'reeds_young',
@@ -260,7 +270,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'New reed shoots of spring (0.8-1.4 m): the reed cards drawn short (no collision, detail layer only).',
     variants: 3,
-    lods: [{ maxDistance: 140, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'fern',
@@ -508,7 +518,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Nettles and docks dried off yellow-brown: the dried cells of the nettle scan (no collision, detail layer only).',
     variants: 3,
-    lods: [{ maxDistance: 120, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'grass_tuft',

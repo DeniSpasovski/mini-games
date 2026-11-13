@@ -4,8 +4,10 @@ import {
   Color,
   DoubleSide,
   Group,
+  LOD,
   Mesh,
   MeshStandardMaterial,
+  Object3D,
   Vector3,
   type Material,
 } from 'three';
@@ -29,9 +31,14 @@ import type { World } from './world';
  * the ditch, its top `height` m above the bank line, and a wall of reed cards (the season's reed sheet) round its sides
  * for the silhouette. Seen from a bridge it closes up like the real bed (crossed cards alone never did: from above
  * their thin stems vanish and the water and ground show through); the scattered reed cards (`ditchTop` rules) stand on
- * it for the plumes. Merged per 256 m tile, built once per world.
+ * it for the plumes. The core is merged per 256 m tile; the wall per 128 m cell, drawn only near the camera (it fades
+ * out by WALL_NEAR, as the scattered cards end: past that the core alone stands for the bed). Built once per world.
  */
 const TILE = 256;
+/** Wall cells (m) and where the wall has faded out (m from the camera; the ditch cards' `DITCH_CARDS`). */
+const WALL_CELL = 128;
+const WALL_NEAR = 100;
+const WALL_FADE = 80;
 /** Along-ditch step (m): one reed cell of the wall per step (the sheet's cells are 1.2 m wide). */
 const STEP = 1.2;
 /** The core reaches this share of the ditch's half top width (the reeds fill it to just inside the lips). */
@@ -177,7 +184,21 @@ function wallMaterial(season: Season): MeshStandardMaterial {
   m.defines = { RALLY_GROUND: 1, RALLY_FOLIAGE: 0.25 };
   m.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRbW;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n\tvRbW = ( modelMatrix * vec4( position, 1.0 ) ).xyz;',
+      );
     shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRbW;')
+      .replace(
+        'void main() {',
+        /* glsl */ `void main() {
+	// Dithered out between WALL_FADE and WALL_NEAR m (before any texture read: the far wall costs no fill).
+	float rbFar = smoothstep( ${WALL_FADE.toFixed(1)}, ${WALL_NEAR.toFixed(1)}, distance( vRbW.xz, cameraPosition.xz ) );
+	if ( rbFar > 0.0 && fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) ) < rbFar ) discard;`,
+      )
       .replace(
         '#include <normal_fragment_begin>',
         '#include <normal_fragment_begin>\n\tnormal = normalize( vNormal );',
@@ -238,16 +259,47 @@ function roadCells(world: World): Map<string, number[]> {
   return cells;
 }
 
+/**
+ * Whether (x, z) is within `reach` of the stage road. A 100 m cell wholly inside (or outside) reach of its nearest
+ * road point is decided once (`memo`); only cells on the edge test their points.
+ */
 function nearRoad(
   cells: Map<string, number[]>,
+  memo: Map<string, number>,
   x: number,
   z: number,
   reach: number,
 ): boolean {
-  const r = Math.ceil(reach / 100);
   const cx = Math.floor(x / 100);
   const cz = Math.floor(z / 100);
-  const r2 = reach * reach;
+  const key = `${cx},${cz}`;
+  let near = memo.get(key);
+  if (near === undefined) {
+    // From the cell's centre: within reach - 71 m (half its diagonal) = all near, beyond reach + 71 = none.
+    const d = closestRoad(
+      cells,
+      (cx + 0.5) * 100,
+      (cz + 0.5) * 100,
+      reach + 71,
+    );
+    near = d < reach - 71 ? 1 : d > reach + 71 ? 0 : 2;
+    memo.set(key, near);
+  }
+  return near === 2 ? closestRoad(cells, x, z, reach) < reach : near === 1;
+}
+
+/** Distance to the nearest road sample within `within` m of (x, z) (Infinity: none). */
+function closestRoad(
+  cells: Map<string, number[]>,
+  x: number,
+  z: number,
+  within: number,
+): number {
+  const r = Math.ceil(within / 100);
+  const cx = Math.floor(x / 100);
+  const cz = Math.floor(z / 100);
+  let best = within * within;
+  let found = false;
   for (let i = -r; i <= r; i++)
     for (let j = -r; j <= r; j++) {
       const list = cells.get(`${cx + i},${cz + j}`);
@@ -255,10 +307,14 @@ function nearRoad(
       for (let k = 0; k < list.length; k += 2) {
         const dx = list[k] - x;
         const dz = list[k + 1] - z;
-        if (dx * dx + dz * dz < r2) return true;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < best) {
+          best = d2;
+          found = true;
+        }
       }
     }
-  return false;
+  return found ? Math.sqrt(best) : Infinity;
 }
 
 export function* reedBedMeshJob(
@@ -273,16 +329,24 @@ export function* reedBedMeshJob(
   const look = LOOKS[season];
   const noise = new Noise2D(world.map.seed + 811);
   const cells = roadCells(world);
+  const nearMemo = new Map<string, number>();
   const rq = newRoadQuery();
   const pq = newPathQuery();
   const ground = world.heightfield;
   const reedCells = [0, 1, 2, 3, 4, 5];
   const rootC = new Color(look.root);
-  const tiles = new Map<string, { core: Acc; wall: Acc }>();
+  const tiles = new Map<string, Acc>();
   const tileAt = (x: number, z: number) => {
     const key = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`;
     let t = tiles.get(key);
-    if (!t) tiles.set(key, (t = { core: acc(), wall: acc() }));
+    if (!t) tiles.set(key, (t = acc()));
+    return t;
+  };
+  const walls = new Map<string, Acc>();
+  const wallAt = (x: number, z: number) => {
+    const key = `${Math.floor(x / WALL_CELL)},${Math.floor(z / WALL_CELL)}`;
+    let t = walls.get(key);
+    if (!t) walls.set(key, (t = acc()));
     return t;
   };
   const pt = { x: 0, z: 0 };
@@ -308,9 +372,28 @@ export function* reedBedMeshJob(
       top: number;
       on: boolean;
     }[] = [];
+    const OFF = { x: 0, z: 0, rx: 0, rz: 0, bank: 0, top: 0, on: false };
     for (let i = 0; i <= n; i++) {
       const a = i * STEP;
       net.pointAt(ci, a, pt);
+      // Grown over where the long noise is above the cover threshold, near the stage road, off every crossing.
+      const grow =
+        0.5 + 0.5 * noise.fbm(pt.x / 40 + 31, pt.z / 40 - 17, 2) <
+        def.cover * look.cover;
+      let on = grow && nearRoad(cells, nearMemo, pt.x, pt.z, def.reach);
+      if (on) {
+        const q = world.road.query(pt.x, pt.z, rq);
+        if (q.found && q.distance < q.halfWidth + outer + CROSSING) on = false;
+      }
+      if (on && gen.paths) {
+        const p = gen.paths.query(pt.x, pt.z, pq);
+        if (p.found && p.distance < p.halfWidth + outer + CROSSING) on = false;
+      }
+      if (on && gen.nearCulvert(pt.x, pt.z, outer + CROSSING)) on = false;
+      if (!on) {
+        rows.push(OFF);
+        continue;
+      }
       net.pointAt(ci, a - 1, pA);
       net.pointAt(ci, a + 1, pB);
       const tl = Math.hypot(pB.x - pA.x, pB.z - pA.z) || 1;
@@ -321,20 +404,6 @@ export function* reedBedMeshJob(
         def.height[0] +
         (def.height[1] - def.height[0]) *
           (0.5 + 0.5 * noise.fbm(pt.x / 9, pt.z / 9, 2));
-      // Grown over where the long noise is above the cover threshold, near the stage road, off every crossing.
-      const grow =
-        0.5 + 0.5 * noise.fbm(pt.x / 40 + 31, pt.z / 40 - 17, 2) <
-        def.cover * look.cover;
-      let on = grow && nearRoad(cells, pt.x, pt.z, def.reach);
-      if (on) {
-        const q = world.road.query(pt.x, pt.z, rq);
-        if (q.found && q.distance < q.halfWidth + outer + CROSSING) on = false;
-      }
-      if (on && gen.paths) {
-        const p = gen.paths.query(pt.x, pt.z, pq);
-        if (p.found && p.distance < p.halfWidth + outer + CROSSING) on = false;
-      }
-      if (on && gen.nearCulvert(pt.x, pt.z, outer + CROSSING)) on = false;
       rows.push({
         x: pt.x,
         z: pt.z,
@@ -361,9 +430,7 @@ export function* reedBedMeshJob(
 
     function addRun(run: typeof rows): void {
       const mid = run[run.length >> 1];
-      const t = tileAt(mid.x, mid.z);
-      const core = t.core;
-      const wall = t.wall;
+      const core = tileAt(mid.x, mid.z);
       // Core cross-section: foot, shoulder, top points, shoulder, foot (left to right).
       const across: [number, number][] = [
         [-half, -1],
@@ -445,6 +512,7 @@ export function* reedBedMeshJob(
         const cell = reedCells[Math.abs(seed) % reedCells.length];
         const [u0, v0, u1, v1] = cellRect(look.sheet, cell);
         const flip = (seed >> 3) & 1;
+        const wall = wallAt(x0, z0);
         const w0 = wall.pos.length / 3;
         const h0 = top0 - bottom0;
         const h1 = top1 - bottom1;
@@ -509,8 +577,30 @@ export function* reedBedMeshJob(
   const coreMat = coreMaterial(season);
   const wallMat = wallMaterial(season);
   for (const t of tiles.values()) {
-    if (t.core.idx.length) group.add(toMesh(t.core, coreMat, true));
-    if (t.wall.idx.length) group.add(toMesh(t.wall, wallMat, false));
+    if (t.idx.length) group.add(toMesh(t, coreMat, true));
+    yield;
+  }
+  // Each wall cell is a LOD about its centre: drawn while the camera is within WALL_NEAR of some part of it.
+  const reach = WALL_NEAR + (WALL_CELL * Math.SQRT2) / 2 + 10;
+  for (const [key, w] of walls) {
+    if (!w.idx.length) continue;
+    const [i, j] = key.split(',').map(Number);
+    const cx = (i + 0.5) * WALL_CELL;
+    const cz = (j + 0.5) * WALL_CELL;
+    let cy = 0;
+    for (let k = 1; k < w.pos.length; k += 3) cy += w.pos[k];
+    cy /= w.pos.length / 3;
+    for (let k = 0; k < w.pos.length; k += 3) {
+      w.pos[k] -= cx;
+      w.pos[k + 1] -= cy;
+      w.pos[k + 2] -= cz;
+    }
+    const lod = new LOD();
+    lod.position.set(cx, cy, cz);
+    lod.addLevel(toMesh(w, wallMat, false), 0);
+    lod.addLevel(new Object3D(), reach);
+    lod.updateMatrix();
+    group.add(lod);
     yield;
   }
   return group;

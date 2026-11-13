@@ -267,13 +267,15 @@ export const rustWeeds: AssetBuilder = ({ seed }) => {
  * and weeds thrown on it: a mound of vertex-coloured soil (lighter where the top has dried) with cards of bleached straw
  * stems sticking out of it.
  */
-export const spoilHeap: AssetBuilder = ({ seed, variant }) => {
+export const spoilHeap: AssetBuilder = ({ seed, variant, lod }) => {
   const rng = new Rng(seed + variant * 977);
   const len = rng.range(2.5, 4);
   const wid = rng.range(1.6, 2.4);
   const hgt = rng.range(0.6, 1.0);
-  const NU = 18;
-  const NV = 9;
+  // Far (lod 1): the same mound on a coarse grid, no straw (one draw call for all variants).
+  const far = lod > 0;
+  const NU = far ? 8 : 18;
+  const NV = far ? 3 : 9;
   const pos: number[] = [];
   const col: number[] = [];
   const idx: number[] = [];
@@ -325,6 +327,7 @@ export const spoilHeap: AssetBuilder = ({ seed, variant }) => {
   // Faceted (clods), not a smooth dome.
   const clods = mound.toNonIndexed();
   clods.computeVertexNormals();
+  if (far) return { parts: [{ geometry: clods, material: soilMaterial() }] };
   // Cut straw stems thrown on it, sticking out of the earth at angles.
   const stems = plantCards(
     rng,

@@ -711,6 +711,8 @@ export class ScatterField {
       // Rules limited to land cover classes that don't occur in this chunk: skip early.
       if (coverMask && lc && !this.chunkHasCover(lc, coverMask, x0, z0, cs))
         continue;
+      // Channel rules on a chunk no channel reaches: every candidate would miss (most chunks of a ditch map).
+      if (rule.channelDist && !this.ctx.channels?.touches(x0, z0, cs)) continue;
       const pts = rule.rows
         ? this.rowPoints(rule, coverMask!, x0, z0, cs, rng)
         : null;
