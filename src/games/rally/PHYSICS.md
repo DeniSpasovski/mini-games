@@ -314,8 +314,10 @@ without it the Tarmac tyre arrived at Petralica's gravel at 116 km/h and slid 30
 
 ### Tyre temperature (`physics/tyre-temp.ts`)
 
-Cold tyres grip less, tyres overheated by sliding grip less, in between they are at full grip. One temperature per tyre
-(`WheelState.temp`), only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
+Cold tyres grip less, tyres overheated by sliding grip less, in between they are at full grip. Two temperatures per tyre:
+the tread **surface** (`WheelState.surfaceTemp`, moves in seconds) and the **core** (`coreTemp`, the carcass, moves over
+a minute or two); grip and the HUD follow `temp` = core + 0.4 x (surface - core) on tarmac, up to 0.8 on loose ground where the tread face
+biting the stones does the work (`gripTemp`). Only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
 pages and the reference tests above are unchanged).
 
 - **Climate:** every stage hardcodes its temperatures: `StageDef.temps` (`maps/<map>/stages.ts`) = `[air, road]` °C for each
@@ -335,9 +337,13 @@ pages and the reference tests above are unchanged).
   lower for the 882 m start; climate-zone.com station tables) and the LaGuardia 1991-2020 normals (Jackie, NWS), spread over
   the day by the sun's hours at each place (lowest near sunrise, highest mid-afternoon), the road above them by the hour's
   clear-sky gap. The stage screen shows the same numbers.
-- **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
-  (speed x load). **Cooling:** air (more with speed), the ground (towards the track temperature), water. Capped at 150 °C.
-  Tyres start a stage at the air temperature (`resetTyreTemps` on start / restart; reset to road keeps them).
+- **Surface:** heated by sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground),
+  cooled by the air (more with speed), the ground (towards the track temperature) and the core. So a drift spikes it and
+  a straight brings it back down within seconds. Capped at 220 °C.
+- **Core:** heated by the surface (12x slower) and by carcass flex (speed x load), cooled by the air. This is what makes
+  a cold tyre take a while to come in, and a long abuse keep it warm. Capped at 150 °C.
+- Both start a stage at the air temperature (`resetTyreTemps` on start / restart; reset to road keeps them); water and a
+  wet road cool both.
 - **Grip:** `TyreDef.temp` window per compound; below it grip falls to `cold` over 45 °C, above it to `hot` over 35 °C
   (smoothstep), and loose ground halves the loss (tread bites, rubber matters less). The factor multiplies the wheel's
   grip input (`tire.ts` and the cached surface tables are untouched); the autopilot's corner plan includes it
@@ -352,12 +358,13 @@ pages and the reference tests above are unchanged).
 | Gravel Hard | 58-98 °C  |
 | Gravel Soft | 46-86 °C  |
 
-Feel targets (`tests/rally/tyre-temp.test.ts`, Skoda Rally, tarmac tyre, 20 °C): a 60 km/h circle brings the tyre into its window in about 14 s, a donut
-overheats it in seconds and a straight cools it back; cold grip is clearly below warm. On a stage the careful autopilot warms its home tyre into the window in
-~30 s. Gravel runs cool and tarmac hot, so a tarmac tyre on gravel also stays cold, and a gravel tyre on tarmac overheats sooner.
+Feel targets (`tests/rally/tyre-temp.test.ts`, Skoda Rally, tarmac tyre, 20 °C): a 60 km/h circle brings the tyre into its window in about 40 s, a donut
+overheats it in seconds and a straight cools the surface back while the core stays warm; cold grip is clearly below warm. Real tyres: the surface reacts in
+seconds and the carcass in minutes; public rally temperature traces are rare, so the rates are tuned by feel. Gravel runs cool and tarmac hot, so a tarmac
+tyre on gravel also stays cold, and a gravel tyre on tarmac overheats sooner.
 
-HUD: four tyres in the dash, white (cold) -> green (window) -> yellow -> red (`game/tyre-gauge.ts`), air / track
-temperature under them; `F2` shows temperature and grip factor per wheel.
+HUD: four tyres in the dash, white (cold) -> mint / green / lime (low / middle / top of the window) -> yellow -> red
+(`game/tyre-gauge.ts`), air / track temperature under them; `F2` shows temperature (surface / core) and grip factor per wheel.
 
 Research behind the model (also in the game's About screen under Physics > Tyres, `TYRE_RESEARCH` in `game/menu.ts`):
 
