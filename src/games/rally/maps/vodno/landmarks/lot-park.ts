@@ -1249,8 +1249,6 @@ export function drawGarden(l: Local, gy: LocalGround): void {
     const { p: pts, n: ns, thick, low } = w;
     const hi: number[] = [];
     const foot: number[] = [];
-    /** The lawn's level at the wall's outer face: where its stone plinth ends. */
-    const lawn: number[] = [];
     pts.forEach(([x, z], k) => {
       const [nx, nz] = ns[k];
       const inY = Math.max(
@@ -1267,7 +1265,6 @@ export function drawGarden(l: Local, gy: LocalGround): void {
           : Math.max(inY + 0.45, outY > inY ? outY + 0.15 : -Infinity),
       );
       foot.push(low ? inY - 0.5 : Math.min(inY, outY) - 0.9);
-      lawn.push(outY);
     });
     const lo = foot.map((v, k) =>
       Math.min(
@@ -1278,39 +1275,6 @@ export function drawGarden(l: Local, gy: LocalGround): void {
     );
     const top = smoothHeights(hi);
     wallRibbon(l, { p: pts, n: ns, hi: top, lo, inner: 0, outer: thick });
-    // A stone plinth at the foot of a retaining wall, leaning out from its face to the lawn: the drawn terrain's 1 m grid
-    // leaves a grass wedge against the face where no grid point falls inside the thin wall, and the plinth stands over it.
-    if (!low) {
-      const base = smoothHeights(lawn);
-      const PLINTH = 0.6;
-      const tan = unitV(
-        pts[pts.length - 1][0] - pts[0][0],
-        pts[pts.length - 1][1] - pts[0][1],
-      );
-      for (let k = 0; k + 1 < pts.length; k++) {
-        const [nx, nz] = unitV(
-          ns[k][0] + ns[k + 1][0],
-          ns[k][1] + ns[k + 1][1],
-        );
-        const q = (j: number, o: number, y: number): V3 => [
-          pts[j][0] + ns[j][0] * o,
-          y,
-          pts[j][1] + ns[j][1] * o,
-        ];
-        l.fan(
-          'drystone',
-          [
-            q(k, thick, base[k] + PLINTH),
-            q(k + 1, thick, base[k + 1] + PLINTH),
-            q(k + 1, thick + PLINTH, base[k + 1] - 0.05),
-            q(k, thick + PLINTH, base[k] - 0.05),
-          ],
-          '#ddd7ca',
-          [nx * 0.7, 0.7, nz * 0.7],
-          (v) => [v[0] * tan[0] + v[2] * tan[1], v[1]],
-        );
-      }
-    }
     if (!w.rail) return;
     // The railing: posts about every 2 m, two rails sloping with the top.
     const posts: V3[] = [];

@@ -422,19 +422,7 @@ export const carParksLandmark = landmark({
     },
     // The gazebo in the park (it stands where OSM has a building: replaced).
     { site: GAZEBO, r: 7 },
-    // (a circle every ~6 m along the lot's centre line, so no tree or bush roots on its wide asphalt between them)
-    ...VIDIKOVEC_LOT_CENTRE.flatMap(([x, z], i, all) => {
-      const next = all[i + 1];
-      if (!next) return [{ x, z }];
-      const n = Math.max(
-        1,
-        Math.ceil(Math.hypot(next[0] - x, next[1] - z) / 6),
-      );
-      return Array.from({ length: n }, (_, k) => ({
-        x: x + ((next[0] - x) * k) / n,
-        z: z + ((next[1] - z) * k) / n,
-      }));
-    }).map(({ x, z }) => ({
+    ...VIDIKOVEC_LOT_CENTRE.map(([x, z]) => ({
       site: {
         ...VIDIKOVEC_LOT,
         x: VIDIKOVEC_LOT.x + x,
