@@ -15,6 +15,7 @@ import { boxCollider, cylinderCollider, turnedBoxCollider } from './common';
 import {
   bayCars,
   buildLot,
+  slabOutline,
   onLot,
   SLAB,
   slabHeight,
@@ -430,6 +431,11 @@ export const carParksLandmark = landmark({
       },
       r: 11,
     })),
+    // The Vidikovec's whole slab (wider than those circles at its lens and east end).
+    {
+      site: VIDIKOVEC.site,
+      poly: slabOutline(VIDIKOVEC).poly,
+    },
     // The stone road from the Sredno park entrance to the lower cable car station.
     ...stoneRoadAreas().map(({ x, z, r }) => ({
       site: { ...SREDNO_LOT, x, z },
