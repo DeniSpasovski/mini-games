@@ -24,6 +24,7 @@ import type { TerrainSampler } from './heightfield';
 import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
 import { newRoadQuery, type Road, type RoadQuery } from './road';
+import { PEOPLE_ASSETS } from './corner-fans';
 import { fanVariant } from './fan-variants';
 import { outcropRow } from './outcrops';
 import { splitRuns, tapeRun } from './tape';
@@ -632,8 +633,13 @@ export class ScatterField {
     const k = key(cx, cz);
     let c = this.chunks.get(k);
     if (!c) {
-      const instances = this.generate(cx, cz, this.rules, 0);
-      instances.push(...(this.fixed.get(k) ?? []));
+      const fixed = this.fixed.get(k) ?? [];
+      const instances = clearTrunks(
+        this.generate(cx, cz, this.rules, 0),
+        fixed,
+        this.fixedColliders.get(k) ?? [],
+      );
+      instances.push(...fixed);
       c = {
         instances,
         colliders: [
@@ -1305,6 +1311,51 @@ export function roadsideInstances(
 }
 
 /** World-space colliders for an instance from its asset's collider spec. */
+/**
+ * The generated instances without a trunk growing out of something: rules place them independently. A generated prop
+ * (a boulder, a fallen log) or person a trunk would stand in goes and the tree stays (the forest is never thinned for
+ * a prop); a generated tree or bush whose trunk would stand in a placed prop, a rail or fence, or a placed person goes.
+ */
+function clearTrunks(
+  generated: ScatterInstance[],
+  fixed: ScatterInstance[],
+  fixedColliders: StaticCollider[],
+): ScatterInstance[] {
+  const isTree = (i: ScatterInstance): boolean =>
+    !!i.tree || isTreeType(i.asset);
+  const isPerson = (i: ScatterInstance): boolean =>
+    PEOPLE_ASSETS.includes(i.asset);
+  const inBox = (c: StaticCollider, x: number, z: number): boolean => {
+    if (c.kind !== 'box') return false;
+    const cs = Math.cos(c.rot ?? 0);
+    const sn = Math.sin(c.rot ?? 0);
+    const dx = x - c.x;
+    const dz = z - c.z;
+    return (
+      Math.abs(dx * cs - dz * sn) <= (c.hx ?? 0) + 0.15 &&
+      Math.abs(dx * sn + dz * cs) <= (c.hz ?? 0) + 0.15
+    );
+  };
+  const near = (a: ScatterInstance, b: ScatterInstance): boolean =>
+    Math.hypot(a.x - b.x, a.z - b.z) < 0.6;
+  const trunks = [...generated, ...fixed].filter(isTree);
+  // What a generated tree must not grow through: a placed prop (a bench, a sign), a rail or fence, a placed person.
+  const blocks = [
+    ...fixed.filter((i) => !isTree(i)).flatMap(collidersOf),
+    ...fixedColliders,
+  ];
+  const people = fixed.filter(isPerson);
+  return generated.filter((i) => {
+    if (isTree(i))
+      return (
+        !blocks.some((c) => inBox(c, i.x, i.z)) &&
+        !people.some((p) => near(p, i))
+      );
+    if (isPerson(i) && trunks.some((t) => near(t, i))) return false;
+    return !collidersOf(i).some((c) => trunks.some((t) => inBox(c, t.x, t.z)));
+  });
+}
+
 export function collidersOf(inst: ScatterInstance): StaticCollider[] {
   if (inst.tree) return treeColliders(inst);
   const meta = getAssetMeta(inst.asset);
