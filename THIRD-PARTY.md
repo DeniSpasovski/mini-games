@@ -94,23 +94,24 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 The parked cars of the city maps and the Ajvatovci yards, the Ajvatovci lots' vans and the service park's trucks, vans and
 pickups are recoloured copies of vehicles from two CC BY 4.0 packs (split and packed by
 `scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`; their own triangles and textures,
-paint panels tinted, far LODs reduced, wheels redrawn at the far LODs; the source files are not in the repository).
+paint panels tinted, the cars' wheels re-rounded up close (more sides on their own circles), far LODs reduced, wheels redrawn at
+the far LODs; the source files are not in the repository).
 
-| Pack                                                                                                                                              | Author                                                       | Licence   |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------- |
-| ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (cars)                | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
-| ["Low Poly Vehicle Mini Pack 7"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74) (vans and trucks) | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
+| Pack                                                                                                                                                  | Author                                                       | Licence   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------- |
+| ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (cars; wheels re-rounded) | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
+| ["Low Poly Vehicle Mini Pack 7"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74) (vans and trucks)     | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
 
 ### Fire engines (baked into `src/games/rally/assets/builders/`: `fire-trucks.data.ts`, `fire-truck-us.jpg`, `fire-truck-mk.jpg`)
 
 The two fire engines keep their own triangles and textures (split and packed by `scripts/car-model/street-pack-extract.py` +
-`bake-fire-truck-textures.py` + `bake-fire-trucks.mjs`; scaled to real size, unseen triangles dropped, far LODs reduced; the source
+`bake-fire-truck-textures.py` + `bake-fire-trucks.mjs`; scaled to real size, unseen triangles dropped, the US engine's wheels re-rounded up close, far LODs reduced; the source
 files are not in the repository).
 
-| Model                                                                                                                                                      | Author                                                                             | Used for                              | Licence   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- | --------- |
-| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | Have a name ([FixedShark554](https://sketchfab.com/FixedShark554)) (Sketchfab)     | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
-| ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`)            | CC BY 4.0 |
+| Model                                                                                                                                                      | Author                                                                             | Used for                                      | Licence   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------- | --------- |
+| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | Have a name ([FixedShark554](https://sketchfab.com/FixedShark554)) (Sketchfab)     | the Macedonian maps (`fire_truck_mk`)         | CC BY 4.0 |
+| ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`; wheels re-rounded) | CC BY 4.0 |
 
 ### Ground textures (baked into `src/games/rally/engine/ground/`)
 

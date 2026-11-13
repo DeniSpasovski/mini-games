@@ -26,7 +26,8 @@ const ATLAS: Record<FireTruckId, string> = {
 /** The engine `id` at `lod` (0 near); `geometry()` has position, normal and uv only. */
 export function fireTruckModel(id: FireTruckId, lod: number): StreetCarShape {
   const index = FIRE_TRUCK_DATA.findIndex((d) => d.id === id);
-  const shape = vehicleModel(FIRE_TRUCK_DATA, index, lod);
+  // Only the US engine's wheels are rounded: the Macedonian one's have 32 sides as they are.
+  const shape = vehicleModel(FIRE_TRUCK_DATA, index, lod, id === 'fire_truck');
   return {
     ...shape,
     geometry: (paintHex) => {

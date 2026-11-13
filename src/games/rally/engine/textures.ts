@@ -50,6 +50,7 @@ export type TextureId =
   | 'hatch'
   | 'barrier_jersey'
   | 'vehicle_decals'
+  | 'taxi_sign'
   | 'village_sign'
   | 'detail'
   | 'people'
@@ -84,6 +85,7 @@ export function setTextureAnisotropy(n: number): void {
 /** Textures drawn with text: the fonts of a worker are not the page's, so these are always drawn here. */
 const TEXT_TEXTURES = new Set<TextureId>([
   'vehicle_decals',
+  'taxi_sign',
   'village_sign',
   'lot_sign_mileks',
   'lot_sign_station',
@@ -1367,6 +1369,46 @@ const DEFS: Record<TextureId, TexDef> = {
       ctx.globalCompositeOperation = 'source-over';
       // u 0.667 .. 1.0: AMBULANCE, red letters (generic word, no agency names).
       text('AMBULANCE', w * 0.667, w, '#c8161d');
+    },
+  },
+  taxi_sign: {
+    name: 'Taxi roof sign: the lit face with TAXI (left three quarters), the plain housing (right)',
+    size: [256, 64],
+    color: true,
+    draw(ctx, w, h) {
+      // Housing: translucent yellow plastic.
+      ctx.fillStyle = '#f2c230';
+      ctx.fillRect(0, 0, w, h);
+      // Face: brighter over the lamp in the middle, a dark rim.
+      const fw = w * 0.75;
+      const glow = ctx.createRadialGradient(
+        fw / 2,
+        h / 2,
+        h * 0.1,
+        fw / 2,
+        h / 2,
+        fw * 0.6,
+      );
+      glow.addColorStop(0, '#fff3b8');
+      glow.addColorStop(1, '#f5c637');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, fw, h);
+      ctx.strokeStyle = '#3a3320';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(1.5, 1.5, fw - 3, h - 3);
+      // The generic word, no operator name or number.
+      ctx.fillStyle = '#15130f';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(h * 0.62)}px Arial, Helvetica, sans-serif`;
+      const letters = 'TAXI';
+      const step = fw * 0.2;
+      for (let i = 0; i < letters.length; i++)
+        ctx.fillText(
+          letters[i],
+          fw / 2 + (i - (letters.length - 1) / 2) * step,
+          h * 0.54,
+        );
     },
   },
   village_sign: {
