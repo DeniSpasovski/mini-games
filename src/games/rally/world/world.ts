@@ -211,14 +211,22 @@ export class World implements GroundProvider {
       splits.push(start + ((finish - start) * i) / (timing.splits + 1));
     this.stage = { start, finish, splits };
     this.slab = new RoadSlab(this.gen, map);
-    const meshSink = map.terrain.meshSink;
-    const levelled = (x: number, z: number): number => this.gen.height(x, z);
-    this.gen.sink = meshSink
-      ? (x, z) => this.slab.sink(x, z) + meshSink(x, z, levelled)
-      : (x, z) => this.slab.sink(x, z);
     this.heightfield = new Heightfield(this.gen);
     this.analytic = new AnalyticTerrain(this.gen);
     this.landmarks = landmarksOf(map);
+    // The drawn terrain is cut under the road slabs and under the landmarks' layers laid level with the ground (the
+    // deeper cut), plus the map's own cut at walls (`terrain.meshSink`).
+    const cuts = this.landmarks.flatMap((l) => l.meshSink?.() ?? []);
+    const meshSink = map.terrain.meshSink;
+    const levelled = (x: number, z: number): number => this.gen.height(x, z);
+    this.gen.sink =
+      cuts.length || meshSink
+        ? (x, z) => {
+            let s = this.slab.sink(x, z);
+            for (const c of cuts) s = Math.max(s, c(x, z));
+            return meshSink ? s + meshSink(x, z, levelled) : s;
+          }
+        : (x, z) => this.slab.sink(x, z);
     const rails = this.gen.railPaths();
     this.buildings = new BuildingIndex(
       (map.buildings ?? []).filter(

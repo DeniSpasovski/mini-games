@@ -12,11 +12,12 @@ import {
 import {
   lotShape,
   onLot,
+  runThick,
   SREDNO,
-  stairsAnchor,
   wallRuns,
   SREDNO_BUS,
   VIDIKOVEC,
+  VIDIKOVEC_RIM,
 } from '../../src/games/rally/maps/vodno/landmarks/car-parks';
 import {
   gardenColliders,
@@ -441,10 +442,16 @@ describe('vodno car parks', () => {
     }
     expect(LOT_PADS.map((p) => p.name)).toEqual([
       'vidikovec_lot',
-      'vidikovec_garden_2',
-      'vidikovec_garden_1',
-      'vidikovec_garden_ramp_1',
-      'vidikovec_garden_ramp_2',
+      'vidikovec_mouth',
+      'vidikovec_verge',
+      'vidikovec_garden_green',
+      'vidikovec_garden_red',
+      'vidikovec_garden_grey',
+      'vidikovec_slab',
+      'vidikovec_mouth_slab',
+      'vidikovec_flight_green',
+      'vidikovec_flight_red',
+      'vidikovec_garden_steps',
       'sredno_lot',
       'sredno_between',
       'sredno_bus_lot',
@@ -578,41 +585,48 @@ describe('vodno car park surroundings', () => {
       ).toBeLessThan(2.1);
   });
 
-  test('stairs go down from the mid parking through its wall to the garden, inside the garden span', () => {
-    const a = stairsAnchor(VIDIKOVEC)!;
-    expect(a).toBeTruthy();
-    // (the slab's edge point itself may fall either side of its outline: take one 40 cm in)
-    const [wx, wz] = toWorld(
-      VIDIKOVEC.site,
-      a.p[0] - a.n[0] * 0.4,
-      a.p[1] - a.n[1] * 0.4,
-    );
-    expect(onLot(VIDIKOVEC, wx, wz)).toBe(true);
-    // The garden's first terrace lies straight out from the stairs: its outline contains the point 3 m out.
-    const out = toWorld(
-      VIDIKOVEC.site,
-      a.p[0] + a.n[0] * 3,
-      a.p[1] + a.n[1] * 3,
-    );
-    const poly = gardenPolygon(0).map(([x, z]) =>
-      toWorld(VIDIKOVEC.site, x, z),
-    );
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const [ax, az] = poly[i];
-      const [bx, bz] = poly[j];
-      if (
-        az > out[1] !== bz > out[1] &&
-        out[0] < ((bx - ax) * (out[1] - az)) / (bz - az) + ax
-      )
-        inside = !inside;
+  test('stairs go down from the mid parking through the openings of its rim to the green and red terraces', () => {
+    const { T, R1, Q1, G } = VIDIKOVEC_RIM;
+    for (const [a, b, terrace] of [
+      [T, R1, 1],
+      [Q1, G, 0],
+    ] as const) {
+      const mx = (a[0] + b[0]) / 2;
+      const mz = (a[1] + b[1]) / 2;
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      // (the opening's normal, turned away from the lot)
+      let nx = -(b[1] - a[1]) / len;
+      let nz = (b[0] - a[0]) / len;
+      if (onLot(VIDIKOVEC, ...toWorld(VIDIKOVEC.site, mx + nx, mz + nz))) {
+        nx = -nx;
+        nz = -nz;
+      }
+      // 40 cm in is the slab; the terrace lies straight out: its outline contains the point 3 m out.
+      expect(
+        onLot(
+          VIDIKOVEC,
+          ...toWorld(VIDIKOVEC.site, mx - nx * 0.4, mz - nz * 0.4),
+        ),
+      ).toBe(true);
+      const poly = gardenPolygon(terrace);
+      const [ox, oz] = [mx + nx * 3, mz + nz * 3];
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [ax, az] = poly[i];
+        const [bx, bz] = poly[j];
+        if (
+          az > oz !== bz > oz &&
+          ox < ((bx - ax) * (oz - az)) / (bz - az) + ax
+        )
+          inside = !inside;
+      }
+      expect(inside, `terrace ${terrace}`).toBe(true);
     }
-    expect(inside).toBe(true);
   });
 
-  test('the garden terraces and the park strip are painted lush grass terrain, not decals', () => {
+  test('the garden terraces, the park strip and the east end of the lot are painted lush grass terrain, not decals', () => {
     const lawns = vodnoMap.terrain.lawns!;
-    expect(lawns.length).toBe(5);
+    expect(lawns.length).toBe(6);
     const out = new Float32Array(4);
     for (const poly of lawns) {
       // The polygon's vertex mean (a thin strip: inside enough for the feather).
@@ -667,7 +681,7 @@ describe('vodno car park surroundings', () => {
     expect(count(500, -700)).toBeGreaterThan(20);
   });
 
-  test('the rock walls of the mid parking and its garden are hard borders (colliders), the stairs opening is closed too', () => {
+  test('the rock walls of the mid parking and its garden are hard borders (colliders), the stair openings are closed too', () => {
     const cols = carParksLandmark.colliders(world.analytic);
     const inside = (x: number, z: number, y: number): boolean =>
       cols.some((c) => {
@@ -678,31 +692,29 @@ describe('vodno car park surroundings', () => {
         const lz = (x - c.x) * sn + (z - c.z) * cs;
         return Math.abs(lx) <= (c.hx ?? 0) && Math.abs(lz) <= (c.hz ?? 0);
       });
+    // (the solid runs: the stairs' openings in the rim are closed too)
     let checked = 0;
-    for (const run of wallRuns(VIDIKOVEC))
+    for (const run of wallRuns(VIDIKOVEC, true)) {
+      const T = runThick(run, VIDIKOVEC.wallThick ?? 0.6);
       for (let k = 0; k + 1 < run.p.length; k++) {
-        const T = VIDIKOVEC.wallThick ?? 0.6;
-        const mx =
-          (run.p[k][0] + run.p[k + 1][0]) / 2 + run.n[k][0] * (0.05 + T / 2);
-        const mz =
-          (run.p[k][1] + run.p[k + 1][1]) / 2 + run.n[k][1] * (0.05 + T / 2);
-        const [wx, wz] = toWorld(VIDIKOVEC.site, mx, mz);
-        // A car's hull point on the wall at slab height + 0.8 m is inside a box.
+        const px = (run.p[k][0] + run.p[k + 1][0]) / 2;
+        const pz = (run.p[k][1] + run.p[k + 1][1]) / 2;
+        const [nx, nz] = run.n[k];
+        const [wx, wz] = toWorld(
+          VIDIKOVEC.site,
+          px + nx * (0.05 + T / 2),
+          pz + nz * (0.05 + T / 2),
+        );
+        // A car's hull point on the wall, 1 m over the slab just inside it (a bank's own ground is the raised verge).
+        const [ix, iz] = toWorld(VIDIKOVEC.site, px - nx * 0.5, pz - nz * 0.5);
         expect(
-          inside(wx, wz, world.analytic.height(wx, wz) + 1),
+          inside(wx, wz, world.analytic.height(ix, iz) + 1),
           `(${wx}, ${wz})`,
         ).toBe(true);
         checked++;
       }
+    }
     expect(checked).toBeGreaterThan(40);
-    // The opening of the stairs from the lot is closed.
-    const a = stairsAnchor(VIDIKOVEC)!;
-    const [sx, sz] = toWorld(
-      VIDIKOVEC.site,
-      a.p[0] + a.n[0] * 0.5,
-      a.p[1] + a.n[1] * 0.5,
-    );
-    expect(inside(sx, sz, world.analytic.height(sx, sz) + 1)).toBe(true);
     // The garden's dividing wall (off its ramps and stairs gap) is solid; the lot's road side is open.
     expect(
       gardenColliders((x, z) => world.analytic.height(x, z)).length,
@@ -801,7 +813,7 @@ describe('vodno car park surroundings', () => {
     ).toEqual([
       [2478, 2575],
       [2680, 2715],
-      [2775, 2796],
+      [2775, 2826],
     ]);
     // The galvanised rails: between the road and the Vidikovec lot from its grass island's start (two-tier), the left
     // side after the first crossroad, and the runs the references show.

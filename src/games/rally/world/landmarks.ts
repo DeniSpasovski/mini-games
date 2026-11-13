@@ -31,6 +31,11 @@ export interface Landmark {
    */
   groundOverride?(ground: TerrainSampler): (x: number, z: number) => number;
   /**
+   * How far the DRAWN terrain is cut at (x, z) (m), under a layer laid level with the ground (an unpaved track): the
+   * mesh only, physics keeps the ground (`TerrainGenerator.sink`, like the road slabs).
+   */
+  meshSink?(): (x: number, z: number) => number;
+  /**
    * Junction dressing (the barrier rows closing side-road mouths, marshals, parked emergency vehicles) is
    * not placed here: the landmark has its own (a paved apron, a gate barrier).
    */

@@ -765,7 +765,8 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   included) and uploads happen behind the loading screen. A material first used mid-stage compiles then (a hitch): it
   must be in the scene at load (`assetIds` adds the world-placed assets).
 - Background work runs in module workers (`shared/worker-pool.ts`): tree variants, leaf atlases, people, procedural
-  textures; the tree workers read the IndexedDB cache. `__rally.loadTimings` splits the load by phase.
+  textures; the tree workers read the IndexedDB cache. `play.ts` starts the tree workers (`warmTreeWorkers`) while the map
+  data loads, so the Trees phase finds them running. `__rally.loadTimings` splits the load by phase.
 - A long load-time task holds every worker pool up: slice once-per-page bakes (`bakeCropCards`). Long synchronous steps
   set their label and `paint()` first.
 

@@ -18,6 +18,7 @@ import {
   SREDNO_LOT_CENTRE,
   SREDNO_LOT_HW,
   SREDNO_LOT_WIDTHS,
+  inPolygon,
   toLocal,
   toWorld,
   VIDIKOVEC_LOT,
@@ -103,11 +104,12 @@ export type RimKind = 'wall' | 'low' | 'kerb' | 'bank' | 'open';
  */
 export const VIDIKOVEC_RIM = {
   W: [33.71, -0.76] as V2,
-  T: [2.56, -17.16] as V2,
-  R1: [0.89, -14.28] as V2,
+  T: [0.14, -18.57] as V2,
+  // (the green stairs' head T-R1 sits where the wall P1-Q1 starts: R1-P1 runs on in line with it, no corner)
+  R1: [-2.11, -14.69] as V2,
   // (the red terrace's stairs: a landing at the lot's level out to the line P1-Q1 that runs parallel to the wall between
   // the terraces, then the flight from Q1-G down along the grey strip's wall)
-  P1: [-2.11, -14.69] as V2,
+  P1: [-2.61, -15.02] as V2,
   Q1: [-7.78, -18.48] as V2,
   G: [-13.76, -16.28] as V2,
   /** The grey strip's lot edge ends here; Eend-M-D is the lot's east end above the stone steps down to the green terrace. */
@@ -768,24 +770,13 @@ export function lotMeshSink(
   );
 }
 
-const inPolygon = (poly: V2[], lx: number, lz: number): boolean => {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [ax, az] = poly[i];
-    const [bx, bz] = poly[j];
-    if (az > lz !== bz > lz && lx < ((bx - ax) * (lz - az)) / (bz - az) + ax)
-      inside = !inside;
-  }
-  return inside;
-};
-
 /** A lot's slab outline (local frame) and its world bounding box [minX, minZ, maxX, maxZ]. */
-interface SlabOutline {
+export interface SlabOutline {
   poly: V2[];
   box: [number, number, number, number];
 }
 const outlines = new Map<Lot, SlabOutline>();
-const slabOutline = (lot: Lot): SlabOutline => {
+export const slabOutline = (lot: Lot): SlabOutline => {
   let o = outlines.get(lot);
   if (!o) {
     const { left, right } = lotShape(lot);
@@ -821,6 +812,11 @@ export interface WallRun {
   kerb?: boolean;
   /** A retaining wall under a raised verge, its top at the verge's grass (`RimKind` 'bank'). */
   bank?: boolean;
+}
+
+/** A wall run's thickness (m): the drawn wall and its collider share it. `lotT` = the lot's `wallThick`. */
+export function runThick(run: WallRun, lotT: number): number {
+  return run.low ? 0.4 : run.kerb ? 0.35 : run.bank ? 0.5 : lotT;
 }
 
 /** A cap across the strip's end is open (no kerb, no wall) where it meets the road: a narrow mouth, or a cap that runs along the road. */
@@ -902,8 +898,8 @@ export function wallRuns(lot: Lot, solid = false): WallRun[] {
           : s === -1 && lot.rimLeft
             ? lot.rimLeft((sl[i] + sl[i + 1]) / 2)
             : 'wall';
-      // (the colliders close the stairs' openings: a car never drives down them)
-      if (solid && kind === 'open') kind = 'wall';
+      // (the colliders close the stairs' openings in the outer rim: a car never drives down them; the road side stays open)
+      if (solid && s === 1 && kind === 'open') kind = 'wall';
       const near = ruled ? ROAD_CLEAR + 0.6 : ROAD_SIDE;
       const open =
         kind === 'open' ||
@@ -1072,7 +1068,7 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
     for (const run of runs) {
       const m = run.p.length;
       if (m < 2) continue;
-      const T = run.low ? 0.4 : run.kerb ? 0.35 : run.bank ? 0.5 : lotT;
+      const T = runThick(run, lotT);
       const OUT = IN + T;
       const at = (k: number, o: number): V2 => [
         run.p[k][0] + run.n[k][0] * o,
@@ -1493,10 +1489,10 @@ export function wallColliders(
   lot: Lot,
   ground: (x: number, z: number) => number,
 ): StaticCollider[] {
-  const T = lot.wallThick ?? 0.6;
-  const mid = 0.05 + T / 2;
+  const lotT = lot.wallThick ?? 0.6;
   const out: StaticCollider[] = [];
-  const box = (a: V2, b: V2, nx: number, nz: number): void => {
+  const box = (a: V2, b: V2, nx: number, nz: number, T = lotT): void => {
+    const mid = 0.05 + T / 2;
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (len < 0.05) return;
     const cx = (a[0] + b[0]) / 2 + nx * mid;
@@ -1528,6 +1524,7 @@ export function wallColliders(
         run.p[k + 1],
         (run.n[k][0] + run.n[k + 1][0]) / 2,
         (run.n[k][1] + run.n[k + 1][1]) / 2,
+        runThick(run, lotT),
       );
   const stairs = stairsAnchor(lot);
   if (stairs) {

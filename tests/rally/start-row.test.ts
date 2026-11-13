@@ -17,6 +17,11 @@ import {
   SITE,
 } from '../../src/games/rally/maps/ajvatovci/start-row/layout';
 import { sx } from '../../src/games/rally/maps/ajvatovci/start-row/trace';
+import {
+  FLUSH_DRIVE_SINK,
+  flushDriveSink,
+  yardTop,
+} from '../../src/games/rally/maps/ajvatovci/start-row/yard-surfaces';
 import { fenceRuns } from '../../src/games/rally/maps/ajvatovci/start-row/streetwork';
 import type { GroundSample } from '../../src/games/rally/physics/types';
 import { newRoadQuery } from '../../src/games/rally/world/road';
@@ -297,5 +302,25 @@ describe('start row in the world', () => {
         `${i.asset} inside a building`,
       ).toBe(false);
     }
+  });
+});
+
+describe('unpaved drives lie level with the ground', () => {
+  test('the slab lot track is a flush gravel layer: 2 cm over the ground, the drawn terrain cut under it', () => {
+    const yard = getYards().find((y) => y.plot.flushDrive)!;
+    expect(yard.plot.name).toBe('slab lot');
+    // (a point down the far part of the track, beyond the yard's own paving)
+    const far = yard.driveIn.reduce((a, p) => (p.y < a.y ? p : a));
+    const centre = yard.driveIn
+      .reduce((sum, p) => sum.add(p), new Vector2())
+      .divideScalar(yard.driveIn.length);
+    const at = far.clone().lerp(centre, 0.15);
+    expect(inside(at, yard.polygon)).toBe(false);
+    const ground = () => 10;
+    expect(yardTop(ground)(at.x, at.y)).toBeCloseTo(10.02, 3);
+    const cut = flushDriveSink()(at.x, at.y);
+    expect(cut).toBeGreaterThan(0);
+    expect(cut).toBeLessThanOrEqual(FLUSH_DRIVE_SINK);
+    expect(flushDriveSink()(at.x + 30, at.y)).toBe(0);
   });
 });

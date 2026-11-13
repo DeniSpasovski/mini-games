@@ -52,9 +52,12 @@ import type {
   AtlasResult,
   CachedRequest,
   CachedResult,
+  ChainsRequest,
+  ChainsResult,
   GenerateRequest,
+  PingRequest,
 } from './worker';
-import { WorkerPool } from '../../../shared/worker-pool';
+import { WorkerPool, workerCount } from '../../../shared/worker-pool';
 import { LEAF_STYLES, type LeafStyle } from './leaftex';
 import { photoAtlas, photoUrls } from './leafphoto';
 import { meshBuffers } from './mesh';
@@ -176,15 +179,31 @@ function registered(def: SpeciesDef, season: Season): boolean {
  * are generated inline, so the stage load never hangs (shared/worker-pool.ts). The leaf atlases of the styles in use
  * are made in the workers too.
  */
-type TreeAnswer = (Timed & { id: number }) | AtlasResult | CachedResult;
+type TreeAnswer =
+  (Timed & { id: number }) | AtlasResult | CachedResult | ChainsResult;
 
-class Generator {
-  private pool = new WorkerPool<TreeAnswer>(
+/** The tree workers, shared by every load (a page loads its trees once; the debuggers again on a change). */
+let pool: WorkerPool<TreeAnswer> | null = null;
+const treeWorkers = (): WorkerPool<TreeAnswer> =>
+  (pool ??= new WorkerPool<TreeAnswer>(
     () =>
       new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
     undefined,
     'trees',
-  );
+  ));
+
+/**
+ * Starts the tree workers and opens their disk cache ahead of `TreeLibrary.load`: the page calls it while the map's
+ * data loads (the main thread is free then; Chrome starts a worker only when it is), so the load finds them running.
+ */
+export function warmTreeWorkers(): void {
+  const p = treeWorkers();
+  const ping: Omit<PingRequest, 'id'> = { ping: true };
+  for (let i = 0; i < workerCount(); i++) p.post(ping, [], () => {});
+}
+
+class Generator {
+  private pool = treeWorkers();
 
   /** A variant and the ms its derivation + meshing took. */
   generate(def: SpeciesDef, index: number): Promise<Timed> {
@@ -228,6 +247,17 @@ class Generator {
         else void inline().then(resolve);
       });
       if (!sent) void inline().then(resolve);
+    });
+  }
+
+  /** A freshly baked impostor's mip chains, made in a worker (the pixels are copied: the page still uploads them). */
+  chains(pixels: ImpostorPixels): Promise<MipLevel[][]> {
+    return new Promise((resolve) => {
+      const req: Omit<ChainsRequest, 'id'> = { pixels };
+      const sent = this.pool.post(req, [], (r) =>
+        resolve(r && 'chains' in r ? r.chains : impostorChains(pixels)),
+      );
+      if (!sent) resolve(impostorChains(pixels));
     });
   }
 
@@ -363,16 +393,20 @@ export class TreeLibrary {
     const spheres: { cy: number; r: number }[] = [];
     const bounds: [number, number, number, number][] = [];
     const heights: number[] = [];
+    const baked: Promise<unknown>[] = [];
     for (const { def, i, key, g, impostor } of results) {
       const b0 = performance.now();
       const v = lib.build(def, g.info, g.meshes, impostor, renderer);
       if (!impostor) st.bakeMs += performance.now() - b0;
-      if (!impostor)
+      if (!impostor) {
+        // (a fresh bake's mip chains: in the workers while the next variants bake)
+        baked.push(gen.chains(v.pixels).then((c) => chains.set(v.pixels, c)));
         void putCached(key, {
           info: g.info,
           meshes: g.meshes,
           impostor: v.pixels,
         });
+      }
       // Memory: mesh buffers + impostor pixels on disk; on the GPU the same + the atlases' mips (~1/3 more).
       const meshBytes =
         meshBuffers(g.meshes).reduce((n, b) => n + b.byteLength, 0) +
@@ -395,6 +429,7 @@ export class TreeLibrary {
       bounds.push(impostorBounds(v.pixels));
       report(++done / jobs.length);
     }
+    await Promise.all(baked);
     if (allPixels.length) {
       const atlas = impostorArray(renderer, allPixels, chains);
       lib.impostors = {
