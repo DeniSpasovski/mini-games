@@ -518,7 +518,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace: `PadDef.level`); the
-  road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch (Vodno's concrete wall at the first crossroad:
+  road's carve wins near the road, except under a `hold` pad (applied again over the road's embankment: a lot under the road behind a wall).
+  A numeric `level` is a fixed height; a `ramp` slopes a pad (eased, or `linear`), also on top of a fixed level. `terrain.meshSink` moves only the
+  drawn terrain mesh (not the physics ground): Vodno sinks it at its lot and garden walls, which the 1 m mesh cannot step at. `road.cutWalls.range` limits the sheer, walled cut to one stretch (Vodno's concrete wall at the first crossroad:
   `maps/vodno/crossroad.ts`); `cutWalls.solid` holds the cut tight (a thin coping) and gives the face box colliders (`world/cut-wall-colliders.ts`), so a car
   stops at it. `routePoints` takes a sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a
   stretch; `MapDef.treeCrownClear` (Vodno: 1.5 m) re-poses any tree whose low leaves (under 4 m) would reach that far past the road's edge (`lowOverRoad` in

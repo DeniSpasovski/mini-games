@@ -21,8 +21,8 @@ Landmarks (OpenStreetMap plans, rough shapes in the style of the Ajvatovci hillt
 66 m Millennium Cross and the 155 m mast, the cable car with moving cabins, the mountain lodge, the churches of Sredno Vodno
 (beside the finish) and Gorno Nerezi, the lookout tower, the Markovi Kuli ruins, the restaurant beside the Sredno Vodno church, and
 three car parks beside the stage road (the
-Sredno Vodno one with its flag, lamps, a timber gazebo and watch towers; the Vidikovec with a grass island, a lattice lookout tower
-and rusted guard rails on its approach), the wooden gate past the first crossroad (two log towers, a notice board and a shelter) and two blocks
+Sredno Vodno one with its flag, lamps, a timber gazebo and watch towers; the Vidikovec with a grass island, a wooden notice board, a lattice lookout tower,
+a three-level garden with stairs below it and rusted guard rails on its approach), the wooden gate past the first crossroad (two log towers, a notice board and a shelter) and two blocks
 of flats behind one street wall on the start street, and a brick-and-concrete hotel behind the side street at the first crossroad (its forecourt on the road, road
 wall, sign boards), and the gravel trail car park at the hairpin above Sredno Vodno with the hiking trail's stone posts, a shelter and
 picnic tables under tall pines, sand and crushed-stone piles closing the side road and a gazebo on the grass island of the hairpin; another gazebo stands on the gravel pull-off at 2.3 km, where the hiking trail leaves. Rock cuts with
