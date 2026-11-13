@@ -1,9 +1,11 @@
 import {
   CanvasTexture,
+  Color,
   LinearMipmapLinearFilter,
   SRGBColorSpace,
   type Texture,
 } from 'three';
+import { EVENT_COLOR } from '../assets/builders/teams';
 
 /**
  * Canvas textures of the stage furniture (world/stage-sign-mesh.ts): the start / finish gantry
@@ -124,10 +126,14 @@ function speedStripes(
   ctx.restore();
 }
 
+/** A darker shade of a colour (the foot of a banner's gradient). */
+const shade = (hex: string, k: number): string =>
+  `#${new Color(hex).multiplyScalar(k).getHexString()}`;
+
 const THEME = {
   start: {
-    top: '#2a6ee0',
-    bottom: '#0a2766',
+    top: EVENT_COLOR,
+    bottom: shade(EVENT_COLOR, 0.55),
     accent: '#f5c518',
     word: 'START',
   },
