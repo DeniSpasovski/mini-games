@@ -53,6 +53,8 @@ export interface ScatterContext {
    * the stage road there. Nothing roots on a cut, and no tree stands where its crown would hang over the face.
    */
   cutAt?: (x: number, z: number, q: RoadQuery) => number;
+  /** Bank line height of a ditch (`terrain.ditches`) channel at `along` m; undefined for any other channel. */
+  ditchBank?: (channel: number, along: number) => number | undefined;
 }
 
 /** Rock cuts (`ScatterContext.cutAt`) lie within this distance of the stage road's edge (m): no look-up beyond. */
@@ -792,7 +794,8 @@ export class ScatterField {
         )
           continue;
         if (rule.maxRoadDist !== undefined && rd > rule.maxRoadDist) continue;
-        if (minPath > -Infinity && this.nearPath(x, z, minPath)) continue;
+        if (minPath > -Infinity && this.nearPath(x, z, minPath, rule.inChannel))
+          continue;
         // Toward the stage road from here (unit, xz): trees lean that way, and their crowns must not hang over a cut.
         let towardX = 0;
         let towardZ = 0;
@@ -826,11 +829,23 @@ export class ScatterField {
           const f = h / c.period - Math.floor(h / c.period);
           if (f < c.width === !!c.invert) continue;
         }
+        let ditchBank = NaN;
         if (rule.channelDist) {
           const cq = this.ctx.channels?.query(x, z, this.pq);
           if (!cq?.found) continue;
           const e = cq.distance - cq.halfWidth;
           if (e < rule.channelDist[0] || e > rule.channelDist[1]) continue;
+          if (
+            rule.channelSide &&
+            this.ctx.channels!.sideOf(cq.path, cq.along, x, z) !==
+              rule.channelSide
+          )
+            continue;
+          if (rule.ditchTop) {
+            const bank = this.ctx.ditchBank?.(cq.path, cq.along);
+            if (bank === undefined) continue;
+            ditchBank = bank;
+          }
         }
         const n = ground.normal(x, z, this.n);
         if (rule.maxSlope !== undefined && 1 - n.y > rule.maxSlope) continue;
@@ -853,7 +868,7 @@ export class ScatterField {
               return (
                 (!pq.found ||
                   pq.distance - pq.halfWidth >= (rule.minRoadDist ?? 0)) &&
-                !this.nearPath(px, pz, minPath)
+                !this.nearPath(px, pz, minPath, rule.inChannel)
               );
             },
             out,
@@ -866,14 +881,24 @@ export class ScatterField {
           tiltX += Math.atan2(n.z, n.y);
           tiltZ += -Math.atan2(n.x, n.y);
         }
+        // A ditch's reeds: sized so the top stands at one level above its bank line, from the slope or the bed.
+        let fit = scale;
+        if (rule.ditchTop && !Number.isNaN(ditchBank)) {
+          const [t0, t1] = rule.ditchTop.top;
+          const top = ditchBank + t0 + (t1 - t0) * rng.next();
+          fit = Math.max(
+            0.5,
+            Math.min(2, (top - ground.height(x, z)) / rule.ditchTop.height),
+          );
+        }
         const inst: ScatterInstance = {
           asset: rule.asset,
           variant,
           x,
-          y: ground.height(x, z) - (rule.sink ?? 0) * scale,
+          y: ground.height(x, z) - (rule.sink ?? 0) * fit,
           z,
           rotY,
-          scale,
+          scale: fit,
           tiltX,
           tiltZ,
         };
@@ -1016,14 +1041,23 @@ export class ScatterField {
   }
 
   private lq = newLakeQuery();
-  private nearPath(x: number, z: number, minDist: number): boolean {
+  private nearPath(
+    x: number,
+    z: number,
+    minDist: number,
+    inChannel = false,
+  ): boolean {
     // Lakes: nothing grows in the water (grass stops at the shore).
     if (
       this.ctx.lakes?.query(x, z, this.lq) &&
       this.lq.sd < Math.max(minDist, 0.5)
     )
       return true;
-    for (const net of [this.ctx.paths, this.ctx.channels]) {
+    // `inChannel`: reeds and cattails stand in the water of canals and drains (roads and paths still keep them off).
+    for (const net of [
+      this.ctx.paths,
+      inChannel ? undefined : this.ctx.channels,
+    ]) {
       if (!net) continue;
       const pq = net.query(x, z, this.pq);
       if (pq.found && pq.distance - pq.halfWidth < minDist) return true;

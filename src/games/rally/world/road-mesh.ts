@@ -62,6 +62,7 @@ import { plazaMeshJob } from './plaza-mesh';
 import { stageSignMeshJob } from './stage-sign-mesh';
 import { buildingMeshJob } from './building-mesh';
 import { waterMeshJob } from './water-mesh';
+import { reedBedMeshJob } from './reed-bed';
 import type { World } from './world';
 import { GroundTerrain } from './heightfield';
 import { newPathQuery } from './real-data';
@@ -908,6 +909,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   }
   const water = yield* timed('water', waterMeshJob(world));
   if (water) group.add(water);
+  const reedBeds = yield* timed('reedBeds', reedBedMeshJob(world));
+  if (reedBeds) group.add(reedBeds);
   return group;
 }
 

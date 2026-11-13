@@ -183,6 +183,86 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 140, castShadow: false }],
   },
   {
+    id: 'cattails',
+    name: 'Cattails',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Cattail (Typha) stands for the water of canals and drains: green blades with brown spikes, cards of the reed sheet (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'cattails_dry',
+    name: 'Cattails (dry)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The cattail stands gone to straw (autumn): the cattail cards recoloured (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'cattails_young',
+    name: 'Cattails (young)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'New cattail shoots of spring (0.7-1.2 m) among the spikes of the year before: the cattail cards drawn short (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'reeds_dry',
+    name: 'Reeds (dry)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The November reed stand: olive green below, straw above, beige plumes (the reeds-autumn sheet; no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'reeds_old',
+    name: 'Reeds (last year)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      "Last year's reed stand in spring, bleached straw-grey (the reeds-winter sheet; no collision, detail layer only).",
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
+    id: 'rust_weeds',
+    name: 'Dead weeds (rust)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Dead docks and knotweed of ditch banks in autumn, rust red and brown with dark seed spikes, 0.6-1.1 m (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 100, castShadow: false }],
+  },
+  {
+    id: 'spoil_heap',
+    name: 'Ditch spoil heap',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'A heap of earth dredged out of a ditch, 2.5-4 m long and 0.6-1 m high, with cut straw stems sticking out of it. No collision.',
+    variants: 4,
+    lods: [{ maxDistance: 220, castShadow: true }],
+  },
+  {
+    id: 'reeds_young',
+    name: 'Reeds (young)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'New reed shoots of spring (0.8-1.4 m): the reed cards drawn short (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 140, castShadow: false }],
+  },
+  {
     id: 'fern',
     name: 'Fern',
     category: 'vegetation',

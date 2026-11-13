@@ -2,7 +2,11 @@ import type { Vector3 } from 'three';
 import { Noise2D, smoothstep } from '../../../shared/noise';
 import { hash3 } from '../../../shared/rng';
 import { mapSeason } from '../maps/shared/climate';
-import { roadSurfaceAt, type MapDef } from '../maps/shared/types';
+import {
+  roadSurfaceAt,
+  type DitchDef,
+  type MapDef,
+} from '../maps/shared/types';
 import type { SurfaceId } from '../physics/surfaces';
 import {
   Landcover,
@@ -88,6 +92,35 @@ const WATER_FREEBOARD = 0.5;
 const TRIBUTARY_RUN = 60;
 /** Channel bank line smoothing (m). */
 const CHANNEL_SMOOTHING = 80;
+/** A field ditch's bank line smoothing (m): it follows the land. */
+const DITCH_SMOOTHING = 30;
+
+/**
+ * Depth share (0 at the lip .. 1 on the bed) of a field ditch (`terrain.ditches`) at `distance` m from its centreline:
+ * a V of straight-ish sides, rounded into the lip and the narrow bed.
+ */
+export function ditchProfile(dd: DitchDef, distance: number): number {
+  const outer = dd.topWidth / 2;
+  const bed = dd.bedWidth / 2;
+  const t = Math.max(0, Math.min(1, (outer - distance) / (outer - bed)));
+  return t * 0.45 + t * t * (3 - 2 * t) * 0.55;
+}
+
+/** Half width of a ditch's water (m): where its profile is `water` m above the bed. */
+export function ditchWaterHalfWidth(dd: DitchDef): number {
+  if (dd.water <= 0) return 0;
+  const outer = dd.topWidth / 2;
+  const bed = dd.bedWidth / 2;
+  const need = 1 - dd.water / dd.depth;
+  let lo = bed;
+  let hi = outer;
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    if (ditchProfile(dd, mid) >= need) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
 
 /** Height profile of other roads: [smoothing window (m), max grade] per OSM kind. */
 const PATH_PROFILE: Record<string, [number, number]> = {
@@ -379,6 +412,8 @@ export class TerrainGenerator {
   private pathProfiles: Float32Array[] = [];
   /** Bank height of each channel every PROFILE_STEP m: smoothed, never rising downstream. */
   private bankProfiles: Float32Array[] = [];
+  /** `terrain.ditches` for each channel whose kind it lists (a narrow V ditch), else undefined. */
+  private ditchDefs: (DitchDef | undefined)[] = [];
   private coverSplatTable?: Float32Array;
   private fieldZones?: Uint8Array;
   /** Graded lots (terrain.pads); set last, so the road and path profiles are taken from the land. */
@@ -467,6 +502,10 @@ export class TerrainGenerator {
       const water = joined.paths.filter((p) => p.surface === 'water');
       if (water.length) {
         this.channels = new PathNetwork(water);
+        const ditches = map.terrain.ditches;
+        this.ditchDefs = water.map((p) =>
+          ditches?.kinds.includes(p.kind) ? ditches : undefined,
+        );
         this.bankProfiles = water.map((_, i) => this.buildBankProfile(i));
         this.joinTributaries();
       }
@@ -1599,6 +1638,11 @@ export class TerrainGenerator {
       net.pointAt(ci, i * step, pt);
       ys[i] = this.naturalHeight(pt.x, pt.z, false);
     }
+    // A field ditch follows the land (no long cut to keep its trickle falling): only the DEM's bumps smoothed out.
+    if (this.ditchDefs[ci]) {
+      smoothProfile(ys, DITCH_SMOOTHING / step);
+      return ys;
+    }
     smoothProfile(ys, CHANNEL_SMOOTHING / step);
     if (ys[0] >= ys[n - 1])
       for (let i = 1; i < n; i++) ys[i] = Math.min(ys[i], ys[i - 1]);
@@ -1628,9 +1672,8 @@ export class TerrainGenerator {
         // Bank line that puts this channel's water at the main channel's water level (depths differ per kind).
         const main =
           profileAt(this.bankProfiles[o.path], net.lengths[o.path], o.along) -
-          ((CHANNEL_DEPTH[net.paths[o.path].kind] ?? 1) -
-            (CHANNEL_DEPTH[net.paths[ci].kind] ?? 1)) *
-            WATER_FREEBOARD;
+          this.waterBelowBank(o.path) +
+          this.waterBelowBank(ci);
         const mouth = end ? n - 1 : 0;
         if (main >= ys[mouth]) continue;
         out ??= Float32Array.from(ys);
@@ -1640,7 +1683,8 @@ export class TerrainGenerator {
           const t = smoothstep(0, TRIBUTARY_RUN, d);
           out[i] = Math.min(out[i], main + (ys[i] - main) * t);
         }
-        // Water still falls steadily towards the lowest end.
+        // Water still falls steadily towards the lowest end (a ditch follows the land).
+        if (this.ditchDefs[ci]) continue;
         if (out[0] >= out[n - 1])
           for (let i = 1; i < n; i++) out[i] = Math.min(out[i], out[i - 1]);
         else
@@ -1654,21 +1698,46 @@ export class TerrainGenerator {
 
   /** Depth of channel `ci` below its bank line (m, per kind). */
   channelDepth(ci: number): number {
-    return CHANNEL_DEPTH[this.channels!.paths[ci].kind] ?? 1;
+    return (
+      this.ditchDefs[ci]?.depth ??
+      CHANNEL_DEPTH[this.channels!.paths[ci].kind] ??
+      1
+    );
   }
 
-  /** Bank width of channel `ci` beyond its own width (m). */
+  /** Bank width of channel `ci` beyond its own width (m); a ditch's banks end at its top width. */
   private bankOf(ci: number): number {
+    const dd = this.ditchDefs[ci];
+    if (dd)
+      return Math.max(
+        0.3,
+        dd.topWidth / 2 - this.channels!.paths[ci].width / 2,
+      );
     return CHANNEL_BANK_OF[this.channels!.paths[ci].kind] ?? CHANNEL_BANK;
+  }
+
+  /** How far the water of channel `ci` stands below its bank line (m). */
+  private waterBelowBank(ci: number): number {
+    const dd = this.ditchDefs[ci];
+    if (dd) return dd.depth - dd.water;
+    return (
+      (CHANNEL_DEPTH[this.channels!.paths[ci].kind] ?? 1) * WATER_FREEBOARD
+    );
+  }
+
+  /** The ditch definition of channel `ci` (`terrain.ditches`), undefined for an open canal / stream. */
+  ditchOf(ci: number): DitchDef | undefined {
+    return this.ditchDefs[ci];
+  }
+
+  /** Bank line height of channel `ci` at `along` metres (the land its banks are cut from). */
+  channelBankHeight(ci: number, along: number): number {
+    return profileAt(this.bankProfiles[ci], this.channels!.lengths[ci], along);
   }
 
   /** Water surface height of channel `ci` at `along` metres. */
   channelWaterLevel(ci: number, along: number): number {
-    const kind = this.channels!.paths[ci].kind;
-    return (
-      profileAt(this.bankProfiles[ci], this.channels!.lengths[ci], along) -
-      (CHANNEL_DEPTH[kind] ?? 1) * WATER_FREEBOARD
-    );
+    return this.channelBankHeight(ci, along) - this.waterBelowBank(ci);
   }
 
   /**
@@ -1676,6 +1745,8 @@ export class TerrainGenerator {
    * crosses the water level, i.e. 1 - smoothstep(0.35, 1, u) = WATER_FREEBOARD.
    */
   channelWaterHalfWidth(ci: number): number {
+    const dd = this.ditchDefs[ci];
+    if (dd) return ditchWaterHalfWidth(dd);
     return (this.channels!.paths[ci].width / 2 + this.bankOf(ci)) * 0.675;
   }
 
@@ -2000,7 +2071,8 @@ export class TerrainGenerator {
     if (channels && this.channels) {
       const pq = this.channels.query(x, z, this.pq);
       if (pq.found) {
-        const depth = CHANNEL_DEPTH[this.channels.paths[pq.path].kind] ?? 1;
+        const dd = this.ditchDefs[pq.path];
+        const depth = this.channelDepth(pq.path);
         const bank = profileAt(
           this.bankProfiles[pq.path],
           this.channels.lengths[pq.path],
@@ -2009,7 +2081,9 @@ export class TerrainGenerator {
         const outer = pq.halfWidth + this.bankOf(pq.path);
         const e = pq.distance - outer;
         if (e <= 0)
-          h = bank - depth * (1 - smoothstep(0.35, 1, pq.distance / outer));
+          h = dd
+            ? bank - depth * ditchProfile(dd, pq.distance)
+            : bank - depth * (1 - smoothstep(0.35, 1, pq.distance / outer));
         else {
           const blendEnd = Math.min(
             PATH_REACH - this.bankOf(pq.path),
@@ -2960,9 +3034,43 @@ export class TerrainGenerator {
           );
       }
     }
+    let mown = 0;
     if (this.channels) {
       const pq = this.channels.query(x, z, this.pq);
-      if (pq.found) {
+      const dd = pq.found ? this.ditchDefs[pq.path] : undefined;
+      if (dd) {
+        // A field ditch: earth only down in its bed, grass and weeds on the banks (no rock on the steep sides, no
+        // bare strip along the lip); on its `track` side a mown strip and a dirt track with two wheel ruts.
+        const outer = dd.topWidth / 2;
+        const bed = dd.bedWidth / 2;
+        d = Math.max(d, (1 - smoothstep(bed, bed + 0.9, pq.distance)) * 0.85);
+        rk *= smoothstep(outer + 1, outer + 6, pq.distance);
+        if (dd.track) {
+          const off = pq.distance - outer;
+          const strip = dd.mown ?? 3;
+          const tw = dd.trackWidth ?? 2.6;
+          if (
+            off > -0.5 &&
+            off < strip + tw + 1 &&
+            this.channels.sideOf(pq.path, pq.along, x, z) === dd.track
+          ) {
+            mown = 1 - smoothstep(strip + tw, strip + tw + 1, off);
+            d *= 1 - mown;
+            if (off > strip - 0.3) {
+              const u = (off - strip) / tw;
+              const rut = Math.min(Math.abs(u - 0.22), Math.abs(u - 0.78));
+              const track =
+                smoothstep(-0.05, 0.08, u) * (1 - smoothstep(0.92, 1.05, u));
+              d = Math.max(
+                d,
+                track *
+                  (0.5 + 0.45 * (1 - smoothstep(0.06, 0.14, rut))) *
+                  (0.85 + 0.15 * this.detailNoise.noise2(x / 3, z / 3)),
+              );
+            }
+          }
+        }
+      } else if (pq.found) {
         d = Math.max(
           d,
           1 - smoothstep(pq.halfWidth, pq.halfWidth + 3, pq.distance),
@@ -2990,7 +3098,9 @@ export class TerrainGenerator {
     out[SPLAT_GRAVEL] = gv;
     out[SPLAT_ROCK] = rk;
     out[SPLAT_DIRT] = d;
-    out[SPLAT_GRASS] = Math.max(0, 1 - gv - rk - d) * grassShare;
+    // (the mown strip and track of a ditch: no crop standing on them)
+    const share = grassShare + (1 - grassShare) * mown;
+    out[SPLAT_GRASS] = Math.max(0, 1 - gv - rk - d) * share;
   }
 
   /**

@@ -148,6 +148,8 @@ clump of the showcase; the source files are not in the repository).
 | ["Reed Plants Pack"](https://sketchfab.com/3d-models/reed-plants-pack-bc77ea5218e44f2dbc23b2a4aef0c898)                                           | [Nicholas-3D](https://sketchfab.com/Nicholas01) (Sketchfab) | CC BY 4.0 |
 | ["Ground Cover Foliage Showcase"](https://sketchfab.com/3d-models/ground-cover-foliage-showcase-ae35b4f7856644f58860b1f0c889848a) (cattails only) | [Nicholas-3D](https://sketchfab.com/Nicholas01) (Sketchfab) | CC BY 4.0 |
 
+The season sheets `reeds-autumn.webp` and `reeds-winter.webp` are the reed sheet above, and `weeds-rust.webp` the nettle sheet (Poly Haven, CC0), recoloured per texel by `scripts/plants/bake-seasons.py`.
+
 ### Dust (baked into `src/games/rally/engine/particles/dust.webp`)
 
 Four smoke sprites from Particle Pack 1.1 by Kenney (kenney.nl, CC0; the copy at github.com/Calinou/kenney-particle-pack), made into one atlas by `scripts/particles/bake-dust.py`. No credit is required.
