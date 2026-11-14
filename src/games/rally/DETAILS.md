@@ -726,6 +726,11 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   depth). One copy casts the shadow; when the fades end, a bucket without outgoing copies draws plain again (`endFades`), one
   with them keeps the fade material (the copies collapsed) until the next rebuild drops them. The far end of the last
   level fades too, and while driving an instance new to the stream fades in.
+- Wheat depth prepass (`engine/crops.ts` `setCropPrepass`, streamer `prepassChild`): every wheat mesh has a child drawing
+  the same instances first, depth only (the lit program itself, stopping after the alpha test), and the lit cards then test
+  LESS-OR-EQUAL without writing depth, so each pixel of a field is lit once instead of once per card layer. Instances are
+  committed nearest first. It follows the trees' sprite prepass and its load check (off on touch devices); `?cropprepass=0|1`
+  forces it, the perf panel switches it. Wheat stops swaying past 40 m (`RALLY_WIND_FAR`).
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**

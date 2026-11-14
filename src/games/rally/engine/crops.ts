@@ -7,7 +7,9 @@ import {
   DoubleSide,
   Group,
   LinearFilter,
+  LessEqualDepth,
   LinearMipmapLinearFilter,
+  type Material,
   Mesh,
   MeshBasicMaterial,
   MeshNormalMaterial,
@@ -24,7 +26,12 @@ import {
 import { Rng } from '../../../shared/rng';
 import { CROP_MODELS } from '../assets/builders/crop-models.data';
 import { coverageMips } from '../trees/materials';
-import { setAlphaToCoverage } from './materials';
+import {
+  lodFadeMaterial,
+  setAlphaToCoverage,
+  setPrepassMaterial,
+  variantMaterial,
+} from './materials';
 import { groundLitCard } from './world-shading';
 
 /**
@@ -257,39 +264,154 @@ function emptyCard(): DataTexture {
   return t;
 }
 
-/** The card material of a look: alpha-tested baked render, normals up like the grass cards. */
-export function cropCardMaterial(card: CropCard): MeshStandardMaterial {
-  const key = `card:${card}`;
-  let m = materials.get(key);
-  if (m) return m;
+/** Wheat sway ends this far from the camera (m, `RALLY_WIND_FAR`): it fades out over the last 40 % of that. */
+const WHEAT_WIND_FAR = 40;
+
+/** Cards drawn after a depth prepass (`setCropPrepass`): the wheat, a field of card layers. */
+const PREPASS_CARDS: ReadonlySet<CropCard> = new Set(['wheat', 'green_wheat']);
+
+/**
+ * The crop depth prepass is on (wheat cards): `?cropprepass=0|1` forces it; otherwise on as the trees' sprite prepass
+ * (trees/draw.ts SPRITE_PREPASS: off on touch devices, whose tile GPUs already skip hidden pixels), and the game
+ * follows the trees' load check (`setCropPrepass`).
+ */
+const FORCED_PREPASS = (() => {
+  if (typeof location === 'undefined') return null;
+  const flag = new URLSearchParams(location.search).get('cropprepass');
+  return flag === null ? null : flag !== '0';
+})();
+let cropPrepass =
+  FORCED_PREPASS ??
+  !(
+    typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  );
+
+/**
+ * Wheat cards stop right after the alpha test (and the level-fade dither) in the depth prepass (`cropDepthOnly`, the
+ * lit program itself, so both passes place every vertex the same): only the coverage counts.
+ */
+const CROP_DEPTH_EXIT = /* glsl */ `
+	if ( cropDepthOnly > 0.5 ) {
+		#include <alphamap_fragment>
+		#include <alphatest_fragment>
+		gl_FragColor = vec4( 1.0, 0.0, 1.0, diffuseColor.a );
+		return;
+	}
+`;
+
+/**
+ * A crop card material: alpha-tested baked render, normals up like the grass cards. Wheat has two with ONE program
+ * (same source, defines and cache key): the lit cards and their depth prepass (`depthOnly`, colour off).
+ */
+function cardMaterial(
+  card: CropCard,
+  depthOnly: boolean,
+): MeshStandardMaterial {
   let t = cards.get(card);
   if (!t) cards.set(card, (t = emptyCard()));
-  m = new MeshStandardMaterial({
+  const m = new MeshStandardMaterial({
     map: t,
     alphaTest: 0.5,
     side: DoubleSide,
     roughness: 0.9,
   });
   m.alphaToCoverage = cardA2C;
-  m.name = `crop card ${card}`;
-  groundLitCard(m, 'crop');
   const model = MODEL_OF[lookOf(card)];
   m.defines = {
     RALLY_WIND: WIND[model],
     RALLY_FOLIAGE: THROUGH[model],
     RALLY_GROUND: 1,
   };
-  materials.set(key, m);
+  if (!PREPASS_CARDS.has(card)) {
+    groundLitCard(m, 'crop');
+    return m;
+  }
+  m.defines.RALLY_WIND_FAR = WHEAT_WIND_FAR.toFixed(1);
+  groundLitCard(m, 'crop-wheat', (shader) => {
+    shader.uniforms.cropDepthOnly = { value: depthOnly ? 1 : 0 };
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform float cropDepthOnly;',
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>\n${CROP_DEPTH_EXIT}`,
+      );
+  });
   return m;
+}
+
+/** The card material of a look (the lit cards). */
+export function cropCardMaterial(card: CropCard): MeshStandardMaterial {
+  const key = `card:${card}`;
+  let m = materials.get(key);
+  if (m) return m;
+  m = cardMaterial(card, false);
+  m.name = `crop card ${card}`;
+  materials.set(key, m);
+  if (PREPASS_CARDS.has(card)) {
+    const pre = cardMaterial(card, true);
+    pre.name = `crop card ${card} depth`;
+    pre.colorWrite = false;
+    materials.set(`prepass:${card}`, pre);
+    setPrepassMaterial(m, pre);
+    applyPrepass(m, pre);
+  }
+  return m;
+}
+
+/**
+ * Lit wheat cards after the prepass: they pass where the depth is the prepass' (LESS-OR-EQUAL with a tiny offset toward
+ * the camera covers a last-bit difference, as the trees' sprites) and write none, so each covered pixel is lit once,
+ * not once per card layer. Prepass off: the prepass draws nothing and the cards test and write depth as usual.
+ */
+function applyPrepass(lit: Material, pre: Material): void {
+  for (const m of copies(lit)) {
+    m.depthFunc = LessEqualDepth;
+    m.depthWrite = !cropPrepass;
+    m.polygonOffset = cropPrepass;
+    m.polygonOffsetFactor = -1;
+    m.polygonOffsetUnits = -2;
+  }
+  for (const m of copies(pre)) m.visible = cropPrepass;
+}
+
+/** A card material and the copies the streamer draws it with: variant set, level fade, both. */
+function copies(m: Material): Material[] {
+  const v = variantMaterial(m);
+  return [m, v, lodFadeMaterial(m), lodFadeMaterial(v)];
+}
+
+/** Wheat depth prepass on / off (the trees' load check, the perf panel); `?cropprepass=` wins over the game. */
+export function setCropPrepass(on: boolean): void {
+  cropPrepass = FORCED_PREPASS ?? on;
+  for (const card of PREPASS_CARDS) {
+    const lit = materials.get(`card:${card}`);
+    const pre = materials.get(`prepass:${card}`);
+    if (lit && pre) applyPrepass(lit, pre);
+  }
+}
+
+export function cropPrepassOn(): boolean {
+  return cropPrepass;
+}
+
+/** Equal-test debug: the prepass paints magenta under the lit cards (what stays magenta, they missed). */
+export function setCropPrepassDebug(on: boolean): void {
+  for (const card of PREPASS_CARDS) {
+    const pre = materials.get(`prepass:${card}`);
+    if (pre) for (const m of copies(pre)) m.colorWrite = on;
+  }
 }
 
 /** Alpha-to-coverage on the cards when the renderer has MSAA (like the grass cards). */
 export function setCropAntialias(on: boolean): void {
   cardA2C = on;
-  setAlphaToCoverage(
-    [...materials].filter(([k]) => k.startsWith('card:')).map(([, m]) => m),
-    on,
-  );
+  const all = [...materials]
+    .filter(([k]) => k.startsWith('card:') || k.startsWith('prepass:'))
+    .map(([, m]) => m);
+  setAlphaToCoverage(all, on);
 }
 
 // --- card bake --------------------------------------------------------------------------------------------------

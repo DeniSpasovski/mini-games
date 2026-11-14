@@ -27,6 +27,7 @@ import {
 import {
   lodFadeDepthMaterial,
   lodFadeMaterial,
+  prepassMaterial,
   variantDepthMaterial,
 } from '../engine/materials';
 import { worldUniforms } from '../engine/world-shading';
@@ -71,6 +72,10 @@ import type { World } from './world';
  *
  * Level fades (catalog `fade`, `opts.fade`): an instance whose level changes at a rebuild is staged in both levels'
  * buckets for the fade, each copy carrying `instFade` (world/lod-fade.ts); the shaders dither between them.
+ *
+ * Depth prepass (a part material with `prepassMaterial`: the wheat cards): each mesh has a child drawing the same
+ * instances first (PREPASS_ORDER) with the depth-only material, and its instances are committed nearest first, so
+ * the prepass writes the near card layers before the hidden ones behind them.
  */
 const BINS = 360;
 /** Levels the workers build at once while driving (each takes the next as soon as one is done). */
@@ -93,6 +98,11 @@ const REPACK = (8 * Math.PI) / 180;
  * they can fade in (the ring must be wider than the camera moves between two rebuilds).
  */
 const FADE_IN_MARGIN = 2;
+/**
+ * Render order of a depth prepass: before every other opaque draw, after the sky (-1) and the horizon backdrop
+ * (-0.5, which clears the depth buffer), as the trees' sprite prepass (trees/draw.ts PREPASS_ORDER).
+ */
+const PREPASS_ORDER = -0.25;
 
 interface Bucket {
   key: string;
@@ -111,6 +121,12 @@ interface Bucket {
   /** An outgoing fade copy staged / committed (`endFades`: a bucket with none draws plain once its fades are done). */
   sOut: boolean;
   out: boolean;
+  /** A part has a depth prepass (`prepassMaterial`): instances committed nearest first. */
+  prepass: boolean;
+  /** Per part: the prepass child of its mesh (or undefined), its plain and fade material. */
+  preMeshes: (InstancedMesh | undefined)[];
+  plainPre: (Material | undefined)[];
+  fadePre: (Material | undefined)[];
   /** Per part: the plain and the fade material, and their shadow-pass materials (undefined = three's default). */
   plainMats: Material[];
   fadeMats: Material[];
@@ -891,6 +907,8 @@ export class InstanceStreamer {
     if (_bins.length < n) _bins = new Uint16Array(n * 2);
     const bins = _bins;
     const k = BINS / (2 * Math.PI);
+    // Prepass buckets: placed nearest first (the scatter below keeps that order inside every bin).
+    const seq = b.prepass ? this.nearestFirst(b, n) : null;
     for (let i = 0; i < n; i++) {
       const dx = b.sMat[i * 16 + 12] - this.sortX;
       const dz = b.sMat[i * 16 + 14] - this.sortZ;
@@ -905,7 +923,8 @@ export class InstanceStreamer {
     for (let i = 0; i <= BINS; i++) start[i + 1] += start[i];
     const cursor = _cursor;
     cursor.set(start.subarray(0, BINS + 1));
-    for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const i = seq ? seq[j] : j;
       const pos = cursor[bins[i]]++;
       b.order[i] = pos;
       b.cMat.set(b.sMat.subarray(i * 16, i * 16 + 16), pos * 16);
@@ -916,6 +935,20 @@ export class InstanceStreamer {
         b.cFade[pos * 2 + 1] = b.sFade[i * 2 + 1];
       }
     }
+  }
+
+  /** Staged indices of a bucket's `n` instances, nearest the commit focus first (once per commit, not per frame). */
+  private nearestFirst(b: Bucket, n: number): Uint32Array {
+    if (_dist.length < n) _dist = new Float32Array(n * 2);
+    if (_seq.length < n) _seq = new Uint32Array(n * 2);
+    const d = _dist;
+    for (let i = 0; i < n; i++) {
+      const dx = b.sMat[i * 16 + 12] - this.sortX;
+      const dz = b.sMat[i * 16 + 14] - this.sortZ;
+      d[i] = dx * dx + dz * dz;
+      _seq[i] = i;
+    }
+    return _seq.subarray(0, n).sort((x, y) => d[x] - d[y]);
   }
 
   /** Committed -> GPU: everything, or only the bins of the view window (1 or 2 contiguous ranges). */
@@ -1008,6 +1041,8 @@ export class InstanceStreamer {
       this.group.remove(old);
       old.dispose(); // frees instance buffers only - geometry/material are shared
     }
+    for (const pre of bucket.preMeshes) pre?.dispose();
+    bucket.preMeshes = [];
     // Growth: the old wrappers' per-instance buffers are too small; free them (a replaced attribute's GL buffer would
     // never be) and wrap anew.
     for (const g of bucket.geometries) disposeWrapper(g);
@@ -1057,6 +1092,13 @@ export class InstanceStreamer {
       mesh.castShadow = bucket.castShadow;
       mesh.receiveShadow = true;
       mesh.name = `${inst.asset}#${set ? 'all' : inst.variant} lod${lod}`;
+      const pre = prepassMaterial(part.material);
+      if (pre) {
+        bucket.prepass = true;
+        bucket.plainPre[pi] = pre;
+        bucket.fadePre[pi] = bucket.fades ? lodFadeMaterial(pre) : pre;
+        bucket.preMeshes[pi] = prepassChild(mesh, pre);
+      }
       this.group.add(mesh);
       return mesh;
     });
@@ -1074,6 +1116,8 @@ export class InstanceStreamer {
     b.meshes.forEach((mesh, pi) => {
       mesh.material = on ? b.fadeMats[pi] : b.plainMats[pi];
       mesh.customDepthMaterial = on ? b.fadeDepth[pi] : b.plainDepth[pi];
+      const pre = b.preMeshes[pi];
+      if (pre) pre.material = (on ? b.fadePre[pi] : b.plainPre[pi])!;
     });
   }
 
@@ -1225,6 +1269,8 @@ function geometryBytes(g: BufferGeometry): number {
 }
 
 let _bins = new Uint16Array(4096);
+let _dist = new Float32Array(4096);
+let _seq = new Uint32Array(4096);
 const _ranges: number[] = [];
 const _cursor = new Uint32Array(BINS + 1);
 
@@ -1250,6 +1296,10 @@ function newBucket(
     fading: false,
     sOut: false,
     out: false,
+    prepass: false,
+    preMeshes: [],
+    plainPre: [],
+    fadePre: [],
     plainMats: [],
     fadeMats: [],
     plainDepth: [],
@@ -1303,8 +1353,30 @@ function disposeBucket(b: Bucket, group: Group): void {
     group.remove(m);
     m.dispose();
   }
+  for (const pre of b.preMeshes) pre?.dispose();
+  b.preMeshes = [];
   for (const g of b.geometries) disposeWrapper(g);
   b.geometries = [];
+}
+
+/**
+ * The depth prepass of `mesh`: a child (shown and hidden with it) drawing the same instances, buffers and count with
+ * `material`, before the opaque world. Same program inputs as the mesh (instance colours, shadow receiving), so the
+ * prepass and the lit pass run one program and place every vertex the same.
+ */
+function prepassChild(mesh: InstancedMesh, material: Material): InstancedMesh {
+  const pre = new InstancedMesh(mesh.geometry, material, 0);
+  pre.instanceMatrix = mesh.instanceMatrix;
+  pre.instanceColor = mesh.instanceColor;
+  Object.defineProperty(pre, 'count', { get: () => mesh.count, set: () => {} });
+  pre.renderOrder = PREPASS_ORDER;
+  pre.frustumCulled = false;
+  pre.matrixAutoUpdate = false;
+  pre.castShadow = false;
+  pre.receiveShadow = mesh.receiveShadow;
+  pre.name = `${mesh.name} depth`;
+  mesh.add(pre);
+  return pre;
 }
 
 /** World matrix of an instance as the map placed it. */

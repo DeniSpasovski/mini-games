@@ -443,6 +443,7 @@ function injectVariants(shader: WebGLProgramParametersWithUniforms): void {
 }
 
 const variantMats = new Map<Material, Material>();
+const prepasses = new WeakMap<Material, Material>();
 const variantDepth = new Map<Material, MeshDepthMaterial>();
 
 /** `base` for variant-set meshes (cached; its own `onBeforeCompile`, or the world-shading default, runs first). */
@@ -460,7 +461,23 @@ export function variantMaterial(base: Material): Material {
   };
   m.customProgramCacheKey = () => `${baseKey}|variants`;
   variantMats.set(base, m);
+  // A variant set draws its prepass with the prepass' own variant copy (the same program again).
+  const pre = prepasses.get(base);
+  if (pre) prepasses.set(m, variantMaterial(pre));
   return m;
+}
+
+/**
+ * A depth prepass for `lit` (wheat cards, engine/crops.ts): the instance streamer draws every mesh of `lit` a second
+ * time before the opaque world with `pre` (world/instance-streamer.ts), sharing its instances.
+ */
+export function setPrepassMaterial(lit: Material, pre: Material): void {
+  prepasses.set(lit, pre);
+}
+
+/** The depth prepass material of `lit` (`setPrepassMaterial`), if it has one. */
+export function prepassMaterial(lit: Material): Material | undefined {
+  return prepasses.get(lit);
 }
 
 const fadeMats = new Map<Material, Material>();

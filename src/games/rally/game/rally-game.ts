@@ -23,7 +23,11 @@ import { LampPools } from '../world/lamp-pools';
 import { type PhotoLens, PostFx, postFxFromUrl } from '../engine/post-fx';
 import { SunGlare } from '../engine/sun-glare';
 import type { QualitySettings } from '../engine/quality';
-import { bakeCropCards, setCropAntialias } from '../engine/crops';
+import {
+  bakeCropCards,
+  setCropAntialias,
+  setCropPrepass,
+} from '../engine/crops';
 import { plantSheetsReady } from '../engine/grass';
 import { setVineAntialias } from '../engine/vines';
 import {
@@ -867,6 +871,8 @@ export class RallyGame {
     });
     this.renderer.render(this.scene, this.camera);
     this.trees.checkPrepass(this.renderer, this.scene, this.camera);
+    // The wheat's depth prepass trusts the trees' check (same approach: one program, LESS-OR-EQUAL lit pass).
+    setCropPrepass(this.trees.prepassOn);
     for (const o of culled) o.frustumCulled = true;
     this.streamer.settle();
     this.trees.settle();
