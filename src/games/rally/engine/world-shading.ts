@@ -145,11 +145,16 @@ export function addWorldUniforms(
  * Grass / crop cards lit like the ground under them: their normals point up, and three would turn them down on a
  * card's back face (dark backs). No specular either: the camera sees an up-facing card at a grazing angle, where the
  * Fresnel sky reflection whitens it like a sheet of glass (worst on tall cards: reeds, corn). `key` names the
- * program (one per material kind).
+ * program (one per material kind); `more` edits its shaders further (same edit for every material of that key).
  */
-export function groundLitCard(m: Material, key: string): void {
+export function groundLitCard(
+  m: Material,
+  key: string,
+  more?: (shader: WebGLProgramParametersWithUniforms) => void,
+): void {
   m.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
+    more?.(shader);
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <normal_fragment_begin>',
@@ -558,18 +563,24 @@ vec3 transformed = vec3( position );
 	vPosition = vec3( position );
 #endif
 #ifdef RALLY_WIND
-	if ( wsWind.z > 0.0 ) {
-		vec3 wsBase = vec3( 0.0 );
-		#ifdef USE_INSTANCING
-			wsBase = instanceMatrix[ 3 ].xyz;
-		#endif
-		wsBase = ( modelMatrix * vec4( wsBase, 1.0 ) ).xyz;
+	vec3 wsBase = vec3( 0.0 );
+	#ifdef USE_INSTANCING
+		wsBase = instanceMatrix[ 3 ].xyz;
+	#endif
+	wsBase = ( modelMatrix * vec4( wsBase, 1.0 ) ).xyz;
+	// RALLY_WIND_FAR: no sway past this distance from the camera (m), fading out over its last 40 %.
+	#ifdef RALLY_WIND_FAR
+		float wsStill = smoothstep( 0.6 * float( RALLY_WIND_FAR ), float( RALLY_WIND_FAR ), distance( wsBase, cameraPosition ) );
+	#else
+		float wsStill = 0.0;
+	#endif
+	if ( wsWind.z > 0.0 && wsStill < 1.0 ) {
 		float wsH = max( position.y, 0.0 );
 		float wsPh = wsTime * wsWind.w + dot( wsBase.xz, vec2( 0.071, 0.093 ) );
 		// Slow gust envelope * two sways, bend grows with height^2 (roots stay put).
 		float wsGust = 0.65 + 0.35 * sin( wsTime * 0.31 + dot( wsBase.xz, vec2( 0.011, 0.007 ) ) );
 		vec2 wsSway = vec2( sin( wsPh ) + 0.35 * sin( wsPh * 2.7 + 1.3 ), 0.6 * cos( wsPh * 0.83 + 0.4 ) );
-		transformed.xz += wsSway * ( float( RALLY_WIND ) * wsWind.z * wsGust * wsH * wsH );
+		transformed.xz += wsSway * ( float( RALLY_WIND ) * wsWind.z * wsGust * wsH * wsH * ( 1.0 - wsStill ) );
 	}
 #endif
 ${FLAG_VERTEX}`;
