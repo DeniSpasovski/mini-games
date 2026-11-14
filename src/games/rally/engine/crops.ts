@@ -393,18 +393,6 @@ export function setCropPrepass(on: boolean): void {
   }
 }
 
-export function cropPrepassOn(): boolean {
-  return cropPrepass;
-}
-
-/** Equal-test debug: the prepass paints magenta under the lit cards (what stays magenta, they missed). */
-export function setCropPrepassDebug(on: boolean): void {
-  for (const card of PREPASS_CARDS) {
-    const pre = materials.get(`prepass:${card}`);
-    if (pre) for (const m of copies(pre)) m.colorWrite = on;
-  }
-}
-
 /** Alpha-to-coverage on the cards when the renderer has MSAA (like the grass cards). */
 export function setCropAntialias(on: boolean): void {
   cardA2C = on;
