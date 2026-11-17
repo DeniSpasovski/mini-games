@@ -99,7 +99,7 @@ export const SPECTATOR_FLAG_FROM = 42;
 export const SPECTATOR_FLAG_COUNT = 12;
 
 /** Most grass the detail layer places near the camera (x the rule density; quality `grassNear` takes a share). */
-export const NEAR_GRASS = 3;
+export const NEAR_GRASS = 5;
 
 /** Grass: blade strips (`nearRoad`, none at present) to 35 m, crossed cards to 110 m. */
 const GRASS_LODS: LodSpec[] = [
@@ -697,6 +697,15 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants: 24,
     lods: PEOPLE_LODS,
     fade: true,
+  },
+  {
+    id: 'crew_seated',
+    name: 'Crew in the seats',
+    category: 'props',
+    description:
+      'Driver and co-driver in their seats (game/car-crew.ts puts them in the player car and adds helmets). Variant % 2 = seat (driver, co-driver), variant / 2 = team.',
+    variants: 24,
+    lods: PEOPLE_LODS,
   },
   {
     id: 'marshal',

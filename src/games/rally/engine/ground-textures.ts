@@ -2,6 +2,7 @@ import {
   DataArrayTexture,
   LinearFilter,
   LinearMipmapLinearFilter,
+  NoColorSpace,
   RepeatWrapping,
   SRGBColorSpace,
   type Texture,
@@ -17,6 +18,16 @@ import litterUrl from './ground/litter.webp';
 import leavesUrl from './ground/leaves.webp';
 import stubbleUrl from './ground/stubble.webp';
 import needlesUrl from './ground/needles.webp';
+import grassSpringN from './ground/grass_spring_n.webp';
+import grassSummerN from './ground/grass_summer_n.webp';
+import grassAutumnN from './ground/grass_autumn_n.webp';
+import soilN from './ground/soil_n.webp';
+import gravelN from './ground/gravel_n.webp';
+import rockN from './ground/rock_n.webp';
+import litterN from './ground/litter_n.webp';
+import leavesN from './ground/leaves_n.webp';
+import stubbleN from './ground/stubble_n.webp';
+import needlesN from './ground/needles_n.webp';
 
 /**
  * Terrain scans (Poly Haven, CC0): one texture array, a layer per ground material, read by the terrain material
@@ -77,29 +88,56 @@ const URLS = [
   stubbleUrl,
   needlesUrl,
 ];
+/** The scans' own normal maps (OpenGL: green up the image), same layers: the relief of the near terrain. */
+const NORMAL_URLS = [
+  grassSpringN,
+  grassSummerN,
+  grassAutumnN,
+  soilN,
+  gravelN,
+  rockN,
+  litterN,
+  leavesN,
+  stubbleN,
+  needlesN,
+];
 const SIZE = 512;
 
 let array: DataArrayTexture | undefined;
+let normals: DataArrayTexture | undefined;
 /** The array; layers fill in as their images decode (mid grey until then, and in headless tests). */
 export function groundArray(): DataArrayTexture {
-  if (array) return array;
-  const data = new Uint8Array(SIZE * SIZE * 4 * URLS.length).fill(110);
-  const tex = new DataArrayTexture(data, SIZE, SIZE, URLS.length);
-  tex.colorSpace = SRGBColorSpace;
+  return (array ??= loadArray(URLS, 110, SRGBColorSpace));
+}
+
+/** The scans' normals (flat until they decode). */
+export function groundNormalArray(): DataArrayTexture {
+  return (normals ??= loadArray(NORMAL_URLS, 128, NoColorSpace, 255));
+}
+
+function loadArray(
+  urls: string[],
+  fill: number,
+  colorSpace: string,
+  blue = fill,
+): DataArrayTexture {
+  const data = new Uint8Array(SIZE * SIZE * 4 * urls.length).fill(fill);
+  if (blue !== fill) for (let i = 2; i < data.length; i += 4) data[i] = blue;
+  const tex = new DataArrayTexture(data, SIZE, SIZE, urls.length);
+  tex.colorSpace = colorSpace;
   tex.wrapS = tex.wrapT = RepeatWrapping;
   tex.magFilter = LinearFilter;
   tex.minFilter = LinearMipmapLinearFilter;
   tex.generateMipmaps = true;
   tex.anisotropy = 8;
   tex.needsUpdate = true;
-  array = tex;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = SIZE;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx || typeof Image === 'undefined') return tex;
   // One upload once every layer has decoded.
   Promise.all(
-    URLS.map((url) => {
+    urls.map((url) => {
       const img = new Image();
       img.src = url;
       return img.decode().then(() => img);

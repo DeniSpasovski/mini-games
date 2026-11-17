@@ -218,7 +218,7 @@ export interface ScatterChunk {
 export const NEAR_DETAIL_MAX = 40;
 
 /** Boosted grass (catalog `nearBoost`) is denser this close to a road edge (m). */
-export const NEAR_BOOST_ROAD = 14;
+export const NEAR_BOOST_ROAD = 20;
 
 /** Candidate points `ScatterField.generateSteps` tests between yields. */
 const SLICE = 256;

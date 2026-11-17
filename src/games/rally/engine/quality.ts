@@ -97,7 +97,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     treeLodScale: 1.3,
     forestDistance: 600,
     detailDensity: 1,
-    grassNear: 3,
+    grassNear: 5,
     particles: 2000,
   },
 };

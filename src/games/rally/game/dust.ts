@@ -62,6 +62,11 @@ export class ParticleSystem {
   private tick = 0;
   private alive = 0;
   readonly material: ShaderMaterial;
+  /**
+   * Hanging dust: fade in over the first quarter, hold, and thin out late (the plume left over a road stays a while),
+   * instead of the quick puff's fade-in and long fade-out.
+   */
+  hold = false;
 
   constructor(
     readonly max: number,
@@ -262,7 +267,8 @@ export class ParticleSystem {
     this.floorY[i] = this.floor ? this.floor(p.x, p.z) : -1e6;
   }
 
-  update(dt: number, drag = 1.6, gravity = -0.3): void {
+  /** `windX` / `windZ`: a breeze (m/s) the particles drift with on top of their own velocity. */
+  update(dt: number, drag = 1.6, gravity = -0.3, windX = 0, windZ = 0): void {
     const damp = Math.exp(-drag * dt);
     // An eighth of the pool re-samples its floor per frame (they drift slowly).
     const slot = this.tick++ & 7;
@@ -281,9 +287,9 @@ export class ParticleSystem {
       this.vel[k] *= damp;
       this.vel[k + 1] = this.vel[k + 1] * damp + gravity * dt;
       this.vel[k + 2] *= damp;
-      this.pos[k] += this.vel[k] * dt;
+      this.pos[k] += (this.vel[k] + windX) * dt;
       this.pos[k + 1] += this.vel[k + 1] * dt;
-      this.pos[k + 2] += this.vel[k + 2] * dt;
+      this.pos[k + 2] += (this.vel[k + 2] + windZ) * dt;
       if (this.ground) {
         const gy =
           this.ground(this.pos[k], this.pos[k + 2]) + this.size[i] * 0.5;
@@ -300,9 +306,10 @@ export class ParticleSystem {
         this.floorY[i] = this.floor(this.pos[k], this.pos[k + 2]);
       this.spin[i] += this.spinRate[i] * dt;
       this.size[i] += this.grow[i] * dt * (1 - t);
-      // Quick fade in, long fade out.
-      this.alpha[i] =
-        this.baseAlpha[i] * Math.min(1, t * 8) * (1 - t) * (1 - t);
+      // Quick fade in, long fade out (hanging dust: slow in, hold, out late).
+      this.alpha[i] = this.hold
+        ? this.baseAlpha[i] * Math.min(1, t * 4) * (1 - t * t)
+        : this.baseAlpha[i] * Math.min(1, t * 8) * (1 - t) * (1 - t);
     }
     this.alive = alive;
     const g = this.points.geometry;
