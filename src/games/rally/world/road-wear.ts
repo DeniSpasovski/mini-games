@@ -277,7 +277,7 @@ export const ROAD_WEAR_FRAGMENT = /* glsl */ `
   float pxA = fwidth( along );
   float pix = max( pxL, pxA );
   // Broken edge: where a loose verge meets it, a country road's edge has crumbled into the shoulder - a ragged band
-  // 0.05 - 0.4 m wide with bites out of it, the verge's gravel and earth showing, and a crack running along behind it.
+  // 0.03 - 0.27 m wide with bites out of it (outside the edge line), the verge's gravel and earth showing, and a crack running along behind it.
   rwBroken = 0.0;
   rwEdgeCrack = 0.0;
   if ( vRwC.x + vRwC.y > 0.02 ) {
@@ -287,8 +287,8 @@ export const ROAD_WEAR_FRAGMENT = /* glsl */ `
       if ( v < 0.02 ) continue;
       float d = hw - ( s == 0 ? lat : - lat );
       if ( d > 0.9 ) continue;
-      float band = v * ( 0.04 + 0.3 * rsNoise( vec2( along / 2.3, fs * 5.0 + 1.0 ) ) );
-      band += v * 0.32 * smoothstep( 0.68, 0.9, rsNoise( vec2( along / 1.1, fs * 3.0 + 7.0 ) ) );
+      float band = v * ( 0.03 + 0.12 * rsNoise( vec2( along / 2.3, fs * 5.0 + 1.0 ) ) );
+      band += v * 0.12 * smoothstep( 0.68, 0.9, rsNoise( vec2( along / 1.1, fs * 3.0 + 7.0 ) ) );
       float jag = 0.07 * ( rsNoise( vec2( along / 0.23, fs * 7.0 ) ) - 0.5 ) + 0.03 * ( rsNoise( wp / 0.06 + fs ) - 0.5 );
       rwBroken = max( rwBroken, 1.0 - smoothstep( -0.5 * pix, 0.5 * pix, d - band + jag ) );
       float cy = band + 0.12 + 0.12 * rsNoise( vec2( along / 3.7, fs * 9.0 + 2.0 ) );
