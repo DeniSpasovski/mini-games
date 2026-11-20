@@ -64,7 +64,6 @@ import {
 } from './builders/simready';
 import {
   crew,
-  crewSeated,
   driver,
   marshal,
   mechanic,
@@ -163,7 +162,6 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   spectator,
   mechanic,
   crew,
-  crew_seated: crewSeated,
   driver,
   marshal,
   photographer,

@@ -699,15 +699,6 @@ export const ASSET_CATALOG: AssetMeta[] = [
     fade: true,
   },
   {
-    id: 'crew_seated',
-    name: 'Crew in the seats',
-    category: 'props',
-    description:
-      'Driver and co-driver in their seats (game/car-crew.ts puts them in the player car and adds helmets). Variant % 2 = seat (driver, co-driver), variant / 2 = team.',
-    variants: 24,
-    lods: PEOPLE_LODS,
-  },
-  {
     id: 'marshal',
     name: 'Marshal',
     category: 'props',
