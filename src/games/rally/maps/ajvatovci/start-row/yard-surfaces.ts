@@ -23,7 +23,14 @@ export const YARD_TOP = {
   draped: 0.05,
   drapedPatch: 0.08,
   drive: 0.05,
+  /** An unpaved track on the ground (`Plot.flushDrive`): just a gravel layer, level with the ground. */
+  driveFlush: 0.02,
 } as const;
+
+/** How far the drawn terrain is cut under a flush drive (m): the layer's own depth, so the terrain never shows through. */
+export const FLUSH_DRIVE_SINK = YARD_TOP.driveFlush;
+/** The cut eases in from the drive's edge over this distance (m). */
+const FLUSH_RAMP = 0.5;
 
 /** Least-squares plane through world (x, z, y) samples. */
 export function fitPlane(samples: [number, number, number][]): Plane {
@@ -236,7 +243,14 @@ export function surfacesOf(
       }
     }
     if (yard.driveIn.length >= 3)
-      out.push(surface(yard.driveIn, (x, z) => ground(x, z) + YARD_TOP.drive));
+      out.push(
+        surface(
+          yard.driveIn,
+          (x, z) =>
+            ground(x, z) +
+            (plot.flushDrive ? YARD_TOP.driveFlush : YARD_TOP.drive),
+        ),
+      );
   }
   return out;
 }
@@ -290,4 +304,44 @@ export function yardTop(
       }
     return y;
   };
+}
+
+/**
+ * How far the drawn terrain is cut under the flush drives (`Plot.flushDrive`: unpaved tracks laid level with the ground), site x, z -> m:
+ * eased in from the drive's edge, 0 off it. Physics keeps the ground; the track's gravel layer lies in the cut.
+ */
+export function flushDriveSink(): (x: number, z: number) => number {
+  const drives = getYards()
+    .filter((y) => y.plot.flushDrive && y.driveIn.length >= 3)
+    .map((y) => ({
+      polygon: y.driveIn,
+      x0: Math.min(...y.driveIn.map((p) => p.x)),
+      x1: Math.max(...y.driveIn.map((p) => p.x)),
+      z0: Math.min(...y.driveIn.map((p) => p.y)),
+      z1: Math.max(...y.driveIn.map((p) => p.y)),
+    }));
+  const p = new Vector2();
+  return (x, z) => {
+    let sink = 0;
+    p.set(x, z);
+    for (const d of drives) {
+      if (x < d.x0 || x > d.x1 || z < d.z0 || z > d.z1) continue;
+      if (!inside(p, d.polygon)) continue;
+      let edge = Infinity;
+      for (let i = 0, j = d.polygon.length - 1; i < d.polygon.length; j = i++)
+        edge = Math.min(edge, segmentDistance(p, d.polygon[j], d.polygon[i]));
+      sink = Math.max(sink, Math.min(1, edge / FLUSH_RAMP) * FLUSH_DRIVE_SINK);
+    }
+    return sink;
+  };
+}
+
+function segmentDistance(p: Vector2, a: Vector2, b: Vector2): number {
+  const dx = b.x - a.x;
+  const dz = b.y - a.y;
+  const l2 = dx * dx + dz * dz;
+  const t = l2
+    ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dz) / l2))
+    : 0;
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dz * t));
 }

@@ -25,7 +25,8 @@ import type { World } from '../world/world';
  * A card = `maps/<map>/preview/<stage id>.json` (height grid, stage polyline, framing) + `<stage id>-<season>.jpg` (top-down
  * render of the stage area: terrain, roads, trees, buildings, the map's sun and long shadows baked in). At runtime it
  * is ONE textured grid mesh (relief from the height grid, `MapDef.previewRelief` exaggerates it) + the stage ribbon,
- * start / finish poles and a floor - loaded lazily per map, ~30-50 ms.
+ * start / finish poles and a floor - loaded lazily per map, ~30-50 ms. The JSON carries a small copy of each image
+ * (`thumb`), shown until the full one has arrived.
  *
  * DOM-free at import (node tests can check a card against `stageCardHash`).
  */
@@ -33,7 +34,7 @@ import type { World } from '../world/world';
 /** Maps bigger than this (m²) use a baked card; smaller maps are built live (cheap: real 3D trees / rocks). */
 export const LARGE_MAP_AREA = 8e6;
 /** Bump when the baker's look or the card format changes: every card must be re-baked. */
-export const STAGE_CARD_VERSION = 3;
+export const STAGE_CARD_VERSION = 4;
 /**
  * A card has one image per season (spring / summer / autumn), every one named `<stage id>-<season>.jpg`; the JSON
  * (`StageCardData.season`) says which is the map's own. Only the image shown is fetched.
@@ -62,10 +63,14 @@ export interface StageCardData {
   stage: number[];
   /** Floor colour ('#rrggbb') = the card's faded edge colour. */
   floor: string;
+  /** The base image small (JPEG data URL): shown while the full image loads. */
+  thumb?: string;
   /** Season of the base image (default summer): the map's own. */
   season?: Season;
-  /** The other seasons' images (`cardImageName`): their hash (as `hash`) and floor colour. */
-  seasons?: Partial<Record<Season, { hash: string; floor: string }>>;
+  /** The other seasons' images (`cardImageName`): their hash (as `hash`), floor colour and small copy (as `thumb`). */
+  seasons?: Partial<
+    Record<Season, { hash: string; floor: string; thumb?: string }>
+  >;
 }
 
 /**
@@ -297,6 +302,28 @@ export async function stageCardImageUrl(
       `../maps/${mapId}/preview/${cardImageName(stageId, season)}.jpg`
     );
     return (jpg.default ?? jpg) as string;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The small copy of a season's image from the card's JSON (decoded in a few ms, nothing to fetch); null when the card
+ * has none for that season.
+ */
+export async function loadStageCardThumb(
+  data: StageCardData,
+  season?: Season,
+): Promise<{ texture: Texture; season: Season } | null> {
+  const own = data.season ?? DEFAULT_SEASON;
+  const want = season ?? own;
+  const at = want === own ? data.thumb : data.seasons?.[want]?.thumb;
+  const url = at ?? data.thumb;
+  if (!url) return null;
+  try {
+    const texture = await new TextureLoader().loadAsync(url);
+    texture.colorSpace = SRGBColorSpace;
+    return { texture, season: at ? want : own };
   } catch {
     return null;
   }

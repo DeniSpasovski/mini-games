@@ -17,7 +17,7 @@ import {
   type Corner,
 } from './frame';
 import { getYards, PLOTS, SITE } from './layout';
-import { yardTop } from './yard-surfaces';
+import { flushDriveSink, yardTop } from './yard-surfaces';
 import { buildStartRow } from './build';
 import { startRowInstances } from './plantings';
 import {
@@ -488,6 +488,11 @@ export const startRowLandmark: Landmark = {
       const h = kerb(x, z);
       return Number.isNaN(h) ? yard(x - ORIGIN.x, z - ORIGIN.z) : h;
     };
+  },
+
+  meshSink: () => {
+    const sink = flushDriveSink();
+    return (x, z) => sink(x - ORIGIN.x, z - ORIGIN.z);
   },
 
   instances: (ground: TerrainSampler) =>

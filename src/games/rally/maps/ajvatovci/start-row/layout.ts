@@ -155,6 +155,8 @@ export interface Plot {
   paving?: 'pavers' | 'gravel';
   /** Pad (graded ground) follows the road along these site x instead of the lot's own frontage (a lot behind others). */
   padSpan?: [number, number];
+  /** The drive is an unpaved track on the natural ground: a thin gravel layer level with it, no edge face, the drawn terrain cut under it. */
+  flushDrive?: boolean;
   /** No graded pad: the lot lies on the natural ground (a lot off the street, out in the fields). */
   noPad?: boolean;
   /** No fences at all (no street fence, no lot fence): open ground; neighbours keep their own fences. */
@@ -987,6 +989,7 @@ const PLOT_LAYOUT: Plot[] = [
     // The lot west of the villa: bare ground with a weedy front, a gravel track along the villa's fence to a
     // foundation slab at the back (ref-35, ref-36).
     name: 'slab lot',
+    flushDrive: true,
     corners: ROOFS.slab,
     height: 0.35,
     side: 'north',

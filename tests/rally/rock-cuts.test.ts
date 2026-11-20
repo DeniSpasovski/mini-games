@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
-import type { BufferGeometry, Mesh } from 'three';
+import { type BufferGeometry, type Mesh, MeshStandardMaterial } from 'three';
 import { trailLotLandmark } from '../../src/games/rally/maps/vodno/landmarks';
 import { vodnoMap } from '../../src/games/rally/maps/vodno/map';
 import { newRoadQuery } from '../../src/games/rally/world/road';
@@ -11,7 +11,7 @@ describe('Vodno rock cuts', () => {
   const q = newRoadQuery();
 
   test('faces stand beside the road, never on it', () => {
-    const job = rockCutMeshJob(world);
+    const job = rockCutMeshJob(world, () => new MeshStandardMaterial());
     let r = job.next();
     while (!r.done) r = job.next();
     const meshes = (r.value?.children ?? []) as Mesh[];
@@ -50,12 +50,13 @@ describe('Vodno rock cuts', () => {
     expect(steep).toBeGreaterThan(1);
   });
 
-  test('rock faces only at the hairpin, a low stone wall at Vidikovec, none elsewhere', () => {
-    const job = rockCutMeshJob(world);
+  test('rock faces only on the stretches the references show (each one has its face), a low stone wall at Vidikovec', () => {
+    const job = rockCutMeshJob(world, () => new MeshStandardMaterial());
     let r = job.next();
     while (!r.done) r = job.next();
-    const [from, to] = [1985, 2125];
-    const wall = vodnoMap.road.rockCuts!.walls![0];
+    const stretches = vodnoMap.road.rockCuts!.stretches!;
+    const seen = new Set<number>();
+    const walls = vodnoMap.road.rockCuts!.walls!;
     for (const m of (r.value?.children ?? []) as Mesh[]) {
       const p = (m.geometry as BufferGeometry).attributes.position;
       let lo = Infinity;
@@ -63,19 +64,29 @@ describe('Vodno rock cuts', () => {
       for (let i = 0; i < p.count; i++) {
         world.road.query(p.getX(i), p.getZ(i), q);
         if (m.name === 'rock-cut') {
-          expect(q.along).toBeGreaterThan(from - 15);
-          expect(q.along).toBeLessThan(to + 15);
+          const k = stretches.findIndex(
+            (st) => q.along > st.from - 15 && q.along < st.to + 15,
+          );
+          expect(k, `face at ${q.along.toFixed(0)} m`).toBeGreaterThanOrEqual(
+            0,
+          );
+          seen.add(k);
         } else {
-          expect(q.along).toBeGreaterThan(wall.from - 5);
-          expect(q.along).toBeLessThan(wall.to + 5);
+          expect(
+            walls.some((w) => q.along > w.from - 5 && q.along < w.to + 5),
+            `wall at ${q.along.toFixed(0)} m`,
+          ).toBe(true);
           lo = Math.min(lo, p.getY(i) - world.road.at(q.along).y);
           hi = Math.max(hi, p.getY(i) - world.road.at(q.along).y);
         }
       }
       // The wall is about its height above the road, not a cliff.
       if (m.name === 'rock-cut-wall')
-        expect(hi - Math.max(lo, 0)).toBeLessThan(wall.height + 1);
+        expect(hi - Math.max(lo, 0)).toBeLessThan(
+          Math.max(...walls.map((w) => w.height)) + 1,
+        );
     }
+    expect([...seen].sort((a, b) => a - b)).toEqual(stretches.map((_, k) => k));
   });
 
   test('the trail lot colliders stay off the stage road', () => {

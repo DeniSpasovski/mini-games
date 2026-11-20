@@ -379,7 +379,11 @@ export default defineConfig(({ envMode }) => ({
           type Card = {
             hash: string;
             floor: string;
-            seasons?: Record<string, { hash: string; floor: string }>;
+            thumb?: string;
+            seasons?: Record<
+              string,
+              { hash: string; floor: string; thumb?: string }
+            >;
           };
           const baked = JSON.parse(body.json) as Card;
           let card = baked;
@@ -392,7 +396,11 @@ export default defineConfig(({ envMode }) => ({
             card = JSON.parse(fs.readFileSync(jsonFile, 'utf8')) as Card;
             card.seasons = {
               ...card.seasons,
-              [season]: { hash: baked.hash, floor: baked.floor },
+              [season]: {
+                hash: baked.hash,
+                floor: baked.floor,
+                thumb: baked.thumb,
+              },
             };
           } else if (fs.existsSync(jsonFile)) {
             const prev = JSON.parse(fs.readFileSync(jsonFile, 'utf8')) as Card;

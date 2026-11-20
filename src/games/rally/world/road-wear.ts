@@ -19,6 +19,7 @@ export const WEAR_TEX: ReadonlySet<string> = new Set([
   'road_tarmac',
   'road_tarmac_kerbed',
   'road_tarmac_lines',
+  'road_tarmac_new',
   'road_tarmac_plain',
 ]);
 /** Kerbed streets: rubber only (no verge to cut, no mud tracks out of a mouth). */

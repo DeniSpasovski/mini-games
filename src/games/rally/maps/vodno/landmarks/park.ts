@@ -344,6 +344,8 @@ export function logRail(
   pts: V2[],
   yAt: (x: number, z: number) => number,
   h = 1.05,
+  /** A diagonal brace in every bay, leaning one way then the other (the road fences). */
+  braced = false,
 ): void {
   // Posts every 2 m along the polyline (and at its ends).
   const posts: V3[] = [];
@@ -378,6 +380,17 @@ export function logRail(
         'paint',
         WOOD,
       );
+    if (braced) {
+      const [p, q] = i % 2 ? [a, b] : [b, a];
+      strut(
+        l,
+        [p[0], p[1] + 0.08 * h, p[2]],
+        [q[0], q[1] + 0.95 * h, q[2]],
+        0.07,
+        'paint',
+        WOOD,
+      );
+    }
   }
 }
 
