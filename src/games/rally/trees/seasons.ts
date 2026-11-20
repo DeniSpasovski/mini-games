@@ -1,4 +1,5 @@
 import { SEASONS, type Season } from '../season';
+import { hexToLinear } from './math';
 import type { SpeciesDef } from './species';
 
 /**
@@ -105,26 +106,74 @@ const INSIDE_FIRST = ['Birch', 'Poplar', 'Willow'];
 const AUTUMN_LEAVES = 0.75;
 const SPRING_LEAVES = { leafy: 0.8, leafSize: 0.8 };
 
+/**
+ * Late autumn (an autumn month from November on, `EnvironmentDef.months`): the broadleaves have shed most of their leaves,
+ * the last ones dull ochre and brown (the turned end of the ramp, greyer), so the fine twigs show (drawn thinner, a larger
+ * branch budget, as `bareSpecies`). Oak and bramble hold their dead leaves longer; broom stays green.
+ */
+export const LATE_AUTUMN_MONTH = 11;
+const LATE_LEAVES = 0.15;
+const LATE_KEEP: Readonly<Record<string, number>> = { Oak: 0.35, Bramble: 0.6 };
+/** Dead leaf (a dry oak leaf's mean, sRGB): the turned colours fade this far towards it, at this value. */
+const DEAD_LEAF = '#76604a';
+const LATE_FADE = 0.65;
+const LATE_VALUE = 0.8;
+const LATE_TWIG = 0.006;
+const LATE_BRANCHES = 1.6;
+
+/** A late-autumn ramp: the turned end of the autumn one (gold to brown) faded towards the dead leaf's brown. */
+function lateRamp(autumn: string[]): string[] {
+  const dead = hexToLinear(DEAD_LEAF);
+  const out = (v: number) =>
+    Math.round(
+      255 *
+        (v <= 0.0031308
+          ? v * 12.92
+          : 1.055 * Math.min(1, v) ** (1 / 2.4) - 0.055),
+    )
+      .toString(16)
+      .padStart(2, '0');
+  return autumn.slice(2).map(
+    (hex) =>
+      `#${hexToLinear(hex)
+        .map((v, i) => out((v + (dead[i] - v) * LATE_FADE) * LATE_VALUE))
+        .join('')}`,
+  );
+}
+
 /** Where a season's species came from: the summer species and the season. */
 const origins = new WeakMap<
   SpeciesDef,
   { summer: SpeciesDef; season: Season }
 >();
-const derived = new WeakMap<SpeciesDef, Map<Season, SpeciesDef>>();
+const derived = new WeakMap<SpeciesDef, Map<string, SpeciesDef>>();
 
-/** The species as it looks in `season`: the same definition with that season's leaf colours (itself when it has none). */
-export function seasonal(def: SpeciesDef, season: Season): SpeciesDef {
+/**
+ * The species as it looks in `season`: the same definition with that season's leaf colours (itself when it has none).
+ * `month` (1-12, `seasonMonth`): an autumn from `LATE_AUTUMN_MONTH` on is late autumn.
+ */
+export function seasonal(
+  def: SpeciesDef,
+  season: Season,
+  month = 0,
+): SpeciesDef {
   const summer = summerOf(def);
   if (season === 'summer') return summer;
+  const broad = summer.foliage.kind === 'broadleaf';
+  const late =
+    broad &&
+    season === 'autumn' &&
+    month >= LATE_AUTUMN_MONTH &&
+    summer.name !== 'Broom';
   let bySeason = derived.get(summer);
   if (!bySeason) derived.set(summer, (bySeason = new Map()));
-  let out = bySeason.get(season);
+  const key = late ? 'late autumn' : season;
+  let out = bySeason.get(key);
   if (!out) {
     const palette = PALETTES[summer.name]?.[season];
     // Leaves turn tree by tree (a week apart in autumn, half that in spring) and from the crown's top and outside in
     // (birch, poplar and willow from the inside); needles hardly change. Autumn crowns have shed some leaves, spring
     // ones are not full yet and their leaves still small: the same branches show through more.
-    const broad = summer.foliage.kind === 'broadleaf';
     const inside = INSIDE_FIRST.includes(summer.name) ? -1 : 1;
     const change =
       broad && season === 'autumn'
@@ -141,8 +190,25 @@ export function seasonal(def: SpeciesDef, season: Season): SpeciesDef {
     out = palette
       ? { ...summer, foliage: { ...summer.foliage, palette, ...change } }
       : summer;
+    if (late && palette)
+      out = {
+        ...out,
+        foliage: {
+          ...out.foliage,
+          palette: lateRamp(palette),
+          stage: 0.55,
+          stages: 0.4,
+          // Dead leaves differ little from tree to tree.
+          hueSpread: 0.6,
+          leafy: LATE_KEEP[summer.name] ?? LATE_LEAVES,
+        },
+        twigRadius: Math.min(summer.twigRadius, LATE_TWIG),
+        maxBranchTriangles: Math.round(
+          summer.maxBranchTriangles * LATE_BRANCHES,
+        ),
+      };
     if (out !== summer) origins.set(out, { summer, season });
-    bySeason.set(season, out);
+    bySeason.set(key, out);
   }
   return out;
 }
@@ -157,9 +223,14 @@ export function seasonOf(def: SpeciesDef): Season {
   return origins.get(def)?.season ?? 'summer';
 }
 
-/** Every distinct look of a species over the year (what the disk cache keeps, trees/cache.ts). */
+/** Every distinct look of a species over the year, late autumn too (what the disk cache keeps, trees/cache.ts). */
 export function allSeasons(def: SpeciesDef): SpeciesDef[] {
-  return [...new Set(SEASONS.map((s) => seasonal(def, s)))];
+  return [
+    ...new Set([
+      ...SEASONS.map((s) => seasonal(def, s)),
+      seasonal(def, 'autumn', LATE_AUTUMN_MONTH),
+    ]),
+  ];
 }
 
 /** Species names the table has palettes for (a test checks them). */

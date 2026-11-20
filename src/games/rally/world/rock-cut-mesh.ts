@@ -15,6 +15,7 @@ import { bridgeMaterials } from './bridge-mesh';
 import { newRoadQuery } from './road';
 import { getTerrainMaterial } from './terrain-material';
 import { WALL_FACE, WALL_SKIN, WALL_THICK } from './terrain-gen';
+import type { RockLook } from '../maps/shared/types';
 import type { World } from './world';
 
 /**
@@ -32,6 +33,8 @@ const STEP = 2;
 const ROWS = 7;
 /** Lowest face that gets a ribbon (m). */
 const MIN_FACE = 1.4;
+/** ... and of a retaining wall's (m). */
+const MIN_WALL = 0.6;
 /** Longest piece of one mesh (m of road): culled in pieces. */
 const PIECE = 120;
 /** How far the ribbon stands proud of the ground (m) and the depth of the strata ledges. */
@@ -43,6 +46,10 @@ const TILE = 3.6;
 const SCHIST = [1.12, 1.0, 0.82];
 const OCHRE = [1.4, 0.98, 0.48];
 const RUST = [1.22, 0.8, 0.56];
+/** The other looks (RoadDef.rockCuts `stretches`): pale blocky limestone (little weathering tint) and dark layered shale. */
+// (cream-buff, and a brown-grey slate that stays dark in full sun: the references)
+const LIMESTONE = [1.62, 1.46, 1.14];
+const DARK = [0.32, 0.29, 0.26];
 /** Tone the face fades to where it sinks into the ground at a run's end: the terrain's cool grey rock / scree beside it. */
 const GROUND_ROCK = [0.92, 0.97, 1.06];
 /** Road samples over which a run's end sinks into the ground and takes the ground's tone. */
@@ -174,6 +181,7 @@ interface Section {
   hi: number;
   /** A low retaining wall (RoadDef.rockCuts `walls`), not rock. */
   wall: boolean;
+  look: RockLook;
 }
 
 export function* rockCutMeshJob(
@@ -221,7 +229,8 @@ export function* rockCutMeshJob(
       k++
     )
       top += 0.5;
-    if (h(top) - h(foot) < MIN_FACE) return null;
+    // (a retaining wall stands down to a low bank: its face is only as tall as the land, terrain-gen `rockCutWeightAt`)
+    if (h(top) - h(foot) < (wall ? MIN_WALL : MIN_FACE)) return null;
     // The face must belong to this stretch of road (not to the other leg of a hairpin).
     const [tx, tz] = lat(top);
     road.query(tx, tz, rq);
@@ -235,6 +244,7 @@ export function* rockCutMeshJob(
       lo: (foot - 0.3) * s,
       hi: (top + (wall ? 0.15 : 0.4)) * s,
       wall,
+      look: gen.rockCutStretch(d, s)?.look ?? 'schist',
     };
   };
 
@@ -302,10 +312,21 @@ export function* rockCutMeshJob(
             0.25 * noise.noise2(r.d / 11 + 7, y0 / 4),
         );
         const rust = smoothstep(-0.1, 0.4, noise.noise2(r.d / ZONE + 17, 2.5));
+        const base =
+          r.look === 'limestone'
+            ? LIMESTONE
+            : r.look === 'dark'
+              ? DARK
+              : SCHIST;
+        // (limestone and shale weather less warm than the schist)
+        const tw = r.look === 'schist' ? warm : warm * 0.25;
         for (let c = 0; c < 3; c++) {
           const tint = OCHRE[c] + (RUST[c] - OCHRE[c]) * rust;
-          const face = shade * (SCHIST[c] + (tint - SCHIST[c]) * warm);
-          col.push(GROUND_ROCK[c] + (face - GROUND_ROCK[c]) * end);
+          const face =
+            shade * (base[c] + (tint * (base[c] / SCHIST[c]) - base[c]) * tw);
+          // (a pale limestone or a dark shale face ends in its own tone, not the schist ground's grey)
+          const ground = r.look === 'schist' ? GROUND_ROCK[c] : base[c] * 0.9;
+          col.push(ground + (face - ground) * end);
         }
         uv.push(r.d / TILE, (y0 + r.d * 0.05) / TILE);
       }

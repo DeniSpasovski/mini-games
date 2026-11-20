@@ -39,6 +39,7 @@ export type RoadSurfaceId =
   | 'road_tarmac_junction'
   | 'road_tarmac_plain_junction'
   | 'road_tarmac_lines'
+  | 'road_tarmac_new'
   | 'road_tarmac_plain'
   | 'road_tarmac_plain_kerbed'
   | 'road_city'
@@ -54,6 +55,7 @@ export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
   road_tarmac_junction: 7,
   road_tarmac_plain_junction: 7,
   road_tarmac_lines: 7,
+  road_tarmac_new: 7,
   road_tarmac_plain: 7,
   road_tarmac_plain_kerbed: 7,
   road_city: 8,
@@ -64,8 +66,8 @@ export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
 };
 
 /**
- * Roads with repair patches (a shader effect, so they never repeat): Vodno's mountain road (pale, rare near the start and
- * more often up the road) and Jackie (dark, square-cut, even). The number scales their count (`rsPatch` in `applyRoadSurface`).
+ * Roads with repair patches (a shader effect, so they never repeat): Vodno's old mountain road (pale, most often on the worn
+ * lower road, fewer above it; the re-laid upper road has none) and Jackie (dark, square-cut, even). The number scales their count (`rsPatch` in `applyRoadSurface`).
  */
 const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 1,
@@ -82,6 +84,7 @@ export const JUNCTION_OF = JUNCTION_ASPHALT as Partial<
 /** Strength of the 9 m / 3 m blotches (1 = default): a calmer tone where the real road is even. */
 const TONE: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 0.6,
+  road_tarmac_new: 0.35,
   road_tarmac_plain: 0.6,
   road_tarmac_plain_kerbed: 0.6,
 };
@@ -91,19 +94,33 @@ const TONE: Partial<Record<RoadSurfaceId, number>> = {
  * them; real asphalt is the darkest thing in a field and a little warm.
  */
 const TINT: Partial<Record<RoadSurfaceId, readonly [number, number, number]>> =
-  Object.fromEntries(
-    (
-      [
-        'road_tarmac',
-        'road_tarmac_kerbed',
-        'road_tarmac_junction',
-        'road_tarmac_plain_junction',
-        'road_tarmac_lines',
-        'road_tarmac_plain',
-        'road_tarmac_plain_kerbed',
-      ] as const
-    ).map((id) => [id, [0.78, 0.76, 0.73] as const]),
-  );
+  {
+    ...Object.fromEntries(
+      (
+        [
+          'road_tarmac',
+          'road_tarmac_kerbed',
+          'road_tarmac_junction',
+          'road_tarmac_plain_junction',
+          'road_tarmac_lines',
+          'road_tarmac_plain',
+          'road_tarmac_plain_kerbed',
+        ] as const
+      ).map((id) => [id, [0.78, 0.76, 0.73] as const]),
+    ),
+    // (the fresh tile is baked dark already: a touch warmer, not darker)
+    road_tarmac_new: [0.96, 0.95, 0.93],
+  };
+
+let roadTone = 1;
+/** `RoadDef.tone` of the map being built (set before its road materials are made: they are shared by the session). */
+export function setRoadTone(tone: number): void {
+  roadTone = tone;
+}
+/** The tone set by `setRoadTone` (part of a road material's cache key: world/road-mesh.ts). */
+export function mapRoadTone(): number {
+  return roadTone;
+}
 
 /** Constants of the wear shader (world/road-wear.ts): the terrain's soil and gravel layers, dust / mud / rubber tones. */
 const WEAR_DEFINES = [
@@ -257,6 +274,8 @@ export function applyRoadSurface(
   id: RoadSurfaceId,
   junction: RoadSurfaceId | undefined = JUNCTION_OF[id],
   wear = false,
+  /** A road section's own tone, over the map's (`setRoadTone`). */
+  sectionTone = 1,
 ): void {
   const configure = (s: Surface | undefined, js?: Surface) => {
     if (!s) {
@@ -273,7 +292,9 @@ export function applyRoadSurface(
     m.normalMap = s.normal;
     m.normalScale = new Vector2(1, 1);
     m.roughness = 1;
-    m.color.setRGB(...(TINT[id] ?? [1, 1, 1]));
+    const tint = TINT[id] ?? [1, 1, 1];
+    const k = (id === 'road_tarmac_new' ? 1 : roadTone) * sectionTone;
+    m.color.setRGB(tint[0] * k, tint[1] * k, tint[2] * k);
     const scale = { value: new Vector2(6, ROAD_SURFACE_LEN[id]) };
     const jLen = { value: junction ? ROAD_SURFACE_LEN[junction] : 1 };
     const patch = { value: PATCHES[id] ?? 0 };
@@ -373,7 +394,7 @@ export function applyRoadSurface(
             if ( rsPatch > 0.0 ) {
               float rsCi = floor( rsM.y / 10.0 );
               float rsFy = rsM.y - rsCi * 10.0;
-              float rsDens = rsPatch * mix( mix( 0.25, 0.8, smoothstep( 250.0, 3500.0, rsM.y ) ), 1.0, rsPatchDark );
+              float rsDens = rsPatch * mix( mix( 0.8, 0.45, smoothstep( 600.0, 2100.0, rsM.y ) ), 1.0, rsPatchDark );
               float rsCov = 0.0;
               for ( int k = 0; k < 2; k ++ ) {
                 vec2 id = vec2( rsCi, float( k ) * 17.0 + 1.0 );

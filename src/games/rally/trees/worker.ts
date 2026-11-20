@@ -13,7 +13,7 @@ import {
   type CachedVariant,
 } from './cache';
 import { atlasCacheKey } from './variants';
-import { impostorChains } from './impostor';
+import { impostorChains, type ImpostorPixels } from './impostor';
 
 /** Generator worker: grammar -> skeleton -> meshing of one variant, off the main thread (trees/load.ts). */
 
@@ -51,10 +51,30 @@ export interface CachedResult {
   hit: { variant: CachedVariant; chains: MipLevel[][] } | null;
 }
 
+/** A freshly baked impostor's mip chains (`impostorChains`), made here while the main thread bakes the next variant. */
+export interface ChainsRequest {
+  id: number;
+  pixels: ImpostorPixels;
+}
+export interface ChainsResult {
+  id: number;
+  chains: MipLevel[][];
+}
+/** Start-up (trees/load.ts `warmTreeWorkers`): opens the disk cache; answers `{ id }`. */
+export interface PingRequest {
+  id: number;
+  ping: true;
+}
 const scope = globalThis as unknown as {
   onmessage:
     | ((
-        e: MessageEvent<GenerateRequest | AtlasRequest | CachedRequest>,
+        e: MessageEvent<
+          | GenerateRequest
+          | AtlasRequest
+          | CachedRequest
+          | ChainsRequest
+          | PingRequest
+        >,
       ) => void)
     | null;
   postMessage(msg: unknown, transfer: ArrayBuffer[]): void;
@@ -123,6 +143,24 @@ async function sendAtlas(
 }
 
 scope.onmessage = (e) => {
+  if ('ping' in e.data) {
+    const { id } = e.data;
+    void getCached('ping').finally(() => scope.postMessage({ id }, []));
+    return;
+  }
+  if ('pixels' in e.data) {
+    const { id, pixels } = e.data;
+    try {
+      const chains = impostorChains(pixels);
+      const buffers = new Set<ArrayBuffer>();
+      for (const c of chains)
+        for (const l of c) buffers.add(l.data.buffer as ArrayBuffer);
+      scope.postMessage({ id, chains } satisfies ChainsResult, [...buffers]);
+    } catch (err) {
+      scope.postMessage({ id, error: String(err) }, []);
+    }
+    return;
+  }
   if ('key' in e.data) {
     const { id, key } = e.data;
     readCached(id, key).catch((err) =>

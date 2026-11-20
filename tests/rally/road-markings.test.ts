@@ -95,4 +95,50 @@ describe('road paint', () => {
       expect(Math.max(...zs) - Math.min(...zs)).toBeCloseTo(ARROW.width, 5);
     }
   });
+
+  test('a stripe runs straight between its two end points, its width square to it; yellow in its own layer', () => {
+    const { lines, yellow } = roadPaint(
+      road,
+      [
+        // from 1 m in at 10 m to 3 m in at 14 m, from the left edge (z = 4 on this road's left)
+        {
+          kind: 'stripe',
+          from: 10,
+          to: 14,
+          edge: 'left',
+          offset: [1, 3],
+          width: 0.2,
+        },
+        {
+          kind: 'stripe',
+          from: 20,
+          to: 22,
+          edge: 'right',
+          offset: [0.5, 0.5],
+          yellow: true,
+        },
+      ],
+      flat,
+    );
+    expect(yellow.idx.length).toBeGreaterThan(0);
+    // centre line of the white stripe: midway between each row's two points
+    const mids: [number, number][] = [];
+    for (let i = 0; i < lines.pos.length; i += 6)
+      mids.push([
+        (lines.pos[i] + lines.pos[i + 3]) / 2,
+        (lines.pos[i + 2] + lines.pos[i + 5]) / 2,
+      ]);
+    expect(mids[0][0]).toBeCloseTo(10, 5);
+    expect(mids[0][1]).toBeCloseTo(-3, 5);
+    expect(mids[mids.length - 1][0]).toBeCloseTo(14, 5);
+    expect(mids[mids.length - 1][1]).toBeCloseTo(-1, 5);
+    // every row 0.2 m wide
+    for (let i = 0; i < lines.pos.length; i += 6)
+      expect(
+        Math.hypot(
+          lines.pos[i] - lines.pos[i + 3],
+          lines.pos[i + 2] - lines.pos[i + 5],
+        ),
+      ).toBeCloseTo(0.2, 5);
+  });
 });
