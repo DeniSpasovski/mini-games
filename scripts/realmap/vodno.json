@@ -17,6 +17,13 @@
   "route": {
     "width": 6.0
   },
+  "dem": {
+    "file": "sources/maps/vodno/dem/glo30-N41-E021.tif",
+    "credit": "Elevation: Copernicus DEM GLO-30 (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA",
+    "canopyShare": 0.4,
+    "keep": ["urban", "industrial"],
+    "climb": [520, 4290]
+  },
   "heightBase": 500,
   "detail": {
     "cell": 10,

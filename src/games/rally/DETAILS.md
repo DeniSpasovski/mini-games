@@ -84,7 +84,7 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 |          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                                                                                                                                                                             |
 |          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev)                                                                                                                                                       |
 | Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B (the B that closes the pause menu is not a reset); steering mode: Options -> Pad steering (PHYSICS.md "Steering input")                                                                    |
-| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `P` photo mode, `V` video, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit                                                                        |
+| Replay   | `Space` / `K` play, `←` / `→` / `J` / `L` ±5 s (`Shift` ±1 s), `,` / `.` frame, `[` / `]` speed, `Home` / `End`, `C` / `1`-`8` camera, `H` clean feed, `P` photo mode, `V` export, `Esc` exit; pad X play, Y clean feed, LB / RB camera, B exit                                                                       |
 | Photo    | drag orbit, right-drag / `Shift`-drag pan, wheel zoom, `W` `A` `S` `D` / arrows orbit, `Q` / `E` zoom, `R` recentre, `Enter` / `P` take photo, `H` hide, `Esc` back; pad left stick orbit, right stick zoom / pan, LT / RT focal length, A take photo, Y hide, B back; touch drag orbit, two fingers pan / pinch zoom |
 | Touch    | floating steering stick (or arrows: Options -> Touch steering), BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                                                                                                                                       |
 
@@ -93,7 +93,8 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 - **Menus** (`game/menu.ts`): welcome -> **select stage** (route outline of the stage and 150 m either side, orbiting 3D view of
   the stage, length, splits, best time; every stage shows a pre-baked stage card, `tools/stage-card.ts`, cropped to the stage +
   500 m and re-baked with `?bakecard=<stage id>&season=all` / `?bakecards=1&season=all` only when asked, one picture per
-  season; `stageCardHash` covers only what the card draws, so text edits need no re-bake) -> **select car** ->
+  season, each with a small copy in the JSON that shows until the full picture has loaded; `stageCardHash` covers only
+  what the card draws, so text edits need no re-bake) -> **select car** ->
   **Start stage** with the recommended set-up, or **Setup car** (small button left of the livery picker). The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
@@ -128,7 +129,8 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 - **Season** (`season.ts`): spring / summer / autumn, the stage's own (`StageDef.season`, else `environment.season`, default summer;
   `stageSeason`) or `?season=` (the stage screen mirrors the pick into the URL; every stage has it). It sets the tree leaf colours
   (`trees/seasons.ts`), the ground and the air / road temperatures (`StageDef.temps`, "Temperatures" below). The card lists the
-  **Month** the stage is driven in (`environment.months`, default April / July / October).
+  **Month** the stage is driven in (`environment.months`, default April / July / October). An autumn in November or later is
+  late autumn (`LATE_AUTUMN_MONTH`, Vodno): broadleaves nearly bare, the last leaves dull brown; impostors and the far forest follow.
 - **Season ground**: `environment.groundTint` is the map's own season; `environment.groundTints` has the other seasons' tints (fresh
   green / young crops in spring, dry olive / stubble in autumn). `mapInSeason` (`maps/shared/season-map.ts`) returns the map in that
   season and `RallyGame` builds its `World` from it, so terrain, horizon and sky follow. The stage card has one picture per season
@@ -157,7 +159,7 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
 ## Replays (`game/replay/`)
 
 **On in every build** (`REPLAYS_ENABLED`, `store.ts`): every run is recorded. A run can be watched from the results, from
-Stage times (▶ on a run with a replay, "Replays on this device" list) or by URL (`?replay=<id>` on the play URL; `replayUrl()`).
+Stage times (▶ on a run with a replay, "Replays on this device" list) or by URL: `?replay=<id>` on the play URL is the whole link (`replayUrl()`): stage, car, set-up and conditions are read from the saved replay's header and any other params are ignored (old long links work the same). Replays are saved in this browser, so the link opens on the device that recorded the run.
 
 - **Recording** (`recorder.ts`): state, not inputs (re-simulating from rounded inputs drifts hundreds of metres in a minute). `RallyGame.frame` calls
   `recorder.step` after each physics step; every 4th step (60 Hz) it stores pose, per-wheel omega / temperatures and car channels (rpm, gear, pedals, steer,
@@ -180,10 +182,13 @@ Stage times (▶ on a run with a replay, "Replays on this device" list) or by UR
   in slices (`tvCamerasFor`); each films only the stretch it sees unbroken (none: Chase). Broadcast shows big corners from their trackside camera and cycles
   the others between them; no cut under 2.5 s or in the air.
 - **UI** (`replay-ui.ts`, `replay.css`; STYLEGUIDE "Replay"): camera plate, timeline with split marks, transport, speed 0.25-2x, camera picker (a dropdown
-  under 1360 px), Save (name; an inactive "Saved" once named, absent for a replay opened from the menu: rename it in Stage times), Clean feed, Record video
-  (not in the release build), Exit (back to results, or the menu for a URL replay).
-- **Video** (`video.ts`; dev server and `build:test` only until it is fixed, `videoSupported()`): `MediaRecorder` on the canvas + game audio (mp4 / webm),
-  clean feed, real time; downloads on stop.
+  under 1360 px), Save (name; an inactive "Saved" once named, absent for a replay opened from the menu: rename it in Stage times), Clean feed, Export, Exit (back to results, or the menu for a URL replay).
+- **Export** (`export.ts`, `audio-tape.ts`, `RallyGame.exportReplay`): a section (amber handles on the timeline, `I` / `O` at the
+  playhead) at 720p / 1080p / 1440p / 4K, 60 fps, rendered offline frame by frame at exactly that size, so no frame is dropped on a slow machine.
+  MP4 at Standard / High / Maximum quality: WebCodecs H.264 (else HEVC / VP9 / AV1) at a fixed quantizer (else a constant 25 / 50 / 100 Mbps at
+  1080p, scaled by pixels), muxed by Mediabunny (loaded on the first export). Chrome / Edge ask where to save first and write while it renders;
+  elsewhere the MP4 downloads at the end. The sound is the same synth on an OfflineAudioContext fed what each frame told the live one. Before the section (not in the file) the camera
+  holds until the ground tiles and trees around it have loaded, then a 1.5 s run-up; the panel shows each step and the time left.
 - **Debug** (`debug-export.ts`): `__rally.replay.copy()` / `download()` / `load(text|bytes)` / `info()` / `list()`; `trace(s, every)` / `copyTrace()` /
   `downloadTrace()` = every 240 Hz physics step of the last 20 s (inputs, pose, per-wheel load / slip / forces) as TSV (the F2 panel has buttons); `load` of
   another stage / car reloads into it.
@@ -198,6 +203,10 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 
 - **Light:** the sun follows `timeOfDay` (or `sunElevation` / `sunAzimuth`); a lower sun is warmer and dimmer (raise `exposure`).
   Cool sky fill + warm ground bounce; a PMREM of the sky gives paint, glass and water reflections.
+- **Sun against sky** (`DAY_LIGHT` in `engine/environment.ts`): on flat ground the sky gives about a third of the sun's
+  light, so cast shadows are dark; faces turned from the sun get the ground's bounce (the hemisphere light's ground
+  colour). Only the env map's diffuse share is cut (`envDiffuse`, `wsEnvCut`); reflections keep `envIntensity`. Under a
+  cloud deck it eases back to the full sky. The studio uses `CLASSIC_LIGHT` (sky at three quarters of the sun); `?look=classic` shows it in game.
 - **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
   (`SUN_TERMS`, `SUN_SHADOW`):
   - the sun's shadow map ahead of the camera (`quality.shadowExtent`, snapped to texels), every frame. Trees cast into
@@ -395,9 +404,25 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `MapDef.dropRails` derives more (`world/drop-rails.ts`): wherever the carved ground falls more than `minDrop` m within `within`
   (3) m of the verge; the map's own `barriers` (hand, hairpin, OSM-mapped `barrier=guard_rail`) win on their side and stretch,
   and a derived run ending within `gap` of one carries it on (its steel and offset, no gap).
+  `tiers: 2` = a second beam; `dropRails.exclude` = spans with no derived rail. The rail is a double-sided two-rib W-beam sheet, each face lit by its
+  slope (`RAIL`, `world/barrier-mesh.ts`), its colour times the `barrier_rail` weathering map (grime, streaks, rust bleed). Trees
+  and shrubs stand `RAIL_CLEAR` past a stage-road guard rail (`ScatterContext.railAt`). Kinds `edge` (a flush pale concrete strip
+  along the asphalt, `width`, default 0.5 m) and `gutter` (`cobbles`: a stone dish) have no colliders; under an `edge` strip and a
+  `gutter` closer than 1 m the verge is held level with the road edge (`TerrainGen.edgeVergeAt`), so no bank cuts through them.
 - **Fill banks** (`RoadDef.fills`, `TerrainGen.carveRoad` / `paintFill`): the valley-side mirror of `rockCuts` - where the land 5 m
   past the verge lies `minDrop` m below the road, the verge holds to its rim and a straight `slope` bank of stony earth falls to the
   land (no ditch). With `dropRails` the rails stand on its rim (Vodno).
+- **Cuts** (Vodno): `rockCuts.stretches` (rock faces only there, `RockLook` tone; `walls` = low retaining walls); `earthCuts` (a
+  steep dug bank where the land rises; `cover` / `covers` = `bare` | `scrub` | `grass`, the scatter roots on a covered face;
+  `exclude` takes an optional side); `cutWalls.weathered` (cast panels, streaks, moss; `fence: false` = nothing on top).
+- **Verges**: `gravelVerges` (grit painted and driven as gravel), `softVerges` (a grass or leaf-litter verge instead), `litter` (a
+  leaf-litter band at the edge, weighted by the canopy).
+- **The climb**: `RoadDef.climb` (`Road.gradeClimb`) fits a stretch's height line to never fall (grade between `minGrade` and
+  `maxGrade`, `lift` raises where the data reads low).
+- **Road paint**: markings `patch` (`dim` = a duller re-laid lane, `cracks` = an alligator crack field, texture `road_cracks`) /
+  `stripe` (white or `yellow`); asphalt tile lines take `worn` (`gen.js`).
+- **Roadside stands**: `ScatterRule.along` limits a rule to stretches of the stage road, optionally one side (`[from, to, side]`);
+  such a rule only runs in the chunks beside them (Vodno's walls of growth at the kerb, `WALLS` in its `map.ts`).
 - **Culverts** (`MapDef.culverts` = `maps/<id>/culverts.json`, baked by `scripts/realmap/culverts.py`; `world/culverts.ts`,
   `culvert-mesh.ts`): where a drainage line of the elevation data crosses the stage road, a concrete pipe with a headwall, wing walls
   and an apron at both ends, the gully carved to and from it (`TerrainGen` after `carveRoad`, never on the road or its verge: no
@@ -445,12 +470,12 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`; the tarmacs `road_tarmac` (Poly Haven Asphalt 04 scan, CC0, with hairline
   cracks and faint tyre / oil marks: Ajvatovci, Galichica, Petralica; the scan goes in `sources/textures/asphalt_04/`, listed in `PHOTOS` in
   `scripts/asphalt/bake.mjs`), `road_tarmac_kerbed` (no edge grit: Ajvatovci's kerbed start street), `road_tarmac_lines` (white edge and centre lines) and
-  `road_tarmac_plain` (no lines: Vodno's crossroad, where the road paint lies over it); `road_parkway` and the city asphalts (`road_city`, `road_street`,
+  `road_tarmac_plain` (no lines: Vodno's crossroad, where the road paint lies over it), `road_tarmac_new` (fresh dark asphalt: Vodno's re-laid road); `RoadDef.tone` darkens a map's baked tarmac and `sections[].tone` one stretch of it (`setRoadTone`, `engine/road-surface.ts`); `road_parkway` and the city asphalts (`road_city`, `road_street`,
   `road_street4`, `junction_asphalt`).
   - The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp` from `scripts/asphalt/bake.mjs` (tiles drawn by
     `gen.js` in headless Chromium; the output is committed, rerun after changing `gen.js`). High loads the 1024 px set, Medium / Low their own 512 px set.
     `engine/road-surface.ts` loads them (the play page preloads the map's sets) and `getRoadMaterial` puts them on the road: colour + a normal map with the
-    roughness packed in its alpha + a tone shader (blotches and streaks that never repeat; Vodno's tiles get pale repair patches, more of them higher up). A
+    roughness packed in its alpha + a tone shader (blotches and streaks that never repeat; Vodno's tiles get pale repair patches, most on the old lower road, none on the fresh stretch). A
     new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN` (same `len` as `texLength`; a test checks) and a rebake.
   - Rally-worn tarmac (`world/road-wear.ts`, the stage road's `WEAR_TEX` tarmacs): per-sample masks in the `rwA` / `rwB` vertex attributes,
     drawn by the asphalt shader - a light film of earth on the inside of some hairpins (under ~40 m radius, not on decks, kerbed
@@ -494,7 +519,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace: `PadDef.level`); the
-  road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch (Vodno's concrete wall at the first crossroad:
+  road's carve wins near the road, except under a `hold` pad (applied again over the road's embankment: a lot under the road behind a wall).
+  A numeric `level` is a fixed height; a `ramp` slopes a pad (eased, or `linear`), also on top of a fixed level. `terrain.meshSink` moves only the
+  drawn terrain mesh (not the physics ground): Vodno sinks it at its lot and garden walls, which the 1 m mesh cannot step at. `road.cutWalls.range` limits the sheer, walled cut to one stretch (Vodno's concrete wall at the first crossroad:
   `maps/vodno/crossroad.ts`); `cutWalls.solid` holds the cut tight (a thin coping) and gives the face box colliders (`world/cut-wall-colliders.ts`), so a car
   stops at it. `routePoints` takes a sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a
   stretch; `MapDef.treeCrownClear` (Vodno: 1.5 m) re-poses any tree whose low leaves (under 4 m) would reach that far past the road's edge (`lowOverRoad` in
@@ -711,7 +738,9 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   [Drawing](../../../.claude/reference/trees/Drawing.md), [Performance](../../../.claude/reference/trees/Performance.md)).
   Measure with the tree overlay (`F6`) and `?treebench=1`.
 - Past `forestDistance` the far forest takes over (`world/far-forest.ts`: far tree impostors to `FAR_REACH`, then the
-  canopy shell).
+  canopy shell). Its canopy map comes from the generated scatter chunks, elsewhere the tree rules (`estimate`); a map
+  with a real canopy raster (`landcover.canopy`) raises it to the real canopy share and stand height (`realCanopy`), as
+  the scatter's woods are thinner than the real ones. The far trees ramp from the scatter's cover to it (`FAR_RAMP`).
 - Render scale option (Auto / 100 / 85 / 70 %, `RENDER_SCALE`). Auto (`adaptScale`) steps down only while the GPU falls
   behind, stops when a step saved under 5 % and waits longer after each step up that did not hold. A step lands before
   the frame renders (a resize clears the canvas: after the render it showed a black frame). Not the default: each step is
@@ -737,7 +766,8 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   included) and uploads happen behind the loading screen. A material first used mid-stage compiles then (a hitch): it
   must be in the scene at load (`assetIds` adds the world-placed assets).
 - Background work runs in module workers (`shared/worker-pool.ts`): tree variants, leaf atlases, people, procedural
-  textures; the tree workers read the IndexedDB cache. `__rally.loadTimings` splits the load by phase.
+  textures; the tree workers read the IndexedDB cache. `play.ts` starts the tree workers (`warmTreeWorkers`) while the map
+  data loads, so the Trees phase finds them running. `__rally.loadTimings` splits the load by phase.
 - A long load-time task holds every worker pool up: slice once-per-page bakes (`bakeCropCards`). Long synchronous steps
   set their label and `paint()` first.
 
@@ -766,7 +796,7 @@ colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`
 |                                                              | autumn | **14 / 18**   | 21 / 28     | 22 / 28     | 21 / 22 | 11 / 11 |
 | `vodno` (10:00; early morning 08:00)                         | spring | 9 / 14        | **14 / 26** | 18 / 28     | 17 / 19 | 7 / 7   |
 |                                                              | summer | 30 / 40       | **35 / 54** | 38 / 55     | 36 / 44 | 26 / 26 |
-|                                                              | autumn | 6 / 9         | **11 / 19** | 15 / 21     | 14 / 16 | 4 / 4   |
+|                                                              | autumn | 2 / 3         | **6 / 11**  | 10 / 15     | 8 / 9   | 1 / 1   |
 | `petralica` (16:30)                                          | spring | 11 / 14       | 19 / 37     | **21 / 35** | 20 / 31 | 11 / 11 |
 |                                                              | summer | 16 / 20       | 26 / 47     | **28 / 46** | 28 / 42 | 17 / 17 |
 |                                                              | autumn | 11 / 11       | 21 / 35     | **24 / 34** | 23 / 30 | 14 / 14 |
@@ -778,6 +808,37 @@ colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`
 |                                                              | autumn | **12 / 13**   | 17 / 26     | 19 / 27     | 19 / 23 | 14 / 14 |
 
 <!-- /temps-matrix -->
+
+## Screenshots
+
+README / map / cover pictures are retaken with `scripts/rally/screenshots.mjs` (dev server up; `--only <id>` for some, ids and
+every setting in `scripts/rally/screenshots.json`). Each is the game canvas at 1536x864 (no HUD), `quality=high`, car dropped on
+the road at `?spawn=<m>` (`start` = the stage start) in free drive, default chase camera, dry weather, default livery, and the stage's
+own season and hour unless the row says otherwise (night = 01:00). The same link plays the spot:
+`/games/rally/?stage=<stage>&car=<car>&season=<season>&tod=<hour>&spawn=<m>&mute=1`.
+
+| Picture                        | Stage            | Car         | Position                    | Season, time  | Shows                                                                                                          |
+| ------------------------------ | ---------------- | ----------- | --------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------- |
+| `ajvatovci/start-street.jpg`   | ajvatovci        | skoda_rally | 200 m                       | summer 07:30  | Start street between the warehouses                                                                            |
+| `ajvatovci/farmland-road.jpg`  | ajvatovci        | skoda_rally | 1500 m                      | summer 07:30  | Farmland road: wheat left, meadow right, power line ahead                                                      |
+| `ajvatovci/hill-road.jpg`      | ajvatovci        | skoda_rally | 2950 m                      | summer 07:30  | Village edge: first houses, crew at the junction                                                               |
+| `ajvatovci/night.jpg`          | ajvatovci        | skoda_rally | 1500 m                      | summer 01:00  | The farmland road at night, headlights on                                                                      |
+| `galichica/livada-pass.jpg`    | galichica_west   | skoda_rally | 14000 m                     | autumn 09:00  | Climb to the Livada pass, bare slope                                                                           |
+| `galichica/prespa-climb.jpg`   | galichica_east   | skoda_rally | 24000 m                     | spring 09:00  | Climb from Lake Prespa, lake on the right                                                                      |
+| `jackie/city-start.jpg`        | jackie           | skoda_rally | start                       | summer 08:00  | Just short of the START arch                                                                                   |
+| `jackie/parkway-bridge.jpg`    | jackie           | skoda_rally | 2700 m                      | summer 08:00  | Parkway, left bend, parked cars and crowd on the right                                                         |
+| `jackie/night.jpg`             | jackie           | skoda_rally | 2700 m                      | summer 01:00  | The parkway at night, street lamps lit                                                                         |
+| `petralica/valley-road.jpg`    | petralica        | skoda_rally | 1900 m                      | summer 16:30  | Tarmac valley road, open fields, farms in the distance                                                         |
+| `petralica/mountain-climb.jpg` | petralica        | skoda_rally | 5500 m                      | summer 16:30  | Gravel climb, forested hill ahead                                                                              |
+| `petralica/night.jpg`          | petralica        | skoda_rally | 5600 m                      | summer 01:00  | The gravel at night, headlights on                                                                             |
+| `test/forest-stage.jpg`        | test             | skoda_rally | 600 m                       | summer 15:48  | Forest gravel between the pines, white marker posts                                                            |
+| `vodno/start-line.jpg`         | vodno            | skoda_rally | start                       | summer 10:00  | Car just short of the VODNO HILLCLIMB arch                                                                     |
+| `vodno/hairpins.jpg`           | vodno            | skoda_rally | 1325 m                      | summer 10:00  | Left-hand hairpin with the two-tier steel guard rail                                                           |
+| `vodno/cross-ridge.jpg`        | vodno            | skoda_rally | 4400 m (free camera)        | summer 10:00  | Free camera 100 m above the north slope at [170, -31], aimed at [-600, 775]: mast, cable car, Millennium Cross |
+| `start.jpg`                    | ajvatovci        | zastava_101 | start                       | summer 07:30  | Zastava 101 at the start line of Ajvatovci Hill                                                                |
+| `ui-stage.jpg`                 | menu             | -           | Start rally -> Select stage | stage default | first stage highlighted, 1280x720                                                                              |
+| `thumbnail.jpg`                | jackie           | skoda_rally | 3500 m                      | summer 08:00  | Portal cover, with thumbnail-640.jpg                                                                           |
+| `public/og-image.jpg`          | portal home page | -           | -                           | -             | link preview 1200x630, taken after the cover                                                                   |
 
 ## Known limitations
 

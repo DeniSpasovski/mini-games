@@ -33,12 +33,18 @@ export function dropRailRules(
     const name = side === 1 ? 'left' : 'right';
     // Explicit rules on this side (a 'both' rule counts on either).
     const taken = explicit
-      .filter((r) => r.side === name || r.side === 'both')
+      .filter(
+        (r) =>
+          r.kind !== 'edge' &&
+          r.kind !== 'gutter' &&
+          (r.side === name || r.side === 'both'),
+      )
       .map((r) => [r.from ?? 0, r.to ?? road.length, r] as const);
+    const off = (o.exclude ?? []).filter((e) => e.side === name);
     const drop: boolean[] = [];
     for (let a = lo; a <= hi; a += STEP) {
       const p = road.at(a);
-      if (road.bridgeAt(a)) {
+      if (road.bridgeAt(a) || off.some((e) => a >= e.from && a <= e.to)) {
         drop.push(false);
         continue;
       }

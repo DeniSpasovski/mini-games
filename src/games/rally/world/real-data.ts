@@ -64,6 +64,32 @@ export class Raster {
     const b = v[k + d.cols] + (v[k + d.cols + 1] - v[k + d.cols]) * tx;
     return (a + (b - a) * tz) * d.scale;
   }
+
+  /** `at` for `out.length` points from (x0, z) `step` m apart along x: a whole row at once (big grids at load). */
+  row(x0: number, z: number, step: number, out: Float32Array): void {
+    const d = this.def;
+    const fz = (z - d.originZ) / d.cell;
+    if (fz < 0 || fz > d.rows - 1) {
+      out.fill(0);
+      return;
+    }
+    const j = Math.min(Math.floor(fz), d.rows - 2);
+    const tz = fz - j;
+    const v = this.v;
+    for (let n = 0; n < out.length; n++) {
+      const fx = (x0 + n * step - d.originX) / d.cell;
+      if (fx < 0 || fx > d.cols - 1) {
+        out[n] = 0;
+        continue;
+      }
+      const i = Math.min(Math.floor(fx), d.cols - 2);
+      const tx = fx - i;
+      const k = j * d.cols + i;
+      const a = v[k] + (v[k + 1] - v[k]) * tx;
+      const b = v[k + d.cols] + (v[k + d.cols + 1] - v[k + d.cols]) * tx;
+      out[n] = (a + (b - a) * tz) * d.scale;
+    }
+  }
 }
 
 class HeightGrid {

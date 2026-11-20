@@ -8,6 +8,7 @@ import {
   Vector3,
   type WebGLRenderer,
 } from 'three';
+import { urlParam } from '../engine/url-param';
 import { StatsOverlay } from '../../../shared/stats-overlay';
 import { seconds, track, type EventParams } from '../../../shared/analytics';
 import gameManifest from '../game.json';
@@ -15,7 +16,7 @@ import { CarModel } from '../cars/shared/car-model';
 import { CARS, getCar } from '../cars';
 import { rallyName } from '../cars/shared/rally-badge';
 import type { CarDef } from '../cars/shared/types';
-import { Environment } from '../engine/environment';
+import { DAY_LIGHT, Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
@@ -25,7 +26,11 @@ import type { QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { plantSheetsReady } from '../engine/grass';
 import { setVineAntialias } from '../engine/vines';
-import { bindCameraAspect, createRenderer } from '../engine/renderer';
+import {
+  bindCameraAspect,
+  createRenderer,
+  fixRenderSize,
+} from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
 import { setTextureAnisotropy } from '../engine/textures';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
@@ -126,7 +131,7 @@ import {
   timesVersion,
 } from './stage';
 import { infoOf, stageInfo } from '../maps';
-import { stageSeason } from '../maps/shared/climate';
+import { seasonMonth, stageSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import { stageClimate } from '../maps/shared/day-temperature';
 import { seasonParam, type Season } from '../season';
@@ -145,6 +150,13 @@ import { ReplayRecorder } from './replay/recorder';
 import { ReplaySession, tvCamerasFor } from './replay/session';
 import { REPLAYS_ENABLED, saveReplay } from './replay/store';
 import { ReplayConsole } from './replay/debug-export';
+import {
+  EXPORT_FPS,
+  type ExportSize,
+  type ExportStatus,
+  type ExportWriter,
+} from './replay/export';
+import { AudioTape, renderAudioTape } from './replay/audio-tape';
 import { PhotoMode } from './photo/photo-mode';
 import { paramNumber } from '../../../shared/url-params';
 
@@ -224,6 +236,13 @@ const PHOTO_BLUR = {
   picture: { stepPx: 1.25, max: 768, perFrame: 8 },
   min: 8,
 };
+/**
+ * Replay export: seconds of run-up before the section; frames held still before it while the streaming catches up
+ * (until this many quiet frames in a row, at most the cap).
+ */
+const EXPORT_RUN_UP = 1.5;
+const EXPORT_SETTLE_QUIET = 8;
+const EXPORT_SETTLE_MAX = 600;
 /** The replay keeps recording this long after the finish line (s): the car braking to a stop on the run-off. */
 const REPLAY_TAIL = 6;
 
@@ -308,6 +327,8 @@ export class RallyGame {
   private terrainLight?: TerrainLight;
   private hazeAcc = 0;
   audio: CarAudio;
+  /** The run's weather as the sound was built for it (a replay export builds the same synth again). */
+  private readonly soundWeather: { rain: number; wet: number };
   telemetry!: Telemetry;
   forceLines = new ForceLines();
   stats: StatsOverlay;
@@ -397,16 +418,14 @@ export class RallyGame {
     bindCameraAspect(this.renderer, this.camera);
     const stage = opts.stage ?? opts.map.stages[0];
     this.season = seasonParam(
-      new URLSearchParams(location.search).get('season'),
+      urlParam('season'),
       stageSeason({ season: stage.season, environment: opts.map.environment }),
     );
     this.world = new World(mapInSeason(opts.map, this.season), stage);
     this.car = getCar(opts.carId);
-    const look = weatherLook(
-      weatherParam(new URLSearchParams(location.search).get('weather')),
-      stage.weather,
-    );
-    this.audio = new CarAudio(this.car, { rain: look.rain, wet: look.wet });
+    const look = weatherLook(weatherParam(urlParam('weather')), stage.weather);
+    this.soundWeather = { rain: look.rain, wet: look.wet };
+    this.audio = new CarAudio(this.car, this.soundWeather);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
     this.freeDrive = opts.spawn !== 'start';
     this.stats = new StatsOverlay(this.renderer, container, false);
@@ -452,7 +471,11 @@ export class RallyGame {
     // scatter chunk is used (their colliders come from the same skeletons).
     progress(0.08, 'Trees');
     this.treeLibrary = await TreeLibrary.load(
-      TreeLibrary.speciesOf(this.world.placedAssets(), this.season),
+      TreeLibrary.speciesOf(
+        this.world.placedAssets(),
+        this.season,
+        seasonMonth(this.world.map.environment),
+      ),
       this.renderer,
       (f) => progress(0.08 + 0.06 * f, 'Trees'),
     );
@@ -996,7 +1019,7 @@ export class RallyGame {
   private lightParticles(): void {
     const sun = this.env.sun.color
       .clone()
-      .multiplyScalar(this.env.sun.intensity / 3.1);
+      .multiplyScalar(this.env.sun.intensity / DAY_LIGHT.sun);
     // Half sky colour, half white: dust in the shade stays dust-coloured, not blue. Night: only the moon's blue.
     const ambient = this.env.night
       ? this.env.hemi.color.clone().multiplyScalar(0.25)
@@ -1691,6 +1714,164 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.onReplayChange?.(false);
   }
 
+  /** A replay export is rendering (`exportReplay`): background work gets its full slice every frame. */
+  private exporting = false;
+
+  /**
+   * Export a section (replay seconds `from`-`to`) of the replay being watched (game/replay/export.ts): the game loop
+   * stops and every frame is rendered at a fixed 1 / EXPORT_FPS step at exactly `size`, with the current camera choice,
+   * into the writer `open` makes for the canvas. Before the section the replay holds still until the ground, objects
+   * and trees around the camera are loaded, then a short run-up (not in the file) lets the cameras and dust settle.
+   * `onStatus` reports each step. Resolves with the writer's file, or null (cancelled, nothing to encode with, or the
+   * writer saved it itself).
+   */
+  async exportReplay(opts: {
+    from: number;
+    to: number;
+    size: ExportSize;
+    open: (canvas: HTMLCanvasElement) => Promise<ExportWriter | null>;
+    onStatus?: (s: ExportStatus) => void;
+    signal?: AbortSignal;
+  }): Promise<Blob | null> {
+    const r = this.watching;
+    if (!r) throw new Error('no replay open');
+    const step = 1 / EXPORT_FPS;
+    const from = Math.max(0, Math.min(r.duration, opts.from));
+    const to = Math.max(from, Math.min(r.duration, opts.to));
+    const total = Math.max(1, Math.round((to - from) * EXPORT_FPS));
+    const wasRunning = this.running;
+    const saved = {
+      time: r.time,
+      speed: r.speed,
+      scale: this.renderScale,
+      auto: this.autoScale,
+    };
+    const status = opts.onStatus ?? (() => {});
+    const t0 = performance.now();
+    const times: string[] = [];
+    let lap = t0;
+    const mark = (what: string) => {
+      const now = performance.now();
+      times.push(`${what} ${((now - lap) / 1000).toFixed(1)} s`);
+      lap = now;
+    };
+    const yieldTask = () => new Promise<void>((res) => setTimeout(res, 0));
+    // Wait for the GPU to finish what it was given (a 1-pixel read back): before the section nothing reads the canvas,
+    // so the run-up piles up on the GPU and the first encoded frame would wait for all of it.
+    const gl = this.renderer.getContext();
+    const px = new Uint8Array(4);
+    const gpuSync = () => {
+      const fb = gl.getParameter(
+        gl.FRAMEBUFFER_BINDING,
+      ) as WebGLFramebuffer | null;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    };
+    const aborted = () => !!opts.signal?.aborted;
+    this.stop();
+    this.exporting = true;
+    this.autoScale = false;
+    this.setRenderScale(1);
+    fixRenderSize(this.renderer, { w: opts.size.w, h: opts.size.h });
+    // Silent from here: the run-up's calls go to a tape that is thrown away.
+    this.audio.setTape(new AudioTape());
+    let out: ExportWriter | null = null;
+    try {
+      status({ phase: 'encoder' });
+      await yieldTask();
+      out = await opts.open(this.renderer.domElement);
+      mark('encoder');
+      if (!out || aborted()) {
+        await out?.cancel();
+        return null;
+      }
+      // Hold still before the section until the streaming has caught up (a few quiet frames in a row).
+      const runUp = Math.round(Math.min(from, EXPORT_RUN_UP) * EXPORT_FPS);
+      r.speed = 1;
+      r.playing = false;
+      r.seek(from - runUp * step);
+      let quiet = 0;
+      for (
+        let i = 0;
+        i < EXPORT_SETTLE_MAX && quiet < EXPORT_SETTLE_QUIET;
+        i++
+      ) {
+        this.frame(0);
+        const busy =
+          this.terrain.pending > 0 || this.streamer.busy || this.trees.busy;
+        quiet = busy ? 0 : quiet + 1;
+        if (i % 4 === 3) {
+          status({ phase: 'stage', left: this.terrain.pending });
+          await yieldTask();
+          if (aborted()) {
+            await out.cancel();
+            return null;
+          }
+        }
+      }
+      mark('loading');
+      r.playing = true;
+      for (let i = 0; i < runUp; i++) {
+        this.frame(step);
+        if (i % 8 === 7) {
+          status({ phase: 'runup', done: (i + 1) / runUp });
+          await yieldTask();
+        }
+      }
+      // Once, before the section: let the GPU finish the run-up it was given, so frame 1 doesn't wait for it.
+      gpuSync();
+      mark('run-up');
+      const tape = new AudioTape();
+      this.audio.setTape(tape);
+      for (let i = 0; i < total; i++) {
+        if (aborted()) {
+          await out.cancel();
+          return null;
+        }
+        r.playing = true;
+        this.frame(step);
+        tape.next();
+        // Straight after the render: the canvas is cleared once the page composites it.
+        await out.frame(i);
+        status({ phase: 'frames', done: i + 1, total });
+        if (i % 4 === 3) await yieldTask();
+      }
+      mark(`${total} frames`);
+      this.audio.setTape(undefined);
+      status({ phase: 'sound' });
+      await yieldTask();
+      const sound = await renderAudioTape(
+        tape,
+        this.car,
+        this.soundWeather,
+        EXPORT_FPS,
+      );
+      mark('sound');
+      status({ phase: 'file' });
+      await yieldTask();
+      const file = await out.finish(sound);
+      mark('file');
+      console.info(
+        `replay export ${opts.size.w}x${opts.size.h}, ${total} frames in ${((performance.now() - t0) / 1000).toFixed(1)} s: ${times.join(', ')}`,
+      );
+      return file;
+    } catch (e) {
+      await out?.cancel().catch(() => {});
+      throw e;
+    } finally {
+      this.audio.setTape(undefined);
+      this.exporting = false;
+      fixRenderSize(this.renderer, null);
+      this.autoScale = saved.auto;
+      this.setRenderScale(saved.scale);
+      r.speed = saved.speed;
+      r.playing = false;
+      r.seek(saved.time);
+      if (wasRunning) this.start();
+    }
+  }
+
   /** Replay frame: pose the car at the replay's time; knocked-over posts, people and tyre marks follow it. */
   private replayStep(dt: number): void {
     const r = this.watching!;
@@ -1948,6 +2129,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
    * a little progress, and the ground near the car is built whatever it costs (terrain-renderer `URGENT_MS`).
    */
   private frameSlack(dt: number): number {
+    if (this.exporting) return 8;
     if (dt > 0) this.frameInterval += (dt * 1000 - this.frameInterval) * 0.1;
     return Math.min(
       8,

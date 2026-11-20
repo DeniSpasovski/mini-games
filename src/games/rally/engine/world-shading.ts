@@ -109,6 +109,8 @@ export const worldUniforms = {
   wsHeadDir: { value: new Vector3(0, 0, 1) },
   /** 0..1: how much the street lamps glow (`Environment.lightNeed`). */
   wsLamp: { value: 0 },
+  /** The share of the env map's diffuse light that is cut (0 = all of it used; `setEnvDiffuse`). Reflections keep it all. */
+  wsEnvCut: { value: 0 },
   /**
    * x how wet the world is 0..1 (0 = dry, off), y rain rate (mm/h; 0 = not raining), z the world height (m) the wet
    * ends at when w = 1 (fog: damp only below its top).
@@ -292,6 +294,11 @@ export function setShadowBox(x: number, z: number, halfExtent: number): void {
   b.z = halfExtent;
 }
 
+/** How much of the env map's diffuse light the world takes (1 = all; the sky against the sun, `DAY_LIGHT` in engine/environment.ts). */
+export function setEnvDiffuse(share: number): void {
+  worldUniforms.wsEnvCut.value = 1 - share;
+}
+
 /** Height where the fog has its nominal density (the ground at the focus point; call every frame). */
 export function setFogBase(height: number): void {
   worldUniforms.wsFogBase.value = height;
@@ -471,7 +478,10 @@ const FOG_FRAGMENT = /* glsl */ `
 	vec3 wsFogCol = fogColor;
 	if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
 		float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
-		wsFogCol += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt );
+		// A lobe ~20 deg wide: wider, a low sun ahead whitens the whole horizon.
+		wsSunAmt *= wsSunAmt;
+		wsSunAmt *= wsSunAmt;
+		wsFogCol += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt );
 	}
 	// Light added over the scene (\`defines.RALLY_ADDITIVE\`, lamp pools) fades into the fog: mixed towards the fog colour
 	// it would add the fog's grey over its whole quad, a bright square in thick fog.
@@ -1063,7 +1073,17 @@ function install(): void {
     lights.slice(lineEnd);
   chunks.lights_fragment_end = lightsEnd(false);
   // Car reflections: the specular env lookup at the material's own `envMapIntensity` (see `carEnv`).
-  const ibl = chunks.envmap_physical_pars_fragment;
+  let ibl = chunks.envmap_physical_pars_fragment;
+  // The sky's diffuse light at its own strength (`setEnvDiffuse`), the reflections below at the scene's.
+  const irradiance = 'return PI * envMapColor.rgb * envMapIntensity;';
+  if (!ibl.includes(irradiance))
+    throw new Error('world-shading: getIBLIrradiance changed (three upgrade?)');
+  ibl =
+    'uniform float wsEnvCut;\n' +
+    ibl.replace(
+      irradiance,
+      'return PI * envMapColor.rgb * envMapIntensity * ( 1.0 - wsEnvCut );',
+    );
   const radiance = 'return envMapColor.rgb * envMapIntensity;';
   const rAt = ibl.indexOf(radiance, ibl.indexOf('getIBLRadiance'));
   if (rAt < 0)

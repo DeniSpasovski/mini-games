@@ -45,11 +45,13 @@ import {
   LARGE_MAP_AREA,
   loadStageCard,
   loadStageCardData,
+  loadStageCardThumb,
   stageCardHash,
   STAGE_CARD_VERSION,
   stageBox,
   stageOverlay,
   stagePoints,
+  type StageCard,
   type StageCardData,
 } from '../tools/stage-card';
 
@@ -794,6 +796,8 @@ function cardView(mapId: string, wantSeason?: Season): MapView {
   /** The season shown / being fetched, and every season's image fetched so far. */
   let shown: Season | undefined;
   const images = new Map<Season, Texture>();
+  /** The small copies shown so far (stage-card.ts `thumb`). */
+  const smalls: Texture[] = [];
   /** Floor colour of a season's image (the card's faded edge). */
   const floorOf = (season: Season) =>
     new Color(data!.seasons?.[season]?.floor ?? data!.floor);
@@ -808,6 +812,13 @@ function cardView(mapId: string, wantSeason?: Season): MapView {
     if (!data) return;
     const had = images.get(season);
     if (had) return apply(had, season);
+    const d = data;
+    void loadStageCardThumb(d, season).then((t) => {
+      if (!t) return;
+      smalls.push(t.texture);
+      if (shown === season && !images.has(season) && t.season === season)
+        apply(t.texture, season);
+    });
     void loadStageCard(map.map, mapId, season, data).then((c) => {
       // A season that was not baked comes back as the card's own image (already held).
       const dup = images.get(c.season);
@@ -831,73 +842,91 @@ function cardView(mapId: string, wantSeason?: Season): MapView {
     dispose: () => {
       mesh?.geometry.dispose();
       for (const t of images.values()) t.dispose();
+      for (const t of smalls) t.dispose();
       (mesh?.material as MeshBasicMaterial | undefined)?.dispose();
       marks?.dispose();
     },
   };
+  /** Mesh, route and floor from the card's data, with the picture at hand (the small copy first). */
+  const build = (card: StageCard) => {
+    const d = card.data;
+    // Relief exaggeration around the card's lowest point (flat maps read better with some).
+    const relief = map.previewRelief ?? 1;
+    const base = d.grid.min;
+    const ex = (y: number) => base + (y - base) * relief;
+    mesh = cardMesh(card, relief, base);
+    overlay.add(mesh);
+    const points: Vector3[] = [];
+    for (let i = 0; i < d.stage.length; i += 3)
+      points.push(new Vector3(d.stage[i], ex(d.stage[i + 1]), d.stage[i + 2]));
+    view.center.set(d.center[0], ex(d.center[1]), d.center[2]);
+    view.size = d.size;
+    view.fit = thin(points);
+    marks = stageOverlay({
+      points,
+      size: d.size,
+      floor: {
+        x: d.rect.x0 + d.rect.w / 2,
+        y: base - 5,
+        z: d.rect.z0 + d.rect.h / 2,
+        radius: Math.max(d.rect.w, d.rect.h) * 4,
+        color: floorOf(card.season),
+      },
+    });
+    overlay.add(marks.group);
+    loaded = true;
+    // A season picked while this one was loading.
+    const picked = shown && shown !== card.season && images.get(shown);
+    if (picked) apply(picked, shown!);
+  };
   void loadStageCardData(map.map, mapId)
-    .then((d) => {
+    .then(async (d) => {
       data = d;
-      return loadStageCard(map.map, mapId, shown ?? wantSeason, d);
-    })
-    .then(
-      (card) => {
-        const d = card.data;
-        images.set(card.season, card.texture);
-        shown = card.season;
-        if (import.meta.env.DEV && d.version !== STAGE_CARD_VERSION)
-          console.warn(
-            `[stage card] ${mapId}: out of date (baker changed) - re-bake: /games/rally/?bakecard=${mapId}`,
+      if (import.meta.env.DEV && d.version !== STAGE_CARD_VERSION)
+        console.warn(
+          `[stage card] ${mapId}: out of date (baker changed) - re-bake: /games/rally/?bakecard=${mapId}`,
+        );
+      // Dev only: the data hash needs the full map (its own chunk), so check it apart from showing the card.
+      if (import.meta.env.DEV)
+        void loadStage(mapId).then(({ map: full, stage }) => {
+          const own = d.season ?? mapSeason(full.environment);
+          const stale = [
+            own,
+            ...(Object.keys(d.seasons ?? {}) as Season[]),
+          ].filter(
+            (s) =>
+              (s === own ? d.hash : d.seasons?.[s]?.hash) !==
+              stageCardHash(mapInSeason(full, s), stage),
           );
-        // Dev only: the data hash needs the full map (its own chunk), so check it after the card is shown.
-        if (import.meta.env.DEV)
-          void loadStage(mapId).then(({ map: full, stage }) => {
-            const own = d.season ?? mapSeason(full.environment);
-            const stale = [
-              own,
-              ...(Object.keys(d.seasons ?? {}) as Season[]),
-            ].filter(
-              (s) =>
-                (s === own ? d.hash : d.seasons?.[s]?.hash) !==
-                stageCardHash(mapInSeason(full, s), stage),
+          if (stale.length)
+            console.warn(
+              `[stage card] ${mapId}: out of date (map changed: ${stale.join(', ')}) - re-bake: /games/rally/?bakecard=${mapId}&season=<season>`,
             );
-            if (stale.length)
-              console.warn(
-                `[stage card] ${mapId}: out of date (map changed: ${stale.join(', ')}) - re-bake: /games/rally/?bakecard=${mapId}&season=<season>`,
-              );
-          });
-        // Relief exaggeration around the card's lowest point (flat maps read better with some).
-        const relief = map.previewRelief ?? 1;
-        const base = d.grid.min;
-        const ex = (y: number) => base + (y - base) * relief;
-        mesh = cardMesh(card, relief, base);
-        overlay.add(mesh);
-        const points: Vector3[] = [];
-        for (let i = 0; i < d.stage.length; i += 3)
-          points.push(
-            new Vector3(d.stage[i], ex(d.stage[i + 1]), d.stage[i + 2]),
-          );
-        view.center.set(d.center[0], ex(d.center[1]), d.center[2]);
-        view.size = d.size;
-        view.fit = thin(points);
-        marks = stageOverlay({
-          points,
-          size: d.size,
-          floor: {
-            x: d.rect.x0 + d.rect.w / 2,
-            y: base - 5,
-            z: d.rect.z0 + d.rect.h / 2,
-            radius: Math.max(d.rect.w, d.rect.h) * 4,
-            color: floorOf(card.season),
-          },
         });
-        overlay.add(marks.group);
-        loaded = true;
-      },
-      () => {
-        view.missing = true;
-      },
-    );
+      // The small copy from the JSON right away, the full image over it once fetched and decoded.
+      const want = shown ?? wantSeason;
+      const small = await loadStageCardThumb(d, want);
+      if (small) {
+        smalls.push(small.texture);
+        shown ??= small.season;
+        build({ data: d, ...small });
+      }
+      const card = await loadStageCard(map.map, mapId, want, d);
+      const held = images.get(card.season);
+      if (held) card.texture.dispose();
+      else images.set(card.season, card.texture);
+      const texture = held ?? card.texture;
+      if (!mesh) build({ ...card, texture });
+      else if (shown === want || shown === card.season)
+        apply(texture, card.season);
+      if (shown === undefined || shown === want) shown = card.season;
+    })
+    .catch(() => {
+      // No full image: the small copy stays up; a card with nothing to show is built live.
+      if (!loaded) view.missing = true;
+      else if (import.meta.env.DEV)
+        console.warn(`[stage card] ${mapId}: the full image did not load`);
+    });
   return view;
 }
 

@@ -35,6 +35,9 @@ export type TextureId =
   | 'road_tarmac_junction'
   | 'road_tarmac_plain_junction'
   | 'road_tarmac_lines'
+  | 'road_tarmac_new'
+  | 'road_patch'
+  | 'road_cracks'
   | 'road_tarmac_plain'
   | 'road_paint'
   | 'road_arrow_left'
@@ -49,6 +52,7 @@ export type TextureId =
   | 'gore'
   | 'hatch'
   | 'barrier_jersey'
+  | 'barrier_rail'
   | 'vehicle_decals'
   | 'village_sign'
   | 'detail'
@@ -795,6 +799,75 @@ const DEFS: Record<TextureId, TexDef> = {
       ctx.fillRect(w - 17, 0, 11, h);
     },
   },
+  barrier_rail: {
+    name: 'Weathered guard rail (multiplies the rail colour): u along, 8 m per repeat (two 4 m beams, posts every 2 m), v = height 0-1 m (bottom = ground): road grime low down, rain streaks and rust bleed under the bolts, dull patches',
+    size: [512, 128],
+    color: true,
+    draw(ctx, w, h) {
+      const pxM = w / 8;
+      fillNoise(
+        ctx,
+        w,
+        h,
+        (n, n2, x, y) => {
+          const up = 1 - y / h; // metres above the ground
+          // Each 4 m beam a slightly different grey; blotchy dull film over it.
+          const beam = x < w / 2 ? 0 : 1;
+          // (blotches of dull oxide and road film: n2 the broad ones)
+          let c = mix([182, 180, 172], [246, 245, 240], n * 0.35 + n2 * 0.65);
+          c = mix(c, [206, 202, 192], beam ? 0.4 : 0);
+          // Road spray on the lower half of the beam (0.47-0.6 m) and caked dirt at the post feet.
+          c = mix(
+            c,
+            [150, 140, 122],
+            Math.max(0, 1 - Math.abs(up - 0.49) / 0.09) * (0.35 + 0.3 * n2),
+          );
+          c = mix(c, [118, 106, 88], Math.max(0, 1 - up / 0.25) * 0.75);
+          return c;
+        },
+        16,
+        171,
+      );
+      const rng = new Rng(172);
+      // Rain streaks down the beam face from the top crest.
+      for (let i = 0; i < 140; i++) {
+        ctx.fillStyle = `rgba(86,80,70,${rng.range(0.08, 0.26)})`;
+        ctx.fillRect(
+          rng.next() * w,
+          h * (1 - 0.78),
+          rng.range(1, 2.5),
+          rng.range(8, 34),
+        );
+      }
+      // Rust bleeding from the bolts at the posts (every 2 m) and the beam splice (every 4 m).
+      for (let k = 0; k < 4; k++) {
+        const x0 = k * 2 * pxM;
+        const splice = k % 2 === 0;
+        for (let j = 0; j < (splice ? 9 : 4); j++) {
+          const x = x0 + rng.range(-10, 10);
+          ctx.fillStyle = `rgba(122,66,32,${rng.range(0.2, splice ? 0.5 : 0.35)})`;
+          wrapDraw(w, h, x, h * (1 - 0.66), 40, (px, py) =>
+            ctx.fillRect(px, py, rng.range(1, 2.5), rng.range(10, 40)),
+          );
+        }
+      }
+      // Rust pits along the bottom edge of the beam and small dark knocks.
+      stones(
+        ctx,
+        w,
+        h,
+        320,
+        [0.6, 1.6],
+        173,
+        [
+          [140, 82, 44],
+          [96, 64, 40],
+          [110, 108, 102],
+        ],
+        (_x, y) => (Math.abs(1 - y / h - 0.48) < 0.04 ? 1 : 0.08),
+      );
+    },
+  },
   barrier_jersey: {
     name: 'Jersey barrier (concrete, joint every 4 m)',
     size: [512, 256],
@@ -1039,6 +1112,123 @@ const DEFS: Record<TextureId, TexDef> = {
     color: true,
     draw(ctx, w, h) {
       DEFS.road_tarmac.draw(ctx, w, h);
+    },
+  },
+  road_patch: {
+    name: 'A repair in old asphalt (alpha: a straight-cut patch, u across with ragged long edges, v along, 3 m per repeat): pale re-laid asphalt, its stones showing',
+    size: [128, 256],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(176,172,164,0.82)';
+      ctx.fillRect(0, 0, w, h);
+      const rng = new Rng(157);
+      for (let i = 0; i < 2600; i++) {
+        const v = 120 + rng.int(0, 90);
+        ctx.fillStyle = `rgba(${v},${v - 2},${v - 6},${rng.range(0.3, 0.8)})`;
+        ctx.fillRect(
+          rng.next() * w,
+          rng.next() * h,
+          rng.range(1, 2.5),
+          rng.range(1, 2.5),
+        );
+      }
+      // The long edges: a dark sealed seam, ragged where the cut broke out.
+      ctx.globalCompositeOperation = 'destination-out';
+      for (let y = 0; y < h; y += 2)
+        for (const side of [0, 1]) {
+          const bite =
+            rng.range(0, 3) + (rng.chance(0.06) ? rng.range(2, 6) : 0);
+          ctx.fillRect(side ? w - bite : 0, y, bite, 2);
+        }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(40,38,36,0.55)';
+      ctx.fillRect(4, 0, 2, h);
+      ctx.fillRect(w - 6, 0, 2, h);
+    },
+  },
+  road_cracks: {
+    name: 'A crack field in old asphalt (alpha: dark alligator cracks, u across, v along, 3 m per repeat; ragged ends)',
+    size: [256, 256],
+    color: true,
+    draw(ctx, w, h) {
+      // Cells of a jittered grid (~0.2-0.35 m), their borders the cracks: a Voronoi edge where the two nearest seeds are
+      // almost as near, wider and darker on the long main cracks.
+      const rng = new Rng(311);
+      const N = 9;
+      const seeds: [number, number][] = [];
+      for (let j = 0; j < N; j++)
+        for (let i = 0; i < N; i++)
+          seeds.push([
+            ((i + 0.15 + 0.7 * rng.next()) / N) * w,
+            ((j + 0.15 + 0.7 * rng.next()) / N) * h,
+          ]);
+      const img = ctx.createImageData(w, h);
+      const d = img.data;
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          let d1 = Infinity;
+          let d2 = Infinity;
+          let n1 = 0;
+          let n2 = 0;
+          const ci = Math.floor((x / w) * N);
+          const cj = Math.floor((y / h) * N);
+          for (let dj = -2; dj <= 2; dj++)
+            for (let di = -2; di <= 2; di++) {
+              const ii = (ci + di + N) % N;
+              const jj = (cj + dj + N) % N;
+              const [sx0, sy0] = seeds[jj * N + ii];
+              const sx = sx0 + Math.round((ci + di - ii) / N) * w;
+              const sy = sy0 + Math.round((cj + dj - jj) / N) * h;
+              const dd = Math.hypot(x - sx, y - sy);
+              const id = jj * N + ii;
+              if (dd < d1) {
+                d2 = d1;
+                n2 = n1;
+                d1 = dd;
+                n1 = id;
+              } else if (dd < d2) {
+                d2 = dd;
+                n2 = id;
+              }
+            }
+          const e = d2 - d1;
+          const k = (y * w + x) * 4;
+          // fading out across the field's long edges (u), so it has no straight border
+          const across = Math.min(x, w - 1 - x) / (w * 0.22);
+          // each crack (a pair of cells) its own strength: some open and dark, many hairlines, a third not there at all
+          const lo = Math.min(n1, n2);
+          const hi = Math.max(n1, n2);
+          const r = (Math.sin(lo * 12.9898 + hi * 78.233) * 43758.5453) % 1;
+          const k2 = Math.abs(r);
+          const strength = k2 < 0.33 ? 0 : k2 < 0.8 ? 0.45 : 0.85;
+          const a =
+            Math.max(0, 1 - e / (strength > 0.6 ? 1.1 : 0.7)) *
+            strength *
+            Math.min(1, across);
+          d[k] = 34;
+          d[k + 1] = 32;
+          d[k + 2] = 30;
+          d[k + 3] = Math.round(200 * a);
+        }
+      ctx.putImageData(img, 0, 0);
+    },
+  },
+  road_tarmac_new: {
+    name: "Fresh dark asphalt with crisp white edge and centre lines (Vodno's re-laid upper road)",
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.fillStyle = '#3c3b39';
+      ctx.fillRect(0, 0, w, h);
+      const rng = new Rng(67);
+      for (let i = 0; i < 9000; i++) {
+        const v = 50 + rng.int(0, 40);
+        ctx.fillStyle = `rgb(${v},${v},${v - 2})`;
+        ctx.fillRect(rng.next() * w, rng.next() * h, 1.5, 1.5);
+      }
+      ctx.fillStyle = '#dcdcd4';
+      for (const u of [0.05, 0.5, 0.95]) ctx.fillRect(u * w - 6, 0, 12, h);
     },
   },
   road_tarmac_plain: {

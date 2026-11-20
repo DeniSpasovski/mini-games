@@ -62,7 +62,7 @@ into `DETAILS.md`, never up.
 - Open work = short checkboxes in `TASKS.md` / `TODO.md` (local, git-ignored); when done, delete it and document only what changed how things work.
 - Update docs (README / DETAILS / skill) in the same change as the behaviour; keep skill links to `DETAILS.md` valid.
 - **Screenshots**: `screenshots/` next to the README, taken in game (car / map viewer or game page), 16:9 jpg, 1280-1536 px wide,
-  no debug panels; retake when the look changes.
+  no debug panels; retake when the look changes (rally: `scripts/rally/screenshots.mjs`, spots in rally `DETAILS.md`).
 
 ## Project map
 
@@ -84,13 +84,14 @@ into `DETAILS.md`, never up.
 - `scripts/car-model/`: `scan-mesh.py` (run on every new model after the licence gate: split / panel edges / blob),
   `assemble-kit.py` (model kit on a sprue -> one body STL), `segment-stl.py` (labels body parts: seeds, regions, boxes, tubes),
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
-  rim; `stl-flatten-cap.py` flattens an emblem on its centre cap; `clipR` cuts the spokes on an exact circle and sinks their tips under the lip; `--two-sided` / `--bridge` close a one-sided rim barrel; `glb-wheel-straighten.py` re-centres a wheel GLB rim lip that sits off the axle), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
+  rim; `stl-flatten-cap.py` flattens an emblem on its centre cap; `clipR` cuts the spokes on an exact circle and sinks their tips under the lip; `--two-sided` / `--bridge` close a one-sided rim barrel; `glb-wheel-straighten.py` re-centres a wheel GLB rim lip that sits off the axle; `glb-wheel-unshear.py` straightens a wheel GLB whose lip leans against the axle, the Bimmer GT2 BBS wheel's wobble), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
   sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars), `door-plate.py` (rally door-plate position from a GLB: window line + mirror);
   the GLB import steps (`glb-to-parts-stl.py`, `glb-orient.py`, `glb-src-parts.py` ...) are in the `rally-car-import` skill; the street-car
   and truck bakes (`street-pack-extract.py`, `bake-street-textures.py`, `bake-street-cars.mjs`, `bake-fire-trucks.mjs`, `bake-trucks.mjs`) are in rally `DETAILS.md`
 - `scripts/asphalt/`: `bake.mjs` + `gen.js` (the baked road asphalt tiles, `src/games/rally/engine/asphalt/`; `DETAILS.md` -> Road textures)
 - `scripts/portal/wordmarks.py`: a title in a font -> white outlined `wordmark.svg` (portal header and the game covers; usage in its header);
   `og-image.mjs`: retakes the portal's 1200x630 link preview `public/og-image.jpg` (dev server running)
+- `scripts/rally/screenshots.mjs` + `screenshots.json`: retakes every rally README / map / cover picture and the link preview from a stage, car, spot, season and hour (dev server running; table in rally `DETAILS.md` -> Screenshots)
 - `scripts/ground/bake.py`: the rally terrain tiles (`engine/ground/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/facades/bake.py`: the wall and roof tiles of the rally buildings (`engine/facades/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/kaboom/bake-hdri.py`: the small environment-light HDRIs of the Kaboom levels (`src/games/kaboom/assets/hdri/<level>.hdr`) from Poly Haven 1k HDRIs (ids in the script);
@@ -113,7 +114,7 @@ into `DETAILS.md`, never up.
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
-  the DEM), `culverts.py` (`culverts.json`: culverts where the DEM's drainage crosses the stage road), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
+  the DEM), `dem_heightmap.py` (re-bakes only the heightmap from a local DEM, GLO-30 on Vodno), `culverts.py` (`culverts.json`: culverts where the DEM's drainage crosses the stage road), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
   from a winter + summer Sentinel-2 scene, run after `bake.py`), `canopy.py` (`canopy.json`: canopy share / stand height grids and the
   real trees from the Meta / WRI canopy height map, run after `leaf_type.py`), `features.py` (config `osm.features`: park furniture,
   barriers, single trees, signs and fence / wall / guard-rail lines -> `data.json` "features"; runs inside `bake.py` or alone)
