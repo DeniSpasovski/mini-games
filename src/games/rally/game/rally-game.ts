@@ -87,6 +87,7 @@ import {
 } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
+import { CarCrew } from './car-crew';
 import { Autopilot, finishStopControls } from './autopilot';
 import { ContactShadow } from './contact-shadow';
 import {
@@ -326,6 +327,7 @@ export class RallyGame {
   /** Hill shadows past the shadow maps and sky light in valleys, baked in the background (world/terrain-light.ts). */
   private terrainLight?: TerrainLight;
   private hazeAcc = 0;
+  private crew?: CarCrew;
   audio: CarAudio;
   /** The run's weather as the sound was built for it (a replay export builds the same synth again). */
   private readonly soundWeather: { rain: number; wet: number };
@@ -671,6 +673,9 @@ export class RallyGame {
     this.scene.add(this.model.root);
     const w = this.env.weatherLook;
     if (w.wet > 0) this.model.setWet();
+    this.crew?.dispose();
+    this.crew = new CarCrew(this.car, this.opts.livery);
+    this.model.body.add(this.crew.group);
     // Rain / fog: lights switched on, a rain / fog day under BEAM_MIN_NEED (`carLights`).
     const lights = carLights(this.env.lightNeed, w);
     if (this.env.lightNeed >= LIGHTS_MIN_NEED) {

@@ -220,6 +220,23 @@ const POSES = {
     head: 0.3,
     prop: 'laptop',
   },
+  // In a bucket seat, reclined, legs reaching for the pedals: hands on the wheel / the pace notes on the lap.
+  drive: {
+    lean: -0.28,
+    head: 0.25,
+    legL: limb(1.55, 0.14, 0.55),
+    legR: limb(1.5, 0.16, 0.5),
+    armL: limb(1.0, 0.18, 0.55, -0.35),
+    armR: limb(1.0, 0.18, 0.55, -0.35),
+  },
+  notes: {
+    lean: -0.2,
+    head: 0.6,
+    legL: limb(1.5, 0.14, 0.6),
+    legR: limb(1.48, 0.16, 0.55),
+    armL: limb(0.6, 0.12, 1.25, -0.4),
+    armR: limb(0.55, 0.12, 1.3, -0.4),
+  },
   sit: {
     lean: 0.12,
     legL: limb(1.5, 0.08, 1.45),
@@ -1695,6 +1712,21 @@ export const driver: AssetBuilder = ({ seed, variant, lod }) => {
   o.hat = 'none';
   o.gloves = undefined;
   return finishFigure(pose, o, lod, rng);
+};
+
+/**
+ * The crew in a rally car's seats (game/car-crew.ts adds the helmets): variant 0 the driver, hands on the wheel, 1 the
+ * co-driver reading the notes; in a race suit, no hair (under the helmet).
+ */
+export const crewSeated: AssetBuilder = ({ seed, variant, lod }) => {
+  const rng = new Rng(seed);
+  const o = teamOutfit(Math.floor(variant / 2), rng, true);
+  o.collar = '#f2f2f2';
+  o.hat = 'none';
+  o.hairKind = 'bald';
+  o.gloves = '#1c1d21';
+  o.shoes = '#1c1d21';
+  return finishFigure(variant % 2 ? 'notes' : 'drive', o, lod, rng);
 };
 
 /** Marshals and officials: orange / yellow / white tabards with reflective bands, caps, flags and signs. */
