@@ -426,13 +426,19 @@ export function* reedBedMeshJob(
         def.height[0] +
         (def.height[1] - def.height[0]) *
           (0.5 + 0.5 * noise.fbm(pt.x / 9, pt.z / 9, 2));
+      // Never above the ground at its lips: by a road the bank line is smoothed over the embankment's rise, and the
+      // bed would stand on the ditch like a plinth.
+      const lip = Math.min(
+        ground.height(pt.x - tz * outer, pt.z + tx * outer),
+        ground.height(pt.x + tz * outer, pt.z - tx * outer),
+      );
       rows.push({
         x: pt.x,
         z: pt.z,
         rx: -tz,
         rz: tx,
         bank,
-        top: bank + h * look.height,
+        top: Math.min(bank, lip) + h * look.height,
         on,
       });
     }
@@ -611,20 +617,22 @@ export function* reedBedMeshJob(
           const cz = r.z + r.rz * off - r.rx * j * 0.5;
           const g = ground.height(cx, cz);
           const top = g + (r.top - g) * e;
-          const dx = Math.cos(ang) * 0.6;
-          const dz = Math.sin(ang) * 0.6;
           const rise = (0.5 + 0.35 * (0.5 + 0.5 * j)) * e;
-          quad(
-            cx - dx,
-            cz - dz,
-            cx + dx,
-            cz + dz,
-            top - 0.6,
-            top - 0.6,
-            top + rise,
-            top + rise,
-            seed,
-          );
+          for (const turn of [0, Math.PI / 2]) {
+            const dx = Math.cos(ang + turn) * 0.6;
+            const dz = Math.sin(ang + turn) * 0.6;
+            quad(
+              cx - dx,
+              cz - dz,
+              cx + dx,
+              cz + dz,
+              top - 0.6,
+              top - 0.6,
+              top + rise,
+              top + rise,
+              seed + (turn ? 3 : 0),
+            );
+          }
         }
       }
       // An end against a bridge: a wall of cards across the bed as well (the face seen from the deck), its stems
@@ -639,8 +647,8 @@ export function* reedBedMeshJob(
         const lx = n.x - r.x;
         const lz = n.z - r.z;
         const ll = Math.hypot(lx, lz) || 1;
-        const cells = Math.max(2, Math.round((2 * wallHalf) / STEP));
-        for (const [layer, inset] of WALL_LAYERS.entries()) {
+        const cells = Math.max(2, Math.round((2 * wallHalf) / (STEP * 0.6)));
+        for (const [layer, inset] of [...WALL_LAYERS, 0.9].entries()) {
           const ox = r.x + (lx / ll) * inset;
           const oz = r.z + (lz / ll) * inset;
           const top = r.top + WALL_RISE * (1 + layer * 0.3);

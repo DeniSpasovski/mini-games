@@ -2569,7 +2569,8 @@ export class TerrainGenerator {
     }
     if (this.channels) {
       const cq = this.channels.query(x, z, this.pq);
-      if (cq.found)
+      // (a field ditch keeps its own V under a small slab bridge: no street-height pit there)
+      if (cq.found && !this.ditchDefs[cq.path])
         w = Math.max(w, 1 - smoothstep(1, 9, cq.distance - cq.halfWidth));
     }
     return w;
