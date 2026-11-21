@@ -949,7 +949,7 @@ function restraint(
       for (const y of ys) {
         const f = (y - y0) / (y1 - y0);
         const x = X0 + (0.036 - X0) * f * f * (3 - 2 * f);
-        const onYoke = y > off - 0.001 ? 0.015 : 0;
+        const onYoke = y > off - 0.001 ? 0.011 : 0;
         pts.push(v(sd * x, y, sf.z(x, y) + OFF + onYoke));
       }
       // Pulled tight: straight over a hollow of the chest, not down into it.
@@ -967,7 +967,7 @@ function restraint(
       {
         const last = 3 + ys.filter((y) => y > off - 0.001).length;
         const under = (i: number): number =>
-          i === 1 ? 0.023 : i === last ? 0.022 : 0.016;
+          i === 1 ? 0.019 : i === last ? 0.018 : 0.012;
         out.push(
           strap(
             p
@@ -977,7 +977,7 @@ function restraint(
               ),
             n.slice(1, last + 1),
             0.056,
-            0.014,
+            0.01,
             CARBON,
             HAT,
           ),
