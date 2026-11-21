@@ -27,6 +27,7 @@ import {
 import {
   lodFadeDepthMaterial,
   lodFadeMaterial,
+  shapedDepthMaterial,
   variantDepthMaterial,
 } from '../engine/materials';
 import { worldUniforms } from '../engine/world-shading';
@@ -1025,7 +1026,9 @@ export class InstanceStreamer {
         iv.setUsage(DynamicDrawUsage);
         geometry.setAttribute('instVariant', iv);
       }
-      const depth = set ? variantDepthMaterial(part.material) : undefined;
+      const depth = set
+        ? variantDepthMaterial(part.material)
+        : shapedDepthMaterial(part.material);
       if (bucket.fades) {
         const fa = new InstancedBufferAttribute(new Float32Array(cap * 2), 2);
         fa.setUsage(DynamicDrawUsage);

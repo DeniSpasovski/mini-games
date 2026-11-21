@@ -16,6 +16,7 @@ import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { setVineAntialias } from '../engine/vines';
 import { Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
+import { setLampGlow } from '../engine/night-glow';
 import { PostFx, postFxFromUrl } from '../engine/post-fx';
 import { BLOOM_MIX, loadSettings } from '../game/settings';
 import { loadQuality, type QualitySettings } from '../engine/quality';
@@ -208,6 +209,8 @@ export class ViewerShell {
   setHour(hour: number): void {
     this.envDef.timeOfDay = hour;
     this.env.apply(this.envDef);
+    // Lit signs and lamp lenses glow as in the game.
+    setLampGlow(this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0);
     this.bloom?.dispose();
     const settings = loadSettings();
     this.bloom =

@@ -32,7 +32,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   (`beam`, `lamps`), wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` / `brakes` / `body`, axle camera `wcam`), debug (`wire`, `hull`, `fallback`),
   specs (numbers, torque / power chart, test-drive links, model credit) and sound (`debug/sound-debug.ts`). Console: `__carViewer`.
 - **Asset debugger** (`pages/asset-debug.ts`): the assets plus the options of the picked kind only (props seed / variant / LOD / instances / gap / wire /
-  bounds / colliders; trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
+  bounds / colliders; box buildings Width / Wall height / Depth (`size=width,wall height,depth` in metres; shown with their windows and door); trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
 
 **URL parameters** (any of the play ones skips the menu):
 
@@ -515,7 +515,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   the bed is the `rail_track` canvas (sleepers, rust) with the gravel ground scan's stones between the sleepers.
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
   footprints (`world/building-mesh.ts`). Box houses take wall / roof scans from one texture array (`engine/house-walls.ts`, UVs from the
-  instance scale in the shader; tiles in `engine/facades/`, `scripts/facades/bake.py`); on Galichica / Petralica the share of rubble-stone houses
+  instance scale in the shader, which also keeps eaves, chimney and windows at their real size on any footprint; tiles in `engine/facades/`, `scripts/facades/bake.py`). A house is three instances (`world/buildings.ts` `buildingInstances`): the box, `house_windows` repeated along its walls and `house_door` on the ground at the front wall (downhill, else facing the nearest road). On Galichica / Petralica the share of rubble-stone houses
   grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace: `PadDef.level`); the
@@ -567,10 +567,11 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
 - The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are 10 cars of a CC BY pack with
   their own triangles and textures (`street-car-models.ts`, data `street-cars.data.ts`, atlas `street-car-atlas.jpg` + `street-car-mask.png`; baked by
-  `scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model, LOD 1 / 2
+  `scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model with its wheels
+  rounded at load (`wheel-rounding.ts`: the rings of the pack's 20-sided tyres and rims and 12-sided hubs get twice the sides on the half that faces out, on their own circles; spokes, body and uv untouched, no edge shared with the body is split; also the US fire engine), LOD 1 / 2
   meshopt reductions (budgets: `tests/rally/street-car.test.ts`). One shared material (`streetCarMaterial`): the atlas, with the paint (per-vertex `color`)
-  multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the taxi sign, light bar and lettering are a second `vehicle` part
-  up to LOD 1. Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick; 10-12 = the white hatch, dark sedan and white minivan a map places); the LODs
+  multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the light bar and lettering are a second `vehicle` part
+  up to LOD 1, the taxi's lit "TAXI" roof sign a third (`taxi_sign` material: unlit by day, its face glows at night with the lamps). Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick; 10-12 = the white hatch, dark sedan and white minivan a map places); the LODs
   set `separateVariants` (no merged variant set: every instance would run the vertex shader over all 10 models).
 - Pack 7's five vans and trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) are baked the same way into the same atlas
   and dress the service park (`builders/service.ts`: team paint through the tint mask, stripes and awnings a second `vehicle` part up to LOD 1,
