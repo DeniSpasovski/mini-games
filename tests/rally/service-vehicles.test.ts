@@ -73,6 +73,7 @@ describe('team vehicles of the service park', () => {
       const mid = build({ seed: 1, variant: team, lod: 1 });
       const far = build({ seed: 1, variant: team, lod: 2 });
       expect(near.parts.length).toBe(2);
+      // The pickup is a street car: its wheels are rounded up close (wheel-rounding.ts).
       expect(tris(near)).toBeLessThan(8200);
       expect(tris(mid)).toBeLessThan(2400);
       expect(tris(far)).toBeLessThan(1700);

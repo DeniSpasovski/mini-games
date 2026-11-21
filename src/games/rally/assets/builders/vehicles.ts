@@ -1,8 +1,9 @@
 import {
   BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
   CylinderGeometry,
   PlaneGeometry,
-  type BufferGeometry,
 } from 'three';
 import { Rng } from '../../../../shared/rng';
 import { merge, paint } from '../../engine/geo';
@@ -28,9 +29,9 @@ import {
  * doors), the `ambulance` (its high-roof van in white, red stripe, "AMBULANCE" and the Star of Life on the sides) and the two fire
  * engines (`fire_truck` for the USA, `fire_truck_mk` for North Macedonia: their own models and textures,
  * `fire-truck-models.ts`). The lettering is generic words on purpose (no real agency names, badges or exact liveries). Every vehicle is one draw call in the shared
- * `streetCarMaterial` (atlas + paint tint), its add-ons (taxi sign, light bar, ladder, stripes, lettering) a second one in
- * the `vehicle` material (vertex colour paint + the decals atlas). Models face +X with the origin on the ground under
- * their middle. A car is ~6-8k triangles up close, ~2k at LOD 1, ~1k at LOD 2.
+ * `streetCarMaterial` (atlas + paint tint), its add-ons (sign base, light bar, ladder, stripes, lettering) a second one in
+ * the `vehicle` material (vertex colour paint + the decals atlas); the taxi's lit roof sign is a third (`taxi_sign`). Models face +X with the origin on the ground under
+ * their middle. A car is ~6.5-8.5k triangles up close (wheels rounded, `wheel-rounding.ts`), ~2k at LOD 1, ~1k at LOD 2.
  */
 
 /** u / v of the plain-white corner of the decals atlas (every painted face samples it). */
@@ -162,14 +163,103 @@ export const streetCar: AssetBuilder = ({ seed, variant, lod }) => {
 /** Door height band of a model (m): where the lettering / stripes of the taxi and the police car go. */
 const DOOR_Y = [0.5, 0.95];
 
-/** Yellow cab (the sedan) with a roof sign and a black stripe along the doors. */
+/** Roof sign (m): width across the car, depth along it, height of the lit housing over its base. */
+const SIGN = { w: 0.6, d: 0.13, h: 0.15, base: 0.022 };
+/** Region of the `taxi_sign` texture with the lit face (u0, u1), and a point of its plain housing. */
+const SIGN_FACE: [number, number] = [0, 0.75];
+const SIGN_PLAIN: [number, number] = [0.875, 0.5];
+
+/**
+ * The lit housing of the taxi's roof sign, across the car at `x` with its foot at height `y`: a loaf with sloped
+ * shoulders, "TAXI" on the faces to the front and the back (it reads left to right from both). `taxi_sign` material.
+ */
+function taxiSignHousing(x: number, y: number): BufferGeometry {
+  const hw = SIGN.w / 2;
+  const hd = SIGN.d / 2;
+  // Outline in (z, height), from the foot on the +Z side over the top (clockwise seen from the front, +X).
+  const outline: [number, number][] = [
+    [hw - 0.012, 0],
+    [hw, SIGN.h * 0.42],
+    [hw * 0.68, SIGN.h],
+    [-hw * 0.68, SIGN.h],
+    [-hw, SIGN.h * 0.42],
+    [-hw + 0.012, 0],
+  ];
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const uv: number[] = [];
+  const tri = (
+    pts: [number, number, number][],
+    n: [number, number, number],
+    uvs: [number, number][],
+  ) => {
+    pts.forEach((p, i) => {
+      pos.push(x + p[0], y + p[1], p[2]);
+      nor.push(...n);
+      uv.push(...uvs[i]);
+    });
+  };
+  for (const side of [1, -1]) {
+    // Face: the texture's left edge is at the reader's left (-Z side from the front, +Z from the back).
+    const at = ([z, h]: [number, number]): [number, number, number] => [
+      side * hd,
+      h,
+      z,
+    ];
+    const st = ([z, h]: [number, number]): [number, number] => [
+      SIGN_FACE[0] +
+        (0.5 - (side * z) / SIGN.w) * (SIGN_FACE[1] - SIGN_FACE[0]),
+      0.04 + (h / SIGN.h) * 0.92,
+    ];
+    for (let i = 1; i + 1 < outline.length; i++) {
+      const ring = [outline[0], outline[i], outline[i + 1]];
+      if (side > 0) ring.reverse();
+      tri(ring.map(at), [side, 0, 0], ring.map(st));
+    }
+  }
+  // Rim between the two faces: plain housing.
+  for (let i = 0; i < outline.length; i++) {
+    const [z0, h0] = outline[i];
+    const [z1, h1] = outline[(i + 1) % outline.length];
+    const len = Math.hypot(z1 - z0, h1 - h0) || 1;
+    const n: [number, number, number] = [0, -(z1 - z0) / len, (h1 - h0) / len];
+    const a: [number, number, number] = [hd, h0, z0];
+    const b: [number, number, number] = [hd, h1, z1];
+    const c: [number, number, number] = [-hd, h1, z1];
+    const d: [number, number, number] = [-hd, h0, z0];
+    const plain = [SIGN_PLAIN, SIGN_PLAIN, SIGN_PLAIN];
+    tri([a, b, c], n, plain);
+    tri([a, c, d], n, plain);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
+  g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+  g.computeBoundingSphere();
+  g.computeBoundingBox();
+  return g;
+}
+
+/** Yellow cab (the sedan) with a lit "TAXI" roof sign (generic, no operator) and a black stripe along the doors. */
 export const taxi: AssetBuilder = ({ lod }) => {
   const m = streetCarModel(SEDAN, lod);
   const parts: BufferGeometry[] = [];
   if (lod <= EXTRAS_LOD) {
-    parts.push(box(0.5, 0.17, 0.26, m.roofX, m.height + 0.075, 0, '#f6e7b0'));
+    // Sign base on two rubber feet (the roof falls away to the sides).
+    parts.push(
+      box(
+        SIGN.d + 0.03,
+        SIGN.base,
+        SIGN.w + 0.02,
+        m.roofX,
+        m.height + 0.012 + SIGN.base / 2,
+        0,
+        '#17181a',
+      ),
+    );
     for (const side of [1, -1])
       parts.push(
+        box(0.1, 0.06, 0.07, m.roofX, m.height - 0.012, side * 0.22, '#17181a'),
         box(
           2.4,
           0.07,
@@ -181,7 +271,13 @@ export const taxi: AssetBuilder = ({ lod }) => {
         ),
       );
   }
-  return withExtras(m.geometry('#f1b516'), parts);
+  const built = withExtras(m.geometry('#f1b516'), parts);
+  if (lod <= EXTRAS_LOD)
+    built.parts.push({
+      geometry: taxiSignHousing(m.roofX, m.height + 0.012 + SIGN.base),
+      material: getMaterial('taxi_sign'),
+    });
+  return built;
 };
 
 /** Patrol car: white sedan, navy band, roof light bar and "POLICE" on both front doors. */

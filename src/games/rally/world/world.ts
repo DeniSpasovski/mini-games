@@ -17,7 +17,11 @@ import type {
   GroundSample,
   StaticCollider,
 } from '../physics/types';
-import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
+import {
+  BuildingIndex,
+  buildingCollider,
+  buildingInstances,
+} from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
 import { RoadSlab } from './road-slab';
 import { BARE_TWINS } from '../trees/placement';
@@ -392,10 +396,14 @@ export class World implements GroundProvider {
         this.gen.portals.inside(inst.x, inst.z)
       )
         continue;
-      // No roadside tree or bush growing through a landmark (a gate tower, a block of flats).
+      // No roadside tree or bush growing through a landmark (a gate tower, a block of flats), a house or a paved lot.
       if (
         isTreeType(inst.asset) &&
-        this.landmarks.some((l) => l.occupies(inst.x, inst.z, 0.5))
+        (this.landmarks.some(
+          (l) =>
+            l.occupies(inst.x, inst.z, 0.5) || !!l.surfaceAt?.(inst.x, inst.z),
+        ) ||
+          this.buildings.contains(inst.x, inst.z, 0.5))
       )
         continue;
       // No crowd standing in a house (a crowd spot in a village).
@@ -629,14 +637,15 @@ export class World implements GroundProvider {
       if (bd.kind) {
         // Mesh building (building-mesh.ts draws it): only its collider goes into the scatter chunks.
         this.scatter.addFixedCollider(buildingCollider(bd, this.analytic));
-      } else
-        this.scatter.addFixed(
-          buildingInstance(
-            bd,
-            this.analytic,
-            map.id === 'galichica' || map.id === 'petralica',
-          ),
-        );
+      } else {
+        for (const inst of buildingInstances(
+          bd,
+          this.analytic,
+          map.id === 'galichica' || map.id === 'petralica',
+          this.roadNear(bd.x, bd.z, bd.along),
+        ))
+          this.scatter.addFixed(inst);
+      }
     }
 
     for (const landmark of this.landmarks) {
@@ -1253,6 +1262,33 @@ export class World implements GroundProvider {
     return this.gen.pathHeight(q.path, q.along) + 0.03;
   }
   private rq = newRoadQuery();
+
+  /**
+   * The nearest road point to a building at (x, z): on a side road or track within reach, else on the map's road at
+   * `along` (BuildingDef.along) when that is within 150 m. Its front door faces it (world/buildings.ts).
+   */
+  private roadNear(
+    x: number,
+    z: number,
+    along: number,
+  ): { x: number; z: number } | undefined {
+    const paths = this.gen.paths;
+    const q = paths?.query(
+      x,
+      z,
+      newPathQuery(),
+      undefined,
+      (i) => paths.paths[i].surface !== 'water',
+    );
+    const main = this.road.at(Math.min(Math.max(along, 0), this.road.length));
+    const dMain = Math.hypot(main.x - x, main.z - z);
+    if (q?.found && q.distance < dMain) {
+      const p = { x: 0, z: 0 };
+      paths!.pointAt(q.path, q.along, p);
+      return p;
+    }
+    return dMain < 150 ? { x: main.x, z: main.z } : undefined;
+  }
 
   /** Spawn on the stage road at `along` metres (default: just behind the start line). */
   roadSpawn(along = this.stage.start - 9): Spawn {

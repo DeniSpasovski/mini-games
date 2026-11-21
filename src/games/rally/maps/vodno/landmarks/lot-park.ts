@@ -1096,8 +1096,8 @@ export interface GardenWall {
   thick: number;
   /** A low kerb on an embankment (not a solid wall). */
   low: boolean;
-  /** A green railing on its top. */
-  rail?: boolean;
+  /** A green railing on its top over the first `rail` points (none when absent). */
+  rail?: number;
 }
 
 /**
@@ -1114,13 +1114,16 @@ export function gardenWallRuns(): GardenWall[] {
     inside: V2,
     thick: number,
     low = false,
-    rail = false,
+    /** How many of the corners `p`, from the first, the railing runs along (0: none). */
+    railCorners = 0,
   ): GardenWall => {
     const seg = p.slice(0, -1).map((a, k) => edgeNormal(a, p[k + 1], inside));
     const pts: V2[] = [];
     const ns: V2[] = [];
+    let rail = 0;
     p.forEach((a, k) => {
       pts.push(a);
+      if (k < railCorners) rail = pts.length;
       ns.push(
         k === 0
           ? seg[0]
@@ -1139,21 +1142,21 @@ export function gardenWallRuns(): GardenWall[] {
         ns.push(seg[k]);
       }
     });
-    return { p: pts, n: ns, thick, low, rail };
+    return { p: pts, n: ns, thick, low, rail: rail || undefined };
   };
   const redIn: V2 = [-40, -20];
   return [
-    run([G, GP.Gb, GP.Gc, Eend], greyIn, STEP_WALL, false, true),
+    run([G, GP.Gb, GP.Gc, Eend], greyIn, STEP_WALL, false, 4),
     // (from the red flight's foot: beside the flight its own cheek wall and handrail rise over it)
     run([Q1, redRiser(RED_FLIGHT.count + 1).s], redIn, STEP_WALL),
+    // (one wall round the red terrace's corner, railed to it: two runs meeting there showed their ends and tops apart)
     run(
-      [redRiser(RED_FLIGHT.count + 1).s, GP.RT],
+      [redRiser(RED_FLIGHT.count + 1).s, GP.RT, GP.RS, GP.RE, GP.Gc],
       redIn,
       STEP_WALL,
       false,
-      true,
+      2,
     ),
-    run([GP.RT, GP.RS, GP.RE, GP.Gc], redIn, STEP_WALL),
     run([D, F, ...GREEN_ARC.slice(ARC_FROM), T], [-40, -18], 0.35, true),
   ];
 }
@@ -1278,7 +1281,7 @@ export function drawGarden(l: Local, gy: LocalGround): void {
     if (!w.rail) return;
     // The railing: posts about every 2 m, two rails sloping with the top.
     const posts: V3[] = [];
-    for (let k = 0; k + 1 < pts.length; k++) {
+    for (let k = 0; k + 1 < w.rail; k++) {
       const len = Math.hypot(
         pts[k + 1][0] - pts[k][0],
         pts[k + 1][1] - pts[k][1],
@@ -1295,7 +1298,7 @@ export function drawGarden(l: Local, gy: LocalGround): void {
         ]);
       }
     }
-    const k = pts.length - 1;
+    const k = w.rail - 1;
     posts.push([
       pts[k][0] + ns[k][0] * thick * 0.5,
       top[k],
