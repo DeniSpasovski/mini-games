@@ -1,140 +1,120 @@
+import { Group, Mesh } from 'three';
+import { crewSeated, type CrewParams } from '../assets/builders/crew';
+import { variantSeed } from '../assets/library';
 import {
-  Box3,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  SphereGeometry,
-  Vector3,
-  type Material,
-} from 'three';
-import { getAsset, requestAsset } from '../assets/library';
+  canRequestPerson,
+  materialOf,
+  requestPerson,
+} from '../assets/people-pool';
 import type { BuiltAsset } from '../assets/types';
 import type { CarDef } from '../cars/shared/types';
+import type { LiveryInfo } from '../cars/shared/livery';
 
-/** The figures' detail level: seen through tinted glass, never closer than the chase camera. */
-const LOD = 1;
-/** Heel floor above the ground (model space), and the seat's hip behind the front axle (share of the wheelbase). */
-const FLOOR_Y = 0.2;
-const HIP_BACK = 0.55;
-/** The hip ahead of the figure's back (its rearmost point) and above its heels. */
-const HIP_FROM_BACK = 0.14;
-
-let helmetGeo: SphereGeometry | undefined;
-let visorGeo: SphereGeometry | undefined;
-let helmetMat: MeshStandardMaterial | undefined;
-let visorMat: MeshStandardMaterial | undefined;
+const ASSET = 'crew_seated';
+/** Up close (replay cameras, photo mode, the car viewer) the full figures, otherwise the mid-range ones. */
+const NEAR = 4.5;
 
 /**
- * A full-face rally helmet: a shell a little longer than high, a dark visor across the eyes. Shared by every crew;
- * built once.
- */
-function helmet(): Group {
-  helmetGeo ??= new SphereGeometry(0.148, 20, 14).scale(0.95, 1, 1.1);
-  // The visor: a band of a slightly larger sphere round the front (three's sphere: +Z at phi = pi / 2).
-  visorGeo ??= new SphereGeometry(
-    0.152,
-    16,
-    4,
-    Math.PI / 2 - 0.8,
-    1.6,
-    1.22,
-    0.42,
-  ).scale(0.95, 1, 1.1);
-  helmetMat ??= new MeshStandardMaterial({
-    color: 0xeeeeec,
-    roughness: 0.3,
-    metalness: 0,
-  });
-  visorMat ??= new MeshStandardMaterial({
-    color: 0x0c0f13,
-    roughness: 0.08,
-    metalness: 0.2,
-  });
-  const g = new Group();
-  g.add(new Mesh(helmetGeo, helmetMat), new Mesh(visorGeo, visorMat));
-  return g;
-}
-
-/**
- * Driver and co-driver in the seats of the player's car (a car with a modelled cockpit, `model.glass`): left-hand
- * drive, the driver on the left (+X), hands on the wheel, the co-driver on the right reading the notes; race suits in
- * the team's colours, helmets on. Built in the people worker, so the car shows up first and the crew a moment later.
- * Add `group` to the body (model space: y = 0 ground, +Z forward); it rolls and pitches with it.
+ * Driver and co-driver in the seats of a car whose cockpit shows through its glass (`model.glass` + `model.cockpit`):
+ * built for that cockpit in the car's colours (assets/builders/crew.ts), in the people worker, so the car shows up
+ * first and the crew a moment later. Add `group` to the body (model space); it rolls and pitches with it.
  */
 export class CarCrew {
   readonly group = new Group();
   private disposed = false;
+  private readonly params?: CrewParams;
+  /** Per level of detail: its figures, once asked for. */
+  private readonly levels: (Group | undefined)[] = [];
+  private level = -1;
 
-  constructor(def: CarDef, team: number) {
+  constructor(def: CarDef, livery: LiveryInfo) {
     this.group.name = 'crew';
     this.group.userData.noDirt = true;
-    if (!def.model.glass) return;
-    const p = def.physics;
-    const wheelbase = p.front.z - p.rear.z;
-    const hipZ = p.front.z - HIP_BACK * wheelbase;
-    const seatX = Math.min(0.4, p.width * 0.2);
-    for (const seat of [0, 1]) {
-      const variant = seat + 2 * team;
-      const place = () => {
-        if (this.disposed) return;
-        this.place(
-          getAsset('crew_seated', variant, LOD),
-          seat ? -seatX : seatX,
-          hipZ,
-          p.height,
-        );
-      };
-      if (!requestAsset('crew_seated', variant, LOD, place)) place();
-    }
+    const { cockpit, glass } = def.model;
+    if (!cockpit || !glass) return;
+    this.params = {
+      cockpit,
+      colors: {
+        base: livery.base,
+        accent: livery.accent,
+        accent2: livery.accent2,
+      },
+    };
+    this.show(1);
   }
 
-  private place(a: BuiltAsset, x: number, hipZ: number, roof: number): void {
-    const box = new Box3();
-    for (const part of a.parts) {
-      part.geometry.computeBoundingBox();
-      box.union(part.geometry.boundingBox!);
+  /** Picks the level of detail for a camera `distance` m from the car. */
+  update(distance: number): void {
+    if (!this.params) return;
+    // A band between the two, so a camera hovering at the limit does not swap every frame.
+    if (distance < NEAR) this.show(0);
+    else if (distance > NEAR + 1.5) this.show(1);
+  }
+
+  private show(lod: number): void {
+    if (this.level === lod) return;
+    this.level = lod;
+    if (!this.levels[lod]) this.build(lod);
+    this.sync();
+  }
+
+  /** The wanted level when it is built, till then whichever is. */
+  private sync(): void {
+    const ready = (g?: Group): boolean => !!g && g.children.length === 2;
+    const want = this.levels[this.level];
+    const pick = ready(want) ? want : this.levels.find((g) => ready(g));
+    for (const g of this.levels) if (g) g.visible = g === pick;
+  }
+
+  private build(lod: number): void {
+    const params = this.params!;
+    const level = new Group();
+    this.levels[lod] = level;
+    this.group.add(level);
+    for (const seat of [0, 1]) {
+      const seed = variantSeed(ASSET, seat);
+      const add = (a: BuiltAsset): void => {
+        if (this.disposed) {
+          for (const p of a.parts) p.geometry.dispose();
+          return;
+        }
+        const figure = new Group();
+        for (const part of a.parts) {
+          const m = new Mesh(part.geometry, part.material);
+          m.receiveShadow = true;
+          m.castShadow = false;
+          figure.add(m);
+        }
+        level.add(figure);
+        this.sync();
+      };
+      const inline = (): BuiltAsset => ({
+        parts: crewSeated({ seed, variant: seat, lod, params }).parts.map(
+          (p) => ({
+            geometry: p.geometry,
+            material: materialOf(p.material as unknown as string),
+          }),
+        ),
+      });
+      if (canRequestPerson(ASSET))
+        requestPerson(
+          ASSET,
+          seed,
+          seat,
+          lod,
+          (a) => add(a ?? inline()),
+          params,
+        );
+      else add(inline());
     }
-    // The head: the top of the figure (the points within a head's height of it).
-    const head = new Vector3();
-    let n = 0;
-    for (const part of a.parts) {
-      const pos = part.geometry.getAttribute('position');
-      for (let i = 0; i < pos.count; i++) {
-        if (pos.getY(i) < box.max.y - 0.22) continue;
-        head.x += pos.getX(i);
-        head.z += pos.getZ(i);
-        n++;
-      }
-    }
-    if (n) head.set(head.x / n, box.max.y - 0.115, head.z / n);
-    const figure = new Group();
-    for (const part of a.parts) {
-      const m = new Mesh(part.geometry, part.material as Material);
-      m.receiveShadow = true;
-      figure.add(m);
-    }
-    const h = helmet();
-    h.position.copy(head);
-    figure.add(h);
-    // Shrink a tall figure to fit under the roof (the helmet's top 4 cm over the head's).
-    const top = box.max.y + 0.04 - box.min.y;
-    const room = roof - 0.1 - FLOOR_Y;
-    const s = top > room ? room / top : 1;
-    figure.scale.setScalar(s);
-    figure.position.set(
-      x - head.x * s,
-      FLOOR_Y - box.min.y * s,
-      hipZ - (box.min.z + HIP_FROM_BACK) * s,
-    );
-    figure.traverse((o) => {
-      o.castShadow = false;
-    });
-    this.group.add(figure);
   }
 
   dispose(): void {
     this.disposed = true;
     this.group.removeFromParent();
-    // Geometry and materials are shared (the asset cache, the helmet): nothing to free.
+    // The figures are this car's own (built for its cockpit and colours); the materials are shared.
+    this.group.traverse((o) => {
+      if (o instanceof Mesh) o.geometry.dispose();
+    });
   }
 }

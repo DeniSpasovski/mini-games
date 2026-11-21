@@ -42,6 +42,7 @@ export type MaterialId =
   | 'house'
   | 'people'
   | 'people_flag'
+  | 'crew_gloss'
   | 'flag'
   | 'fan_flag'
   | 'chevron'
@@ -332,6 +333,14 @@ export function getMaterial(id: MaterialId): Material {
       break;
     case 'people_flag':
       m = peopleFlagMaterial();
+      break;
+    case 'crew_gloss':
+      // Painted helmet shells of a car's crew (builders/crew-helmet.ts): vertex colours under a gloss.
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.2,
+        metalness: 0,
+      });
       break;
     case 'flag':
       // The national flag's cloth: the printed flag, with the wind shader (RALLY_FLAG, engine/world-shading.ts).

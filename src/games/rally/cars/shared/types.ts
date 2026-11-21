@@ -108,6 +108,8 @@ export interface CarModelDef {
    * part, so set it only when the model has a cockpit to see through the windows.
    */
   glass?: { color: number; opacity: number };
+  /** The cockpit as modelled: with it (and see-through glass) the car gets its crew (game/car-crew.ts). */
+  cockpit?: Cockpit;
   /** Paint finish: 'satin' = old weathered paint (rough, thin clearcoat). Default 'gloss'. */
   paintFinish?: 'gloss' | 'satin';
   /**
@@ -252,4 +254,25 @@ export interface CarAtlas {
   matteRect?: [number, number, number, number];
   /** Box-projection layout of an STL car's atlas (model.source.json): lets the `profile` fallback wear the livery. */
   layout?: AtlasLayout;
+}
+
+/**
+ * Where a crew sits in a car's own cockpit model, measured on it (scripts/car-model/cockpit.py prints the profiles):
+ * model space, metres, y = 0 the ground, +Z the nose, +X the car's left. The two seats mirror each other.
+ */
+export interface Cockpit {
+  /** Right-hand drive: the wheel (`wheel.at` x < 0) and the driver are on the car's right. */
+  rhd?: boolean;
+  seat: {
+    /** Centre line of a seat from the car's (|x|), top of the cushion where one sits. */
+    x: number;
+    cushion: number;
+    /** Front face of the backrest on the seat's centre line, low and high: [z, y, z, y]. */
+    back: [number, number, number, number];
+  };
+  /** Steering wheel: the centre of the rim, its radius (to the middle of the rim), how far it leans back (deg; 0 = upright). */
+  wheel: { at: [number, number, number]; r: number; tilt: number };
+  /** Lowest thing over the heads (headliner, roll cage), and the floor of the footwell. */
+  roof: number;
+  floor: number;
 }

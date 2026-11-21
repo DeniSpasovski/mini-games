@@ -226,6 +226,13 @@ export const citroenC4: CarDef = {
     },
     // The model carries its own cockpit: see-through glass shows it.
     glass: { color: 0x141c24, opacity: 0.6 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      seat: { x: 0.42, cushion: 0.555, back: [-0.41, 0.65, -0.51, 1.0] },
+      wheel: { at: [0.407, 0.847, 0.3], r: 0.128, tilt: 14.6 },
+      roof: 1.44,
+      floor: 0.19,
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).

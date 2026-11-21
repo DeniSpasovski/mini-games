@@ -3,6 +3,7 @@ import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
 import { track } from '../../../shared/analytics';
 import { CarModel } from '../cars/shared/car-model';
+import { CarCrew } from '../game/car-crew';
 import { hasImportedModel } from '../cars/shared/car-gltf';
 import { CARS, DEFAULT_CAR, getCar } from '../cars';
 import { clampCarNumber, rallyName } from '../cars/shared/rally-badge';
@@ -27,7 +28,7 @@ import { BACKDROPS, StageBackdrop } from '../debug/stage-backdrop';
 import { DEFAULT_SEASON, SEASONS, SEASON_LABELS, type Season } from '../season';
 import { Rain, RAIN_DROPS } from '../game/rain';
 import { LampReflections } from '../game/lamp-reflections';
-import { Color, Group } from 'three';
+import { Color, Group, Vector3 } from 'three';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
 import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
 import { WheelDebug } from '../debug/wheel-debug';
@@ -45,6 +46,7 @@ import { rimRadius } from '../cars/shared/tyre-mesh';
  *   car-viewer.html?car=bimmer_m3&cam=-1.2,4,-1.6&look=-0.5,0.7,-1.8&fov=14&clean=1
  * `cam` overrides `view`; choosing a view in the panel clears the free camera.
  * "Copy camera link" (Pose section) writes the current orbit (position, target, fov) into these params and copies the URL.
+ * `crew=0` takes the driver and co-driver out of the seats (cars with a see-through cockpit).
  * `lamps=off|on|brake|reverse|reverse+brake`: off = every lamp dark, on (default) = the running lamps as the hour of day has them (night = lit), brake / reverse = pedal down / gear R. `fallback=1` shows the body a car
  * falls back to when its GLB can't load (hand-built `custom` or the boxy side-outline `profile`).
  * `tod=<hours>` = the game's time of day (default: the test map's afternoon): 17.5 evening (lights half on), 1 night (moon,
@@ -70,6 +72,8 @@ const DEFAULTS = {
   wheels: false,
   /** Wheel angle (deg) while not spinning. */
   wangle: 0,
+  /** Driver and co-driver in the seats (cars with a see-through cockpit), as in the game. */
+  crew: true,
   tyres: true,
   rims: true,
   brakes: true,
@@ -138,6 +142,7 @@ const spot = BACKDROPS.find((b) => b.id === state.backdrop)!;
 const shell = new ViewerShell({ title: 'Car viewer' });
 const { scene, camera, controls } = shell;
 let model: CarModel | undefined;
+let crew: CarCrew | undefined;
 /** The car's place: the world origin, or the middle of the backdrop's road (`shell.frame`). */
 const carFrame = new Group();
 carFrame.matrixAutoUpdate = false;
@@ -367,6 +372,12 @@ if (spot.surface) {
     backdrop?.showTrees(v);
   });
 }
+const crewSec = shell.panel.section('Crew');
+crewSec.checkbox('Driver and co-driver', state.crew, (v) => {
+  state.crew = v;
+  sync();
+  rebuild();
+});
 const reloaders = [
   ...(weathers.length > 1 ? ['weather'] : []),
   'backdrop',
@@ -561,6 +572,8 @@ function rebuild(): void {
   tailLight = undefined;
   reflections?.dispose();
   reflections = undefined;
+  crew?.dispose();
+  crew = undefined;
   model?.dispose();
   const def = getCar(state.car);
   soundDebug?.setCar(def);
@@ -573,6 +586,10 @@ function rebuild(): void {
   // Put the car on the ground (model root is the centre of mass; taller tyres lift it).
   model.root.position.y = def.physics.comHeight + model.tyreLift;
   model.debug.visible = state.hull;
+  if (state.crew) {
+    crew = new CarCrew(def, model.livery);
+    model.body.add(crew.group);
+  }
   carFrame.add(model.root);
   // Its GLB and wheels download after this: name the car over the view until they are in.
   hideLoading();
@@ -678,6 +695,11 @@ function applyLamps(): void {
   reflections?.setLevels(lamps, lamps, brake);
 }
 shell.onFrame(() => reflections?.update(camera.position));
+const crewAt = new Vector3();
+shell.onFrame(() => {
+  if (!crew || !model) return;
+  crew.update(camera.position.distanceTo(model.root.getWorldPosition(crewAt)));
+});
 
 function applyWire(): void {
   model?.root.traverse((o) => {

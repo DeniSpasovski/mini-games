@@ -17,6 +17,8 @@ export interface BuildContext {
   variant: number;
   /** LOD index into the catalog's `lods` array (0 = most detailed). */
   lod: number;
+  /** Extra input of a builder that is made for one place (the crew of a car: builders/crew.ts). */
+  params?: unknown;
 }
 
 export type AssetBuilder = (ctx: BuildContext) => BuiltAsset;

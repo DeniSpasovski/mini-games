@@ -674,7 +674,7 @@ export class RallyGame {
     const w = this.env.weatherLook;
     if (w.wet > 0) this.model.setWet();
     this.crew?.dispose();
-    this.crew = new CarCrew(this.car, this.opts.livery);
+    this.crew = new CarCrew(this.car, this.model.livery);
     this.model.body.add(this.crew.group);
     // Rain / fog: lights switched on, a rain / fog day under BEAM_MIN_NEED (`carLights`).
     const lights = carLights(this.env.lightNeed, w);
@@ -2251,10 +2251,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // In a replay the wheels turn at the playback rate: paused (photo) = full detail, slow motion = less smear.
     // Photo mode: full detail (its own motion blur spins the real tread).
     const playback = this.photo ? 0 : replay ? (dt > 0 ? fdt / dt : 0) : 1;
-    this.model.setTyreLod(
-      v.speed * 3.6 * playback,
-      this.camera.position.distanceTo(this.renderPos),
-    );
+    const camDistance = this.camera.position.distanceTo(this.renderPos);
+    this.model.setTyreLod(v.speed * 3.6 * playback, camDistance);
+    this.crew?.update(camDistance);
 
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;

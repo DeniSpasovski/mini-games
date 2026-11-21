@@ -1,6 +1,5 @@
 import {
   crew,
-  crewSeated,
   driver,
   marshal,
   mechanic,
@@ -8,6 +7,7 @@ import {
   spectator,
   visitor,
 } from './builders/people';
+import { crewSeated } from './builders/crew';
 import type { AssetBuilder } from './types';
 
 /** The assets with detailed levels built in the worker (people-worker.ts, people-pool.ts). */
