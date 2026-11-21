@@ -17,7 +17,13 @@ import {
   tapeSpan,
   villageSign,
 } from './builders/props';
-import { buildingFlat, housePitched, houseStone } from './builders/buildings';
+import {
+  buildingFlat,
+  houseDoor,
+  housePitched,
+  houseWindows,
+  houseStone,
+} from './builders/buildings';
 import {
   packBirch,
   packBush,
@@ -173,6 +179,8 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   road_barrier: roadBarrier,
   marker_post: markerPost,
   chevron_sign: chevronSign,
+  house_door: houseDoor,
+  house_windows: houseWindows,
   house_pitched: housePitched,
   house_stone: houseStone,
   building_flat: buildingFlat,
