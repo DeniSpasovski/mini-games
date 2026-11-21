@@ -5,8 +5,9 @@ import { clip, join, normals, seal, type Surf } from './people-surf';
 /**
  * A full-face helmet with its visor down (a dark shield over the eye port, hinged at the temples), built round a head.
  * Head frame: the origin is the centre of the head, +Z the face, +Y up, metres. The shell is a loft of plan outlines (a
- * dome over a waisted lower half); the visor's outline is cut exactly (people-surf.ts `clip`), and the paint is cut the
- * same way, so every edge is sharp at any mesh density. Nothing of the head shows.
+ * dome over a lower half with a jutting chin bar, its lower edge swept up to the back over the nape of the neck); the
+ * visor's outline is cut exactly (people-surf.ts `clip`), and the paint is cut the same way, so every edge is sharp at
+ * any mesh density. Of the head only the neck shows, under the back of the shell.
  */
 
 export interface HelmetParts {
@@ -32,12 +33,21 @@ const BOTTOM = -0.148;
 /** Lower half, top to bottom: height, front, back, half width. */
 const WAIST: [number, number, number, number][] = [
   [DOME_Y, 0.14, 0.154, 0.131],
-  [-0.01, 0.145, 0.153, 0.132],
-  [-0.05, 0.153, 0.146, 0.13],
-  [-0.09, 0.158, 0.132, 0.124],
-  [-0.125, 0.15, 0.114, 0.114],
-  [BOTTOM, 0.134, 0.1, 0.104],
+  [-0.01, 0.146, 0.153, 0.132],
+  [-0.05, 0.157, 0.149, 0.129],
+  [-0.09, 0.166, 0.142, 0.121],
+  [-0.125, 0.164, 0.13, 0.109],
+  [BOTTOM, 0.15, 0.116, 0.098],
 ];
+/** Below this height the lower edge sweeps up towards the back. */
+const SWEEP_Y = -0.055;
+/** How much of the shell's depth under SWEEP_Y is gone at the back. */
+const SWEEP = 0.62;
+/** The chin bar comes to a blunt prow at the front: how far, at its height. */
+const PROW = 0.011;
+const PROW_Y = -0.1;
+/** The lip the back of the shell ends in. */
+const LIP = 0.009;
 /** Plan outline: a superellipse a little squarer than an oval. */
 const PLAN = 2.25;
 /** Metres per radian round the shell at the height of the visor (outlines are drawn in this unrolled plane). */
@@ -79,13 +89,40 @@ function section(y: number): [number, number, number] {
 const pw = (v: number): number =>
   Math.sign(v) * Math.pow(Math.abs(v), 2 / PLAN);
 
-/** A point of the shell: `phi` round it (0 = the front, + = the left), at height `y`, `out` m off the surface. */
-function shellAt(phi: number, y: number, out = 0): [number, number, number] {
+/** How much of its depth under SWEEP_Y the shell keeps in a direction: all of it round the chin, least at the back. */
+function sweep(x: number, z: number): number {
+  const k = Math.max(0, (Math.abs(Math.atan2(x, z)) / Math.PI - 0.25) / 0.75);
+  return 1 - SWEEP * k * k * (3 - 2 * k);
+}
+
+/** The height a point of the swept shell had before its lower edge was swept up (the paint is laid out in that). */
+const level = (x: number, y: number, z: number): number =>
+  y < SWEEP_Y ? SWEEP_Y + (y - SWEEP_Y) / sweep(x, z) : y;
+
+/** A point of the shell before the sweep: `phi` round it (0 = the front, + = the left), at height `y`. */
+function unswept(phi: number, y: number): [number, number, number] {
   const [f, b, w] = section(y);
   const sx = Math.sin(phi);
   const cz = Math.cos(phi);
   const x = w * pw(sx);
-  const z = (cz >= 0 ? f : b) * pw(cz);
+  let z = (cz >= 0 ? f : b) * pw(cz);
+  if (cz > 0) {
+    const k = Math.max(0, 1 - Math.abs(y - PROW_Y) / 0.055);
+    z += PROW * k * k * (3 - 2 * k) * Math.pow(cz, 6);
+  } else {
+    const k = Math.min(1, Math.max(0, (BOTTOM + 0.035 - y) / 0.035));
+    z -= LIP * k * k * cz * cz;
+  }
+  return [x, y, z];
+}
+
+/** A point of the shell: `phi` round it (0 = the front, + = the left), at height `y`, `out` m off the surface. */
+function shellAt(phi: number, y: number, out = 0): [number, number, number] {
+  let [x, , z] = unswept(phi, y);
+  // Under SWEEP_Y: the point that the sweep brings to this height (which way it lies barely changes with height).
+  if (y < SWEEP_Y)
+    for (let i = 0; i < 2; i++)
+      [x, , z] = unswept(phi, Math.max(BOTTOM, level(x, y, z)));
   if (!out) return [x, y, z];
   const l = Math.hypot(x, z) || 1;
   return [x + (x / l) * out, y, z + (z / l) * out];
@@ -433,10 +470,11 @@ export function helmet(paint: CrewLivery, hi: boolean): HelmetParts {
   const waistRows = hi ? 14 : 7;
   const rows: [number, number, number][][] = [];
   const ring = (y: number): [number, number, number][] =>
-    Array.from({ length: around }, (_, i) =>
+    Array.from({ length: around }, (_, i) => {
       // Start at the back, so the seam of the grid is not in the face.
-      shellAt(Math.PI + (i / around) * Math.PI * 2, y),
-    );
+      const [x, , z] = unswept(Math.PI + (i / around) * Math.PI * 2, y);
+      return [x, y < SWEEP_Y ? SWEEP_Y + (y - SWEEP_Y) * sweep(x, z) : y, z];
+    });
   for (let j = 0; j < domeRows; j++) {
     const th = ((j + 0.35) / (domeRows - 0.65 + 0.35)) * (Math.PI / 2);
     rows.push(ring(DOME_Y + DOME_H * Math.cos(Math.min(th, Math.PI / 2))));
@@ -455,8 +493,8 @@ export function helmet(paint: CrewLivery, hi: boolean): HelmetParts {
     shell = { n: n + 1, a: { pos, nor: new Float32Array(0) }, idx };
     shell.a.nor = normals(shell);
   }
-  // A wall at the bottom edge (a shell has a thickness); under the visor there is nothing to draw.
-  shell = seal(shell, 0.03);
+  // A wall at the bottom edge (the padded roll round the neck); under the visor there is nothing to draw.
+  shell = seal(shell, 0.04);
   shell = clip(
     shell,
     fieldOf(shell, (x, y, z) => shieldField(x, y, z) + 0.005),
@@ -476,9 +514,19 @@ export function helmet(paint: CrewLivery, hi: boolean): HelmetParts {
   };
   // The rubber the visor closes on, the rolled edge at the bottom.
   take((x, y, z) => 0.005 - shieldField(x, y, z), RUBBER, matt);
-  take((_x, y) => BOTTOM + 0.011 - y, RUBBER, matt);
+  take(
+    (x, y, z) => (BOTTOM - level(x, y, z)) * sweep(x, z) + 0.011,
+    RUBBER,
+    matt,
+  );
 
-  for (const [f, color] of look.layers) gloss = tint(gloss, f, color);
+  // The paint follows the swept edge.
+  const swept =
+    (f: At): At =>
+    (x, y, z) =>
+      f(x, level(x, y, z), z);
+  for (const [f, color] of look.layers)
+    gloss = tint(gloss, Array.isArray(f) ? f.map(swept) : swept(f), color);
   // Vents: two slots in the chin bar, two on the brow.
   gloss = tint(
     gloss,

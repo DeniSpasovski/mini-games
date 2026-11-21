@@ -253,6 +253,11 @@ vars.select('Tyre', state.tyre, [...TYRE_IDS], (v) => {
   wheelDebug?.setTyre(fittedTyre());
   updateWheelInfo();
 });
+vars.checkbox('Driver and co-driver', state.crew, (v) => {
+  state.crew = v;
+  sync();
+  seatCrew();
+});
 const numCtl = vars.seed('Door plate #', state.num, (v) => {
   state.num = v <= 0 ? 0 : clampCarNumber(v);
   numCtl.set(state.num);
@@ -372,12 +377,6 @@ if (spot.surface) {
     backdrop?.showTrees(v);
   });
 }
-const crewSec = shell.panel.section('Crew');
-crewSec.checkbox('Driver and co-driver', state.crew, (v) => {
-  state.crew = v;
-  sync();
-  rebuild();
-});
 const reloaders = [
   ...(weathers.length > 1 ? ['weather'] : []),
   'backdrop',
@@ -586,10 +585,7 @@ function rebuild(): void {
   // Put the car on the ground (model root is the centre of mass; taller tyres lift it).
   model.root.position.y = def.physics.comHeight + model.tyreLift;
   model.debug.visible = state.hull;
-  if (state.crew) {
-    crew = new CarCrew(def, model.crewLivery);
-    model.body.add(crew.group);
-  }
+  seatCrew();
   carFrame.add(model.root);
   // Its GLB and wheels download after this: name the car over the view until they are in.
   hideLoading();
@@ -695,6 +691,15 @@ function applyLamps(): void {
   reflections?.setLevels(lamps, lamps, brake);
 }
 shell.onFrame(() => reflections?.update(camera.position));
+/** Puts the crew in the seats of the car on show, or takes them out, as the panel has it. */
+function seatCrew(): void {
+  if (state.crew && !crew && model) {
+    crew = new CarCrew(getCar(state.car), model.crewLivery);
+    model.body.add(crew.group);
+  }
+  if (crew) crew.group.visible = state.crew;
+}
+
 const crewAt = new Vector3();
 shell.onFrame(() => {
   if (!crew || !model) return;

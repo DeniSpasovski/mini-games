@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   Color,
   Matrix4,
+  Ray,
   Vector3,
   type Material,
 } from 'three';
@@ -800,11 +801,69 @@ function sitIn(cp: Cockpit, codriver: boolean): Posed {
   };
 }
 
+/** Where the lap straps head for from the buckle: this far below the hip joints, and this far back (m). */
+const LAP_DROP = 0.06;
+const LAP_BACK = 0.12;
+
+/** How far down the chest the legs of the head restraint's yoke reach (m below the shoulder). */
+const YOKE = 0.15;
+
+/**
+ * How far a mesh reaches from a point inside it in a direction (m): the last of its faces on that ray, among the
+ * faces within `near` of the origin of its frame. 0 when the ray meets none.
+ */
+function reachOf(
+  g: BufferGeometry,
+  near: number,
+): (from: Vector3, dir: Vector3) => number {
+  const pos = g.getAttribute('position');
+  const idx = g.getIndex();
+  const count = idx ? idx.count : pos.count;
+  const tris: Vector3[] = [];
+  for (let k = 0; k < count; k += 3) {
+    const abc = [0, 1, 2].map((j) =>
+      new Vector3().fromBufferAttribute(pos, idx ? idx.getX(k + j) : k + j),
+    );
+    if (abc.some((p) => p.length() < near)) tris.push(...abc);
+  }
+  const ray = new Ray();
+  const hit = new Vector3();
+  return (from, dir) => {
+    ray.set(from, dir);
+    let far = 0;
+    for (let k = 0; k < tris.length; k += 3)
+      if (ray.intersectTriangle(tris[k], tris[k + 1], tris[k + 2], false, hit))
+        far = Math.max(far, hit.distanceTo(from));
+    return far;
+  };
+}
+
+/**
+ * A line round a body pulled tight: the distances `far` from a point along the flat directions `dirs`, each raised
+ * to the straight line between its neighbours where the body is hollow.
+ */
+function taut(far: number[], dirs: number[][]): number[] {
+  const at = dirs.map(([x, y], i) => [far[i] * x, far[i] * y]);
+  return far.map((r, i) => {
+    const [dx, dy] = dirs[i];
+    let best = r;
+    for (let j = 0; j < i; j++)
+      for (let k = i + 1; k < far.length; k++) {
+        const [ex, ey] = [at[k][0] - at[j][0], at[k][1] - at[j][1]];
+        const den = dx * ey - dy * ex;
+        if (den > 1e-6)
+          best = Math.max(best, (at[j][0] * ey - at[j][1] * ex) / den);
+      }
+    return best;
+  });
+}
+
 /** The six-point harness and the head restraint under it, on the posed body. */
 function restraint(
   t: Tailor,
   bones: Matrix4[],
   headAt: Matrix4,
+  suit: BufferGeometry,
   webbing: string,
   hi: boolean,
 ): BufferGeometry[] {
@@ -851,6 +910,14 @@ function restraint(
   const buckleY = 0.13;
   const buckle = v(0, buckleY, sf.z(0, buckleY) + OFF + 0.004);
 
+  const [[lock], [lockN]] = skinned([buckle], [v(0, 0.15, 1).normalize()]);
+  // The plane of the lap straps: across the hips, and from the buckle steeply down and back to where they are
+  // bolted behind the seat.
+  const lapTo = v(0, lock.y + LAP_DROP, LAP_BACK).normalize();
+  const lapFrom = lock.clone().addScaledVector(lapTo, -0.12);
+  const lapAcross = v(0, lapTo.z, -lapTo.y);
+  const reach = reachOf(suit, 0.32);
+
   for (const sd of [1, -1]) {
     const tp = sf.top(X0);
     // Head restraint: a leg of the yoke over each collarbone.
@@ -860,19 +927,19 @@ function restraint(
         v(sd * X0, tp.y + OFF - 0.002, tp.z - 0.03),
         v(sd * X0, tp.y + OFF - 0.006, tp.z + 0.03),
       ];
-      for (const dy of [0.05, 0.1, 0.15])
-        pts.push(v(sd * X0, tp.y - dy, sf.z(X0, tp.y - dy) + OFF - 0.004));
-      const nor = over(pts, v(0, 1, 0), v(0, 0.2, 1).normalize(), 3);
-      out.push(
-        strap(
-          pts.map((p) => p.clone().applyMatrix4(spine)),
-          nor.map((n) => n.clone().transformDirection(spine)),
-          0.056,
-          0.014,
-          CARBON,
-          HAT,
-        ),
+      // Its end tucks in under the shoulder strap.
+      for (const [dy, dz] of [
+        [0.05, 0],
+        [0.1, 0],
+        [YOKE, -0.008],
+      ])
+        pts.push(v(sd * X0, tp.y - dy, sf.z(X0, tp.y - dy) + OFF - 0.004 + dz));
+      // With the chest, as the strap on it goes: the two stay apart.
+      const [p, n] = skinned(
+        pts,
+        over(pts, v(0, 1, 0), v(0, 0.2, 1).normalize(), 3),
       );
+      out.push(strap(p, n, 0.056, 0.014, CARBON, HAT));
     }
     // Shoulder strap: from the seat over the yoke, down the chest to the buckle.
     {
@@ -885,11 +952,18 @@ function restraint(
       const y0 = tp.y - 0.05;
       const y1 = buckleY + 0.035;
       const steps = hi ? 9 : 6;
+      // Over the yoke to just past its end, and only then down on to the suit.
+      const off = tp.y - YOKE - 0.012;
+      const ys = [off, off - 0.035];
       for (let k = 0; k <= steps; k++) {
-        const f = k / steps;
-        const y = y0 + (y1 - y0) * f;
+        const y = y0 + ((y1 - y0) * k) / steps;
+        if (ys.every((o) => Math.abs(o - y) > 0.012)) ys.push(y);
+      }
+      ys.sort((a, b) => b - a);
+      for (const y of ys) {
+        const f = (y - y0) / (y1 - y0);
         const x = X0 + (0.036 - X0) * f * f * (3 - 2 * f);
-        const onYoke = y > tp.y - 0.155 ? 0.013 : 0;
+        const onYoke = y > off - 0.001 ? 0.015 : 0;
         pts.push(v(sd * x, y, sf.z(x, y) + OFF + onYoke));
       }
       // Pulled tight: straight over a hollow of the chest, not down into it.
@@ -903,7 +977,14 @@ function restraint(
       const [p, n] = skinned(pts, nor);
       out.push(strap(p, n, 0.068, 0.004, webbing));
       // The adjuster on the chest.
-      const k = 4 + Math.round(steps * 0.45);
+      const at = y0 + (y1 - y0) * 0.45;
+      const k =
+        4 +
+        ys.reduce(
+          (best, y, i) =>
+            Math.abs(y - at) < Math.abs(ys[best] - at) ? i : best,
+          0,
+        );
       const d = p[k + 1]
         .clone()
         .sub(p[k - 1])
@@ -921,33 +1002,38 @@ function restraint(
         ),
       );
     }
-    // Lap strap: from the buckle round the hip down to the seat.
+    // Lap strap: from the buckle round the hip and down to the seat, in one plane. Every point of it is as far out
+    // as the suit reaches that way, across its whole width, so it lies on the seated body.
     {
-      // Over the belly with the body, then (the pelvis does not move) over the hip crease and down beside the hip.
-      const belly = [0.03, 0.085].map((x, i) =>
-        v(sd * x, buckleY + i * 0.006, sf.z(x, buckleY + i * 0.006) + OFF),
-      );
-      const [p, n] = skinned(
-        belly,
-        belly.map(() => v(0, 0.25, 1).normalize()),
-      );
-      const hipside: [number, number, number, number, number, number][] = [
-        [0.14, buckleY - 0.01, 0.075, 0.3, 0.6, 0.75],
-        [0.185, buckleY - 0.045, 0.025, 0.75, 0.5, 0.4],
-        [0.21, 0.02, -0.03, 1, 0.15, 0.1],
-        [0.215, -0.08, -0.07, 1, 0, 0],
-      ];
-      for (const [x, y, z, nx, ny, nz] of hipside) {
-        p.push(v(sd * x, y, z));
-        n.push(v(sd * nx, ny, nz).normalize());
+      const HALF = 0.034;
+      const step = hi ? 9 : 13;
+      const dirs: Vector3[] = [];
+      for (let a = 12; a <= 132; a += step) {
+        const rad = (a * Math.PI) / 180;
+        dirs.push(
+          lapTo
+            .clone()
+            .multiplyScalar(Math.cos(rad))
+            .add(v(sd * Math.sin(rad), 0, 0)),
+        );
       }
-      out.push(strap(p, n, 0.068, 0.004, webbing));
+      const far = taut(
+        dirs.map((d) =>
+          Math.max(
+            ...[-HALF, 0, HALF].map((e) =>
+              reach(lapFrom.clone().addScaledVector(lapAcross, e), d),
+            ),
+          ),
+        ),
+        dirs.map((d) => [d.dot(lapTo), Math.abs(d.x)]),
+      );
+      const pts = dirs.map((d, i) =>
+        lapFrom.clone().addScaledVector(d, far[i] + 0.003),
+      );
+      out.push(strap(pts, dirs, 2 * HALF, 0.004, webbing));
     }
   }
-  {
-    const [p, n] = skinned([buckle], [v(0, 0.15, 1).normalize()]);
-    out.push(...camLock(p[0], n[0], v(0, 1, 0)));
-  }
+  out.push(...camLock(lock, lockN, v(0, 1, 0)));
 
   // The collar of the head restraint, standing behind the helmet, and its tethers to the helmet.
   {
@@ -1095,8 +1181,9 @@ export function buildCrew(
     g.userData.cell = -1;
     return g;
   };
+  const worn = cloth(suit.pieces.map(painted));
   const parts: BufferGeometry[] = [
-    cloth(suit.pieces.map(painted)),
+    worn,
     cloth(shoesOf(MODEL, 'sneaker', '#17181b', '#2b2c30', hi)),
     tag(sock, HAT),
   ];
@@ -1117,7 +1204,7 @@ export function buildCrew(
   for (const h of sat.hands)
     parts.push(...gripGlove(h.grip, h.wrist, h.fore, GLOVE_COLOR, hi));
   if (sat.book) parts.push(...notes(...sat.book));
-  parts.push(...restraint(t, bp.bones, headAt, webbingOn(lv), hi));
+  parts.push(...restraint(t, bp.bones, headAt, worn, webbingOn(lv), hi));
 
   const atlas = merge(
     parts.map((p) => {
