@@ -20,8 +20,9 @@ import { bridgeMaterials } from './bridge-mesh';
 /**
  * Continuous barriers: the cross section of a New Jersey wall / steel guard rail swept along the road
  * edge as ONE smooth mesh (no separate 4 m props that never line up on a curve). The Jersey wall is
- * textured (concrete with a joint every 4 m, u = along / 4); the rail is vertex coloured with posts
- * every 2 m. Cut into ~100 m pieces for frustum culling. Colliders: barriers.ts.
+ * textured (concrete with a joint every 4 m, u = along / 4); the rail is vertex coloured (galvanised or rusty) times
+ * a weathering map (`barrier_rail`: road grime, streaks, rust bleed; u = along / 8, v = height), posts every 2 m.
+ * Cut into ~100 m pieces for frustum culling. Colliders: barriers.ts.
  */
 
 const PIECE = 100;
@@ -43,18 +44,31 @@ const JERSEY: [number, number][] = [
   [-0.3, 0.2],
 ];
 
-/** W-beam rail: [o, dy] front (road side) zig-zag, top lip, flat back. Open polyline. */
+/**
+ * W-beam rail: the pressed steel sheet with its two ribs facing the road, [o, dy] from the bottom edge to the top
+ * (crests at o = 0, the middle valley and the edges 6-8 cm back), 0.31 m tall. Open polyline: one double-sided sheet,
+ * each segment lit by its own slope so the ribs read in any light.
+ */
 const RAIL: [number, number][] = [
-  [0.03, 0.5],
-  [0, 0.55],
-  [0.03, 0.6],
-  [0, 0.65],
-  [0.03, 0.7],
-  [0, 0.75],
-  [0.02, 0.78],
-  [0.06, 0.78],
-  [0.06, 0.5],
+  [0.08, 0.47],
+  [0.06, 0.476],
+  [0.015, 0.51],
+  [0, 0.53],
+  [0, 0.555],
+  [0.015, 0.575],
+  [0.055, 0.61],
+  [0.065, 0.625],
+  [0.055, 0.64],
+  [0.015, 0.675],
+  [0, 0.695],
+  [0, 0.72],
+  [0.015, 0.74],
+  [0.06, 0.774],
+  [0.08, 0.78],
 ];
+
+/** How far the second beam of a two-tier rail sits under the first (m). */
+const TIER2 = 0.32;
 
 class Acc {
   pos: number[] = [];
@@ -115,7 +129,7 @@ function strip(
   b: [number, number],
   n: [number, number],
   color: [number, number, number],
-  uvOf: (row: Row, dy: number) => [number, number],
+  uvOf: (row: Row, dy: number, o: number) => [number, number],
 ): void {
   if (rows.length < 2) return;
   const v0 = acc.pos.length / 3;
@@ -127,7 +141,7 @@ function strip(
       const l = Math.hypot(nx, n[1], nz) || 1;
       acc.nor.push(nx / l, n[1] / l, nz / l);
       acc.col.push(...color);
-      acc.uv.push(...uvOf(r, dy));
+      acc.uv.push(...uvOf(r, dy, o));
     }
   }
   // Wind the quads so the geometric normal agrees with `n` (first quad decides for all).
@@ -262,7 +276,7 @@ function post(
       acc.pos.push(...q);
       acc.nor.push(...f.n);
       acc.col.push(...color);
-      acc.uv.push(0, 0);
+      acc.uv.push(0.004, q[1] - row.y);
     }
     acc.idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
   }
@@ -500,6 +514,79 @@ function kerb(
   }
 }
 
+/**
+ * Edge kerb (kind 'edge'): a flush strip of pale concrete slabs `width` m wide (o = metres out from the run line, its
+ * outer edge; dy = height over the verge), standing 3 cm proud with a chamfered inner arris.
+ */
+const edgeProfile = (width: number): [number, number][] => [
+  [-width, -0.06],
+  [-width, 0.015],
+  [-width + 0.02, 0.03],
+  [0, 0.03],
+  [0, -0.06],
+];
+
+/** Flat kerb slabs along the asphalt edge (kind 'edge'): weathered pale concrete, a tone per 1 m slab. */
+function edgeKerb(
+  acc: Acc,
+  rows: Row[],
+  run: BarrierRun,
+  first: boolean,
+  last: boolean,
+): void {
+  // (v across the slab's top as well as up its sides: the concrete never smears into streaks along it)
+  const uvOf = (r: Row, dy: number, o: number): [number, number] => [
+    r.d / KERB_TS,
+    (dy - o) / KERB_TS,
+  ];
+  const edge = edgeProfile(run.rule.width ?? 0.5);
+  for (let i = 0; i < rows.length - 1; i++) {
+    const seg = [rows[i], rows[i + 1]];
+    // the slab this row pair lies on: its own tone (the change of tone reads as the joint)
+    const slab = Math.floor(rows[i].d + 0.01);
+    const t = 0.68 + 0.14 * hash1(slab * 1.7 + run.side * 31);
+    const col: [number, number, number] = [t, t * 0.98, t * 0.94];
+    for (let k = 0; k < edge.length - 1; k++)
+      strip(acc, seg, edge[k], edge[k + 1], convexNormal(edge, k), col, uvOf);
+  }
+  const end: [number, number, number] = [0.7, 0.69, 0.66];
+  if (first) cap(acc, rows[0], edge, -1, end);
+  if (last) cap(acc, rows[rows.length - 1], edge, 1, end);
+}
+
+/** A ditch's lining (kind 'gutter'), o = metres out from its middle, dy = height over the ditch floor: a shallow dish. */
+const GUTTER: [number, number][] = [
+  [-0.38, 0.1],
+  [-0.22, 0.04],
+  [0, 0.02],
+  [0.22, 0.04],
+  [0.38, 0.1],
+];
+
+/**
+ * A ditch lined with concrete slabs (a tone per 1 m slab) or pitched stones (`cobbles`: a tone per stone, three across,
+ * the joints dark), sunk into the ditch at its edges.
+ */
+function gutter(acc: Acc, rows: Row[], run: BarrierRun): void {
+  const uvOf = (r: Row, dy: number, o: number): [number, number] => [
+    r.d / KERB_TS,
+    (dy - o) / KERB_TS,
+  ];
+  const cobbles = !!run.rule.cobbles;
+  for (let i = 0; i < rows.length - 1; i++) {
+    const seg = [rows[i], rows[i + 1]];
+    const k = Math.floor(rows[i].d * (cobbles ? 4 : 1) + 0.01);
+    for (let j = 0; j < GUTTER.length - 1; j++) {
+      const h = hash1(k * 3.1 + j * 17 + run.side * 31);
+      const t = cobbles ? 0.32 + 0.3 * h : 0.48 + 0.16 * h;
+      const col: [number, number, number] = cobbles
+        ? [t, t * 0.95, t * 0.86]
+        : [t, t * 0.98, t * 0.94];
+      strip(acc, seg, GUTTER[j], GUTTER[j + 1], [0, 1], col, uvOf);
+    }
+  }
+}
+
 function toMesh(a: Acc, mat: MeshStandardMaterial): Mesh {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(a.pos), 3));
@@ -541,14 +628,17 @@ export function* barrierMeshJob(
     roughness: 0.93,
     metalness: 0,
   });
+  // Weathered: the grime map over the vertex colour, duller than new zinc.
   const railMat = new MeshStandardMaterial({
+    map: getTexture('barrier_rail'),
     vertexColors: true,
-    roughness: 0.55,
-    metalness: 0.5,
+    roughness: 0.74,
+    metalness: 0.3,
     side: DoubleSide,
   });
   // Rusted rails are painted steel gone brown: not metallic (no sky-blue reflection).
   const rustMat = new MeshStandardMaterial({
+    map: getTexture('barrier_rail'),
     vertexColors: true,
     roughness: 0.8,
     metalness: 0.1,
@@ -563,11 +653,12 @@ export function* barrierMeshJob(
   });
   const ctx: BarrierContext = { road: world.road, net: world.gen.paths };
   const white: [number, number, number] = [1, 1, 1];
-  const steel: [number, number, number] = [0.62, 0.64, 0.66];
-  const postCol: [number, number, number] = [0.3, 0.31, 0.32];
-  // (linear vertex colours: a deep orange-brown rust, the posts darker)
-  const rustSteel: [number, number, number] = [0.34, 0.1, 0.03];
-  const rustPost: [number, number, number] = [0.22, 0.07, 0.025];
+  const steel: [number, number, number] = [0.52, 0.53, 0.53];
+  // (weathered zinc gone grey-brown: a slim post, not a dark block)
+  const postCol: [number, number, number] = [0.4, 0.37, 0.33];
+  // (linear vertex colours: a weathered brown rust, the posts darker)
+  const rustSteel: [number, number, number] = [0.26, 0.095, 0.04];
+  const rustPost: [number, number, number] = [0.17, 0.065, 0.03];
   const tiles = new Map<string, { acc: Acc; mat: MeshStandardMaterial }>();
   const tileAcc = (
     kind: string,
@@ -604,6 +695,19 @@ export function* barrierMeshJob(
         );
         continue;
       }
+      if (run.rule.kind === 'edge' || run.rule.kind === 'gutter') {
+        // 1 m stones / slabs (a tone each), on 0.5 m rows (0.25 m for pitched stones) so the line follows the bends
+        const step = run.rule.cobbles ? 0.25 : 0.5;
+        const fine: Row[] = [];
+        for (let d = from; d < to; d += step)
+          fine.push(rowsOf(ctx, world.analytic, run, d, d + 0.01)[0]);
+        fine.push(rows[rows.length - 1]);
+        const acc = tileAcc('kerb', rows[0].x, rows[0].z, kerbMat);
+        if (run.rule.kind === 'edge')
+          edgeKerb(acc, fine, run, from === run.from, to === run.to);
+        else gutter(acc, fine, run);
+        continue;
+      }
       const rusty = run.rule.kind === 'guardrail' && !!run.rule.rusty;
       const acc = tileAcc(
         rusty ? 'rust' : run.rule.kind,
@@ -630,15 +734,23 @@ export function* barrierMeshJob(
         if (from === run.from) cap(acc, rows[0], JERSEY, -1, white);
         if (to === run.to) cap(acc, rows[rows.length - 1], JERSEY, 1, white);
       } else {
-        const uvOf = (): [number, number] => [0, 0];
-        for (let i = 0; i < RAIL.length - 1; i++) {
-          const a = RAIL[i];
-          const b = RAIL[i + 1];
-          // Front zig-zag faces the road, the lip faces up, the back faces away.
-          const n: [number, number] =
-            i < 6 ? [-1, 0] : i === 6 ? [0, 1] : [1, 0];
-          strip(acc, rows, a, b, n, run.rule.rusty ? rustSteel : steel, uvOf);
-        }
+        const uvOf = (r: Row, dy: number): [number, number] => [r.d / 8, dy];
+        // A two-tier rail: the same beam again, TIER2 m lower on the same posts.
+        for (const lower of run.rule.tiers === 2 ? [0, TIER2] : [0])
+          for (let i = 0; i < RAIL.length - 1; i++) {
+            const a: [number, number] = [RAIL[i][0], RAIL[i][1] - lower];
+            const b: [number, number] = [
+              RAIL[i + 1][0],
+              RAIL[i + 1][1] - lower,
+            ];
+            // The road side of the sheet: the segment's own normal, towards the road (-o).
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+            const n: [number, number] = [
+              -(b[1] - a[1]) / len,
+              (b[0] - a[0]) / len,
+            ];
+            strip(acc, rows, a, b, n, run.rule.rusty ? rustSteel : steel, uvOf);
+          }
         // Posts every 2 m (aligned to the rail's own metres so they never shift between pieces).
         for (let d = Math.ceil(from / 2) * 2; d < to; d += 2) {
           const r = rowsOf(ctx, world.analytic, run, d, d + 0.01)[0];
@@ -646,9 +758,9 @@ export function* barrierMeshJob(
             acc,
             r,
             0.14,
-            0.12,
+            0.09,
             0.78,
-            0.1,
+            0.08,
             run.rule.rusty ? rustPost : postCol,
           );
         }

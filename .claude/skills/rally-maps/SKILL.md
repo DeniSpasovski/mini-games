@@ -28,7 +28,8 @@ generated deterministically from it. There is no map editor on purpose — edit 
   - The road must not cross itself or come within ~50 m of another part (terrain carving blends to the nearest road).
   - Crest / jump: three close points (~15 m apart) with `dy` 0 -> 1.5..2 -> 0 (see test map #16-18).
 - Height: the road follows terrain smoothed over `smoothing` m, clamped to `maxGrade` (0.11 = 11%), the grade changes rounded over
-  `gradeSmoothing` m (default 12; fast stages need ~50 or a +7/-7 % kink launches the car), then `dy` is added.
+  `gradeSmoothing` m (default 12; fast stages need ~50 or a +7/-7 % kink launches the car), then `dy` is added; `climb` makes a
+  mountain road's stretch never fall (Vodno).
 - Cross-section: `width`, `shoulder` (loose verge), `ditch`, `crown`.
 - Surface changes along the stage: `road.sections: [{ from: <metres along>, surface, texture }]` (applies until the
   next entry; `road.surface` / `texture` are used before the first). E.g. asphalt valley road -> gravel climb

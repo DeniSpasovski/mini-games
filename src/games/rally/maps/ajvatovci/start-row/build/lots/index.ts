@@ -284,10 +284,16 @@ function buildLot(b: Build, yard: Yard, index: number): void {
     }
   }
   if (yard.driveIn.length)
-    d.polygon(surface, yard.driveIn, YARD_TOP.drive, tint, {
-      lift: (x, z) => b.ground(x, z),
-      step: 1,
-    });
+    d.polygon(
+      surface,
+      yard.driveIn,
+      plot.flushDrive ? YARD_TOP.driveFlush : YARD_TOP.drive,
+      tint,
+      {
+        lift: (x, z) => b.ground(x, z),
+        step: 1,
+      },
+    );
   yardEdge(b, yard, surface, tint);
   if (style === 'site') siteProps(b);
 
@@ -335,7 +341,11 @@ function yardEdge(b: Build, yard: Yard, surface: MatKey, tint: string): void {
     return y;
   };
   const edge = new Color(tint).multiplyScalar(0.55);
-  for (const outline of [yard.polygon, yard.driveIn]) {
+  // (a flush drive has no side: the gravel layer lies level in the ground)
+  for (const outline of [
+    yard.polygon,
+    yard.plot.flushDrive ? [] : yard.driveIn,
+  ]) {
     if (outline.length < 3) continue;
     const c = outline
       .reduce((sum, p) => sum.add(p), new Vector2())

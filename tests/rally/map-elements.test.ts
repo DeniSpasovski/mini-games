@@ -9,13 +9,17 @@ describe('Vodno base elements: fill banks, drop rails, OSM features', () => {
   const world = new World(vodnoMap);
   const explicit = vodnoMap.barriers ?? [];
   const derived = world.barrierRules.slice(explicit.length);
+  // (kerb stones and gutters share the verge with a rail)
+  const rails = explicit.filter(
+    (e) => e.kind !== 'edge' && e.kind !== 'gutter',
+  );
   const q = newRoadQuery();
 
   test('derived rails stand where the valley side drops, never over a rule the map lists', () => {
     expect(derived.length).toBeGreaterThan(3);
     for (const r of derived) {
       expect(r.to! - r.from!).toBeGreaterThanOrEqual(16);
-      for (const e of explicit)
+      for (const e of rails)
         if (e.side === r.side || e.side === 'both')
           expect(r.to! <= (e.from ?? 0) || r.from! >= (e.to ?? Infinity)).toBe(
             true,
