@@ -131,7 +131,10 @@ export function tubeAlong(
   return solid(pos, idx, color, cell);
 }
 
-/** A flat strap through `pts`, lying on a surface whose normals are `nor`: `width` wide, `thick` proud of it. */
+/**
+ * A flat strap through `pts`, lying on a surface whose normals are `nor`: `width` wide, `thick` proud of it. Without
+ * `walls` only its top face (for a figure seen from further away, where its edges are too thin to show).
+ */
 export function strap(
   pts: Vector3[],
   nor: Vector3[],
@@ -139,10 +142,12 @@ export function strap(
   thick: number,
   color: string,
   cell = RIB,
+  walls = true,
 ): BufferGeometry {
-  const pos: number[] = [];
-  const idx: number[] = [];
   const n = pts.length;
+  // Per point: its corners (edge low, edge high, other edge high, other edge low) and the normals of the three faces.
+  const corners: Vector3[][] = [];
+  const faces: Vector3[][] = [];
   for (let i = 0; i < n; i++) {
     const d = pts[Math.min(n - 1, i + 1)]
       .clone()
@@ -150,35 +155,43 @@ export function strap(
       .normalize();
     const side = d.clone().cross(nor[i]).normalize();
     const up = side.clone().cross(d).normalize();
-    for (const [s, h] of [
-      [-1, 0],
-      [-1, 1],
-      [1, 1],
-      [1, 0],
-    ]) {
-      const p = pts[i]
-        .clone()
-        .addScaledVector(side, (s * width) / 2)
-        .addScaledVector(up, h * thick);
-      pos.push(p.x, p.y, p.z);
-    }
+    corners.push(
+      [
+        [-1, 0],
+        [-1, 1],
+        [1, 1],
+        [1, 0],
+      ].map(([s, h]) =>
+        pts[i]
+          .clone()
+          .addScaledVector(side, (s * width) / 2)
+          .addScaledVector(up, h * thick),
+      ),
+    );
+    faces.push([side.clone().negate(), up, side]);
   }
+  // Flat across (hard edges at its sides), smooth along it: woven webbing bends, it is not a row of planks.
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  const put = (i: number, c: number, f: number): void => {
+    const p = corners[i][c];
+    const q = faces[i][f];
+    pos.push(p.x, p.y, p.z);
+    nrm.push(q.x, q.y, q.z);
+  };
   for (let i = 0; i < n - 1; i++)
-    for (let k = 0; k < 3; k++) {
-      const a = i * 4 + k;
-      const b = a + 1;
-      const c = a + 4;
-      const d = c + 1;
-      idx.push(a, b, c, b, d, c);
+    for (let k = walls ? 0 : 1; k < (walls ? 3 : 2); k++) {
+      put(i, k, k);
+      put(i, k + 1, k);
+      put(i + 1, k, k);
+      put(i, k + 1, k);
+      put(i + 1, k + 1, k);
+      put(i + 1, k, k);
     }
-  // Hard edges: every face has its own vertices.
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setIndex(idx);
-  const flatG = g.toNonIndexed();
-  flatG.computeVertexNormals();
-  g.dispose();
-  return tag(paint(flatG, color), cell);
+  g.setAttribute('normal', new BufferAttribute(new Float32Array(nrm), 3));
+  return tag(paint(g, color), cell);
 }
 
 /** A box given by its centre and three half axes. */

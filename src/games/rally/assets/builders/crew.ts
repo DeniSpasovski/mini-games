@@ -43,6 +43,7 @@ import {
   GLOVE,
   HAT,
   REFLECT,
+  RIB,
   mapCell,
   tag,
 } from './people-parts';
@@ -816,13 +817,13 @@ const LAP_BACK = 0.12;
 const YOKE = 0.15;
 
 /**
- * How far a mesh reaches from a point inside it in a direction (m): the last of its faces on that ray, among the
- * faces within `near` of the origin of its frame. 0 when the ray meets none.
+ * How far a mesh reaches from a point inside it in a direction (m): the last of its faces on that ray (closer than
+ * `cap`), among the faces within `near` of the origin of its frame. 0 when the ray meets none.
  */
 function reachOf(
   g: BufferGeometry,
   near: number,
-): (from: Vector3, dir: Vector3) => number {
+): (from: Vector3, dir: Vector3, cap?: number) => number {
   const pos = g.getAttribute('position');
   const idx = g.getIndex();
   const count = idx ? idx.count : pos.count;
@@ -835,12 +836,16 @@ function reachOf(
   }
   const ray = new Ray();
   const hit = new Vector3();
-  return (from, dir) => {
+  return (from, dir, cap = Infinity) => {
     ray.set(from, dir);
     let far = 0;
     for (let k = 0; k < tris.length; k += 3)
-      if (ray.intersectTriangle(tris[k], tris[k + 1], tris[k + 2], false, hit))
-        far = Math.max(far, hit.distanceTo(from));
+      if (
+        ray.intersectTriangle(tris[k], tris[k + 1], tris[k + 2], false, hit)
+      ) {
+        const d = hit.distanceTo(from);
+        if (d < cap) far = Math.max(far, d);
+      }
     return far;
   };
 }
@@ -917,13 +922,17 @@ function restraint(
   const buckleY = 0.13;
   const buckle = v(0, buckleY, sf.z(0, buckleY) + OFF + 0.004);
 
-  const [[lock], [lockN]] = skinned([buckle], [v(0, 0.15, 1).normalize()]);
+  const [[guess], [lockN]] = skinned([buckle], [v(0, 0.15, 1).normalize()]);
   // The plane of the lap straps: across the hips, and from the buckle steeply down and back to where they are
   // bolted behind the seat.
-  const lapTo = v(0, lock.y + LAP_DROP, LAP_BACK).normalize();
-  const lapFrom = lock.clone().addScaledVector(lapTo, -0.12);
+  const lapTo = v(0, guess.y + LAP_DROP, LAP_BACK).normalize();
+  const lapFrom = guess.clone().addScaledVector(lapTo, -0.12);
   const lapAcross = v(0, lapTo.z, -lapTo.y);
   const reach = reachOf(suit, 0.32);
+  // The buckle sits on the webbing where the lap straps meet in the middle of the belly.
+  const lock = lapFrom
+    .clone()
+    .addScaledVector(lapTo, reach(lapFrom, lapTo) + 0.007);
 
   for (const sd of [1, -1]) {
     const tp = sf.top(X0);
@@ -961,7 +970,15 @@ function restraint(
           }
       const nor = over(pts, v(0, 1, 0), v(0, 0.15, 1).normalize(), 4);
       const [p, n] = skinned(pts, nor);
-      out.push(strap(p, n, 0.068, 0.004, webbing));
+      // Its tongue goes into the buckle.
+      p.push(
+        lock
+          .clone()
+          .addScaledVector(lockN, -0.004)
+          .add(v(sd * 0.02, 0.012, 0)),
+      );
+      n.push(lockN.clone());
+      out.push(strap(p, n, 0.068, 0.004, webbing, RIB, hi));
       // Head restraint: a leg of its yoke over each collarbone. It lies under the strap all the way, so the two
       // stay apart however the chest is posed, and its end tucks in.
       {
@@ -1013,9 +1030,9 @@ function restraint(
     // as the suit reaches that way, across its whole width, so it lies on the seated body.
     {
       const HALF = 0.034;
-      const step = hi ? 9 : 13;
+      const step = hi ? 6 : 11;
       const dirs: Vector3[] = [];
-      for (let a = 12; a <= 132; a += step) {
+      for (let a = 4; a <= 130; a += step) {
         const rad = (a * Math.PI) / 180;
         dirs.push(
           lapTo
@@ -1034,11 +1051,60 @@ function restraint(
         ),
         dirs.map((d) => [d.dot(lapTo), Math.abs(d.x)]),
       );
-      const pts = dirs.map((d, i) =>
-        lapFrom.clone().addScaledVector(d, far[i] + 0.003),
+      // Webbing does not follow every fold of the suit: over the highest of its neighbours, then evened out.
+      const up = far.map((r, i) =>
+        Math.max(
+          r,
+          far[Math.max(0, i - 1)],
+          far[Math.min(far.length - 1, i + 1)],
+        ),
       );
-      out.push(strap(pts, dirs, 2 * HALF, 0.004, webbing));
+      const even = up.map(
+        (r, i) =>
+          (up[Math.max(0, i - 1)] +
+            2 * r +
+            up[Math.min(up.length - 1, i + 1)]) /
+          4,
+      );
+      const pts = dirs.map((d, i) =>
+        lapFrom.clone().addScaledVector(d, Math.max(even[i], far[i]) + 0.003),
+      );
+      out.push(strap(pts, dirs, 2 * HALF, 0.004, webbing, RIB, hi));
     }
+  }
+  // Sub straps: a pair from under the buckle, down over the belly and in between the thighs to the seat.
+  for (const sd of [1, -1]) {
+    const fwd = v(0, 0, 1);
+    const pts = [
+      lock
+        .clone()
+        .addScaledVector(lockN, -0.005)
+        .add(v(sd * 0.016, 0, 0)),
+    ];
+    for (let k = 1; k <= 10; k++) {
+      const y = lock.y - 0.012 * k;
+      const x = sd * (0.022 + 0.08 * (lock.y - y));
+      // Only the front of the body here: no further than the belly reaches (not along the thigh).
+      const r = reach(v(x, y, t.torsoZ), fwd, 0.22);
+      const prev = pts[pts.length - 1];
+      if (!r || t.torsoZ + r > prev.z + 0.02) break;
+      pts.push(v(x, y, Math.max(t.torsoZ + r + 0.003, prev.z - 0.025)));
+    }
+    // In between the thighs.
+    const end = pts[pts.length - 1];
+    pts.push(end.clone().add(v(0, -0.03, -0.03)));
+    if (pts.length > 2)
+      out.push(
+        strap(
+          pts,
+          pts.map(() => fwd),
+          0.046,
+          0.004,
+          webbing,
+          RIB,
+          hi,
+        ),
+      );
   }
   out.push(...camLock(lock, lockN, v(0, 1, 0)));
 
