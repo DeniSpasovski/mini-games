@@ -97,7 +97,8 @@ const canalGrowth = (): ScatterRule[] => {
   const reedEdge = {
     channelDist: [-0.6, 1.0] as [number, number],
     detail: true,
-    minRoadDist: 1.5,
+    // Right up to a bridge's kerb (the reed bed volume stops there too: world/reed-bed.ts DECK_EDGE).
+    minRoadDist: 0.4,
     inChannel: true,
     minPathDist: 0.3,
     ditchTop: { top: [0.7, 1.3] as [number, number], height: 2.4 },

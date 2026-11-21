@@ -54,6 +54,8 @@ const CELL_H = 2.4;
 const TOP_ACROSS = [-0.62, -0.2, 0.2, 0.62];
 /** Keep this far from a road / track crossing the ditch (m, beyond its half width). */
 const CROSSING = 2;
+/** The stage road's bridges: the bed grows right up to the deck, this far past the road's edge (its kerb, m). */
+const DECK_EDGE = 0.4;
 
 interface Look {
   /** Wall sheet; the core's two colours (sRGB) mottled over its top, and its root (dark inside). */
@@ -214,9 +216,12 @@ function wallMaterial(season: Season): MeshStandardMaterial {
   return m;
 }
 
-/** Height share of row `k` of a run of `n`: the bed slopes down to the ground over its last few metres. */
-function taper(k: number, n: number): number {
-  const e = Math.min(k, n - 1 - k);
+/**
+ * Height share of row `k` of a run of `n`: the bed slopes down to the ground over its last few metres, except at an
+ * end cut off by the stage road's deck (`cutStart` / `cutEnd`: it stands full height against the bridge).
+ */
+function taper(k: number, n: number, cutStart = false, cutEnd = false): number {
+  const e = Math.min(cutStart ? 3 : k, cutEnd ? 3 : n - 1 - k);
   return e >= 3 ? 1 : [0.15, 0.45, 0.75][e];
 }
 
@@ -371,8 +376,11 @@ export function* reedBedMeshJob(
       bank: number;
       top: number;
       on: boolean;
+      /** Off where the stage road crosses (the run beside it ends against the deck). */
+      deck?: boolean;
     }[] = [];
     const OFF = { x: 0, z: 0, rx: 0, rz: 0, bank: 0, top: 0, on: false };
+    const DECK = { ...OFF, deck: true };
     for (let i = 0; i <= n; i++) {
       const a = i * STEP;
       net.pointAt(ci, a, pt);
@@ -381,15 +389,6 @@ export function* reedBedMeshJob(
         0.5 + 0.5 * noise.fbm(pt.x / 40 + 31, pt.z / 40 - 17, 2) <
         def.cover * look.cover;
       let on = grow && nearRoad(cells, nearMemo, pt.x, pt.z, def.reach);
-      if (on) {
-        const q = world.road.query(pt.x, pt.z, rq);
-        if (q.found && q.distance < q.halfWidth + outer + CROSSING) on = false;
-      }
-      if (on && gen.paths) {
-        const p = gen.paths.query(pt.x, pt.z, pq);
-        if (p.found && p.distance < p.halfWidth + outer + CROSSING) on = false;
-      }
-      if (on && gen.nearCulvert(pt.x, pt.z, outer + CROSSING)) on = false;
       if (!on) {
         rows.push(OFF);
         continue;
@@ -399,6 +398,29 @@ export function* reedBedMeshJob(
       const tl = Math.hypot(pB.x - pA.x, pB.z - pA.z) || 1;
       const tx = (pB.x - pA.x) / tl;
       const tz = (pB.z - pA.z) / tl;
+      // The stage road: up to its deck, across the whole bed (both sides too: the road may cross at a slant).
+      let deck = false;
+      for (const side of [-1, 0, 1]) {
+        const q = world.road.query(
+          pt.x - tz * half * side,
+          pt.z + tx * half * side,
+          rq,
+        );
+        if (q.found && q.distance < q.halfWidth + DECK_EDGE) deck = true;
+      }
+      if (deck) {
+        rows.push(DECK);
+        continue;
+      }
+      if (gen.paths) {
+        const p = gen.paths.query(pt.x, pt.z, pq);
+        if (p.found && p.distance < p.halfWidth + outer + CROSSING) on = false;
+      }
+      if (on && gen.nearCulvert(pt.x, pt.z, outer + CROSSING)) on = false;
+      if (!on) {
+        rows.push(OFF);
+        continue;
+      }
       const bank = gen.channelBankHeight(ci, a);
       const h =
         def.height[0] +
@@ -423,12 +445,17 @@ export function* reedBedMeshJob(
       }
       let j = i;
       while (j + 1 < rows.length && rows[j + 1].on) j++;
-      if (j - i >= 2) addRun(rows.slice(i, j + 1));
+      if (j - i >= 2)
+        addRun(rows.slice(i, j + 1), !!rows[i - 1]?.deck, !!rows[j + 1]?.deck);
       i = j + 1;
     }
     yield;
 
-    function addRun(run: typeof rows): void {
+    function addRun(
+      run: typeof rows,
+      cutStart: boolean,
+      cutEnd: boolean,
+    ): void {
       const mid = run[run.length >> 1];
       const core = tileAt(mid.x, mid.z);
       // Core cross-section: foot, shoulder, top points, shoulder, foot (left to right).
@@ -446,7 +473,7 @@ export function* reedBedMeshJob(
           const x = r.x + r.rx * off;
           const z = r.z + r.rz * off;
           const g = ground.height(x, z);
-          const endK = taper(k, run.length);
+          const endK = taper(k, run.length, cutStart, cutEnd);
           const topY = g + Math.max(0.15, (r.top - g) * endK);
           const dome =
             kind === 0
@@ -552,8 +579,8 @@ export function* reedBedMeshJob(
             const z0 = r0.z + r0.rz * wh * sgn;
             const x1 = r1.x + r1.rx * wh * sgn;
             const z1 = r1.z + r1.rz * wh * sgn;
-            const e0 = taper(k, run.length);
-            const e1 = taper(k + 1, run.length);
+            const e0 = taper(k, run.length, cutStart, cutEnd);
+            const e1 = taper(k + 1, run.length, cutStart, cutEnd);
             const g0 = ground.height(x0, z0);
             const g1 = ground.height(x1, z1);
             const b0 = g0 - 0.05;
@@ -570,6 +597,70 @@ export function* reedBedMeshJob(
               Math.floor(r0.x * 7 + r0.z * 13) + (sgn > 0 ? 5 : 0) + layer * 3,
             );
           }
+      // Stems standing out of the top (seen from a bridge the core alone reads as a mat): a card at each top point
+      // of every row, turned at random, set off along the bed a little.
+      for (let k = 0; k < run.length; k++) {
+        const r = run[k];
+        const e = taper(k, run.length, cutStart, cutEnd);
+        for (const [t, sx] of TOP_ACROSS.entries()) {
+          const seed = Math.floor(r.x * 13 + r.z * 7) + t * 11;
+          const j = noise.noise2(r.x * 1.7 + t, r.z * 1.7 - t);
+          const ang = (seed % 628) / 100;
+          const off = sx * half;
+          const cx = r.x + r.rx * off + r.rz * j * 0.5;
+          const cz = r.z + r.rz * off - r.rx * j * 0.5;
+          const g = ground.height(cx, cz);
+          const top = g + (r.top - g) * e;
+          const dx = Math.cos(ang) * 0.6;
+          const dz = Math.sin(ang) * 0.6;
+          const rise = (0.5 + 0.35 * (0.5 + 0.5 * j)) * e;
+          quad(
+            cx - dx,
+            cz - dz,
+            cx + dx,
+            cz + dz,
+            top - 0.6,
+            top - 0.6,
+            top + rise,
+            top + rise,
+            seed,
+          );
+        }
+      }
+      // An end against a bridge: a wall of cards across the bed as well (the face seen from the deck), its stems
+      // reaching down into the water under the bridge.
+      for (const [cut, k, dir] of [
+        [cutStart, 0, 1],
+        [cutEnd, run.length - 1, -1],
+      ] as const) {
+        if (!cut) continue;
+        const r = run[k];
+        const n = run[k + dir];
+        const lx = n.x - r.x;
+        const lz = n.z - r.z;
+        const ll = Math.hypot(lx, lz) || 1;
+        const cells = Math.max(2, Math.round((2 * wallHalf) / STEP));
+        for (const [layer, inset] of WALL_LAYERS.entries()) {
+          const ox = r.x + (lx / ll) * inset;
+          const oz = r.z + (lz / ll) * inset;
+          const top = r.top + WALL_RISE * (1 + layer * 0.3);
+          for (let c = 0; c < cells; c++) {
+            const s0 = -wallHalf + (2 * wallHalf * c) / cells;
+            const s1 = -wallHalf + (2 * wallHalf * (c + 1)) / cells;
+            quad(
+              ox + r.rx * s0,
+              oz + r.rz * s0,
+              ox + r.rx * s1,
+              oz + r.rz * s1,
+              top - CELL_H,
+              top - CELL_H,
+              top,
+              top,
+              Math.floor(ox * 11 + oz * 5) + c * 7 + layer * 3,
+            );
+          }
+        }
+      }
     }
   }
   const group = new Group();
