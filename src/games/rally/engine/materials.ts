@@ -590,3 +590,18 @@ export function shapedDepthMaterial(
   shapedDepth.set(base, m);
   return m;
 }
+
+const plainDepth = new Map<Material, MeshDepthMaterial>();
+
+/**
+ * Shadow-pass material of one `base` (`customDepthMaterial`), else three's own: three's single shared depth material
+ * takes each caster's `map` without a program change, so which program a caster gets depends on the draw order, and the
+ * load's warm frame can miss one (a mid-stage compile: 3-10 s on a fresh shader cache). One per base: always the same.
+ */
+export function plainDepthMaterial(base: Material): MeshDepthMaterial {
+  let m = plainDepth.get(base);
+  if (m) return m;
+  m = new MeshDepthMaterial();
+  plainDepth.set(base, m);
+  return m;
+}
