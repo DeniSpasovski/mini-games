@@ -19,6 +19,7 @@ import {
   MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
+  type Object3D,
   Path,
   Quaternion,
   Ray,
@@ -1160,8 +1161,14 @@ export class CarModel {
 
   triangleCount(): number {
     let n = 0;
+    // What is drawn: nothing under a hidden group (a tyre level, the crew's other level of detail).
+    const shown = (o: Object3D): boolean => {
+      for (let p: Object3D | null = o; p && p !== this.root; p = p.parent)
+        if (!p.visible) return false;
+      return true;
+    };
     this.root.traverse((o) => {
-      if (o instanceof Mesh && o.visible && o.parent?.visible !== false) {
+      if (o instanceof Mesh && shown(o)) {
         const g = o.geometry as BufferGeometry;
         const tris =
           (g.index ? g.index.count : g.getAttribute('position').count) / 3;

@@ -26,7 +26,7 @@ export interface HelmetParts {
 export const HELMET_TOP = 0.162;
 /** The back of the shell behind the centre of the head, at the height of the neck restraint's collar (m). */
 export const HELMET_BACK = 0.146;
-/** Where the HANS tethers clip on, either side at the back (the left one; mirror x). */
+/** Where the head restraint's tethers clip on, either side at the back (the left one; mirror x). */
 export const HELMET_POST: [number, number, number] = [0.098, -0.07, -0.085];
 
 const RUBBER = '#141518';
@@ -339,7 +339,7 @@ export function helmet(
     matt.push({ s: under, color: RUBBER });
   }
 
-  // HANS posts: a small boss either side at the back.
+  // Tether posts of the head restraint: a small boss either side at the back.
   for (const sd of [1, -1]) {
     const [px, py, pz] = HELMET_POST;
     const at = shellAt(Math.atan2(px * sd, pz), py);

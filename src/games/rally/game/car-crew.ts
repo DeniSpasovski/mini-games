@@ -29,7 +29,6 @@ export class CarCrew {
 
   constructor(def: CarDef, livery: LiveryInfo) {
     this.group.name = 'crew';
-    this.group.userData.noDirt = true;
     const { cockpit, glass } = def.model;
     if (!cockpit || !glass) return;
     this.params = {
