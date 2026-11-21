@@ -687,8 +687,9 @@ export interface DitchDef {
 }
 
 /**
- * A reed bed drawn as one volume along a ditch (world/reed-bed.ts): bank to bank, its top `height` m above the bank
- * line (noise between the two), dark inside; reed card cells stand round its sides for the silhouette. `cover`: share
+ * A reed bed along a ditch (world/reed-bed.ts): a stand of reed cards rooted in the bed, bank to bank, its top `height` m
+ * above the bank line (noise between the two), in bands of tall and short stems with open gaps; two rows of cards
+ * along its sides for the silhouette. `cover`: share
  * of the length grown over (the rest open: a sapling, a cleared stretch). `reach`: only within this far of the stage
  * road (m). Per season: summer green, autumn olive below / straw above, spring last year's straw cut lower.
  */
@@ -719,8 +720,8 @@ export interface TerrainDef {
    * `topWidth` m across at the bank line, a `bedWidth` m bed `depth` m down, `water` m of water in it (0 = dry). The
    * bank line follows the land (no long cut to keep the water falling), the banks stay earth and grass (no rock, no
    * pale edge). Optional dressing per side (`track`: 1 = the channel's right looking along it, -1 = left): a mown
-   * strip `mown` m wide and a dirt maintenance track beyond it (`trackWidth`). `reedBed`: a reed bed drawn as one
-   * volume along the ditch (world/reed-bed.ts).
+   * strip `mown` m wide and a dirt maintenance track beyond it (`trackWidth`). `reedBed`: a reed stand along
+   * the ditch (world/reed-bed.ts).
    */
   ditches?: DitchDef;
   flatAreas: FlatArea[];

@@ -65,7 +65,7 @@ const seasonalGrass = (r: ScatterRule): ScatterRule[] => [
 
 /**
  * The drains and the canal are field ditches (`terrain.ditches`): a V about 7 m across and 1.7 m deep, 0.4 m of murky
- * water in its bed, the reed bed drawn as one volume over it (world/reed-bed.ts). The mown strip and the maintenance track run on the
+ * water in its bed, a dense reed stand in it (world/reed-bed.ts). The mown strip and the maintenance track run on the
  * ditch's right (looking along it; at the stage bridge the side away from the start), the dredged spoil and brush heaps
  * beyond them; the other bank is weeds, saplings and bramble down to the field.
  */
@@ -85,8 +85,8 @@ const DITCHES: DitchDef = {
  * What grows in and along the ditches by season (ref photos of the bridge canal: July thicket, November). Distances are
  * from the drain's mapped edge (2.5 m out from its line; the ditch lip is 1 m beyond it, its bed 2 m inside it).
  *
- * - The reed bed itself is the volume; reed cards stand along its edges and through its top for the silhouette and the
- *   plumes (`ditchTop`: the tops level, 0.8-1.4 m above the bank): green in summer, the November stand in autumn (olive
+ * - The reed bed (world/reed-bed.ts) is a stand of reed cards rooted in the bed, in bands of tall and short stems with
+ *   open gaps; these scattered reeds grow among them for the plumes (`ditchTop`: the tops level, 0.8-1.4 m above the bank): green in summer, the November stand in autumn (olive
  *   below, straw above, beige plumes), last year's bleached stems over the new shoots in spring. A few cattails.
  * - The weedy bank (the left): broadleaf saplings and shrubs 1-2 m (ash / elm, box elder), bramble tangles, nettles,
  *   rust-red dead docks and knotweed in autumn, dry brush, rank grass.
@@ -97,7 +97,7 @@ const canalGrowth = (): ScatterRule[] => {
   const reedEdge = {
     channelDist: [-0.6, 1.0] as [number, number],
     detail: true,
-    // Right up to a bridge's kerb (the reed bed volume stops there too: world/reed-bed.ts DECK_EDGE).
+    // Right up to a bridge's kerb (the reed bed stops there too: world/reed-bed.ts DECK_EDGE).
     minRoadDist: 0.4,
     inChannel: true,
     minPathDist: 0.3,

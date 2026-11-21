@@ -171,8 +171,8 @@ const carLods = (full: number, reduced: number, far: number): LodSpec[] => [
 const PACK_VEHICLE_LODS = carLods(50, 140, 480);
 
 /**
- * Reed, cattail and weed cards of the ditches end here (m): past it the reed bed's volume (world/reed-bed.ts) and
- * the ground carry the look on their own.
+ * Reed, cattail and weed cards of the ditches end here (m), as the reed bed's own cards (world/reed-bed.ts
+ * WALL_NEAR): past it the ground carries the look on its own.
  */
 const DITCH_CARDS = 100;
 

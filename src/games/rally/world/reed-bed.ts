@@ -8,7 +8,6 @@ import {
   Mesh,
   MeshStandardMaterial,
   Object3D,
-  Vector3,
   type Material,
 } from 'three';
 import { Noise2D } from '../../../shared/noise';
@@ -27,41 +26,48 @@ import { newRoadQuery } from './road';
 import type { World } from './world';
 
 /**
- * Reed beds of the field ditches (`terrain.ditches.reedBed`) drawn as one volume: a dark core from bank to bank along
- * the ditch, its top `height` m above the bank line, and a wall of reed cards (the season's reed sheet) round its sides
- * for the silhouette. Seen from a bridge it closes up like the real bed (crossed cards alone never did: from above
- * their thin stems vanish and the water and ground show through); the scattered reed cards (`ditchTop` rules) stand on
- * it for the plumes. The core is merged per 256 m tile; the wall per 128 m cell, drawn only near the camera (it fades
- * out by WALL_NEAR, as the scattered cards end: past that the core alone stands for the bed). Built once per world.
+ * Reed beds of the field ditches (`terrain.ditches.reedBed`): a dense stand of reed cards (the season's reed sheet)
+ * rooted in the ditch's bed and slopes, its top `height` m above the bank line, plus a wall of cards along each side for
+ * the silhouette. Stems only, no solid fill: the gaps between them stay open and dark, as in the real bed. The scattered
+ * reed cards (`ditchTop` rules) grow among them. Merged per 128 m cell, drawn only near the camera (it fades out by
+ * WALL_NEAR, as the scattered cards end). Built once per world.
  */
-const TILE = 256;
 /** Wall cells (m) and where the wall has faded out (m from the camera; the ditch cards' `DITCH_CARDS`). */
 const WALL_CELL = 128;
 const WALL_NEAR = 100;
 const WALL_FADE = 80;
 /** Along-ditch step (m): one reed cell of the wall per step (the sheet's cells are 1.2 m wide). */
 const STEP = 1.2;
-/** The core reaches this share of the ditch's half top width (the reeds fill it to just inside the lips). */
+/** The stand reaches this share of the ditch's half top width (the reeds fill it to just inside the lips). */
 const SPAN = 0.9;
-/** The wall of cards stands this far outside the core, and its plumes this far above the core's top (m). */
+/** The wall of cards stands this far outside the stand, and its plumes this far above its top (m). */
 const WALL_OUT = 0.22;
 const WALL_RISE = 0.6;
 /** Card wall layers: inset (m) from the outer one (two rows of stems close the silhouette). */
 const WALL_LAYERS = [0, 0.45];
 /** Height of a reed cell of the sheet (m): the wall shows its top part at true size. */
 const CELL_H = 2.4;
-/** Points across the core's top (inner) besides its two shoulders. */
-const TOP_ACROSS = [-0.62, -0.2, 0.2, 0.62];
+/** Stand card rows across the bed (share of its half width). */
+const TOP_ACROSS = [-0.8, -0.48, -0.16, 0.16, 0.48, 0.8];
+/**
+ * Height bands (m) added to a card's top: each row of the stand has its own long runs of tall plumes and low stems
+ * along the ditch (`BAND_LONG` m), broken by clumps (`BAND_CLUMP` m), as the real bed grows in strips.
+ */
+const BAND_LOW = -1.35;
+const BAND_HIGH = 0.45;
+const BAND_LONG = 11;
+const BAND_CLUMP = 3.5;
+/** Open gaps (bank and water show): patches about `GAP_SIZE` m along the ditch, most of them across the whole bed. */
+const GAP_SIZE = 7;
+const GAP_SHARE = 0.16;
 /** Keep this far from a road / track crossing the ditch (m, beyond its half width). */
 const CROSSING = 2;
 /** The stage road's bridges: the bed grows right up to the deck, this far past the road's edge (its kerb, m). */
 const DECK_EDGE = 0.4;
 
 interface Look {
-  /** Wall sheet; the core's two colours (sRGB) mottled over its top, and its root (dark inside). */
+  /** Card sheet. */
   sheet: PlantSheet;
-  top: [string, string];
-  root: string;
   /** Height and cover multipliers on the def's. */
   height: number;
   cover: number;
@@ -74,101 +80,22 @@ interface Look {
 const LOOKS: Record<Season, Look> = {
   summer: {
     sheet: 'reeds',
-    top: ['#33401c', '#45522a'],
-    root: '#121609',
     height: 1,
     cover: 1,
   },
   autumn: {
     sheet: 'reeds-autumn',
-    top: ['#4d4626', '#7a6638'],
-    root: '#15170d',
     height: 1,
     cover: 1,
   },
   spring: {
     sheet: 'reeds-winter',
-    top: ['#57503c', '#46432f'],
-    root: '#1a1810',
     height: 0.75,
     cover: 0.8,
   },
 };
 
-const coreMats = new Map<Season, MeshStandardMaterial>();
 const wallMats = new Map<Season, MeshStandardMaterial>();
-
-/**
- * The core: vertex colour = light (dark roots to a lit top), the hue mottled between the season's two top colours by
- * noise in world space, fine stem streaks on the sides and leaf mottle on the top. Lit like the ground (no specular).
- */
-function coreMaterial(season: Season): MeshStandardMaterial {
-  let m = coreMats.get(season);
-  if (m) return m;
-  const look = LOOKS[season];
-  const a = new Color(look.top[0]);
-  const b = new Color(look.top[1]);
-  m = new MeshStandardMaterial({ vertexColors: true, roughness: 1 });
-  m.defines = { RALLY_GROUND: 1, RALLY_FOLIAGE: 0.15 };
-  m.onBeforeCompile = (shader) => {
-    addWorldUniforms(shader);
-    shader.uniforms.uRbA = { value: a };
-    shader.uniforms.uRbB = { value: b };
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        '#include <common>\nvarying vec3 vRbW;\nvarying float vRbUp;',
-      )
-      .replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\n\tvRbW = ( modelMatrix * vec4( position, 1.0 ) ).xyz;\n\tvRbUp = normal.y;',
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <common>',
-        /* glsl */ `#include <common>
-uniform vec3 uRbA;
-uniform vec3 uRbB;
-varying vec3 vRbW;
-varying float vRbUp;
-float rbHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
-float rbNoise( vec2 p ) {
-	vec2 i = floor( p );
-	vec2 f = fract( p );
-	f = f * f * ( 3.0 - 2.0 * f );
-	return mix( mix( rbHash( i ), rbHash( i + vec2( 1.0, 0.0 ) ), f.x ),
-		mix( rbHash( i + vec2( 0.0, 1.0 ) ), rbHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
-}`,
-      )
-      .replace(
-        '#include <color_fragment>',
-        /* glsl */ `#include <color_fragment>
-	{
-		// Hue: patches of the two top colours (0.8 m), lighter up top. Detail: stems on the sides (thin vertical
-		// streaks), leaves and plumes on the top (fine mottle), dark gaps between them.
-		float up = clamp( vRbUp, 0.0, 1.0 );
-		float hue = rbNoise( vRbW.xz * 1.3 ) * 0.7 + rbNoise( vRbW.xz * 4.1 ) * 0.3;
-		vec3 tint = mix( uRbA, uRbB, smoothstep( 0.3, 0.75, hue ) * ( 0.4 + 0.6 * up ) );
-		float stems = rbNoise( vec2( ( vRbW.x + vRbW.z ) * 22.0, vRbW.y * 2.2 ) );
-		float leaves = rbNoise( vRbW.xz * 11.0 + vRbW.y * 3.0 ) * 0.6 + rbNoise( vRbW.xz * 29.0 ) * 0.4;
-		float d = mix( stems, leaves, up );
-		diffuseColor.rgb *= tint * ( 0.3 + 1.0 * smoothstep( 0.2, 0.9, d ) );
-	}`,
-      )
-      .replace(
-        '#include <normal_fragment_begin>',
-        '#include <normal_fragment_begin>\n\tnormal = normalize( vNormal );',
-      )
-      .replace(
-        '#include <lights_fragment_end>',
-        '#include <lights_fragment_end>\n\treflectedLight.directSpecular = vec3( 0.0 );\n\treflectedLight.indirectSpecular = vec3( 0.0 );',
-      );
-  };
-  m.customProgramCacheKey = () => 'reed-bed-core';
-  m.name = `reed_bed_core_${season}`;
-  coreMats.set(season, m);
-  return m;
-}
 
 /** The wall of reed cards: the season's reed sheet, alpha tested, lit like the ground (as the scattered cards). */
 function wallMaterial(season: Season): MeshStandardMaterial {
@@ -334,19 +261,26 @@ export function* reedBedMeshJob(
   const look = LOOKS[season];
   const noise = new Noise2D(world.map.seed + 811);
   const cells = roadCells(world);
+  /** Band height (m) at (x, z) for stand row `row` (rows differ: strips of tall and low reeds side by side). */
+  const band = (x: number, z: number, row: number): number => {
+    const n =
+      0.75 *
+        noise.noise2(x / BAND_LONG + row * 3.1, z / BAND_LONG - row * 1.7) +
+      0.25 *
+        noise.noise2(x / BAND_CLUMP - row * 2.3, z / BAND_CLUMP + row * 4.1);
+    const t = Math.min(1, Math.max(0, (n + 0.3) / 0.6));
+    return BAND_LOW + (BAND_HIGH - BAND_LOW) * t * t * (3 - 2 * t);
+  };
+  /** Whether stand row `row` has a gap at (x, z) (rows share most of a gap: it opens across the bed). */
+  const gap = (x: number, z: number, row: number): boolean =>
+    0.8 * noise.noise2(x / GAP_SIZE + 57, z / GAP_SIZE - 23) +
+      0.2 * noise.noise2(x / 2.5 + row * 5.3, z / 2.5 - row * 3.9) <
+    -1 + 2 * GAP_SHARE * 0.9;
   const nearMemo = new Map<string, number>();
   const rq = newRoadQuery();
   const pq = newPathQuery();
   const ground = world.heightfield;
   const reedCells = [0, 1, 2, 3, 4, 5];
-  const rootC = new Color(look.root);
-  const tiles = new Map<string, Acc>();
-  const tileAt = (x: number, z: number) => {
-    const key = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`;
-    let t = tiles.get(key);
-    if (!t) tiles.set(key, (t = acc()));
-    return t;
-  };
   const walls = new Map<string, Acc>();
   const wallAt = (x: number, z: number) => {
     const key = `${Math.floor(x / WALL_CELL)},${Math.floor(z / WALL_CELL)}`;
@@ -357,7 +291,6 @@ export function* reedBedMeshJob(
   const pt = { x: 0, z: 0 };
   const pA = { x: 0, z: 0 };
   const pB = { x: 0, z: 0 };
-  const up = new Vector3();
 
   for (let ci = 0; ci < net.paths.length; ci++) {
     const dd = gen.ditchOf(ci);
@@ -462,74 +395,6 @@ export function* reedBedMeshJob(
       cutStart: boolean,
       cutEnd: boolean,
     ): void {
-      const mid = run[run.length >> 1];
-      const core = tileAt(mid.x, mid.z);
-      // Core cross-section: foot, shoulder, top points, shoulder, foot (left to right).
-      const across: [number, number][] = [
-        [-half, -1],
-        [-half * 0.96, -0.5],
-        ...TOP_ACROSS.map((s): [number, number] => [s * half, 0]),
-        [half * 0.96, -0.5],
-        [half, -1],
-      ];
-      const R = across.length;
-      const c0 = core.pos.length / 3;
-      run.forEach((r, k) => {
-        for (const [off, kind] of across) {
-          const x = r.x + r.rx * off;
-          const z = r.z + r.rz * off;
-          const g = ground.height(x, z);
-          const endK = taper(k, run.length, cutStart, cutEnd);
-          const topY = g + Math.max(0.15, (r.top - g) * endK);
-          const dome =
-            kind === 0
-              ? 0.06 * (1 - Math.abs(off / half)) +
-                0.12 * noise.noise2(x * 0.9, z * 0.9)
-              : 0;
-          let y: number;
-          let light: number;
-          if (kind === -1) {
-            y = g - 0.05;
-            light = 0;
-          } else if (kind === -0.5) {
-            y = topY - 0.3;
-            light = 0.75;
-          } else {
-            y = topY + dome;
-            light = 1;
-          }
-          core.pos.push(x, y, z);
-          const side = Math.sign(off) * (kind === 0 ? 0.15 : 0.55);
-          up.set(r.rx * side, 1, r.rz * side).normalize();
-          core.nor.push(up.x, up.y, up.z);
-          const l = 0.35 + 0.65 * light;
-          core.col.push(
-            rootC.r + (l - rootC.r) * light,
-            rootC.g + (l - rootC.g) * light,
-            rootC.b + (l - rootC.b) * light,
-          );
-        }
-      });
-      for (let k = 0; k < run.length - 1; k++)
-        for (let s = 0; s < R - 1; s++) {
-          const a = c0 + k * R + s;
-          core.idx.push(a, a + 1, a + R, a + 1, a + R + 1, a + R);
-        }
-      // End caps: a fan from the ditch's bed under the middle of the first / last cross-section (closes the V too).
-      for (const [k, flip] of [
-        [0, true],
-        [run.length - 1, false],
-      ] as const) {
-        const r = run[k];
-        const base = c0 + k * R;
-        const centre = core.pos.length / 3;
-        core.pos.push(r.x, r.bank - dd!.depth - 0.05, r.z);
-        core.nor.push(0, 1, 0);
-        core.col.push(rootC.r, rootC.g, rootC.b);
-        for (let s = 0; s < R - 1; s++)
-          if (flip) core.idx.push(centre, base + s + 1, base + s);
-          else core.idx.push(centre, base + s, base + s + 1);
-      }
       // The wall of reed cards: one cell per step along both sides (the stand thins out into the open ends).
       const quad = (
         x0: number,
@@ -587,6 +452,7 @@ export function* reedBedMeshJob(
             const z1 = r1.z + r1.rz * wh * sgn;
             const e0 = taper(k, run.length, cutStart, cutEnd);
             const e1 = taper(k + 1, run.length, cutStart, cutEnd);
+            if (gap(x0, z0, 7 + sgn + layer * 2)) continue;
             const g0 = ground.height(x0, z0);
             const g1 = ground.height(x1, z1);
             const b0 = g0 - 0.05;
@@ -598,42 +464,63 @@ export function* reedBedMeshJob(
               z1,
               b0,
               b1,
-              g0 + (r0.top - g0 + WALL_RISE * (1 + layer * 0.3)) * e0,
-              g1 + (r1.top - g1 + WALL_RISE * (1 + layer * 0.3)) * e1,
+              Math.max(
+                g0 + 0.3,
+                g0 +
+                  (r0.top -
+                    g0 +
+                    WALL_RISE * (1 + layer * 0.3) +
+                    band(x0, z0, 7 + sgn + layer * 2)) *
+                    e0,
+              ),
+              Math.max(
+                g1 + 0.3,
+                g1 +
+                  (r1.top -
+                    g1 +
+                    WALL_RISE * (1 + layer * 0.3) +
+                    band(x1, z1, 7 + sgn + layer * 2)) *
+                    e1,
+              ),
               Math.floor(r0.x * 7 + r0.z * 13) + (sgn > 0 ? 5 : 0) + layer * 3,
             );
           }
-      // Stems standing out of the top (seen from a bridge the core alone reads as a mat): a card at each top point
-      // of every row, turned at random, set off along the bed a little.
+      // The stand: crossed reed cards rooted in the ditch's bed and slopes (no solid fill: the gaps between the stems
+      // stay open and dark), two staggered rows per step across the bed, their plumes above the bank line.
       for (let k = 0; k < run.length; k++) {
         const r = run[k];
         const e = taper(k, run.length, cutStart, cutEnd);
-        for (const [t, sx] of TOP_ACROSS.entries()) {
-          const seed = Math.floor(r.x * 13 + r.z * 7) + t * 11;
-          const j = noise.noise2(r.x * 1.7 + t, r.z * 1.7 - t);
-          const ang = (seed % 628) / 100;
-          const off = sx * half;
-          const cx = r.x + r.rx * off + r.rz * j * 0.5;
-          const cz = r.z + r.rz * off - r.rx * j * 0.5;
-          const g = ground.height(cx, cz);
-          const top = g + (r.top - g) * e;
-          const rise = (0.5 + 0.35 * (0.5 + 0.5 * j)) * e;
-          for (const turn of [0, Math.PI / 2]) {
-            const dx = Math.cos(ang + turn) * 0.6;
-            const dz = Math.sin(ang + turn) * 0.6;
-            quad(
-              cx - dx,
-              cz - dz,
-              cx + dx,
-              cz + dz,
-              top - 0.6,
-              top - 0.6,
-              top + rise,
-              top + rise,
-              seed + (turn ? 3 : 0),
-            );
+        for (const along of [0, 0.5])
+          for (const [t, sx] of TOP_ACROSS.entries()) {
+            const seed =
+              Math.floor(r.x * 13 + r.z * 7) + t * 11 + (along ? 29 : 0);
+            const j = noise.noise2(r.x * 1.7 + t + along, r.z * 1.7 - t);
+            const ang = (seed % 628) / 100;
+            const off = (sx + (along ? 0.08 : 0)) * half;
+            const shift = (along - 0.25) * STEP + j * 0.35;
+            const cx = r.x + r.rx * off + r.rz * shift;
+            const cz = r.z + r.rz * off - r.rx * shift;
+            const g = ground.height(cx, cz);
+            const top = g + (r.top - g) * e;
+            const rise = (0.35 + 0.45 * (0.5 + 0.5 * j)) * e;
+            if (gap(cx, cz, t)) continue;
+            const tall = Math.max(g + 0.3, top + rise + band(cx, cz, t) * e);
+            for (const turn of [0, Math.PI / 2]) {
+              const dx = Math.cos(ang + turn) * 0.6;
+              const dz = Math.sin(ang + turn) * 0.6;
+              quad(
+                cx - dx,
+                cz - dz,
+                cx + dx,
+                cz + dz,
+                g - 0.05,
+                g - 0.05,
+                tall,
+                tall,
+                seed + (turn ? 3 : 0),
+              );
+            }
           }
-        }
       }
       // An end against a bridge: a wall of cards across the bed as well (the face seen from the deck), its stems
       // reaching down into the water under the bridge.
@@ -673,12 +560,7 @@ export function* reedBedMeshJob(
   }
   const group = new Group();
   group.name = 'reed-beds';
-  const coreMat = coreMaterial(season);
   const wallMat = wallMaterial(season);
-  for (const t of tiles.values()) {
-    if (t.idx.length) group.add(toMesh(t, coreMat, true));
-    yield;
-  }
   // Each wall cell is a LOD about its centre: drawn while the camera is within WALL_NEAR of some part of it.
   const reach = WALL_NEAR + (WALL_CELL * Math.SQRT2) / 2 + 10;
   for (const [key, w] of walls) {
