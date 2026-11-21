@@ -59,6 +59,13 @@ export function keyboardSteerLimit(speed: number): number {
   return 1 / (1 + (Math.max(0, speed) / 18) ** 1.5);
 }
 
+/** Right stick axis -> -1..1 with the dead zone removed. */
+function lookAxis(v: number): number {
+  const dz = 0.15;
+  const a = Math.abs(v);
+  return a < dz ? 0 : Math.sign(v) * Math.min(1, (a - dz) / (1 - dz));
+}
+
 export interface DriveState {
   /** Forward speed (m/s). */
   speed: number;
@@ -85,6 +92,8 @@ export class InputController {
   stickX = 0;
   /** Touch steering stick X (-1..1), set by touch-controls.ts; null = touch steers with the left / right buttons. */
   touchStick: number | null = null;
+  /** Right stick (-1..1, dead zone removed), for the look-around camera: x + = look right, y + = stick down. Zero while a menu owns the pad. */
+  readonly look = { x: 0, y: 0 };
   /** Last device used, for HUD hints. */
   device: 'keyboard' | 'gamepad' | 'touch' = 'keyboard';
   private _enabled = true;
@@ -243,6 +252,7 @@ export class InputController {
   private pollGamepad(): VehicleControls | null {
     const pads = navigator.getGamepads?.() ?? [];
     const pad = [...pads].find((p) => p && p.connected);
+    this.look.x = this.look.y = 0;
     if (!pad) return null;
     // Edge-detect action buttons. While disabled a menu owns the pad
     // (src/shared/pad-nav.ts): only Start (pause) still reaches the game.
@@ -257,6 +267,10 @@ export class InputController {
         this.emit(a);
       this.padButtons[i] = b.pressed;
     });
+    if (this.enabled) {
+      this.look.x = lookAxis(pad.axes[2] ?? 0);
+      this.look.y = lookAxis(pad.axes[3] ?? 0);
+    }
     // Raw stick X: the dead zone, curve and rack are PadSteering's.
     const steer = pad.axes[0] ?? 0;
     const throttle = pad.buttons[7]?.value ?? 0;
