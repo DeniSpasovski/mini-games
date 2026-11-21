@@ -444,13 +444,17 @@ export function aces(c: Color, exposure: number, out: Color): Color {
   );
 }
 
+const _acesV = new Vector3();
+
 /** The scene light that `aces` turns into `c` (each channel kept below the curve's shoulder). */
 export function inverseAces(c: Color, exposure: number, out: Color): Color {
-  const v = new Vector3(
-    MathUtils.clamp(c.r, 0, 0.96),
-    MathUtils.clamp(c.g, 0, 0.96),
-    MathUtils.clamp(c.b, 0, 0.96),
-  ).applyMatrix3(ACES_OUT_INV);
+  const v = _acesV
+    .set(
+      MathUtils.clamp(c.r, 0, 0.96),
+      MathUtils.clamp(c.g, 0, 0.96),
+      MathUtils.clamp(c.b, 0, 0.96),
+    )
+    .applyMatrix3(ACES_OUT_INV);
   // y = (x^2 + 0.0245786 x - 0.000090537) / (0.983729 x^2 + 0.432951 x + 0.238081), solved for x >= 0.
   const fi = (y: number) => {
     const a = 1 - 0.983729 * y;
@@ -609,7 +613,8 @@ const FOG_DENSITY = /* glsl */ `
  */
 const HAZE_FRAGMENT = /* glsl */ `
 #if defined( USE_FOG ) && defined( TONE_MAPPING ) && defined( FOG_EXP2 )
-	if ( wsHaze.w > 0.5 ) {
+	// (near pixels skipped: their optical depth stays under ~1e-3, invisible, even at the height falloff's 2.5x cap)
+	if ( wsHaze.w > 0.5 && fogDensity * vFogDepth > 0.012 ) {
 		${FOG_DENSITY}
 		float wsX = wsFogDensity * vFogDepth;
 		float wsTauH = wsX * wsX / ( 1.0 + wsX / wsAerial.w );
@@ -632,28 +637,31 @@ const HAZE_FRAGMENT = /* glsl */ `
 
 const FOG_FRAGMENT = /* glsl */ `
 #ifdef USE_FOG
-	${FOG_DENSITY}
+	bool wsDisplayFog = true;
 	#if defined( TONE_MAPPING ) && defined( FOG_EXP2 )
 		// Done before tone mapping (\`HAZE_FRAGMENT\`): only the fog layer below.
-		if ( wsHaze.w > 0.5 ) fogFactor = 0.0;
+		wsDisplayFog = wsHaze.w < 0.5;
 	#endif
-	vec3 wsFogCol = fogColor;
-	if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
-		float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
-		// A lobe ~20 deg wide: wider, a low sun ahead whitens the whole horizon.
-		wsSunAmt *= wsSunAmt;
-		wsSunAmt *= wsSunAmt;
-		wsFogCol += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt );
+	if ( wsDisplayFog ) {
+		${FOG_DENSITY}
+		vec3 wsFogCol = fogColor;
+		if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
+			float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
+			// A lobe ~20 deg wide: wider, a low sun ahead whitens the whole horizon.
+			wsSunAmt *= wsSunAmt;
+			wsSunAmt *= wsSunAmt;
+			wsFogCol += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt );
+		}
+		// Light added over the scene (\`defines.RALLY_ADDITIVE\`, lamp pools) fades into the fog: mixed towards the fog colour
+		// it would add the fog's grey over its whole quad, a bright square in thick fog.
+		#ifdef RALLY_ADDITIVE
+			gl_FragColor.rgb *= 1.0 - fogFactor;
+		#else
+			gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogCol, fogFactor );
+		#endif
 	}
-	// Light added over the scene (\`defines.RALLY_ADDITIVE\`, lamp pools) fades into the fog: mixed towards the fog colour
-	// it would add the fog's grey over its whole quad, a bright square in thick fog.
-	#ifdef RALLY_ADDITIVE
-		gl_FragColor.rgb *= 1.0 - fogFactor;
-	#else
-		gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogCol, fogFactor );
-	#endif
 	if ( wsFogLayer.w > 0.0 ) {
-		float wsTau = wsLayerDepth( cameraPosition.y, vFogWorld.y, length( wsFogRay ) );
+		float wsTau = wsLayerDepth( cameraPosition.y, vFogWorld.y, length( vFogWorld - cameraPosition ) );
 		#ifdef RALLY_ADDITIVE
 			gl_FragColor.rgb *= exp( - wsTau );
 		#else

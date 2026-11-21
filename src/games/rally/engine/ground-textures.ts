@@ -4,6 +4,7 @@ import {
   LinearMipmapLinearFilter,
   NoColorSpace,
   RepeatWrapping,
+  RGFormat,
   SRGBColorSpace,
   type Texture,
 } from 'three';
@@ -110,26 +111,30 @@ export function groundArray(): DataArrayTexture {
   return (array ??= loadArray(URLS, 110, SRGBColorSpace));
 }
 
-/** The scans' normals (flat until they decode). */
+/**
+ * The scans' normals (flat until they decode): x and y only (RG8, half the colour array's fetch; the terrain shader
+ * rebuilds z), 4x anisotropic (their relief fades out within the detail distance anyway).
+ */
 export function groundNormalArray(): DataArrayTexture {
-  return (normals ??= loadArray(NORMAL_URLS, 128, NoColorSpace, 255));
+  return (normals ??= loadArray(NORMAL_URLS, 128, NoColorSpace, 2, 4));
 }
 
 function loadArray(
   urls: string[],
   fill: number,
   colorSpace: string,
-  blue = fill,
+  channels: 2 | 4 = 4,
+  anisotropy = 8,
 ): DataArrayTexture {
-  const data = new Uint8Array(SIZE * SIZE * 4 * urls.length).fill(fill);
-  if (blue !== fill) for (let i = 2; i < data.length; i += 4) data[i] = blue;
+  const data = new Uint8Array(SIZE * SIZE * channels * urls.length).fill(fill);
   const tex = new DataArrayTexture(data, SIZE, SIZE, urls.length);
+  if (channels === 2) tex.format = RGFormat;
   tex.colorSpace = colorSpace;
   tex.wrapS = tex.wrapT = RepeatWrapping;
   tex.magFilter = LinearFilter;
   tex.minFilter = LinearMipmapLinearFilter;
   tex.generateMipmaps = true;
-  tex.anisotropy = 8;
+  tex.anisotropy = anisotropy;
   tex.needsUpdate = true;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = SIZE;
@@ -150,11 +155,16 @@ function loadArray(
         ctx.drawImage(img, 0, 0, SIZE, SIZE);
         const px = ctx.getImageData(0, 0, SIZE, SIZE).data;
         // Array layers are not flipped like canvas textures: v = 0 is the first row.
-        for (let y = 0; y < SIZE; y++)
-          data.set(
-            px.subarray((SIZE - 1 - y) * row, (SIZE - y) * row),
-            (layer * SIZE + y) * row,
-          );
+        for (let y = 0; y < SIZE; y++) {
+          const src = (SIZE - 1 - y) * row;
+          if (channels === 4)
+            data.set(px.subarray(src, src + row), (layer * SIZE + y) * row);
+          else
+            for (let x = 0, d = (layer * SIZE + y) * SIZE * 2; x < SIZE; x++) {
+              data[d + x * 2] = px[src + x * 4];
+              data[d + x * 2 + 1] = px[src + x * 4 + 1];
+            }
+        }
       });
       tex.needsUpdate = true;
     },

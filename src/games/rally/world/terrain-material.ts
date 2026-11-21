@@ -205,8 +205,8 @@ export function getTerrainMaterial(
         }
         // Slope (dH/dx, dH/dz, world) of a scan's surface from its normal map (OpenGL: green = +v = +z here).
         vec2 gSlope( float layer, vec2 p, float s, vec2 dx, vec2 dy ) {
-          vec3 n = textureGrad( tGroundN, vec3( p * s, layer ), dx * s, dy * s ).rgb * 2.0 - 1.0;
-          return - n.xy / max( n.z, 0.35 );
+          vec2 n = textureGrad( tGroundN, vec3( p * s, layer ), dx * s, dy * s ).rg * 2.0 - 1.0;
+          return - n / max( sqrt( max( 1.0 - dot( n, n ), 0.0 ) ), 0.35 );
         }
         // The scan with its tiling broken: a rotated, blurred tap at ~1/3 the scale modulates its brightness. ml = the scan's
         // mean linear luminance (GROUND_MEAN). hh = brightness relative to that mean (1 = average): x the near tap (the
@@ -441,8 +441,8 @@ export function getTerrainMaterial(
     far
       ? 'rally-terrain-far-v10'
       : holes
-        ? 'rally-terrain-holes-v15'
-        : 'rally-terrain-v15';
+        ? 'rally-terrain-holes-v16'
+        : 'rally-terrain-v16';
   if (far) sharedFar = mat;
   else if (holes) sharedHoles = mat;
   else shared = mat;

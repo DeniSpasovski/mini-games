@@ -333,8 +333,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (stubble tint): 1 m card patches to 90 m, at least 2 m clear of the stage road. Corn (`corn`, `corn_row`; no stage grows it yet) grows in rows 0.75 m apart
   along the strips (`rows.fields`). Both are CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`;
   `bakeCropCards` (`engine/crops.ts`) renders the cards once per page, 4 variants each with its own mix of plant heights so the field tops are uneven. Near
-  detail is chosen by road distance, never camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road and is crossed cards at
-  every distance, so nothing swaps or fills in as the car drives on.
+  detail is chosen by road distance, never camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within `NEAR_BOOST_ROAD` m of the stage road
+  and is crossed cards at every distance, so nothing swaps or fills in as the car drives on.
 - **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from seven atlases (`engine/plants/*.webp`, coverage mips)
   that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models (green / dry / spring grass tufts, the weed margin, nettles `tall_weeds`) and
   CC BY Sketchfab models by Nicholas-3D (reed beds and cattails `reeds`; `--sheets reeds` rebakes only that sheet; credits in `THIRD-PARTY.md` and About), and the woods' ferns (`fern`,
