@@ -195,8 +195,12 @@ function surface(t: Tailor) {
     /** Front (dir 1) or back (-1) of the torso at (x, y). */
     z(x: number, y: number, dir = 1): number {
       for (const win of [0.018, 0.035, 0.07]) {
+        // On that side of it: a coarse mesh may have only a point of the other side this near.
         const i = pick(
-          (px, py) => Math.abs(px - x) < win && Math.abs(py - y) < win,
+          (px, py, pz) =>
+            Math.abs(px - x) < win &&
+            Math.abs(py - y) < win &&
+            (pz - t.torsoZ) * dir > 0,
           (_x, _y, pz) => pz * dir,
         );
         if (i >= 0) return p[i * 3 + 2];
@@ -209,7 +213,10 @@ function surface(t: Tailor) {
         (px, py) => Math.abs(px - x) < 0.02 && py < neckY,
         (_x, py) => py,
       );
-      return { y: p[i * 3 + 1], z: p[i * 3 + 2] };
+      // Its crest is a fifth of the way back (the highest point of a coarse mesh can be anywhere on it).
+      const y = p[i * 3 + 1];
+      const back = this.z(x, y - 0.03, -1);
+      return { y, z: back + 0.79 * (this.z(x, y - 0.03) - back) };
     },
     /** Bone weights of the body next to a point. */
     weights(at: Vector3): Float32Array {
@@ -920,27 +927,6 @@ function restraint(
 
   for (const sd of [1, -1]) {
     const tp = sf.top(X0);
-    // Head restraint: a leg of the yoke over each collarbone.
-    {
-      const pts = [
-        v(sd * X0, tp.y + OFF - 0.012, tp.z - 0.085),
-        v(sd * X0, tp.y + OFF - 0.002, tp.z - 0.03),
-        v(sd * X0, tp.y + OFF - 0.006, tp.z + 0.03),
-      ];
-      // Its end tucks in under the shoulder strap.
-      for (const [dy, dz] of [
-        [0.05, 0],
-        [0.1, 0],
-        [YOKE, -0.008],
-      ])
-        pts.push(v(sd * X0, tp.y - dy, sf.z(X0, tp.y - dy) + OFF - 0.004 + dz));
-      // With the chest, as the strap on it goes: the two stay apart.
-      const [p, n] = skinned(
-        pts,
-        over(pts, v(0, 1, 0), v(0, 0.2, 1).normalize(), 3),
-      );
-      out.push(strap(p, n, 0.056, 0.014, CARBON, HAT));
-    }
     // Shoulder strap: from the seat over the yoke, down the chest to the buckle.
     {
       const pts = [
@@ -976,6 +962,27 @@ function restraint(
       const nor = over(pts, v(0, 1, 0), v(0, 0.15, 1).normalize(), 4);
       const [p, n] = skinned(pts, nor);
       out.push(strap(p, n, 0.068, 0.004, webbing));
+      // Head restraint: a leg of its yoke over each collarbone. It lies under the strap all the way, so the two
+      // stay apart however the chest is posed, and its end tucks in.
+      {
+        const last = 3 + ys.filter((y) => y > off - 0.001).length;
+        const under = (i: number): number =>
+          i === 1 ? 0.023 : i === last ? 0.022 : 0.016;
+        out.push(
+          strap(
+            p
+              .slice(1, last + 1)
+              .map((q, i) =>
+                q.clone().addScaledVector(n[i + 1], -under(i + 1)),
+              ),
+            n.slice(1, last + 1),
+            0.056,
+            0.014,
+            CARBON,
+            HAT,
+          ),
+        );
+      }
       // The adjuster on the chest.
       const at = y0 + (y1 - y0) * 0.45;
       const k =
