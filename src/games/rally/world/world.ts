@@ -1,6 +1,8 @@
 import { Vector3 } from 'three';
 import { hashString } from '../../../shared/rng';
 import { mapSeason } from '../maps/shared/climate';
+import { setPackSeason } from '../assets/builders/tree-packs';
+import { setRoadTone } from '../engine/road-surface';
 import type {
   BarrierRule,
   BuildingDef,
@@ -15,8 +17,14 @@ import type {
   GroundSample,
   StaticCollider,
 } from '../physics/types';
-import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
+import {
+  BuildingIndex,
+  buildingCollider,
+  buildingInstances,
+} from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
+import { RoadSlab } from './road-slab';
+import { BARE_TWINS } from '../trees/placement';
 import { isTreeType } from '../trees/species';
 import { culvertColliders, culvertStones } from './culverts';
 import { landmarksOf, type Landmark } from './landmarks';
@@ -24,6 +32,7 @@ import {
   barrierColliders,
   barrierRuns,
   pathBarrierRuns,
+  sideRoadRailRuns,
   type BarrierRun,
 } from './barriers';
 import { newPathQuery } from './real-data';
@@ -143,6 +152,8 @@ export class World implements GroundProvider {
   readonly heightfield: Heightfield;
   /** Uncached terrain sampling for whole-map placement work (see AnalyticTerrain). */
   readonly analytic: AnalyticTerrain;
+  /** The road slabs: the drawn terrain is cut under every road ribbon (world/road-slab.ts). */
+  readonly slab: RoadSlab;
   readonly scatter: ScatterField;
   readonly stage: StageLayout;
   /** Start / finish gantries, painted lines and split boards (stage-signs.ts, drawn by stage-sign-mesh.ts). */
@@ -203,9 +214,23 @@ export class World implements GroundProvider {
     for (let i = 1; i <= timing.splits; i++)
       splits.push(start + ((finish - start) * i) / (timing.splits + 1));
     this.stage = { start, finish, splits };
+    this.slab = new RoadSlab(this.gen, map);
     this.heightfield = new Heightfield(this.gen);
     this.analytic = new AnalyticTerrain(this.gen);
     this.landmarks = landmarksOf(map);
+    // The drawn terrain is cut under the road slabs and under the landmarks' layers laid level with the ground (the
+    // deeper cut), plus the map's own cut at walls (`terrain.meshSink`).
+    const cuts = this.landmarks.flatMap((l) => l.meshSink?.() ?? []);
+    const meshSink = map.terrain.meshSink;
+    const levelled = (x: number, z: number): number => this.gen.height(x, z);
+    this.gen.sink =
+      cuts.length || meshSink
+        ? (x, z) => {
+            let s = this.slab.sink(x, z);
+            for (const c of cuts) s = Math.max(s, c(x, z));
+            return meshSink ? s + meshSink(x, z, levelled) : s;
+          }
+        : (x, z) => this.slab.sink(x, z);
     const rails = this.gen.railPaths();
     this.buildings = new BuildingIndex(
       (map.buildings ?? []).filter(
@@ -236,6 +261,9 @@ export class World implements GroundProvider {
             parkQ.distance < parkQ.halfWidth + r + 2) ||
           (!!this.gen.lakes?.query(x, z, parkLq) && parkLq.sd < r + 2),
       });
+    // Pack trees and shrubs wear the map's season (shared materials: set before anything is built).
+    setPackSeason(mapSeason(map.environment));
+    setRoadTone(map.road.tone ?? 1);
     this.scatter = new ScatterField(
       this.analytic,
       this.road,
@@ -265,10 +293,60 @@ export class World implements GroundProvider {
         channels: this.gen.channels,
         lakes: this.gen.lakes,
         cropAt: (x, z) => this.gen.cropAt(x, z),
+        fieldEdgeAt: (x, z) => this.gen.fieldEdgeAt(x, z),
         fieldAngle: map.landcover?.fields?.angle,
         stageId: map.id,
         treeSetback: map.treeSetback,
         treeCrownClear: map.treeCrownClear,
+        heroTrees: map.heroTrees,
+        // (read when the scatter streams in, after the runs are built below)
+        railAt: (along, side) => {
+          let o = -1;
+          for (const r of this.barrierRuns ?? [])
+            if (
+              r.path === undefined &&
+              r.rule.kind === 'guardrail' &&
+              r.side === side &&
+              along >= r.from &&
+              along <= r.to
+            )
+              o = Math.max(o, r.rule.offset);
+          return o;
+        },
+        // Carved below the land on a rock cut stretch: its face, or the laid-back bank above a deep one.
+        cutAt:
+          map.road.rockCuts || map.road.earthCuts
+            ? (x, z, q, crown) => {
+                const nat = this.gen.naturalHeight(x, z);
+                const depth = nat - this.gen.height(x, z);
+                if (depth < 0.4) return 0;
+                // A low retaining wall: bushes in the grass strip in front of it and on the bank above, only its own
+                // footprint clear.
+                const wall = this.gen.rockCutWall(q.along, q.lateral);
+                if (wall) {
+                  const face = q.halfWidth + wall.offset;
+                  return q.distance > face - 0.4 && q.distance < face + 2.4
+                    ? 1
+                    : 0;
+                }
+                const rise = nat - q.height;
+                return (
+                  Math.max(
+                    this.gen.rockCutWeightAt(x, z, rise, q.along, q.lateral),
+                    // (a covered earth face: bushes and stems root on it)
+                    crown || this.gen.earthCover(q.along, q.lateral) !== 'bare'
+                      ? 0
+                      : this.gen.earthCutWeightAt(
+                          x,
+                          z,
+                          rise,
+                          q.along,
+                          q.lateral,
+                        ),
+                  ) * Math.min(1, (depth - 0.4) / 0.8)
+                );
+              }
+            : undefined,
       },
     );
     const crowdQ = newPathQuery();
@@ -318,10 +396,14 @@ export class World implements GroundProvider {
         this.gen.portals.inside(inst.x, inst.z)
       )
         continue;
-      // No roadside tree or bush growing through a landmark (a gate tower, a block of flats).
+      // No roadside tree or bush growing through a landmark (a gate tower, a block of flats), a house or a paved lot.
       if (
         isTreeType(inst.asset) &&
-        this.landmarks.some((l) => l.occupies(inst.x, inst.z, 0.5))
+        (this.landmarks.some(
+          (l) =>
+            l.occupies(inst.x, inst.z, 0.5) || !!l.surfaceAt?.(inst.x, inst.z),
+        ) ||
+          this.buildings.contains(inst.x, inst.z, 0.5))
       )
         continue;
       // No crowd standing in a house (a crowd spot in a village).
@@ -337,7 +419,10 @@ export class World implements GroundProvider {
         );
         if (q.found && q.distance <= q.halfWidth + 0.5) continue;
       }
-      this.scatter.addFixed(inst);
+      // Bushes on top of a retaining wall stand on its ground, not on the carve under it.
+      const top = this.gen.wallGroundAt(inst.x, inst.z);
+      if (top !== undefined) inst.y = Math.max(inst.y, top);
+      this.scatter.addFixed(inst, top !== undefined);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
     if (map.realTrees) this.scatter.addRealTrees(map.realTrees);
@@ -440,6 +525,10 @@ export class World implements GroundProvider {
             onLaneWall(x, z),
           (pi) => this.gen.isParkwayLane(pi),
         ),
+      );
+    if (map.sideRoadRails && this.gen.paths)
+      this.barrierRuns.push(
+        ...sideRoadRailRuns(this.gen.paths, this.road, map.sideRoadRails),
       );
     for (const c of barrierColliders(
       { road: this.road, net: this.gen.paths },
@@ -548,14 +637,15 @@ export class World implements GroundProvider {
       if (bd.kind) {
         // Mesh building (building-mesh.ts draws it): only its collider goes into the scatter chunks.
         this.scatter.addFixedCollider(buildingCollider(bd, this.analytic));
-      } else
-        this.scatter.addFixed(
-          buildingInstance(
-            bd,
-            this.analytic,
-            map.id === 'galichica' || map.id === 'petralica',
-          ),
-        );
+      } else {
+        for (const inst of buildingInstances(
+          bd,
+          this.analytic,
+          map.id === 'galichica' || map.id === 'petralica',
+          this.roadNear(bd.x, bd.z, bd.along),
+        ))
+          this.scatter.addFixed(inst);
+      }
     }
 
     for (const landmark of this.landmarks) {
@@ -1061,6 +1151,9 @@ export class World implements GroundProvider {
       ...this.map.props.map((p) => p.asset),
     ]);
     for (const inst of this.scatter.fixedInstances()) ids.add(inst.asset);
+    // Scattered trees may stand in a dead patch as their bare twin (trees/placement.ts `bareTwin`).
+    for (const r of this.map.scatter)
+      if (BARE_TWINS[r.asset]) ids.add(BARE_TWINS[r.asset]);
     return ids;
   }
 
@@ -1169,6 +1262,33 @@ export class World implements GroundProvider {
     return this.gen.pathHeight(q.path, q.along) + 0.03;
   }
   private rq = newRoadQuery();
+
+  /**
+   * The nearest road point to a building at (x, z): on a side road or track within reach, else on the map's road at
+   * `along` (BuildingDef.along) when that is within 150 m. Its front door faces it (world/buildings.ts).
+   */
+  private roadNear(
+    x: number,
+    z: number,
+    along: number,
+  ): { x: number; z: number } | undefined {
+    const paths = this.gen.paths;
+    const q = paths?.query(
+      x,
+      z,
+      newPathQuery(),
+      undefined,
+      (i) => paths.paths[i].surface !== 'water',
+    );
+    const main = this.road.at(Math.min(Math.max(along, 0), this.road.length));
+    const dMain = Math.hypot(main.x - x, main.z - z);
+    if (q?.found && q.distance < dMain) {
+      const p = { x: 0, z: 0 };
+      paths!.pointAt(q.path, q.along, p);
+      return p;
+    }
+    return dMain < 150 ? { x: main.x, z: main.z } : undefined;
+  }
 
   /** Spawn on the stage road at `along` metres (default: just behind the start line). */
   roadSpawn(along = this.stage.start - 9): Spawn {

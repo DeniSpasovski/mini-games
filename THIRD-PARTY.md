@@ -16,6 +16,7 @@ README files carry the same information in more detail. Keep this file current w
 | Package                                                                         | Licence          | Use                               |
 | ------------------------------------------------------------------------------- | ---------------- | --------------------------------- |
 | [three.js](https://threejs.org/)                                                | MIT              | rendering (runtime)               |
+| Mediabunny                                                                      | MPL-2.0          | replay video export (runtime)     |
 | Rsbuild, Rspack, Rstest, Rslint, TypeScript, Prettier, happy-dom, meshoptimizer | MIT / Apache-2.0 | build and test tooling (dev only) |
 
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts and the CC0 Poly Haven environment light and detail textures (below): its critters, arenas, effects and sounds are original and procedural.
@@ -54,11 +55,12 @@ The portal and game-cover `wordmark.svg` files are title text outlined from Arch
 | Land cover                                               | [ESA WorldCover 10 m 2021](https://esa-worldcover.org/)                                                                                                                                                        | CC BY 4.0, © ESA WorldCover project 2021 / contains modified Copernicus Sentinel data (2021)                                                       | all real maps           |
 | Tree positions and canopy height                         | [High Resolution Canopy Height Maps](https://registry.opendata.aws/dataforgood-fb-forests/) (Meta and World Resources Institute)                                                                               | CC BY 4.0, imagery © Maxar 2018-2020                                                                                                               | Vodno                   |
 | Leaf type of the woods                                   | [Copernicus Sentinel-2 L2A](https://registry.opendata.aws/sentinel-2-l2a-cogs/)                                                                                                                                | free and open Copernicus data / contains modified Copernicus Sentinel data (2025)                                                                  | Vodno                   |
-| Elevation (30 m)                                         | [Copernicus DEM GLO-30](https://doi.org/10.5069/G9028PQB) via OpenTopography                                                                                                                                   | © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA                                    | Petralica               |
+| Elevation (30 m)                                         | [Copernicus DEM GLO-30](https://doi.org/10.5069/G9028PQB) via OpenTopography                                                                                                                                   | © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA                                    | Petralica, Vodno        |
 | Elevation (5 m lidar)                                    | [USGS 3D Elevation Program](https://www.usgs.gov/3d-elevation-program)                                                                                                                                         | US public domain, credit USGS 3DEP                                                                                                                 | Jackie Robinson Parkway |
 | Junction street surface, medians, sidewalks, trees       | [NYC Planimetric Database, Street Tree Census](https://opendata.cityofnewyork.us/) (NYC Open Data)                                                                                                             | no restrictions on use (NYC Open Data); credit NYC Office of Technology and Innovation (OTI)                                                       | Jackie Robinson Parkway |
-| Elevation (horizon; Ajvatovci, Galichica, Vodno terrain) | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Terrarium)                                                                                                                                  | mixed open sources (SRTM, EU-DEM, national datasets), see the [attribution list](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) | all real maps           |
+| Elevation (horizon; Ajvatovci, Galichica, Vodno town)    | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (Terrarium)                                                                                                                                  | mixed open sources (SRTM, EU-DEM, national datasets), see the [attribution list](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) | all real maps           |
 | Landmark facts for the Vodno stage and models            | [Millennium Cross](https://en.wikipedia.org/wiki/Millennium_Cross), [Vodno](https://en.wikipedia.org/wiki/Vodno) (Wikipedia), [St. Panteleimon, Nerezi](https://haemus.org.mk/st-pantejelmon-nerezi/) (HAEMUS) | reference only, nothing copied                                                                                                                     |
+| Roadside details of the Vodno stage                      | YouTube videos of Vodno, the owner's photos                                                                                                                                                                    | used as reference only, nothing copied                                                                                                             |
 | Park facts for the stage descriptions                    | [Galichica National Park](https://nationalparksmacedonia.com/en/parks/galicica)                                                                                                                                | reference only, nothing copied                                                                                                                     | Galichica               |
 
 Raw downloads are never committed (`sources/` and `scripts/realmap/.cache/` are git-ignored); only the baked,
@@ -93,23 +95,24 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 The parked cars of the city maps and the Ajvatovci yards, the Ajvatovci lots' vans and the service park's trucks, vans and
 pickups are recoloured copies of vehicles from two CC BY 4.0 packs (split and packed by
 `scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`; their own triangles and textures,
-paint panels tinted, far LODs reduced, wheels redrawn at the far LODs; the source files are not in the repository).
+paint panels tinted, the cars' wheels re-rounded up close (more sides on their own circles), far LODs reduced, wheels redrawn at
+the far LODs; the source files are not in the repository).
 
-| Pack                                                                                                                                              | Author                                                       | Licence   |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------- |
-| ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (cars)                | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
-| ["Low Poly Vehicle Mini Pack 7"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74) (vans and trucks) | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
+| Pack                                                                                                                                                  | Author                                                       | Licence   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------- |
+| ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (cars; wheels re-rounded) | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
+| ["Low Poly Vehicle Mini Pack 7"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74) (vans and trucks)     | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
 
 ### Fire engines (baked into `src/games/rally/assets/builders/`: `fire-trucks.data.ts`, `fire-truck-us.jpg`, `fire-truck-mk.jpg`)
 
 The two fire engines keep their own triangles and textures (split and packed by `scripts/car-model/street-pack-extract.py` +
-`bake-fire-truck-textures.py` + `bake-fire-trucks.mjs`; scaled to real size, unseen triangles dropped, far LODs reduced; the source
+`bake-fire-truck-textures.py` + `bake-fire-trucks.mjs`; scaled to real size, unseen triangles dropped, the US engine's wheels re-rounded up close, far LODs reduced; the source
 files are not in the repository).
 
-| Model                                                                                                                                                      | Author                                                                             | Used for                              | Licence   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- | --------- |
-| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | Have a name ([FixedShark554](https://sketchfab.com/FixedShark554)) (Sketchfab)     | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
-| ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`)            | CC BY 4.0 |
+| Model                                                                                                                                                      | Author                                                                             | Used for                                      | Licence   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------- | --------- |
+| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | Have a name ([FixedShark554](https://sketchfab.com/FixedShark554)) (Sketchfab)     | the Macedonian maps (`fire_truck_mk`)         | CC BY 4.0 |
+| ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`; wheels re-rounded) | CC BY 4.0 |
 
 ### Ground textures (baked into `src/games/rally/engine/ground/`)
 
@@ -204,6 +207,45 @@ repository).
 | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | --------- |
 | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
 | ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
+
+### Pack trees and shrubs (baked into `src/games/rally/assets/builders/tree-packs.data.ts` and `tree-packs/*`)
+
+Model trees and shrubs kept in the asset catalog (asset debug page; no map places them now: the stages use the generated
+trees, whose leaf photos are credited under "Tree leaf photos") are a few models of seven CC BY 4.0 packs by LOLIPOP (Sketchfab account lolipop_1707) and
+two CC BY 4.0 collections by Jagobo: their own triangles, normals, uvs and textures, three levels of detail and the packs'
+far billboards (the birches', elms' and willows' cards rendered from the model); the elms and willows converted and
+simplified (bark simplified, leaf cards thinned, the willows' rig dropped for its rest pose); the textures shrunk and
+recompressed, the oak's spring / autumn leaves its own season textures, the other kinds' autumn leaves, the lilac's seed
+heads and the maple's summer green recoloured; packed by `scripts/trees/bake-tree-packs.py` (the source files are not in
+the repository).
+
+| Pack                                                                                                                                                               | Author                                    | Licence   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- | --------- |
+| ["Pine trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/pine-trees-pack-lowpoly-game-ready-lods-e1e9c07b8e2e445c943fec660beefba2)          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Lilac bush pack (12 vars, LODs, game ready)"](https://sketchfab.com/3d-models/lilac-bush-pack-12-vars-lods-game-ready-10312697ec994fc99355cb94f1963a2e)          | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Bush models pack (gameready, LODs)"](https://sketchfab.com/3d-models/bush-models-pack-gameready-lods-f2d9ffd3e6a94cf0b9464ccd66a4c2f8)                           | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Oak trees pack (17var, LODs, seasons, gameready)"](https://sketchfab.com/3d-models/oak-trees-pack-17var-lods-seasons-gameready-a5e4e64f9f1d4089bdcc6170a9333393) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Realistic fir trees pack (LODS, gameready)"](https://sketchfab.com/3d-models/realistic-fir-trees-pack-lods-gameready-f58e8b6d733e4b0586e5b7db847b89e7)           | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Five Birch trees pack (lowpoly, LODs)"](https://sketchfab.com/3d-models/five-birch-trees-pack-lowpoly-lods-08fe5117138e4fdaa7ca440ef1201e07)                     | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Maple trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/maple-trees-pack-lowpoly-game-ready-lods-b5d2833c258f4054a01ee2b4ef85adf0)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["High Detail Elm Tree Collection"](https://sketchfab.com/3d-models/high-detail-elm-tree-collection-0fee36ee370244688c91ab430f87b039)                              | Jagobo (Sketchfab)                        | CC BY 4.0 |
+| ["Rigged & Animated Weeping Willows"](https://sketchfab.com/3d-models/rigged-animated-weeping-willows-c315c039042240dbbc0c2704f7cec83c)                            | Jagobo (Sketchfab)                        | CC BY 4.0 |
+
+### Tree leaf photos (`src/games/rally/trees/leaves/*.webp`)
+
+The generated trees' leaf and needle sprays on every map are cut from the leaf cluster textures (colour and normal map) of
+six CC BY 4.0 packs by LOLIPOP (Sketchfab account lolipop_1707): sprays cut out, turned, scaled, mirrored, the pine twig
+ends laid into bursts, the colours levelled to grey (the game tints them) and the lilac panicles removed, by
+`scripts/trees/bake-leaves.py` (outlines in `trees/leaf-photos.data.ts`; the source files are not in the repository).
+
+| Pack                                                                                                                                                        | Leaf style                   | Author                                    | Licence   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------------------- | --------- |
+| ["Oak trees pack (17var, LODs, seasons)"](https://sketchfab.com/3d-models/oak-trees-pack-17var-lods-seasons-gameready-a5e4e64f9f1d4089bdcc6170a9333393)     | oak (lobed)                  | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Maple trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/maple-trees-pack-lowpoly-game-ready-lods-b5d2833c258f4054a01ee2b4ef85adf0) | plane (palmate)              | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Five Birch trees pack (lowpoly, LODs)"](https://sketchfab.com/3d-models/five-birch-trees-pack-lowpoly-lods-08fe5117138e4fdaa7ca440ef1201e07)              | birch, bushes (small)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Bush models pack (gameready, LODs)"](https://sketchfab.com/3d-models/bush-models-pack-gameready-lods-f2d9ffd3e6a94cf0b9464ccd66a4c2f8)                    | beech, walnut (ovate, round) | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Lilac bush pack (12 vars, LODs, game ready)"](https://sketchfab.com/3d-models/lilac-bush-pack-12-vars-lods-game-ready-10312697ec994fc99355cb94f1963a2e)   | hornbeam, hazel (serrate)    | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
+| ["Pine trees pack (lowpoly, game ready, LODs)"](https://sketchfab.com/3d-models/pine-trees-pack-lowpoly-game-ready-lods-e1e9c07b8e2e445c943fec660beefba2)   | pines (needle bursts)        | LOLIPOP (account lolipop_1707, Sketchfab) | CC BY 4.0 |
 
 ### Straw texture (`src/games/rally/engine/props/straw.webp`)
 

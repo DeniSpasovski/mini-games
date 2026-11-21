@@ -57,8 +57,12 @@ export interface AssetMeta {
   /** Ordered near -> far. Instances beyond the last LOD are culled. */
   lods: LodSpec[];
   colliders?: ColliderSpec[];
+  /** Colliders per variant (index = variant), in place of `colliders`: models of very different trunks (pack trees). */
+  variantColliders?: ColliderSpec[][];
   /** Per-instance colour jitter (0 = none), applied via instanceColor. */
   tint?: number;
+  /** Grass: dry / lush meadow patches from a noise field over the jitter, this strong (0-1; world/meadow-patches.ts). */
+  patches?: number;
   /**
    * Knocked over when the car drives through it (no collider, the car is not slowed): falls down and costs a time
    * penalty (world/breakables.ts). `r` = radius and `h` = height (m, unscaled) of the hit test.
@@ -199,6 +203,214 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 90, castShadow: false }],
   },
   {
+    id: 'pack_pine',
+    name: 'Scots pine (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Scots pines (13, 15 and 31 m) of a CC BY pack: a bare trunk under a few needle clumps, three meshes and the pack billboard far away. Hero trees near the road; solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 45, castShadow: true },
+      { maxDistance: 120, castShadow: true },
+      { maxDistance: 480, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.22, h: 12 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.12, h: 8 }],
+      [{ kind: 'cylinder', r: 0.25, h: 10 }],
+      [{ kind: 'cylinder', r: 0.4, h: 12 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_lilac',
+    name: 'Lilac (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Lilac shrubs and a small tree (2-7 m) of a CC BY pack: the understorey of a car park or a roadside. Drive-through.',
+    variants: 3,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 100, castShadow: false },
+      { maxDistance: 300, castShadow: false },
+    ],
+    tint: 0.1,
+  },
+  {
+    id: 'pack_bush',
+    name: 'Bush (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Bushes of 1-1.6 m of a CC BY pack, three levels of detail. Drive-through.',
+    variants: 3,
+    lods: [
+      { maxDistance: 35, castShadow: false },
+      { maxDistance: 90, castShadow: false },
+      { maxDistance: 240, castShadow: false },
+    ],
+    tint: 0.1,
+  },
+  // Pack oaks, firs, birches, maples, elms and willows: their models are a chunk of their own (`loadTreePacks`, tree-packs.ts).
+  {
+    id: 'pack_oak',
+    name: 'Oak (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Oaks of a CC BY pack, young to old (5, 10, 13, 20 m and a broad forked 21 m field oak), the pack season leaves; three meshes and the pack billboard far away. Solid trunk.',
+    variants: 5,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 350, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.3, h: 8 }],
+    variantColliders: [
+      [],
+      [{ kind: 'cylinder', r: 0.15, h: 5 }],
+      [{ kind: 'cylinder', r: 0.15, h: 6 }],
+      [{ kind: 'cylinder', r: 0.5, h: 8 }],
+      [{ kind: 'cylinder', r: 0.45, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_fir',
+    name: 'Fir (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Young firs of a CC BY pack (4.4, 6.6 and 9.3 m, branches to the ground); three meshes and the pack billboard far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 30, castShadow: true },
+      { maxDistance: 80, castShadow: true },
+      { maxDistance: 220, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.1, h: 3 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.08, h: 2 }],
+      [{ kind: 'cylinder', r: 0.1, h: 3 }],
+      [{ kind: 'cylinder', r: 0.14, h: 4 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_birch',
+    name: 'Birch (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Silver birches of a CC BY pack (10 m: a slim leaning one, a mature one, a broad old one); three meshes and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 35, castShadow: true },
+      { maxDistance: 100, castShadow: true },
+      { maxDistance: 250, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.25, h: 6 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.14, h: 6 }],
+      [{ kind: 'cylinder', r: 0.3, h: 6 }],
+      [{ kind: 'cylinder', r: 0.35, h: 5 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_maple',
+    name: 'Maple (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Maples of a CC BY pack (6, 10, 13.5 and 24 m); three meshes and the pack billboard far away. Solid trunk.',
+    variants: 4,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.2, h: 8 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.08, h: 3 }],
+      [{ kind: 'cylinder', r: 0.16, h: 5 }],
+      [{ kind: 'cylinder', r: 0.17, h: 6 }],
+      [{ kind: 'cylinder', r: 0.37, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_elm',
+    name: 'Elm (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Elms of a CC BY collection (21, 24 and 32 m, open vase-shaped crowns), simplified to three meshes, and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.3, h: 8 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.24, h: 6 }],
+      [{ kind: 'cylinder', r: 0.3, h: 7 }],
+      [{ kind: 'cylinder', r: 0.4, h: 8 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'pack_willow',
+    name: 'Weeping willow (pack)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Weeping willows of a CC BY collection (10, 14 and 19 m, curtains of hanging shoots), simplified to three meshes, and crossed cards baked from the model far away. Solid trunk.',
+    variants: 3,
+    lods: [
+      { maxDistance: 40, castShadow: true },
+      { maxDistance: 110, castShadow: true },
+      { maxDistance: 300, castShadow: false },
+      { maxDistance: 1500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.25, h: 3 }],
+    variantColliders: [
+      [{ kind: 'cylinder', r: 0.14, h: 2 }],
+      [{ kind: 'cylinder', r: 0.22, h: 3 }],
+      [{ kind: 'cylinder', r: 0.5, h: 3 }],
+    ],
+    tint: 0.08,
+  },
+  {
+    id: 'fern',
+    name: 'Fern',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Fern stands (male fern / bracken, ~0.6 m) of shaded oak and beech woods: cards baked from the CC0 Poly Haven fern scan (no collision, detail layer).',
+    variants: 3,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
+    id: 'fern_autumn',
+    name: 'Fern (autumn)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The fern stands as rust-brown dead bracken (autumn): the fern cards recoloured by the bake (no collision, detail layer).',
+    variants: 3,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
     id: 'tall_weeds',
     name: 'Tall weeds',
     category: 'vegetation',
@@ -220,6 +432,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.2,
+    patches: 1,
   },
   {
     id: 'dry_grass',
@@ -233,6 +446,21 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.18,
+    patches: 0.7,
+  },
+  {
+    id: 'tall_grass',
+    name: 'Seeding grass',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Knee-high seeding grass of uncut verges and fallow, straw and green stalks mixed (summer, autumn; detail layer). The grass scans drawn tall.',
+    variants: 2,
+    lods: GRASS_LODS,
+    nearBoost: NEAR_GRASS,
+    nearRoad: GRASS_BLADES_ROAD,
+    tint: 0.16,
+    patches: 0.9,
   },
   {
     id: 'spring_grass',
@@ -246,6 +474,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
     tint: 0.16,
+    patches: 0.6,
   },
   // Field crops: cards baked from the CC BY wheat / corn models (engine/crops.ts).
   {
@@ -610,7 +839,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'House (sloped roof)',
     category: 'buildings',
     description:
-      'Placeholder village house: rendered / brick walls, red tile hip or gable roof. Unit 1x1x1, scaled to the real footprint. Variants 0-3 one floor (0-2 render, 3 clay brick; hip on even, gable on odd), 4-7 two floors.',
+      'Village house: rendered / brick walls, red tile hip or gable roof with eaves, gutters and a chimney (windows = `house_windows`, front door = `house_door`). Unit 1x1x1, scaled to the real footprint. Variants 0-3 one floor (0-2 render, 3 clay brick; hip on even, gable on odd), 4-7 two floors.',
     variants: 8,
     lods: [
       { maxDistance: 160, castShadow: true },
@@ -624,7 +853,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'House (rubble stone)',
     category: 'buildings',
     description:
-      'Old mountain-village house in lime-plastered rubble stone, red tile roof (a separate asset so the render houses stay a small variant set). Variants 0 hip / 1 gable one floor, 2-3 two floors.',
+      'Old mountain-village house in lime-plastered rubble stone, red tile roof with eaves and a chimney (a separate asset so the render houses stay a small variant set). Variants 0 hip / 1 gable one floor, 2-3 two floors.',
     variants: 4,
     lods: [
       { maxDistance: 160, castShadow: true },
@@ -638,7 +867,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Building (flat roof)',
     category: 'buildings',
     description:
-      'Placeholder flat-roofed building: 0/1 industrial hall, 2 unfinished brick block, 3 rendered block. Unit 1x1x1, scaled to the footprint. Variants 4-7 two floors of windows.',
+      'Flat-roofed building: 0/1 industrial hall (roof fascia, roller door, side door), 2 unfinished brick block, 3 rendered block (overhanging roof slab; windows = `house_windows`, front door = `house_door`). Unit 1x1x1, scaled to the footprint. Variants 4-7 two floors.',
     variants: 8,
     lods: [
       { maxDistance: 160, castShadow: true },
@@ -646,6 +875,24 @@ export const ASSET_CATALOG: AssetMeta[] = [
     ],
     colliders: [{ kind: 'box', hx: 0.5, hz: 0.5, h: 1, r: 0.71 }],
     tint: 0.05,
+  },
+  {
+    id: 'house_windows',
+    name: 'House windows',
+    category: 'buildings',
+    description:
+      'The windows of a box building, on the same unit box scaled to its footprint and wall height: real size (frame, glass, mullion and transom, sill), about one per 3.2 m of wall, at most 8 along the long walls and 4 along the short ones (a longer wall keeps the pitch and leaves its ends blank); the front wall leaves a column to the door. Their own asset, without shadows, so the box stays light. Variants: 0 / 1 one floor (white / grey frames), 2 / 3 two floors.',
+    variants: 4,
+    lods: [{ maxDistance: 160, castShadow: false, separateVariants: true }],
+  },
+  {
+    id: 'house_door',
+    name: 'House door',
+    category: 'buildings',
+    description:
+      'Front door of the box buildings, real size (never scaled): frame, leaf with a top light, handle, a concrete step that goes into the ground. Stands on the ground at the wall the building faces the road or the slope with (world/buildings.ts). Variants: 0 house, 1 unfinished brick house, 2 rendered block, 3 brick block. Opens to +Z.',
+    variants: 4,
+    lods: [{ maxDistance: 160, castShadow: false }],
   },
   // --- street vehicles (city maps) --------------------------------------------------
   {
@@ -663,7 +910,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Taxi',
     category: 'props',
     description:
-      'Yellow cab with a roof sign and a black stripe (the sedan model, faces +X). Solid.',
+      'Yellow cab with a lit "TAXI" roof sign (generic word, no operator name) and a black stripe (the sedan model, faces +X). Solid.',
     variants: 1,
     lods: carLods(40, 100, 420),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.5, r: 2.5 }],
@@ -758,7 +1005,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Car trailer',
     category: 'props',
     description:
-      'Car trailer: deck with side rails and a ramp folded onto it, round wheels under fenders, A-frame tow bar to +X (variant 0 grey, 1 dark). Solid.',
+      'Car transporter trailer, tandem axle: two runways on a ladder chassis, ramps pinned upright at the back, wheel stops, tie-down rails, mudguards, tail lamps, A-frame drawbar with jockey wheel to +X (variant 0 galvanised, 1 dark). Solid.',
     variants: 2,
     lods: VEHICLE_LODS,
     colliders: [{ kind: 'box', hx: 2.6, hz: 1.05, h: 0.9, r: 2.9 }],
@@ -778,16 +1025,17 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Gazebo 3 x 3',
     category: 'props',
     description:
-      'Pop-up tent 3 x 3 m, open sides (variant = team, 12 = white timekeeper tent). Solid legs.',
+      'Pop-up tent 3 x 3 m, open sides: peaked canopy with a valance on a folding frame, weighted feet (variant = team, 12 = white timekeeper tent). Solid legs.',
     variants: 13,
     lods: PROP_LODS,
-    colliders: [-1.5, 1.5].flatMap((x) =>
+    // The legs with the weights on their feet.
+    colliders: [-1.45, 1.45].flatMap((x) =>
       [-1.45, 1.45].map((z) => ({
         kind: 'cylinder' as const,
         x,
         z,
-        r: 0.06,
-        h: 2.5,
+        r: 0.18,
+        h: 2.45,
       })),
     ),
   },
@@ -796,16 +1044,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Gazebo 3 x 6',
     category: 'props',
     description:
-      'Pop-up tent 6 x 3 m (long side along X), open sides (variant = team, 12 = white timekeeper tent). Solid legs.',
+      'Pop-up tent 6 x 3 m (long side along X), open sides: canopy with a ridge between two peaks, valance, folding frame, weighted feet (variant = team, 12 = white timekeeper tent). Solid legs.',
     variants: 13,
     lods: PROP_LODS,
-    colliders: [-3, 0, 3].flatMap((x) =>
+    colliders: [-2.95, 0, 2.95].flatMap((x) =>
       [-1.45, 1.45].map((z) => ({
         kind: 'cylinder' as const,
         x,
         z,
-        r: 0.06,
-        h: 2.5,
+        r: 0.18,
+        h: 2.45,
       })),
     ),
   },
@@ -910,7 +1158,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Ground sheet',
     category: 'props',
     description:
-      'Flat tarp 1 x 1 m, scaled by the instance (sx / sz) to a work area; variants blue, grey, green, black. No collision.',
+      'Flat tarp 1 x 1 m, scaled by the instance (sx / sz) to a work area; variants slate, grey, olive, black. No collision.',
     variants: 4,
     lods: [{ maxDistance: 160, castShadow: false }],
   },
@@ -1325,6 +1573,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     breakable: { r: 0.65, h: 1.6, slow: 0.93 },
   },
 ];
+
+/** The box buildings: unit boxes scaled per instance to a real footprint (world/buildings.ts). */
+export const BOX_BUILDINGS = ['house_pitched', 'house_stone', 'building_flat'];
 
 /** house_pitched: wall top as a fraction of the total (unit) height; the roof is the rest. */
 export const HOUSE_WALL_FRACTION = 0.68;

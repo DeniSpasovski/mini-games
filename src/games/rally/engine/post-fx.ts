@@ -1,16 +1,20 @@
 import {
   AddEquation,
+  Color,
   CustomBlending,
   DepthTexture,
   HalfFloatType,
   LinearFilter,
   NoBlending,
   OneFactor,
+  OneMinusSrcAlphaFactor,
   type PerspectiveCamera,
   type Scene,
   ShaderMaterial,
   SRGBColorSpace,
+  SrcAlphaFactor,
   Vector2,
+  Vector3,
   type WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
@@ -68,13 +72,18 @@ const SANITIZE = /* glsl */ `
   // bilinear upscale inside it.
   uniform vec2 uvScale;
   uniform vec2 uvMax;
+  // Share of this image in a motion blur mean (\`render\` with a shutter); 1 otherwise.
+  uniform float weight;
   varying vec2 vUv;
   // Display mode: the target holds the finished picture (sRGB, tone mapped); back to an HDR estimate by the inverse of
-  // c / (1 + max(c)) (hue kept; ENCODE undoes it exactly).
+  // c / (1 + max(c)) (hue kept; ENCODE undoes it exactly). decode 2 (a motion blur image) stops at the linear picture:
+  // the estimate makes a near-white pixel hundreds of times brighter than its neighbours, so one image of a white
+  // tyre print would outweigh every image of the black tyre around it (SHUTTER_MIX takes the mean to the estimate).
   vec3 toHdr( vec3 c ) {
     if ( decode < 0.5 ) return c;
     vec3 l = mix( c / 12.92, pow( ( c + 0.055 ) / 1.055, vec3( 2.4 ) ), step( 0.04045, c ) );
     l = clamp( l, 0.0, 1.0 );
+    if ( decode > 1.5 ) return l;
     return l / ( 1.0 - min( max( l.r, max( l.g, l.b ) ), 0.999 ) );
   }
   bool ok( vec3 c ) {
@@ -85,7 +94,7 @@ const SANITIZE = /* glsl */ `
     vec2 uv = min( vUv * uvScale, uvMax );
     vec4 c = texture2D( tDiffuse, uv );
     if ( ok( c.rgb ) ) {
-      gl_FragColor = vec4( min( toHdr( c.rgb ), vec3( 2000.0 ) ), c.a );
+      gl_FragColor = vec4( min( toHdr( c.rgb ), vec3( 2000.0 ) ), c.a ) * weight;
       return;
     }
     vec2 px = 1.0 / vec2( textureSize( tDiffuse, 0 ) );
@@ -96,7 +105,24 @@ const SANITIZE = /* glsl */ `
       vec3 s = texture2D( tDiffuse, uv + o ).rgb;
       if ( ok( s ) ) { sum += s; n += 1.0; }
     }
-    gl_FragColor = vec4( n > 0.0 ? min( toHdr( sum / n ), vec3( 2000.0 ) ) : vec3( 0.0 ), 1.0 );
+    gl_FragColor = vec4( n > 0.0 ? min( toHdr( sum / n ), vec3( 2000.0 ) ) : vec3( 0.0 ), 1.0 ) * weight;
+  }`;
+
+/**
+ * Motion blur (\`PostFx.render\` with a shutter): a copy with an opacity (a frame's images blended into the running
+ * mean) and, with \`decode\`, the mean of the linear pictures taken to the HDR estimate (SANITIZE's \`toHdr\`).
+ */
+const SHUTTER_MIX = /* glsl */ `
+  uniform sampler2D tDiffuse;
+  uniform float decode, opacity;
+  varying vec2 vUv;
+  void main() {
+    vec3 c = texture2D( tDiffuse, vUv ).rgb;
+    if ( decode > 0.5 ) {
+      c = clamp( c, 0.0, 1.0 );
+      c /= 1.0 - min( max( c.r, max( c.g, c.b ) ), 0.999 );
+    }
+    gl_FragColor = vec4( c, opacity );
   }`;
 
 /** Display mode, last pass: the HDR estimate back to the picture (exact inverse of SANITIZE's decode). */
@@ -210,6 +236,141 @@ const DROPS = /* glsl */ `
     gl_FragColor = vec4( mix( c.rgb, r, 0.85 * d.z ), c.a );
   }`;
 
+/** Photo mode lens blur: taps per pixel (golden-angle spiral, turned per pixel so the pattern doesn't band). */
+const PHOTO_TAPS = 64;
+
+/**
+ * Photo mode (game/photo/): thin-lens depth of field and exposure on the HDR image. The blur radius of a point at z m is
+ * `lens * |z - focus| / z` px (`photoLens`); gather only, so the sharp car never bleeds into the blurred background
+ * behind it (a nearer sample counts only if its own blur reaches the pixel).
+ */
+const PHOTO = /* glsl */ `
+  #include <packing>
+  uniform sampler2D tDiffuse, tDepth;
+  uniform vec2 texel, depthUvScale;
+  uniform float near, far, focus, lens, maxPx, exposure;
+  varying vec2 vUv;
+  float viewZ( vec2 uv ) {
+    return - perspectiveDepthToViewZ( texture2D( tDepth, uv * depthUvScale ).x, near, far );
+  }
+  float coc( float z ) {
+    return min( maxPx, lens * abs( z - focus ) / max( z, 1e-3 ) );
+  }
+  void main() {
+    vec3 c0 = texture2D( tDiffuse, vUv ).rgb;
+    float z0 = viewZ( vUv );
+    float r0 = coc( z0 );
+    vec3 acc = c0;
+    float wsum = 1.0;
+    if ( r0 > 0.5 ) {
+      // Interleaved gradient noise: a per-pixel turn of the spiral.
+      float turn = 6.2832 * fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) );
+      for ( int i = 0; i < ${PHOTO_TAPS}; i++ ) {
+        float t = ( float( i ) + 0.5 ) / float( ${PHOTO_TAPS} );
+        float rad = sqrt( t ) * r0;
+        float a = float( i ) * 2.39996 + turn;
+        vec2 uv = vUv + vec2( cos( a ), sin( a ) ) * rad * texel;
+        float z = viewZ( uv );
+        float w = z >= z0 - 0.3 ? 1.0 : smoothstep( rad * 0.5, rad, coc( z ) );
+        acc += texture2D( tDiffuse, uv ).rgb * w;
+        wsum += w;
+      }
+    }
+    gl_FragColor = vec4( acc / wsum * exposure, 1.0 );
+  }`;
+
+/**
+ * Photo mode filters (the finished picture's look, `PHOTO_LOOK`): saturation (1 = as is), contrast (0 = as is, an
+ * S-curve), a colour tint, faded blacks (0..1) and dark corners (0..1, the share taken off in a corner).
+ */
+const FILTER = {
+  sat: 1,
+  contrast: 0,
+  tint: [1, 1, 1] as readonly number[],
+  fade: 0,
+  vignette: 0,
+};
+export const PHOTO_FILTERS = {
+  none: { ...FILTER, label: 'None' },
+  vivid: { ...FILTER, label: 'Vivid', sat: 1.35, contrast: 0.4 },
+  warm: {
+    ...FILTER,
+    label: 'Warm',
+    sat: 1.1,
+    contrast: 0.15,
+    tint: [1.06, 1, 0.9],
+  },
+  cool: {
+    ...FILTER,
+    label: 'Cool',
+    sat: 1.02,
+    contrast: 0.15,
+    tint: [0.93, 1, 1.08],
+  },
+  faded: {
+    ...FILTER,
+    label: 'Faded',
+    sat: 0.78,
+    tint: [1.03, 1, 0.96],
+    fade: 1,
+  },
+  mono: { ...FILTER, label: 'Black & white', sat: 0, contrast: 0.35 },
+  vignette: { ...FILTER, label: 'Vignette', vignette: 0.7 },
+};
+export type PhotoFilter = keyof typeof PHOTO_FILTERS;
+
+/**
+ * Photo mode, last pass: the filter on the finished picture (sRGB, as the screen gets it), mixed in by `strength`.
+ */
+const PHOTO_LOOK = /* glsl */ `
+  uniform sampler2D tDiffuse;
+  uniform vec3 tint;
+  uniform float sat, contrast, fade, vignette, aspect, strength;
+  varying vec2 vUv;
+  void main() {
+    vec3 c0 = clamp( texture2D( tDiffuse, vUv ).rgb, 0.0, 1.0 );
+    vec3 c = mix( vec3( dot( c0, vec3( 0.2126, 0.7152, 0.0722 ) ) ), c0, sat );
+    c = clamp( c * tint, 0.0, 1.0 );
+    c = mix( c, c * c * ( 3.0 - 2.0 * c ), contrast );
+    c = mix( c, c * 0.84 + 0.1, fade );
+    // Darker towards the corners (0 at the middle, 1 in a corner).
+    vec2 p = ( vUv - 0.5 ) * vec2( aspect, 1.0 );
+    float d = length( p ) / length( vec2( aspect, 1.0 ) * 0.5 );
+    c *= 1.0 - vignette * smoothstep( 0.3, 1.05, d );
+    gl_FragColor = vec4( mix( c0, c, strength ), 1.0 );
+  }`;
+
+/** Photo mode camera (game/photo/photo-mode.ts): what the lens pass needs. */
+export interface PhotoLens {
+  /** Focus distance (m). */
+  focus: number;
+  /** Focal length (mm, 35 mm full frame: 24 mm sensor height). */
+  focal: number;
+  /** Aperture (f-number); 0 = no blur. */
+  fStop: number;
+  /** Exposure compensation (EV). */
+  ev: number;
+  /** The picture's look (`PHOTO_FILTERS`). */
+  filter: PhotoFilter;
+  /** How much of the filter is mixed in, 0..1. */
+  filterStrength: number;
+}
+
+/** Sensor height of a 35 mm full-frame camera (mm): the focal length to field of view. */
+export const SENSOR_MM = 24;
+
+/**
+ * Thin-lens blur: a point at z m has a circle of confusion of `A * |z - s| / z` mm on the sensor with
+ * A = f^2 / (N (s - f)); returned as the blur radius factor in px for an image `height` px tall.
+ */
+export function photoLens(l: PhotoLens, height: number): number {
+  if (l.fStop <= 0) return 0;
+  const f = l.focal / 1000;
+  const s = Math.max(l.focus, f * 1.5);
+  const a = (f * f) / (l.fStop * (s - f));
+  return (0.5 * a * 1000 * height) / SENSOR_MM;
+}
+
 function quadMaterial(
   fragmentShader: string,
   uniforms: Record<string, { value: unknown }>,
@@ -234,6 +395,24 @@ export interface PostFxOptions {
   drops: number;
   /** How hard the air blows them off (0 parked ... 1 fast), 0..1. */
   dropSpeed: number;
+  /** Photo mode lens (depth of field, exposure); null = none. Lens drops are off while it is set. */
+  photo: PhotoLens | null;
+}
+
+/** Photo mode motion blur (`PostFx.render`): the open shutter as many images of the scene, averaged. */
+export interface Shutter {
+  /** Images across the shutter (rounded up to whole frames of `perFrame`). */
+  samples: number;
+  /** Images drawn per frame; the picture gets smoother over the next frames until all are in. */
+  perFrame: number;
+  /** Move the car / camera to `t` (-0.5 ... 0.5 of the shutter time). */
+  pose: (t: number) => void;
+  /** The view or the shutter changed: start over. */
+  restart: boolean;
+}
+
+function gcd(a: number, b: number): number {
+  return b ? gcd(b, a % b) : a;
 }
 
 /**
@@ -255,7 +434,25 @@ export class PostFx {
     decode: { value: 0 },
     uvScale: { value: new Vector2(1, 1) },
     uvMax: { value: new Vector2(1, 1) },
+    weight: { value: 1 },
   });
+  /** SANITIZE added onto the target (motion blur: the mean of one frame's images). */
+  private readonly sanitizeAdd: ShaderMaterial;
+  /** Motion blur: a frame's images blended into `shutterMean`, and the mean handed on to the effects. */
+  private readonly shutterBlend = quadMaterial(SHUTTER_MIX, {
+    tDiffuse: { value: null },
+    decode: { value: 0 },
+    opacity: { value: 1 },
+  });
+  private readonly shutterOut = quadMaterial(SHUTTER_MIX, {
+    tDiffuse: { value: null },
+    decode: { value: 0 },
+    opacity: { value: 1 },
+  });
+  /** Motion blur: the mean of the images drawn so far (made on first use, `releaseShutter`). */
+  private shutterMean?: WebGLRenderTarget;
+  /** Motion blur progress: images in the mean, the total and the step through them. */
+  private readonly shutter = { done: 0, total: 0, stride: 1 };
   /** Render scale: the scene is drawn into this share of the full-size target (a viewport, no resize). */
   private scale = 1;
   /** Depth uv scale handed to the AO's shaders (`scaledDepth`). */
@@ -284,6 +481,28 @@ export class PostFx {
     speed: { value: 0 },
     aspect: { value: 1 },
   });
+  private readonly lens = quadMaterial(PHOTO, {
+    tDiffuse: { value: null },
+    tDepth: { value: null },
+    texel: { value: new Vector2() },
+    depthUvScale: { value: new Vector2(1, 1) },
+    near: { value: 0.1 },
+    far: { value: 1000 },
+    focus: { value: 8 },
+    lens: { value: 0 },
+    maxPx: { value: 24 },
+    exposure: { value: 1 },
+  });
+  private readonly look = quadMaterial(PHOTO_LOOK, {
+    tDiffuse: { value: null },
+    tint: { value: new Vector3(1, 1, 1) },
+    sat: { value: 1 },
+    contrast: { value: 0 },
+    fade: { value: 0 },
+    vignette: { value: 0 },
+    aspect: { value: 1 },
+    strength: { value: 1 },
+  });
   private readonly nightBloom: UnrealBloomPass;
   private readonly gtao: GTAOPass;
   private readonly output = new OutputPass();
@@ -308,6 +527,7 @@ export class PostFx {
       ao: false,
       drops: 0,
       dropSpeed: 0,
+      photo: null,
       ...opts,
     };
     const depthTexture = new DepthTexture(1, 1);
@@ -334,6 +554,18 @@ export class PostFx {
       t.texture.minFilter = t.texture.magFilter = LinearFilter;
       this.mips.push(t);
     }
+    this.sanitizeAdd = this.sanitize.clone();
+    this.sanitizeAdd.uniforms = this.sanitize.uniforms;
+    this.sanitizeAdd.blending = CustomBlending;
+    this.sanitizeAdd.blendEquation = AddEquation;
+    this.sanitizeAdd.blendSrc = OneFactor;
+    this.sanitizeAdd.blendDst = OneFactor;
+    this.sanitizeAdd.blendSrcAlpha = OneFactor;
+    this.sanitizeAdd.blendDstAlpha = OneFactor;
+    this.shutterBlend.blending = CustomBlending;
+    this.shutterBlend.blendEquation = AddEquation;
+    this.shutterBlend.blendSrc = SrcAlphaFactor;
+    this.shutterBlend.blendDst = OneMinusSrcAlphaFactor;
     this.up.blending = CustomBlending;
     this.up.blendEquation = AddEquation;
     this.up.blendSrc = OneFactor;
@@ -366,6 +598,7 @@ export class PostFx {
       this.opts.day > 0 ||
       this.opts.ao ||
       this.opts.drops > 0 ||
+      !!this.opts.photo ||
       this.scale < 1
     );
   }
@@ -404,6 +637,7 @@ export class PostFx {
   }
 
   private readonly onResize = (): void => this.resize();
+  private readonly clearColor = new Color();
 
   private resize(): void {
     const size = this.renderer.getDrawingBufferSize(new Vector2());
@@ -412,6 +646,8 @@ export class PostFx {
     this.scene.setSize(w, h);
     this.a.setSize(w, h);
     this.b.setSize(w, h);
+    this.shutterMean?.setSize(w, h);
+    this.shutter.done = 0;
     let mw = w;
     let mh = h;
     for (const m of this.mips) {
@@ -438,18 +674,113 @@ export class PostFx {
     [this.a, this.b] = [this.b, this.a];
   }
 
-  render(): void {
+  /**
+   * Photo mode motion blur: this frame's share of the shutter's images into the running mean, then the mean into
+   * `a`. The images are taken in an order that spreads every frame's share over the whole shutter (a fixed step
+   * through them, coprime with their number), so the picture is whole from the first frame and only gets smoother;
+   * the middle of the shutter comes last, so the depth of field and the AO end on its depth. Once all are in, the
+   * scene is not drawn again. The mean is of linear pictures (SANITIZE `decode` 2) in whole-frame shares, blended
+   * 1 / n: a half-float sum of hundreds of small shares would round each one.
+   */
+  private renderShutter(sh: Shutter, autoClear: boolean): void {
+    const r = this.renderer;
+    const st = this.shutter;
+    const per = Math.max(1, Math.min(sh.perFrame, sh.samples));
+    const total = Math.ceil(sh.samples / per) * per;
+    if (!this.shutterMean) {
+      this.shutterMean = this.a.clone();
+      st.done = 0;
+    }
+    if (sh.restart || total !== st.total) {
+      st.done = 0;
+      st.total = total;
+      st.stride = Math.max(1, Math.round(total * 0.618));
+      while (gcd(st.stride, total) > 1) st.stride++;
+    }
+    const display = this.display ? 1 : 0;
+    if (st.done < total) {
+      const clear = r.getClearAlpha();
+      const color = r.getClearColor(this.clearColor);
+      r.setRenderTarget(this.b);
+      r.setClearColor(0x000000, 0);
+      r.clear();
+      r.setClearColor(color, clear);
+      const u = this.sanitize.uniforms;
+      u.weight.value = 1 / per;
+      u.decode.value = display * 2;
+      const mid = total >> 1;
+      for (let i = 0; i < per; i++) {
+        const k = (mid + (st.done + i + 1) * st.stride) % total;
+        sh.pose((k + 0.5) / total - 0.5);
+        r.autoClear = autoClear;
+        r.setRenderTarget(this.scene);
+        r.render(this.world, this.camera);
+        r.autoClear = false;
+        this.pass(this.sanitizeAdd, this.b);
+      }
+      u.weight.value = 1;
+      u.decode.value = display;
+      st.done += per;
+      this.shutterBlend.uniforms.tDiffuse.value = this.b.texture;
+      this.shutterBlend.uniforms.opacity.value = per / st.done;
+      this.pass(this.shutterBlend, this.shutterMean);
+    }
+    r.autoClear = false;
+    this.shutterOut.uniforms.tDiffuse.value = this.shutterMean.texture;
+    this.shutterOut.uniforms.decode.value = display;
+    this.pass(this.shutterOut, this.a);
+  }
+
+  /** Motion blur: the share of the shutter's images drawn so far, 0..1. */
+  get shutterProgress(): number {
+    const st = this.shutter;
+    return st.total > 0 ? Math.min(1, st.done / st.total) : 1;
+  }
+
+  /** Motion blur off: free its image (as large as the picture). */
+  releaseShutter(): void {
+    this.shutterMean?.dispose();
+    this.shutterMean = undefined;
+    this.shutter.done = 0;
+  }
+
+  /**
+   * Draw the scene and the effects to the screen. Photo mode motion blur: with a `shutter` the scene is drawn many
+   * times across it and averaged, a share per frame (`renderShutter`); returns false while images are still missing.
+   */
+  render(shutter?: Shutter): boolean {
     const r = this.renderer;
     const autoClear = r.autoClear;
-    r.setRenderTarget(this.scene);
-    r.render(this.world, this.camera);
-    r.autoClear = false;
-
     this.sanitize.uniforms.tDiffuse.value = this.scene.texture;
-    this.pass(this.sanitize, this.a);
+    if (shutter && shutter.samples > 1) this.renderShutter(shutter, autoClear);
+    else {
+      r.setRenderTarget(this.scene);
+      r.render(this.world, this.camera);
+      r.autoClear = false;
+      this.pass(this.sanitize, this.a);
+    }
 
     if (this.opts.ao) {
       this.gtao.render(r, this.b, this.a, 0, false);
+      this.swap();
+    }
+
+    const photo = this.opts.photo;
+    if (photo) {
+      const u = this.lens.uniforms;
+      const h = this.a.height;
+      u.tDiffuse.value = this.a.texture;
+      u.tDepth.value = this.scene.depthTexture;
+      u.texel.value.set(1 / this.a.width, 1 / h);
+      u.depthUvScale.value.copy(this.depthUvScale.value);
+      u.near.value = this.camera.near;
+      u.far.value = this.camera.far;
+      u.focus.value = photo.focus;
+      u.lens.value = photoLens(photo, h);
+      // Largest blur: 2.5 % of the height (a long lens wide open).
+      u.maxPx.value = 0.025 * h;
+      u.exposure.value = 2 ** photo.ev;
+      this.pass(this.lens, this.b);
       this.swap();
     }
 
@@ -476,7 +807,7 @@ export class PostFx {
       this.swap();
     }
 
-    if (this.opts.drops > 0) {
+    if (this.opts.drops > 0 && !photo) {
       const u = this.drops.uniforms;
       u.tDiffuse.value = this.a.texture;
       u.time.value = worldUniforms.wsTime.value;
@@ -487,34 +818,59 @@ export class PostFx {
       this.swap();
     }
 
+    // Photo mode filter: the finished picture goes through `b` and PHOTO_LOOK to the screen.
+    const look =
+      !!photo && photo.filter !== 'none' && photo.filterStrength > 0
+        ? this.b
+        : null;
     if (this.display) {
       this.encode.uniforms.tDiffuse.value = this.a.texture;
-      this.pass(this.encode, null);
+      this.pass(this.encode, look);
     } else {
       // Draws onto `a` in place.
       if (this.nightOn) this.nightBloom.render(r, this.b, this.a, 0, false);
-      this.output.renderToScreen = true;
+      this.output.renderToScreen = !look;
       this.output.render(
         r,
-        null as unknown as WebGLRenderTarget,
+        look as unknown as WebGLRenderTarget,
         this.a,
         0,
         false,
       );
     }
+    if (look && photo) {
+      const f = PHOTO_FILTERS[photo.filter];
+      const u = this.look.uniforms;
+      u.tDiffuse.value = look.texture;
+      u.tint.value.fromArray(f.tint);
+      u.sat.value = f.sat;
+      u.contrast.value = f.contrast;
+      u.fade.value = f.fade;
+      u.vignette.value = f.vignette;
+      u.strength.value = photo.filterStrength;
+      u.aspect.value = look.width / look.height;
+      this.pass(this.look, null);
+    }
     r.autoClear = autoClear;
+    return !shutter || this.shutter.done >= this.shutter.total;
   }
 
   dispose(): void {
+    this.shutterMean?.dispose();
     this.renderer.domElement.removeEventListener('resized', this.onResize);
     for (const t of [this.scene, this.a, this.b, ...this.mips]) t.dispose();
     for (const m of [
       this.sanitize,
+      this.sanitizeAdd,
+      this.shutterBlend,
+      this.shutterOut,
       this.encode,
       this.down,
       this.up,
       this.mixer,
       this.drops,
+      this.lens,
+      this.look,
     ])
       m.dispose();
     this.quad.dispose();
@@ -542,6 +898,7 @@ export function postFxFromUrl(
     ao: aoParam === null ? ao : aoParam === '1',
     drops: 0,
     dropSpeed: 0,
+    photo: null,
   };
 }
 

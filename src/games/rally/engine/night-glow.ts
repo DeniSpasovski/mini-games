@@ -14,9 +14,11 @@ import { worldUniforms } from './world-shading';
  *   distance like the lamp's light on it, and only a few times brighter than lit white paint up close, so the red
  *   stays red.
  * - `lamp`: a street lamp lens glows warm with the lamps' level (`Environment.lightNeed`).
- * Both add emissive light only, so they cost nothing by day (the terms are zero).
+ * - `sign`: a lit sign box (the taxi roof sign) glows with the lamps' level. Dark print stays dark (the light is the
+ *   face's own colour).
+ * All add emissive light only at night (the terms are zero by day).
  */
-export type NightGlow = 'retro' | 'sheeting' | 'lamp';
+export type NightGlow = 'retro' | 'sheeting' | 'lamp' | 'sign';
 
 const DECL = /* glsl */ `
 varying vec3 vNightW;`;
@@ -41,6 +43,8 @@ const FRAG: Record<NightGlow, string> = {
   }`,
   lamp: /* glsl */ `
   totalEmissiveRadiance += diffuseColor.rgb * ( wsLamp * 60.0 );`,
+  sign: /* glsl */ `
+  totalEmissiveRadiance += diffuseColor.rgb * ( wsLamp * 2.2 );`,
 };
 
 /** Give `m` the glow (call once, before its first compile). `m` must be vertex-coloured or mapped (`diffuseColor`). */

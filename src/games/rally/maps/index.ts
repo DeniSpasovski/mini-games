@@ -1,4 +1,5 @@
 import { loadSimready, type SimreadyGroup } from '../assets/builders/simready';
+import { loadTreePacks, type PackKind } from '../assets/builders/tree-packs';
 import { STAGES_LIST, released } from '../release';
 import { ajvatovciInfo } from './ajvatovci/info';
 import { galichicaInfo } from './galichica/info';
@@ -44,6 +45,8 @@ interface MapEntry {
   load: () => Promise<MapDef>;
   /** Baked prop models the map's world builds (`loadSimready`). */
   models: SimreadyGroup[];
+  /** Lazy pack tree kinds its hero trees use (`loadTreePacks`). */
+  packs?: PackKind[];
 }
 
 /**
@@ -141,9 +144,11 @@ export function loadMap(id: string): Promise<MapDef> {
   let p = loading.get(info.id);
   if (!p) {
     const entry = ENTRIES.find((e) => e.info.id === info.id)!;
-    p = Promise.all([entry.load(), loadSimready(...entry.models)]).then(
-      ([map]) => map,
-    );
+    p = Promise.all([
+      entry.load(),
+      loadSimready(...entry.models),
+      loadTreePacks(...(entry.packs ?? [])),
+    ]).then(([map]) => map);
     loading.set(info.id, p);
   }
   return p;

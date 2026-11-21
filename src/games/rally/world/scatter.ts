@@ -11,6 +11,7 @@ import type {
 } from '../maps/shared/types';
 import type { StaticCollider } from '../physics/types';
 import {
+  bareTwin,
   isTreeType,
   placeTree,
   treeColliders,
@@ -23,6 +24,7 @@ import type { TerrainSampler } from './heightfield';
 import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
 import { newRoadQuery, type Road, type RoadQuery } from './road';
+import { PEOPLE_ASSETS } from './corner-fans';
 import { fanVariant } from './fan-variants';
 import { outcropRow } from './outcrops';
 import { splitRuns, tapeRun } from './tape';
@@ -39,11 +41,34 @@ export interface ScatterContext {
   treeSetback?: MapDef['treeSetback'];
   /** `MapDef.treeCrownClear`: how far a roadside tree's crown may reach over the stage road's edge. */
   treeCrownClear?: MapDef['treeCrownClear'];
+  /** `MapDef.heroTrees`: pack models standing in for generated trees near the stage road. */
+  heroTrees?: MapDef['heroTrees'];
   /** The crop standing at a point (rules with `crop`; world/terrain-gen.ts `cropAt`). */
   cropAt?: (x: number, z: number) => string | undefined;
   /** Direction of the field strips (rad, `landcover.fields.angle`): `rows.fields` rules run along it. */
   fieldAngle?: number;
+  /** Distance to the edge of the field parcel at a point (rules with `fieldEdge`; world/terrain-gen.ts `fieldEdgeAt`). */
+  fieldEdgeAt?: (x: number, z: number) => number | undefined;
+  /**
+   * 0..1: how much (x, z) lies on a rock cut of the stage road (`RoadDef.rockCuts`: its face or the bank above it), `q` =
+   * the stage road there. Nothing roots on a cut, and no tree stands where its crown would hang over the face (`crown`:
+   * the point under a crown - only rock counts there: crowns on the rim of an earth cut lean out over it).
+   */
+  cutAt?: (x: number, z: number, q: RoadQuery, crown?: boolean) => number;
+  /**
+   * The stage-road guard rail `along` m on `side` (+1 left): its distance past the road edge (m), -1 where none. Trees
+   * and shrubs keep RAIL_CLEAR beyond it, so no crown grows through the beam.
+   */
+  railAt?: (along: number, side: number) => number;
 }
+
+/** How far past a guard rail a tree or shrub stands (m): about a shrub's crown radius. */
+const RAIL_CLEAR = 1.8;
+
+/** Rock cuts (`ScatterContext.cutAt`) lie within this distance of the stage road's edge (m): no look-up beyond. */
+const CUT_REACH = 24;
+/** A tree's crown may reach this far (m) over the land toward the road before it counts as over a rock cut below it. */
+const CUT_CROWN = 3.5;
 
 /** `MapDef.treeCrownClear`: leaves lower than this above the road (m) count as low, and a tree tries this many other poses. */
 const LOW_CLEAR = 4;
@@ -62,6 +87,24 @@ export function setbackAt(
     best = Math.max(best, s.dist * Math.max(0, k));
   }
   return best;
+}
+
+/**
+ * Adds a lean of `rad` toward world direction (dx, dz) to an instance's tilt (Euler YXZ: the tilt is in the instance's
+ * own frame, so it is turned back by the yaw; set the yaw first).
+ */
+export function addLean(
+  inst: ScatterInstance,
+  dx: number,
+  dz: number,
+  rad: number,
+): void {
+  const c = Math.cos(inst.rotY);
+  const s = Math.sin(inst.rotY);
+  const lx = (dx * c - dz * s) * rad;
+  const lz = (dx * s + dz * c) * rad;
+  inst.tiltX += lz;
+  inst.tiltZ -= lx;
 }
 
 /** A `canopy` rule's share of its density (0-1) where the real canopy covers `share` of the ground. */
@@ -85,6 +128,16 @@ export function canopySize(
     ? Math.min(1.4, Math.max(0.7, stand / c.height))
     : 1;
 }
+
+/**
+ * Beyond the road query's reach (`Road.influence`, ~35 m) the distance to the stage road's edge comes from a coarse
+ * field: nodes FAR_CELL m apart out to FAR_REACH m, bilinear between (a few metres off at most); further = Infinity.
+ * So a rule's `minRoadDist` / `maxRoadDist` past the query's reach (Vodno's wood bands) mean what they say.
+ */
+const FAR_CELL = 12;
+/** A `minRoadDist` under this is always met beyond the road query's reach (no field look-up). */
+const FAR_FLOOR = 30;
+const FAR_REACH = 260;
 
 /** Cell of the real trees' density grid (m): `treeRulesAt` reports them as a density per cell. */
 const REAL_CELL = 48;
@@ -245,8 +298,49 @@ export class ScatterField {
     return this.hf.chunkSize;
   }
 
+  private alongChunks = new Map<ScatterRule, Set<number>>();
+  /** The chunks within reach of an `along` rule's road stretches (undefined: the rule is not tied to the road). */
+  private alongChunksOf(rule: ScatterRule): Set<number> | undefined {
+    if (!rule.along) return undefined;
+    let set = this.alongChunks.get(rule);
+    if (!set) {
+      set = new Set();
+      const cs = this.chunkSize;
+      for (const [a, b] of rule.along)
+        for (let d = a; ; d = Math.min(b, d + 4)) {
+          const p = this.road.at(d);
+          const r = p.halfWidth + (rule.maxRoadDist ?? this.road.influence) + 2;
+          for (
+            let cx = Math.floor((p.x - r) / cs);
+            cx <= Math.floor((p.x + r) / cs);
+            cx++
+          )
+            for (
+              let cz = Math.floor((p.z - r) / cs);
+              cz <= Math.floor((p.z + r) / cs);
+              cz++
+            )
+              set.add(key(cx, cz));
+          if (d >= b) break;
+        }
+      this.alongChunks.set(rule, set);
+    }
+    return set;
+  }
+
   /** Add a hand-placed / road-side instance (call before streaming starts). */
-  addFixed(inst: ScatterInstance): void {
+  /** `onWall`: it stands on a retaining wall's top ground (terrain-gen `wallGround`), not in the cut under it. */
+  addFixed(inst: ScatterInstance, onWall = false): void {
+    // No hand-placed tree or shrub on a rock cut's face either.
+    if (isTreeType(inst.asset) && this.ctx.cutAt && !onWall) {
+      const q = this.road.query(inst.x, inst.z, this.q);
+      if (
+        q.found &&
+        q.distance - q.halfWidth < CUT_REACH &&
+        this.ctx.cutAt(inst.x, inst.z, q) > 0.3
+      )
+        return;
+    }
     if (isTreeType(inst.asset))
       this.poseTree(inst, 0x40000000 + this.fixedTrees++);
     const cs = this.chunkSize;
@@ -259,7 +353,8 @@ export class ScatterField {
   /**
    * The trees where they really stand (`MapDef.realTrees`): the tree type from the land cover at each, sized to its
    * height; skipped where the scatter grows nothing (bounds, buildings, landmarks, water, the road and path margins, the
-   * stage's tree setback). Returns how many were placed.
+   * stage's tree setback). Within `near.dist` of the road a model tree (`near.assets`) stands in for the generated one;
+   * the far forest still counts the generated type. Returns how many were placed.
    */
   addRealTrees(def: RealTreesDef): number {
     const lc = this.ctx.landcover;
@@ -289,7 +384,56 @@ export class ScatterField {
       )
         continue;
       if (this.nearPath(x, z, minPath)) continue;
+      let towardX = 0;
+      let towardZ = 0;
+      if (q.found && rd < Math.max(CUT_REACH, def.lean?.within ?? 0)) {
+        const p = this.road.at(q.along);
+        const side = q.lateral >= 0 ? 1 : -1;
+        towardX = -side * p.tz;
+        towardZ = side * p.tx;
+      }
+      const cutAt = this.ctx.cutAt;
+      if (
+        cutAt &&
+        q.found &&
+        rd < CUT_REACH &&
+        (cutAt(x, z, q) > 0.3 ||
+          cutAt(x + towardX * CUT_CROWN, z + towardZ * CUT_CROWN, q, true) >
+            0.3)
+      )
+        continue;
       const tiltA = u(4) * Math.PI * 2;
+      // Close to the road a model tree may stand in for the generated one (`near`): the model whose own height is
+      // nearest the tree's (a young pine is a young pine's model, not a shrunk old one), turned by the hash.
+      const near = def.near;
+      const heroes =
+        near && rd < near.dist && cover !== undefined
+          ? near.assets[cover]
+          : undefined;
+      const hero = heroes?.[Math.floor(u(5) * heroes.length)];
+      const heights = hero === undefined ? undefined : near!.heights[hero];
+      if (hero !== undefined && heights?.length) {
+        const want = t[i + 2] * (near!.gain ?? 1);
+        let variant = 0;
+        for (let v = 1; v < heights.length; v++)
+          if (
+            Math.abs(Math.log(want / heights[v])) <
+            Math.abs(Math.log(want / heights[variant]))
+          )
+            variant = v;
+        const scale = Math.min(1.4, Math.max(0.5, want / heights[variant]));
+        this.addFixed({
+          asset: hero,
+          variant,
+          x,
+          y: this.hf.height(x, z) - (def.sink ?? 0) * scale,
+          z,
+          rotY: u(6) * Math.PI * 2,
+          scale,
+          tiltX: Math.cos(tiltA) * tiltM,
+          tiltZ: Math.sin(tiltA) * tiltM,
+        });
+      }
       const scale = Math.min(
         def.scale[1],
         Math.max(def.scale[0], t[i + 2] / typeHeight(asset)),
@@ -305,7 +449,18 @@ export class ScatterField {
         tiltX: Math.cos(tiltA) * tiltM,
         tiltZ: Math.sin(tiltA) * tiltM,
       };
-      this.addFixed(inst);
+      if (!heights?.length) {
+        this.addFixed(inst);
+        if (def.lean && (towardX || towardZ) && rd < def.lean.within) {
+          const [a, b] = def.lean.deg;
+          addLean(
+            inst,
+            towardX,
+            towardZ,
+            ((a + (b - a) * u(7)) * (1 - rd / def.lean.within) * Math.PI) / 180,
+          );
+        }
+      }
       const k = key(Math.floor(x / REAL_CELL), Math.floor(z / REAL_CELL));
       let cell = this.realCells.get(k);
       if (!cell) this.realCells.set(k, (cell = new Map()));
@@ -317,6 +472,79 @@ export class ScatterField {
       placed++;
     }
     return placed;
+  }
+
+  private far?: {
+    x0: number;
+    z0: number;
+    nx: number;
+    nz: number;
+    d: Float32Array;
+  };
+  /** Distance (m) from (x, z) to the stage road's edge where the road query does not reach (FAR_CELL field). */
+  farRoadDist(x: number, z: number): number {
+    const f = (this.far ??= this.buildFar());
+    const gx = (x - f.x0) / FAR_CELL;
+    const gz = (z - f.z0) / FAR_CELL;
+    const ix = Math.floor(gx);
+    const iz = Math.floor(gz);
+    if (ix < 0 || iz < 0 || ix >= f.nx - 1 || iz >= f.nz - 1) return Infinity;
+    const tx = gx - ix;
+    const tz = gz - iz;
+    const i = iz * f.nx + ix;
+    const d = f.d;
+    const v =
+      (d[i] * (1 - tx) + d[i + 1] * tx) * (1 - tz) +
+      (d[i + f.nx] * (1 - tx) + d[i + f.nx + 1] * tx) * tz;
+    return v > FAR_REACH ? Infinity : v;
+  }
+
+  private buildFar(): {
+    x0: number;
+    z0: number;
+    nx: number;
+    nz: number;
+    d: Float32Array;
+  } {
+    const s = this.road.samples;
+    let minX = Infinity,
+      minZ = Infinity,
+      maxX = -Infinity,
+      maxZ = -Infinity;
+    for (const p of s) {
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minZ = Math.min(minZ, p.z);
+      maxZ = Math.max(maxZ, p.z);
+    }
+    const pad = FAR_REACH + 2 * FAR_CELL;
+    const x0 = minX - pad;
+    const z0 = minZ - pad;
+    const nx = Math.ceil((maxX - minX + 2 * pad) / FAR_CELL) + 1;
+    const nz = Math.ceil((maxZ - minZ + 2 * pad) / FAR_CELL) + 1;
+    const d = new Float32Array(nx * nz).fill(1e9);
+    // Road points ~FAR_CELL / 2 apart (the field is coarse anyway), each lowering the nodes within reach.
+    let last = -Infinity;
+    const r = Math.ceil((FAR_REACH + FAR_CELL) / FAR_CELL);
+    for (const p of s) {
+      if (p.dist - last < FAR_CELL / 2 && p !== s[s.length - 1]) continue;
+      last = p.dist;
+      const cx = Math.round((p.x - x0) / FAR_CELL);
+      const cz = Math.round((p.z - z0) / FAR_CELL);
+      for (let iz = Math.max(0, cz - r); iz <= Math.min(nz - 1, cz + r); iz++)
+        for (
+          let ix = Math.max(0, cx - r);
+          ix <= Math.min(nx - 1, cx + r);
+          ix++
+        ) {
+          const e =
+            Math.hypot(x0 + ix * FAR_CELL - p.x, z0 + iz * FAR_CELL - p.z) -
+            p.halfWidth;
+          const k = iz * nx + ix;
+          if (e < d[k]) d[k] = e;
+        }
+    }
+    return { x0, z0, nx, nz, d };
   }
 
   /** Every hand-placed / road-side instance (tests, tools). */
@@ -405,8 +633,13 @@ export class ScatterField {
     const k = key(cx, cz);
     let c = this.chunks.get(k);
     if (!c) {
-      const instances = this.generate(cx, cz, this.rules, 0);
-      instances.push(...(this.fixed.get(k) ?? []));
+      const fixed = this.fixed.get(k) ?? [];
+      const instances = clearTrunks(
+        this.generate(cx, cz, this.rules, 0),
+        fixed,
+        this.fixedColliders.get(k) ?? [],
+      );
+      instances.push(...fixed);
       c = {
         instances,
         colliders: [
@@ -513,6 +746,9 @@ export class ScatterField {
     if (!this.inBounds(x0 + cs / 2, z0 + cs / 2)) return out;
     for (let ri = 0; ri < rules.length; ri++) {
       const rule = rules[ri];
+      // A rule for stretches of the stage road (`along`): only in the chunks beside them.
+      const beside = this.alongChunksOf(rule);
+      if (beside && !beside.has(key(cx, cz))) continue;
       const rng = new Rng(
         hash3(cx, cz, ri + salt, this.seed ^ hashString(rule.asset)),
       );
@@ -543,6 +779,11 @@ export class ScatterField {
           if (zone < 0 || !coverMask[zone]) continue;
         }
         if (rule.crop && this.ctx.cropAt?.(x, z) !== rule.crop) continue;
+        if (rule.fieldEdge) {
+          const e = this.ctx.fieldEdgeAt?.(x, z);
+          if (e === undefined || e < rule.fieldEdge[0] || e > rule.fieldEdge[1])
+            continue;
+        }
         // The real canopy: thinned by its share, sized by the stand height (one look-up each).
         let size = 1;
         if (rule.canopy && lc?.canopy) {
@@ -570,8 +811,9 @@ export class ScatterField {
         const tiltA = rng.next() * Math.PI * 2;
         const tiltM = ((rule.tilt ?? 0) * Math.PI) / 180;
         if (rule.mask) {
+          const g = rule.mask.group;
           const m = this.maskNoise.fbm(
-            x / rule.mask.scale + ri * 3.1,
+            x / rule.mask.scale + (g === undefined ? ri * 3.1 : 517 + g * 7.3),
             z / rule.mask.scale,
             3,
           );
@@ -582,7 +824,12 @@ export class ScatterField {
         }
         if (!this.inBounds(x, z) || this.excluded(x, z)) continue;
         const q = this.road.query(x, z, this.q);
-        const rd = q.found ? q.distance - q.halfWidth : Infinity;
+        const rd = q.found
+          ? q.distance - q.halfWidth
+          : (rule.minRoadDist ?? 0) > FAR_FLOOR ||
+              rule.maxRoadDist !== undefined
+            ? this.farRoadDist(x, z)
+            : Infinity;
         if (rule.minRoadDist !== undefined && rd < rule.minRoadDist) continue;
         // (bushes are drive-through: only the solid trees stand back)
         if (
@@ -594,7 +841,57 @@ export class ScatterField {
         )
           continue;
         if (rule.maxRoadDist !== undefined && rd > rule.maxRoadDist) continue;
+        if (
+          rule.along &&
+          !(
+            q.found &&
+            rule.along.some(
+              ([a, b, sd]) =>
+                q.along >= a &&
+                q.along <= b &&
+                (sd === undefined || sd === (q.lateral >= 0 ? 1 : -1)),
+            )
+          )
+        )
+          continue;
         if (minPath > -Infinity && this.nearPath(x, z, minPath)) continue;
+        if (tree && q.found && rd < 6 && this.ctx.railAt) {
+          const rail = this.ctx.railAt(q.along, q.lateral >= 0 ? 1 : -1);
+          if (rail >= 0 && rd < rail + RAIL_CLEAR) continue;
+        }
+        // Toward the stage road from here (unit, xz): trees lean that way, and their crowns must not hang over a cut.
+        let towardX = 0;
+        let towardZ = 0;
+        if (
+          tree &&
+          q.found &&
+          rd < Math.max(CUT_REACH, rule.lean?.within ?? 0)
+        ) {
+          const p = this.road.at(q.along);
+          const side = q.lateral >= 0 ? 1 : -1;
+          towardX = -side * p.tz;
+          towardZ = side * p.tx;
+        }
+        // Nothing on a rock cut's face (rocks lie on it); a tree not where its crown would hang over one.
+        const cutAt = this.ctx.cutAt;
+        if (cutAt && q.found && rd < CUT_REACH && !rule.alignToGround) {
+          if (cutAt(x, z, q) > 0.3) continue;
+          const reach = tree ? (solid ? CUT_CROWN : 1.5) : 0;
+          if (
+            reach > 0 &&
+            cutAt(x + towardX * reach, z + towardZ * reach, q, true) > 0.3
+          )
+            continue;
+        }
+        if (rule.contour) {
+          const c = rule.contour;
+          const h =
+            ground.height(x, z) +
+            (c.jitter ?? 0) *
+              this.maskNoise.fbm(x / 35 + 211 + ri, z / 35 - 97, 2);
+          const f = h / c.period - Math.floor(h / c.period);
+          if (f < c.width === !!c.invert) continue;
+        }
         if (rule.channelDist) {
           const cq = this.ctx.channels?.query(x, z, this.pq);
           if (!cq?.found) continue;
@@ -646,9 +943,34 @@ export class ScatterField {
           tiltX,
           tiltZ,
         };
-        if (tree) {
+        const hero = tree ? this.ctx.heroTrees : undefined;
+        const swap = hero?.swap[rule.asset];
+        const index = tree ? hash3(cx, cz, ri * 65536 + i, 0x7ee5) : 0;
+        if (
+          swap &&
+          rd < hero!.dist &&
+          rd >= (swap.minRoadDist ?? 0) &&
+          (mix32(index, 0x4e70) >>> 0) / 4294967296 < swap.share
+        ) {
+          // A pack model in its place: its own variant, upright (sunk by nothing: its roots are buried), sized by the
+          // swap's range times the rule's (young trees stay young).
+          const u = (k: number) => (mix32(index, k) >>> 0) / 4294967296;
+          inst.asset = swap.asset;
+          inst.variant = Math.floor(u(1) * assetVariants(swap.asset));
+          inst.rotY = u(2) * Math.PI * 2;
+          inst.scale *= swap.scale[0] + u(3) * (swap.scale[1] - swap.scale[0]);
+          inst.y = ground.height(x, z);
+          inst.tiltX = inst.tiltZ = 0;
+        } else if (tree) {
           const ruleScale = inst.scale;
-          const index = hash3(cx, cz, ri * 65536 + i, 0x7ee5);
+          // A rare dead patch: a handful of bare / dead trees together (trees/placement.ts `bareTwin`).
+          inst.asset = bareTwin(
+            this.ctx.stageId ?? 'stage',
+            inst.asset,
+            x,
+            z,
+            index,
+          );
           this.poseTree(inst, index, true);
           // No low limbs over the road: a solid tree whose leaves hang low over the stage road takes another pose
           // (variant, rotation, size) from the same hash: the one of REPOSE_TRIES that keeps them furthest off.
@@ -674,6 +996,17 @@ export class ScatterField {
               }
             }
           }
+        }
+        // Leaning out over the road, toward the open side's light (after the pose: the tilt is in the tree's frame).
+        if (rule.lean && (towardX || towardZ) && rd < rule.lean.within) {
+          const u = (mix32(index, 0x1ea7) >>> 0) / 4294967296;
+          const [a, b] = rule.lean.deg;
+          addLean(
+            inst,
+            towardX,
+            towardZ,
+            ((a + (b - a) * u) * (1 - rd / rule.lean.within) * Math.PI) / 180,
+          );
         }
         if (nearRoad !== undefined && rd < nearRoad) inst.near = true;
         if (extra) inst.extra = true;
@@ -978,16 +1311,64 @@ export function roadsideInstances(
 }
 
 /** World-space colliders for an instance from its asset's collider spec. */
+/**
+ * The generated instances without a trunk growing out of something: rules place them independently. A generated prop
+ * (a boulder, a fallen log) or person a trunk would stand in goes and the tree stays (the forest is never thinned for
+ * a prop); a generated tree or bush whose trunk would stand in a placed prop, a rail or fence, or a placed person goes.
+ */
+function clearTrunks(
+  generated: ScatterInstance[],
+  fixed: ScatterInstance[],
+  fixedColliders: StaticCollider[],
+): ScatterInstance[] {
+  const isTree = (i: ScatterInstance): boolean =>
+    !!i.tree || isTreeType(i.asset);
+  const isPerson = (i: ScatterInstance): boolean =>
+    PEOPLE_ASSETS.includes(i.asset);
+  const inBox = (c: StaticCollider, x: number, z: number): boolean => {
+    if (c.kind !== 'box') return false;
+    const cs = Math.cos(c.rot ?? 0);
+    const sn = Math.sin(c.rot ?? 0);
+    const dx = x - c.x;
+    const dz = z - c.z;
+    return (
+      Math.abs(dx * cs - dz * sn) <= (c.hx ?? 0) + 0.15 &&
+      Math.abs(dx * sn + dz * cs) <= (c.hz ?? 0) + 0.15
+    );
+  };
+  const near = (a: ScatterInstance, b: ScatterInstance): boolean =>
+    Math.hypot(a.x - b.x, a.z - b.z) < 0.6;
+  const trunks = [...generated, ...fixed].filter(isTree);
+  // What a generated tree must not grow through: a placed prop (a bench, a sign), a rail or fence, a placed person.
+  const blocks = [
+    ...fixed.filter((i) => !isTree(i)).flatMap(collidersOf),
+    ...fixedColliders,
+  ];
+  const people = fixed.filter(isPerson);
+  return generated.filter((i) => {
+    if (isTree(i))
+      return (
+        !blocks.some((c) => inBox(c, i.x, i.z)) &&
+        !people.some((p) => near(p, i))
+      );
+    if (isPerson(i) && trunks.some((t) => near(t, i))) return false;
+    return !collidersOf(i).some((c) => trunks.some((t) => inBox(c, t.x, t.z)));
+  });
+}
+
 export function collidersOf(inst: ScatterInstance): StaticCollider[] {
   if (inst.tree) return treeColliders(inst);
   const meta = getAssetMeta(inst.asset);
-  if (!meta.colliders) return [];
+  const specs =
+    meta.variantColliders?.[inst.variant % meta.variantColliders.length] ??
+    meta.colliders;
+  if (!specs) return [];
   const c = Math.cos(inst.rotY);
   const s = Math.sin(inst.rotY);
   const sx = inst.scale * (inst.sx ?? 1);
   const sy = inst.scale * (inst.sy ?? 1);
   const sz = inst.scale * (inst.sz ?? 1);
-  return meta.colliders.map((col) => {
+  return specs.map((col) => {
     const lx = (col.x ?? 0) * sx;
     const lz = (col.z ?? 0) * sz;
     const c0: StaticCollider = {

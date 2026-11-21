@@ -160,6 +160,19 @@ export interface SpeciesDef {
     /** Season leaf cover (trees/seasons.ts): the share of leaf points that still carry a sprite and their size (default 1). */
     leafy?: number;
     leafSize?: number;
+    /**
+     * Leaf colour spread over a crown (trees/mesh.ts `leafColor`): `exposure` = value range from shade leaves inside to
+     * sun leaves outside (default 0.32), `clump` = how far one limb's clump stands from its neighbours (default 0.09).
+     */
+    colorSpread?: { exposure?: number; clump?: number };
+    /**
+     * Thin crowns: `cover` keeps this share of the leaf points on every variant, `sparse` grows a `share` of the variants
+     * with only `cover` of theirs (an ill or windswept tree); the kept sprites keep their size, so the sky shows through.
+     */
+    cover?: number;
+    sparse?: { share: number; cover: number };
+    /** Leafless (a dead tree, a winter crown): no sprites, the twigs drawn instead (`bareSpecies`). */
+    bare?: boolean;
   };
   lod?: Partial<LodSettings>;
   /** Instance scale range. */
@@ -221,7 +234,8 @@ function broadleaf(o: BroadleafShape): SpeciesDef {
   const c = crook(o.crook ?? 0);
   const from = o.leafFrom ?? 0;
   const stems = o.stems ?? 1;
-  let axiom = `!F(${o.bole})A(${o.lead},0)`;
+  // A single stem leans a few degrees (each variant its own; the placed tree's turn points it): few trees stand plumb.
+  let axiom = `&(rnd(0,5))!F(${o.bole})A(${o.lead},0)`;
   if (stems > 1) {
     axiom = '';
     for (let i = 0; i < stems; i++)
@@ -248,17 +262,48 @@ function broadleaf(o: BroadleafShape): SpeciesDef {
     axiom,
     constants: { gold: 137.5 },
     rules: [
+      // Low limbs: one per node, or none (a clean stem), or a pair (a spreading, lopsided crown) - variants differ in build.
+      // Steeper and shorter than the species' `limbs` pitch: long flat ones sag under tropism and hang below the crown.
       {
         pred: 'A(l,k)',
         cond: 'k < 2',
-        succ: `F(l)>(rnd(100,160))[&(rnd(${l0},${l1}))!!B(l*0.85,1)]!A(l*0.9,k+1)`,
+        p: 0.55,
+        succ: `F(l)>(rnd(100,160))[&(rnd(${l0 * 0.75},${l1 * 0.8}))!!B(l*0.72,1)]!A(l*0.9,k+1)`,
+      },
+      {
+        pred: 'A(l,k)',
+        cond: 'k < 2',
+        p: 0.25,
+        succ: `F(l)>(rnd(100,160))!A(l*0.95,k+1)`,
+      },
+      {
+        pred: 'A(l,k)',
+        cond: 'k < 2',
+        p: 0.2,
+        succ: `F(l)>(rnd(100,160))[&(rnd(${l0 * 0.75},${l1 * 0.8}))!!B(l*0.72,1)]>(rnd(150,210))[&(rnd(${l0 * 0.75},${l1 * 0.8}))!!B(l*0.65,1)]!A(l*0.9,k+1)`,
+      },
+      // The crown splits into three leaders, or two (an open, forked crown), or four (a broad dome).
+      {
+        pred: 'A(l,k)',
+        cond: 'k >= 2',
+        p: 0.55,
+        succ:
+          `F(l*0.8)[&(rnd(${d0},${d1}))!B(l*0.95,0)]>(rnd(110,130))[&(rnd(${d0},${d1}))!B(l*0.95,0)]` +
+          `>(rnd(110,130))[&(rnd(${d0 * 0.7},${d1 * 0.75}))!B(l,0)]`,
       },
       {
         pred: 'A(l,k)',
         cond: 'k >= 2',
+        p: 0.3,
+        succ: `F(l*0.8)[&(rnd(${d0 * 0.8},${d1 * 0.8}))!B(l*1.05,0)]>(rnd(160,200))[&(rnd(${d0 * 0.8},${d1 * 0.8}))!B(l,0)]`,
+      },
+      {
+        pred: 'A(l,k)',
+        cond: 'k >= 2',
+        p: 0.15,
         succ:
-          `F(l*0.8)[&(rnd(${d0},${d1}))!B(l*0.95,0)]>(rnd(110,130))[&(rnd(${d0},${d1}))!B(l*0.95,0)]` +
-          `>(rnd(110,130))[&(rnd(${d0 * 0.7},${d1 * 0.75}))!B(l,0)]`,
+          `F(l*0.8)[&(rnd(${d0},${d1}))!B(l*0.9,0)]>(rnd(80,100))[&(rnd(${d0},${d1}))!B(l*0.9,0)]` +
+          `>(rnd(80,100))[&(rnd(${d0},${d1}))!B(l*0.9,0)]>(rnd(80,100))[&(rnd(${d0 * 0.7},${d1 * 0.75}))!B(l,0)]`,
       },
       ...(from > 0 ? limbs(`o < ${Math.min(from, 6)}`, '') : []),
       ...limbs(from > 0 ? `o >= ${from} && o < 6` : 'o < 6', 'L'),
@@ -273,11 +318,12 @@ function broadleaf(o: BroadleafShape): SpeciesDef {
     angle: 30,
     lengthScale: 1,
     baseRadius: o.baseRadius,
-    radiusDecay: 0.8,
+    radiusDecay: 0.84,
     tropism: [0, -1, 0],
     tropismStrength: o.tropismStrength,
     bark: o.bark,
-    foliage: o.foliage,
+    // A quarter of a broadleaf's variants grow a thin crown (an old, windswept or ailing tree): the sky shows through.
+    foliage: { sparse: { share: 0.25, cover: 0.6 }, ...o.foliage },
     scale: o.scale,
     twigRadius: 0.009,
     maxBranchTriangles: 2500,
@@ -433,6 +479,8 @@ interface ConiferShape {
   deadLimbs?: number;
   curl?: number;
   stubs?: { p: number; len: [number, number] };
+  /** Share of the second-generation shoots that fork (an open, irregular crown; default 0: the layered whorls). */
+  forks?: number;
 }
 
 /**
@@ -494,13 +542,27 @@ function conifer(o: ConiferShape): SpeciesDef {
       : '';
   const curl = o.curl ? `^(rnd(${o.curl * 0.5},${o.curl * 1.5}))` : '';
   const dead = o.deadLimbs ?? 0;
-  for (let g = 0; g < D; g++)
+  for (let g = 0; g < D; g++) {
+    // `forks` of the second-generation shoots fork (the open black pines): limbs differ in build from variant to variant.
+    const fork = g === 1 ? (o.forks ?? 0) : 0;
     rules.push({
       pred: 'B(l,o)',
       cond: `o == ${g}`,
-      ...(g === 0 && dead > 0 ? { p: 1 - dead } : {}),
+      ...(g === 0 && dead > 0
+        ? { p: 1 - dead }
+        : fork > 0
+          ? { p: 1 - fork }
+          : {}),
       succ: `${curl}F(l)${leaf(g)}${spray(g)}>(rnd(-20,20))!B(l*0.82,o+1)`,
     });
+    if (fork > 0)
+      rules.push({
+        pred: 'B(l,o)',
+        cond: `o == ${g}`,
+        p: fork,
+        succ: `${curl}F(l)${leaf(g)}[+(rnd(22,40))!B(l*0.7,o+1)]-(rnd(8,18))!B(l*0.78,o+1)`,
+      });
+  }
   // A limb that died back in the stand's shade: a bare stub of its first internodes, a gap in the crown.
   if (dead > 0)
     rules.push({
@@ -536,21 +598,30 @@ function conifer(o: ConiferShape): SpeciesDef {
 /** Broadleaf summer crowns: sun leaves outside, shade leaves inside, trees a little apart (`foliage.turn`). */
 const SUMMER_TURN = { turn: 0.25, stages: 0.15 };
 
-/** Scots pine / spruce: the forest backbone, a straight leader and layered whorls of level limbs down to the foot. */
+/**
+ * Scots pine: the forest backbone. A straight trunk, bare for its lowest few metres but for dead stubs, under an open
+ * cone of whorled limbs that curve up at their ends; needle tufts only on the limbs' outer generations, a share of the
+ * limbs died back, so the limbs and sky show between the tufts (the pack pine's look, `pack_pine`).
+ */
 export const PINE = conifer({
   name: 'Pine',
-  bole: 0.6,
+  bole: 2.6,
   whorls: 12,
-  step: 0.95,
+  step: 1,
   taper: 0.97,
-  perWhorl: 5,
-  limb: 2.8,
+  perWhorl: 4,
+  limb: 2.9,
   shape: 'cone',
-  pitch: [88, 62],
-  spray: [38, 55],
-  leafFrom: 1,
+  pitch: [86, 58],
+  curl: 4,
+  limbJitter: [0.6, 1.2],
+  deadLimbs: 0.14,
+  spray: [35, 55],
+  leafFrom: 2,
+  sprayFrom: 1,
+  stubs: { p: 0.6, len: [0.2, 0.5] },
   tropism: [0, -1, 0],
-  tropismStrength: 0.12,
+  tropismStrength: 0.1,
   baseRadius: 0.22,
   bark: {
     color: '#7e6b5b',
@@ -561,7 +632,7 @@ export const PINE = conifer({
   },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.95,
+    spriteSize: 1.05,
     leaf: 'pine',
     palette: ['#4c5a44', '#525f45', '#465541', '#4b5c4a'],
   },
@@ -575,9 +646,9 @@ export const PINE = conifer({
 });
 
 /**
- * Plantation pine: the pine's cone for the dense stands of a mountain forest, grown cheaper: four limbs to a whorl
- * and half the sprites, each larger (a pine stand costs about a third of the GPU time per tree); a full cone on
- * a short foot, like the planted hillside stands.
+ * Plantation pine: a full layered cone on a short foot, like the young planted hillside stands, grown cheap for dense
+ * stands: four limbs to a whorl and half the sprites, each larger (a pine stand costs about a third of the GPU time per
+ * tree).
  */
 export const PLANTATION_PINE = conifer({
   name: 'Plantation pine',
@@ -619,17 +690,23 @@ export const BLACK_PINE = conifer({
   limb: 4.6,
   shape: 'umbrella',
   pitch: [42, 70],
-  spray: [25, 40],
+  curl: 3,
+  limbJitter: [0.7, 1.15],
+  forks: 0.32,
+  deadLimbs: 0.12,
+  spray: [25, 45],
   leafFrom: 2,
+  // Tufts on the outer limb ends only: the umbrella breaks into clumps with the limbs showing.
+  sprayFrom: 1,
   tropism: [0, -1, 0],
   tropismStrength: 0.05,
   baseRadius: 0.26,
-  bark: { color: '#4a4541', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
+  bark: { color: '#57524c', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
   foliage: {
     kind: 'needles',
-    spriteSize: 1.3,
+    spriteSize: 1.2,
     leaf: 'pine',
-    palette: ['#44533a', '#49583b', '#3e4e38', '#43563f'],
+    palette: ['#384839', '#3e4d3b', '#344436', '#3b4c3f'],
   },
   scale: [0.9, 1.2],
   maxSprites: 400,
@@ -641,42 +718,46 @@ export const BLACK_PINE = conifer({
 });
 
 /**
- * Black pine of a closed stand, about 19-20 m: the stand shades its lower limbs off, so a slim trunk (~0.3 m) stands bare
- * to two thirds of its height under a small flat crown; the bark dark at the foot, paler grey-brown up the stem.
+ * Black pine of a closed stand, about 16-21 m: the stand shades its lower limbs off, so a slim trunk (~0.45 m) stands bare
+ * to over half its height under a ragged, open crown; the bark dark at the foot, paler grey-brown up the stem.
  */
 export const TALL_BLACK_PINE = conifer({
   name: 'Tall black pine',
-  bole: 13.2,
-  whorls: 7,
-  step: 0.85,
-  taper: 0.95,
-  perWhorl: 5,
-  limb: 4.4,
+  // 16.6-19.2 m at scale 1: bare to ~0.58 H (the stand shaded the lower limbs off), a ragged crown of ~0.4 H.
+  bole: 11.4,
+  whorls: 13,
+  step: 0.78,
+  taper: 0.96,
+  perWhorl: 4,
+  limb: 4.6,
   shape: 'umbrella',
-  // Low limbs near level, curving up; the top ones rise: an irregular flat-topped crown, not a ball.
-  pitch: [80, 55],
-  curl: 6,
-  limbJitter: [0.55, 1.15],
-  deadLimbs: 0.22,
-  // Needle tufts on the limbs' outer ends only: sky between the clumps, the limbs show.
-  spray: [30, 55],
-  leafFrom: 2,
-  sprayFrom: 1,
-  stubs: { p: 0.45, len: [0.3, 0.9] },
+  // Low limbs near level and curving up, the top ones rising: an irregular, rounded flat top, not a ball or a point.
+  pitch: [88, 58],
+  curl: 5,
+  limbJitter: [0.4, 1.3],
+  forks: 0.32,
+  // A fifth of the limbs died back to bare stubs: sky through the crown, dead wood low inside it.
+  deadLimbs: 0.2,
+  // Needle tufts along the outer half of every limb, side sprays from the first generation: clumps, not star tips.
+  spray: [35, 62],
+  leafFrom: 1,
+  sprayFrom: 0,
+  stubs: { p: 0.5, len: [0.3, 1.1] },
   tropism: [0, -1, 0],
   tropismStrength: 0.03,
-  baseRadius: 0.16,
+  baseRadius: 0.22,
+  // Black pine bark: dark grey, deeply furrowed, near black at the foot (not a Scots pine's orange).
   bark: {
-    color: '#93765c',
+    color: '#625c55',
     texture: 'furrowed',
     scan: 'pine',
-    foot: { color: '#5e4838', height: 5 },
+    foot: { color: '#433f3a', height: 4 },
     tiling: 1.2,
   },
-  foliage: { ...BLACK_PINE.foliage, spriteSize: 0.85 },
-  scale: [0.95, 1.1],
-  maxSprites: 320,
-  maxBranchTriangles: 2000,
+  foliage: { ...BLACK_PINE.foliage, spriteSize: 0.72 },
+  scale: [0.95, 1.12],
+  maxSprites: 520,
+  maxBranchTriangles: 2200,
   // Thin: the limbs the needles hang on show (the branch cap thickens it to fit).
   twigRadius: 0.006,
   collisionRadius: 0.1,
@@ -725,7 +806,7 @@ export const OAK = broadleaf({
   leaders: [34, 50],
   laterals: [32, 50],
   iterations: 10,
-  baseRadius: 0.34,
+  baseRadius: 0.42,
   tropismStrength: 0.07,
   bark: { color: '#5e564c', texture: 'furrowed', tiling: 0.8 },
   foliage: {
@@ -784,7 +865,7 @@ export const HORNBEAM = broadleaf({
     kind: 'broadleaf',
     ...SUMMER_TURN,
     spriteSize: 1.45,
-    leaf: 'serrate',
+    leaf: 'ovate',
     palette: ['#405537', '#455838', '#495c38', '#4e6039', '#526439'],
   },
   scale: [0.85, 1.3],
@@ -812,6 +893,8 @@ export const WALNUT = broadleaf({
     spriteSize: 1.9,
     leaf: 'round',
     palette: ['#465939', '#4c5e3a', '#52633a', '#58673a'],
+    // A walnut keeps a dense round crown: no thin variants.
+    sparse: { share: 0, cover: 1 },
   },
   scale: [0.95, 1.2],
   variants: 4,
@@ -861,7 +944,7 @@ export const PLANE = broadleaf({
     kind: 'broadleaf',
     ...SUMMER_TURN,
     spriteSize: 1.6,
-    leaf: 'lobed',
+    leaf: 'palmate',
     palette: ['#566a3f', '#5d6f40', '#647441', '#6b7a43'],
   },
   scale: [0.95, 1.2],
@@ -877,16 +960,21 @@ export const BIRCH: SpeciesDef = {
   rules: [
     {
       pred: 'A(l,k)',
-      cond: 'k < 9',
-      succ: 'F(l)L[&(rnd(38,58))!!!B(l*(1.6-k*0.13),0)]>(137.5)A(l*0.96,k+1)',
+      cond: 'k < 10',
+      succ: 'F(l)L[&(rnd(26,40))!!!B(l*(1.1-k*0.08),0)]>(137.5)A(l*0.97,k+1)',
     },
-    { pred: 'A(l,k)', cond: 'k >= 9', succ: 'F(l*0.6)L' },
+    { pred: 'A(l,k)', cond: 'k >= 10', succ: 'F(l*0.6)L' },
     {
       pred: 'B(l,o)',
       cond: 'o < 3',
-      succ: 'F(l)L[T(0.22)&(rnd(25,45))!B(l*0.6,o+1)]>(137.5)[T(0.22)&(rnd(25,45))!B(l*0.55,o+1)]!B(l*0.75,o+1)',
+      succ: 'F(l)L[T(0.32)&(rnd(30,50))!B(l*0.62,o+1)]>(137.5)[T(0.32)&(rnd(30,50))!B(l*0.58,o+1)]!B(l*0.75,o+1)',
     },
-    { pred: 'B(l,o)', cond: 'o >= 3', succ: 'F(l*0.5)L' },
+    // The twig ends hang in strands (a weeping birch's curtains): two more pieces pulled down hard.
+    {
+      pred: 'B(l,o)',
+      cond: 'o >= 3',
+      succ: 'F(l*0.5)L[T(0.8)&(rnd(55,80))!F(l*0.55)L!F(l*0.55)L!F(l*0.5)L]',
+    },
   ],
   iterations: 12,
   segmentCap: 1400,
@@ -985,7 +1073,7 @@ export const POPLAR: SpeciesDef = {
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 1.3,
+    spriteSize: 1.6,
     leaf: 'round',
     palette: ['#465b39', '#4c603a', '#52653a', '#58693a'],
   },
@@ -1132,7 +1220,7 @@ export const HAZEL = shrub({
     kind: 'broadleaf',
     ...SUMMER_TURN,
     spriteSize: 0.85,
-    leaf: 'serrate',
+    leaf: 'ovate',
     palette: ['#46593a', '#4c5e3b', '#52633c', '#58673c'],
   },
   scale: [0.9, 1.15],
@@ -1162,7 +1250,7 @@ export const THICKET = shrub({
   variants: 4,
 });
 
-/** Flowering broom (Cytisus / Spartium) on the road cuttings: upright green switches covered in yellow, 1-2 m. */
+/** Broom (Cytisus / Spartium) on the road cuttings: upright green switches, 1-2 m, covered in yellow in spring only (trees/seasons.ts). */
 export const BROOM = shrub({
   name: 'Broom',
   stems: 22,
@@ -1179,7 +1267,7 @@ export const BROOM = shrub({
     ...SUMMER_TURN,
     spriteSize: 0.45,
     leaf: 'narrow',
-    palette: ['#425730', '#bc9919', '#bf9e19', '#c4a219', '#cbaa21'],
+    palette: ['#3f532f', '#465832', '#4b5b34', '#425430', '#536036'],
   },
   scale: [0.8, 1.2],
   variants: 4,
@@ -1315,12 +1403,65 @@ export const BRAMBLE = shrub({
     kind: 'broadleaf',
     ...SUMMER_TURN,
     spriteSize: 0.5,
-    leaf: 'serrate',
+    leaf: 'ovate',
     palette: ['#3c4f37', '#415438', '#465839', '#4c5c39'],
   },
   scale: [0.85, 1.3],
   variants: 4,
 });
+
+/**
+ * A leafless tree of `def` (a dead tree, a crown that has dropped its leaves): no sprites, so the fine twigs the leaves
+ * used to hide are drawn instead (thinner `twigRadius`, a larger branch budget). Rare: a map places a few in a batch.
+ */
+export function bareSpecies(def: SpeciesDef, name: string): SpeciesDef {
+  return {
+    ...def,
+    name,
+    foliage: { ...def.foliage, bare: true },
+    twigRadius: Math.min(def.twigRadius, 0.004),
+    tipRadius: 0.0025,
+    maxBranchTriangles: Math.round(def.maxBranchTriangles * 2.2),
+    variants: 3,
+  };
+}
+
+/** Dead / leafless trees (`bareSpecies`): an oak and a locust stand bare, a black pine as a grey snag. */
+export const BARE_OAK = bareSpecies(OAK, 'Bare oak');
+export const BARE_LOCUST = bareSpecies(LOCUST, 'Bare locust');
+/** A dead black pine (a snag): a straight grey stem with short level limbs, half of them broken back to stubs. */
+export const DEAD_PINE = bareSpecies(
+  conifer({
+    name: 'Dead pine',
+    bole: 3.5,
+    whorls: 8,
+    step: 0.6,
+    taper: 0.95,
+    perWhorl: 4,
+    limb: 1.6,
+    shape: 'cone',
+    pitch: [92, 78],
+    curl: -2,
+    limbJitter: [0.4, 1.2],
+    deadLimbs: 0.5,
+    stubs: { p: 0.8, len: [0.25, 0.8] },
+    spray: [25, 45],
+    leafFrom: 2,
+    sprayFrom: 2,
+    tropism: [0, -1, 0],
+    tropismStrength: 0.08,
+    baseRadius: 0.24,
+    bark: { ...BLACK_PINE.bark, color: '#6e6a64' },
+    foliage: BLACK_PINE.foliage,
+    scale: [0.85, 1.1],
+    maxSprites: 0,
+    maxBranchTriangles: 2000,
+    twigRadius: 0.006,
+    collisionRadius: 0.1,
+    variants: 3,
+  }),
+  'Dead pine',
+);
 
 export const SPECIES: readonly SpeciesDef[] = [
   PINE,
@@ -1347,6 +1488,9 @@ export const SPECIES: readonly SpeciesDef[] = [
   HEDGE_CYPRESS,
   LOCUST,
   BRAMBLE,
+  BARE_OAK,
+  BARE_LOCUST,
+  DEAD_PINE,
 ];
 
 const byName = new Map(SPECIES.map((s) => [s.name, s]));
@@ -1386,6 +1530,9 @@ export const TREE_TYPES: Readonly<Record<string, string>> = {
   hedge_cypress: 'Hedge cypress',
   locust_tree: 'Locust',
   bramble_shrub: 'Bramble',
+  bare_oak: 'Bare oak',
+  bare_locust: 'Bare locust',
+  dead_pine: 'Dead pine',
 };
 
 export function isTreeType(asset: string): boolean {

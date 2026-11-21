@@ -3,11 +3,13 @@ import {
   NORTH_FENCE,
   ROAD,
   roadLine,
+  roadZ,
   SIDEWALK_BACK,
   SOUTH_FENCE,
   STREET_X,
 } from './frame';
 import { getLayout, getYards, type Plot } from './layout';
+import { YARD_TOP } from './yard-surfaces';
 
 /**
  * The street's fixed furniture as pure data, shared by the geometry (`build/street.ts`) and the physics
@@ -47,6 +49,44 @@ export const kerbRuns = () => {
     south: between(g.south, CURBS_FROM, STREET_X[1]),
   };
 };
+
+/** Where a driveway apron ends behind the kerb line: the yards' street front (layout.ts `streetFence`). */
+export const APRON_BACK = {
+  north: NORTH_FENCE + 0.4,
+  south: SOUTH_FENCE - 0.4,
+};
+
+/** One apron's cross line at x: from the road's edge (front) to the yard's front (back), site z and world y. */
+export interface ApronLine {
+  zf: number;
+  yf: number;
+  zb: number;
+  yb: number;
+}
+
+/**
+ * The driveway apron across the kerb line at a gate: a straight ramp from the road's surface at the asphalt edge up
+ * (or down) to the yard's paving at its street front, so both joins are a bend, never a step. Shared by the mesh
+ * (build/street.ts) and the physics (index.ts). `ground`: site x, z -> world y; `yard`: the yards' paving (yardTop).
+ */
+export const apronLine =
+  (
+    ground: (x: number, z: number) => number,
+    yard: (x: number, z: number) => number,
+  ) =>
+  (x: number, side: 'north' | 'south'): ApronLine => {
+    const north = side === 'north';
+    const zf = roadZ(x, north ? ROAD.half : -ROAD.half);
+    const zb = roadZ(x, APRON_BACK[side]);
+    // (north is -z: the yard's top a hair inside its front)
+    const top = yard(x, zb + (north ? -0.05 : 0.05));
+    return {
+      zf,
+      yf: ground(x, zf) + 0.01,
+      zb,
+      yb: Number.isNaN(top) ? ground(x, zb) + YARD_TOP.drive : top,
+    };
+  };
 
 /** A fence run: points along the fence line, west to east (or as the yard outline runs). */
 export interface FenceRun {

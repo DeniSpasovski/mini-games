@@ -29,17 +29,17 @@ Most species come from a family builder in trees/species.ts that writes the gram
 ## Types
 
 - The maps place trees by the tree type ids of the old catalog, and each type grows as a species built to match the map data's description of it. A pine looks like a pine, a poplar like a poplar.
-- pine_tree is a pine, a Scots or spruce style conifer: one straight leader, whorls of drooping limbs, a layered cone of needle sprays down to a short foot.
-- plantation_pine is a plantation pine: the pine's cone grown cheaper for dense stands, four limbs to a whorl and about half the sprites, each larger; a full cone like the young planted hillside stands.
-- black_pine is a black pine, an Austrian black pine: a long straight trunk bare but for dead stubs, under a flat umbrella of dark needle clumps.
-- tall_black_pine is a black pine of a closed stand, about 20 m: a slim trunk bare to two thirds of its height but for a few dead stubs, under a small, open, flat-topped crown: needle tufts on the outer ends of long near-level limbs that curve up, a share of the limbs died back to bare stubs, so sky shows between the clumps; its bark dark at the foot and paler warm grey-brown up the stem (Vodno's trail start).
+- pine_tree is a pine, a Scots pine: one straight leader, a foot bare to about a quarter of its height but for dead stubs, then an open, irregular cone of near-level limbs curving up, needle tufts on their outer ends and sky between them.
+- plantation_pine is a plantation pine: a full, dense cone down to a short foot like the young planted hillside stands, as tall as the pine, grown cheaper (fewer, larger sprites).
+- black_pine is a black pine, an Austrian black pine: a long straight trunk bare but for dead stubs, under a flat umbrella of dark needle clumps on curving limbs, some of them died back, with gaps between.
+- tall_black_pine is a black pine of a closed stand, about 16-21 m: a slim trunk bare to over half its height but for a few dead stubs, under a ragged, open crown about 0.4 of its height: needle tufts along the outer half of near-level limbs that curve up, a fifth of the limbs died back to bare stubs, so sky shows between the clumps; dark grey bark (Vodno's trail start).
 - juniper is a juniper, a dark dense cone of spreading needled limbs, widest near the foot and needled almost to the ground, 2 to 3.5 m, drive-through.
 - oak_tree is an oak, a broad irregular field tree with a forking trunk and a rounded crown.
 - beech_tree is a mountain beech: a tall straight smooth pale-grey trunk under a dense rounded crown.
 - walnut_tree is a walnut, a big yard tree: a thick short trunk under a dense, dark, round crown wider than it is tall.
 - fruit_tree is a fruit tree, an apple or plum: a short trunk and a low, wide, round crown about half an oak's height.
-- pale_tree is a plane, a plane or ash with a long grey-white trunk and an open yellow-green crown.
-- birch_tree is a birch: a slender white trunk to the top, short climbing limbs with drooping twigs, a light airy crown.
+- pale_tree is a plane, a plane or ash with a long grey-white trunk and an open yellow-green crown of palmate leaves.
+- birch_tree is a birch: a slender white trunk to the top, short climbing limbs with hanging strands of twigs and small leaves, a light airy crown.
 - young_tree is a sapling, a slender elm or ash, its crown taller than wide and starting to yellow.
 - poplar_tree is a poplar, a Lombardy poplar: tall and columnar, short upswept limbs close to the trunk, the tallest tree.
 - willow_tree is a willow, a weeping willow: a short thick trunk, three limbs arching out round a central one that fills the dome's top, and long curtains of hanging shoots, drawn as thin olive wood with leaf cards along them, that stop above the ground.
@@ -48,13 +48,16 @@ Most species come from a family builder in trees/species.ts that writes the gram
 - hazelnut_tree is a hazel, a plantation hazelnut: a multi-stemmed upright bush with a fresh green crown, 3 to 4 m.
 - thicket_shrub is a thicket, hawthorn and blackthorn brush: white blossom in spring, red and brown in autumn.
 - hornbeam_tree is a hornbeam / oak coppice: two or three slender smooth grey stems from one stool under a narrow crown of small bright-green leaves.
-- broom_shrub is flowering broom: upright green switches covered in yellow, 1 to 2 m.
+- broom_shrub is flowering broom: upright green switches, covered in yellow in spring, 1 to 2 m.
 - cypress_tree is a Mediterranean cypress: a tall dark narrow column of short limbs close to the stem, 8 to 12 m (Vodno's church yards and suburb).
 - hedge_cypress is a hedge cypress (leyland / arborvitae): a fuller, greener column on a broad base, 6 to 9 m, planted in rows along lot fences and field edges of Ajvatovci's start row.
 - locust_tree is a black locust (acacia), a street and garden tree: a tall open crown of light feathery leaves on a dark furrowed trunk.
 - bramble_shrub is bramble and wild rose: a low arching tangle of green canes, 0.8 to 1.4 m, for forest edges and verges.
+- bare_oak, bare_locust and dead_pine are dead / leafless trees (`bareSpecies`: no sprites, finer twigs, three variants); the dead pine is a grey snag of short level limbs, half broken back to stubs. They stand only in rare dead patches ([Placement.dead patches](./Placement.md#variants)).
+- A quarter of a broadleaf's variants grow a thin crown (`foliage.sparse`: an old, windswept or ailing tree), and `foliage.cover` thins a whole species: dropped leaf points keep their sprite size, so the sky shows through gaps.
+- A broadleaf's low limbs are steeper and shorter than its crown limbs (long level ones sag under tropism below the crown); a variant has one low limb, none or a pair, and its crown splits into three leaders, two or four, and a single stem leans a few degrees. The black pines' limbs fork now and then (`forks`); the other conifers keep layered whorls.
 - Bushes, scrub, hazels, thickets, brambles and junipers are drive-through. The other trees collide on their trunk, the poplar on its trunk alone.
-- Conifers wear needle sprays and the other species leaf bunches. Leaf colours are measured albedo ([Foliage.colour](./Foliage.md#colour)); bark too: smooth grey beech about 0.18 luminance, white birch about 0.45, furrowed oak, locust and pine about 0.09, black pine about 0.06.
+- Conifers wear needle sprays and the other species leaf bunches. Leaf colours are measured albedo ([Foliage.colour](./Foliage.md#colour)); bark too: smooth grey beech about 0.18 luminance, white birch about 0.45, furrowed oak, locust and pine about 0.09, black pine about 0.085.
 - The common forest species, pine, oak, bush and scrub, have six variants; the rest have four, to keep the draw calls of a map with many species in budget.
 
 ## Seasons
@@ -62,10 +65,11 @@ Most species come from a family builder in trees/species.ts that writes the gram
 - A stage has a season, spring, summer or autumn. A species' palette is its summer look; a table gives the species that change their own spring and autumn palettes, from measured leaves: a bright yellow-green flush in spring, blossom on the fruit tree and thicket, yellow (birch, hornbeam, walnut, locust), copper (beech), dull yellow-brown (oak) and red (scrub, thicket, bramble) in autumn. Conifers hardly change, the juniper and cypresses never do.
 - A broadleaf's spring and autumn palettes are ramps from the least to the most turned leaf, from measured leaves (`trees/seasons.ts`). Trees turn about a week apart, so each variant has its own stage (autumn wider than spring, centred near peak colour), and a crown turns from its top and outside in (birch, poplar and willow from the inside).
 - A season changes the leaves only: their colours and, on a broadleaf, their cover. Autumn crowns have shed about a quarter of their leaves; spring ones are a fifth short and their leaves a fifth smaller, so the branches show through more. Its variants grow from the summer seeds, so a tree is the same tree all year, the same leaf points go bare every time, and the season is part of the species hash, so each has its own cached variants.
+- Late autumn (an autumn month from November on, `seasonal`'s `month`): a broadleaf keeps about a sixth of its leaves (oak a third, bramble more, broom all), their ramp the turned end of autumn's faded towards a dead leaf's brown, and draws the fine twigs the leaves hid (thinner twig cut, larger branch budget), the same skeleton.
 
 ## Checks
 
-- A test checks every type's proportions and colours against its description: a columnar poplar, cypress, hedge cypress and juniper, a pine taller than wide, a walnut and a willow wider than tall, a black pine crown in its top third and the tall black pine's above 70 % of its height, half again as tall, pale birch and plane bark, needles on the conifers, autumn reds on the thicket, a cypress darker than the beech, low bushes, a fruit tree under an oak and a poplar over it.
+- A test checks every type's proportions and colours against its description: a columnar poplar, cypress, hedge cypress and juniper, a pine taller than wide and bare below a fifth of its height, a plantation pine as tall with fewer sprites, a walnut and a willow wider than tall, a black pine crown in its top third and the tall black pine's above 55 % of its height, half again as tall, pale birch and plane bark, needles on the conifers, autumn reds on the thicket, a cypress darker than the beech, low bushes, a fruit tree under an oak and a poplar over it.
 
 ## Identity
 

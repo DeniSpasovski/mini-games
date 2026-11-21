@@ -109,6 +109,7 @@ export class Road {
       this.limitGrade(def.maxGrade);
       this.smoothHeights(def.gradeSmoothing ?? 12);
     }
+    if (def.climb) this.gradeClimb(def.climb);
     this.samples.forEach((s, i) => (s.y += dys[i]));
     this.bridges = (def.spans ?? [])
       .filter((sp) => sp.kind === 'bridge')
@@ -161,6 +162,103 @@ export class Road {
         if (y !== s[i].y) [s[i].y, changed] = [y, true];
       }
       if (!changed) break;
+    }
+  }
+
+  /** `RoadDef.climb`: the stretch never falls, climbs at least `minGrade`, at most `maxGrade`, with slow grade changes. */
+  private gradeClimb(c: NonNullable<RoadDef['climb']>): void {
+    const s = this.samples;
+    const k = (s.length - 1) / this.length;
+    const i0 = Math.max(0, Math.round(c.from * k));
+    const i1 = Math.min(s.length - 1, Math.round(c.to * k));
+    if (i1 - i0 < 4) return;
+    const orig = s.map((p) => p.y);
+    // The line to fit: the free line, raised by `lift` where the data sits the road too low.
+    const lift = c.lift ?? [];
+    const liftAt = (d: number): number => {
+      if (!lift.length || d <= lift[0][0]) return lift[0]?.[1] ?? 0;
+      for (let j = 1; j < lift.length; j++)
+        if (d <= lift[j][0]) {
+          const [a0, h0] = lift[j - 1];
+          const [a1, h1] = lift[j];
+          return h0 + ((h1 - h0) * (d - a0)) / (a1 - a0);
+        }
+      return lift[lift.length - 1][1];
+    };
+    const tgt = orig.map((y, i) => y + liftAt(s[i].dist));
+    // Least-squares non-decreasing fit of (height - minGrade * along) (pool adjacent violators), so the fitted line
+    // climbs at least minGrade everywhere.
+    const n = i1 - i0 + 1;
+    const z = new Float64Array(n);
+    for (let i = 0; i < n; i++)
+      z[i] = tgt[i0 + i] - c.minGrade * s[i0 + i].dist;
+    const val: number[] = [];
+    const cnt: number[] = [];
+    for (let i = 0; i < n; i++) {
+      val.push(z[i]);
+      cnt.push(1);
+      while (val.length > 1 && val[val.length - 2] > val[val.length - 1]) {
+        const w = cnt[cnt.length - 2] + cnt[cnt.length - 1];
+        const v =
+          (val[val.length - 2] * cnt[cnt.length - 2] +
+            val[val.length - 1] * cnt[cnt.length - 1]) /
+          w;
+        val.splice(-2, 2, v);
+        cnt.splice(-2, 2, w);
+      }
+    }
+    const y = new Float64Array(n);
+    for (let b = 0, i = 0; b < val.length; b++)
+      for (let j = 0; j < cnt[b]; j++, i++)
+        y[i] = val[b] + c.minGrade * s[i0 + i].dist;
+    // Keep the free line's heights at both ends (a linear correction: the stretch still climbs, its start and end stay).
+    const e0 = tgt[i0] - y[0];
+    const e1 = tgt[i1] - y[n - 1];
+    for (let i = 0; i < n; i++) y[i] += e0 + ((e1 - e0) * i) / (n - 1);
+    // Grade cap (forward and backward clamps keep a rising line rising), then the long smoothing (a box filter of a
+    // rising line rises).
+    for (let pass = 0; pass < 8; pass++) {
+      let changed = false;
+      for (let i = 1; i < n; i++) {
+        const lim = c.maxGrade * (s[i0 + i].dist - s[i0 + i - 1].dist);
+        if (y[i] > y[i - 1] + lim) [y[i], changed] = [y[i - 1] + lim, true];
+      }
+      for (let i = n - 2; i >= 0; i--) {
+        const lim = c.maxGrade * (s[i0 + i + 1].dist - s[i0 + i].dist);
+        if (y[i] < y[i + 1] - lim) [y[i], changed] = [y[i + 1] - lim, true];
+      }
+      if (!changed) break;
+    }
+    // (the box filter mirrors about the ends: a stretch shorter than its window keeps the fit unsmoothed)
+    const r = Math.min(
+      Math.max(1, Math.round((c.window * k) / 2 / 3)),
+      Math.floor((n - 1) / 2),
+    );
+    let ys = Array.from(y);
+    for (let pass = 0; pass < 3; pass++) {
+      const src = ys;
+      ys = src.map((_, i) => {
+        let sum = 0;
+        for (let j = i - r; j <= i + r; j++) {
+          // Mirror about the ends (odd reflection keeps the end height and the grade there).
+          const jj =
+            j < 0
+              ? 2 * src[0] - src[-j]
+              : j >= n
+                ? 2 * src[n - 1] - src[2 * (n - 1) - j]
+                : src[j];
+          sum += jj;
+        }
+        return sum / (2 * r + 1);
+      });
+    }
+    // Join the free line over `blend` m at each end (none at a road end).
+    const blend = Math.max(1, (c.blend ?? 40) * k);
+    for (let i = 0; i < n; i++) {
+      const a = i0 > 0 ? smoothstep(0, 1, i / blend) : 1;
+      const b = i1 < s.length - 1 ? smoothstep(0, 1, (n - 1 - i) / blend) : 1;
+      const w = Math.min(a, b);
+      s[i0 + i].y = orig[i0 + i] * (1 - w) + ys[i] * w;
     }
   }
 

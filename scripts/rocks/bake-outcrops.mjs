@@ -6,7 +6,7 @@
  *   node scripts/rocks/bake-outcrops.mjs sources/rally/polyhaven
  *
  * -> src/games/rally/assets/builders/outcrop-models.data.ts and src/games/rally/engine/props/outcrop.{color,normal}.webp
- * (the two scans' colour maps side by side, 2048 x 1024; normal maps at half size).
+ * (the two scans' colour and normal maps side by side, 1024 x 512 each: the bands sit on steep slopes off the road).
  *
  * Both scans are open shells of a cliff section seen from the front (+Z), the back open: each is centred across (x),
  * stood on y = 0 and its front put at z = FRONT, in metres; the scatter sets the face looking downhill and buries its
@@ -88,10 +88,10 @@ execFileSync('npx', ['prettier', '--write', dataFile], {
   shell: process.platform === 'win32',
 });
 
-// Textures: the scans' colour maps side by side, normal maps at half size (Pillow).
+// Textures: the scans' colour and normal maps side by side, 512 px per scan (Pillow).
 const props = path.join(root, 'src/games/rally/engine/props');
 for (const [part, name, size] of [
-  ['diff', 'color', 1024],
+  ['diff', 'color', 512],
   ['nor_gl', 'normal', 512],
 ]) {
   execFileSync(process.env.PYTHON ?? 'python', [

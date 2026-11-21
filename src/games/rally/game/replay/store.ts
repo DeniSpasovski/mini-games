@@ -206,6 +206,19 @@ export async function listReplays(stage?: string): Promise<ReplayMeta[]> {
   }
 }
 
+/** The header of a saved replay (stage, car, set-up, conditions), without decoding it; null when it is not saved here. */
+export async function loadReplayHeader(
+  id: string,
+): Promise<ReplayHeader | null> {
+  const file = await loadReplay(id);
+  if (!file) return null;
+  try {
+    return readHeader(file);
+  } catch {
+    return null;
+  }
+}
+
 export async function loadReplay(id: string): Promise<Uint8Array | null> {
   try {
     const db = await open();

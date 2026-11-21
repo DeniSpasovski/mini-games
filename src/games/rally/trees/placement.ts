@@ -139,3 +139,41 @@ export function treeCanopy(asset: string): {
 }
 
 export { isTreeType };
+
+/** The leafless / dead tree a scattered tree type turns into inside a dead patch (`bareTwin`). */
+export const BARE_TWINS: Readonly<Record<string, string>> = {
+  oak_tree: 'bare_oak',
+  hornbeam_tree: 'bare_oak',
+  walnut_tree: 'bare_oak',
+  locust_tree: 'bare_locust',
+  black_pine: 'dead_pine',
+  tall_black_pine: 'dead_pine',
+  pine_tree: 'dead_pine',
+  plantation_pine: 'dead_pine',
+};
+/** Dead patches: one in DEAD_PATCH.share of the DEAD_PATCH.cell m cells, `radius` m round its centre, `dead` of its trees bare. */
+const DEAD_PATCH = { cell: 90, share: 0.05, radius: 9, dead: 0.55 };
+
+/**
+ * A scattered tree's type, or its bare twin where it stands in a dead patch (a lightning strike, a beetle or drought
+ * spot): a handful of dead trees together, rare, the same on every load (hash of the stage id and the cell).
+ */
+export function bareTwin(
+  stageId: string,
+  asset: string,
+  x: number,
+  z: number,
+  index: number,
+): string {
+  const twin = BARE_TWINS[asset];
+  if (!twin) return asset;
+  const { cell, share, radius, dead } = DEAD_PATCH;
+  const cx = Math.floor(x / cell);
+  const cz = Math.floor(z / cell);
+  const h = mix32(mix32(hashText(stageId), cx * 73856093), cz * 19349663);
+  if (unit(mix32(h, 1)) >= share) return asset;
+  const px = (cx + 0.2 + 0.6 * unit(mix32(h, 2))) * cell;
+  const pz = (cz + 0.2 + 0.6 * unit(mix32(h, 3))) * cell;
+  if (Math.hypot(x - px, z - pz) > radius) return asset;
+  return unit(mix32(index, 0xdead)) < dead ? twin : asset;
+}

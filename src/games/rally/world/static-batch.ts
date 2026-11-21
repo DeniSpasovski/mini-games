@@ -1,5 +1,27 @@
 import { BatchedMesh, Mesh, type Material, type Object3D } from 'three';
 
+/** Road sub-groups whose meshes never change after the build: batched (world/static-batch.ts). */
+const STATIC_ROAD_GROUPS = [
+  'paths',
+  'buildings',
+  'barriers',
+  'bridges',
+  'cut-walls',
+  'railways',
+  'street-detail',
+  'plazas',
+  'gore',
+];
+
+/** The road's whole-map static meshes and those of its STATIC_ROAD_GROUPS, batched (the game and the map viewer). */
+export function batchRoad(road: Object3D): void {
+  batchStatic(road);
+  for (const name of STATIC_ROAD_GROUPS) {
+    const g = road.getObjectByName(name);
+    if (g) batchStatic(g);
+  }
+}
+
 /**
  * The static meshes directly under `group` that share a material, shadow flags, layers and vertex layout -> one `BatchedMesh`
  * each: one multi-draw call per pass (WEBGL_multi_draw) instead of one draw per tile, still frustum-culled per tile

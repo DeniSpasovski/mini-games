@@ -94,6 +94,7 @@ const BY_MAP: Record<string, TextureId[]> = {
     'road_street',
     'road_tarmac',
     'road_tarmac_lines',
+    'road_tarmac_new',
     'rock',
     'sidewalk',
     'vehicle_decals',

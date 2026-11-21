@@ -2,11 +2,13 @@ import {
   Color,
   type Object3D,
   PerspectiveCamera,
+  Quaternion,
   Scene,
   Vector2,
   Vector3,
   type WebGLRenderer,
 } from 'three';
+import { urlParam } from '../engine/url-param';
 import { StatsOverlay } from '../../../shared/stats-overlay';
 import { seconds, track, type EventParams } from '../../../shared/analytics';
 import gameManifest from '../game.json';
@@ -14,17 +16,21 @@ import { CarModel } from '../cars/shared/car-model';
 import { CARS, getCar } from '../cars';
 import { rallyName } from '../cars/shared/rally-badge';
 import type { CarDef } from '../cars/shared/types';
-import { Environment } from '../engine/environment';
+import { DAY_LIGHT, Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
-import { PostFx, postFxFromUrl } from '../engine/post-fx';
+import { type PhotoLens, PostFx, postFxFromUrl } from '../engine/post-fx';
 import { SunGlare } from '../engine/sun-glare';
 import type { QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { plantSheetsReady } from '../engine/grass';
 import { setVineAntialias } from '../engine/vines';
-import { bindCameraAspect, createRenderer } from '../engine/renderer';
+import {
+  bindCameraAspect,
+  createRenderer,
+  fixRenderSize,
+} from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
 import { setTextureAnisotropy } from '../engine/textures';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
@@ -40,7 +46,7 @@ import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { PeopleAnimator } from '../world/people-anim';
 import { DistanceCull } from '../world/distance-cull';
-import { batchStatic } from '../world/static-batch';
+import { batchRoad } from '../world/static-batch';
 import { prefetchTextures, rememberTextures } from '../engine/texture-prefetch';
 import { warmLevels } from '../world/people-warm';
 import { assetIds, InstanceStreamer } from '../world/instance-streamer';
@@ -65,7 +71,7 @@ import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
 import { CarSurround } from '../world/car-surround';
-import { canopyTone, FarForest } from '../world/far-forest';
+import { canopyTone, FarForest, forestColor } from '../world/far-forest';
 import { FarShadow } from '../world/far-shadow';
 import { TerrainLight } from '../world/terrain-light';
 import { Horizon } from '../world/horizon';
@@ -125,7 +131,7 @@ import {
   timesVersion,
 } from './stage';
 import { infoOf, stageInfo } from '../maps';
-import { stageSeason } from '../maps/shared/climate';
+import { seasonMonth, stageSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import { stageClimate } from '../maps/shared/day-temperature';
 import { seasonParam, type Season } from '../season';
@@ -144,6 +150,14 @@ import { ReplayRecorder } from './replay/recorder';
 import { ReplaySession, tvCamerasFor } from './replay/session';
 import { REPLAYS_ENABLED, saveReplay } from './replay/store';
 import { ReplayConsole } from './replay/debug-export';
+import {
+  EXPORT_FPS,
+  type ExportSize,
+  type ExportStatus,
+  type ExportWriter,
+} from './replay/export';
+import { AudioTape, renderAudioTape } from './replay/audio-tape';
+import { PhotoMode } from './photo/photo-mode';
 import { paramNumber } from '../../../shared/url-params';
 
 export interface GameOptions {
@@ -176,30 +190,8 @@ const SHADOW_OVERLAP = 35;
 const FAKE_TREES_FROM = 250;
 /** Render scale Auto's steps (`RallyGame.adaptScale`): full down to the 70 % option. */
 const SCALE_STEPS = [1, 0.92, 0.85, 0.77, 0.7];
-/** Road sub-groups whose meshes never change after the build: batched (world/static-batch.ts). */
-const STATIC_ROAD_GROUPS = [
-  'paths',
-  'buildings',
-  'barriers',
-  'bridges',
-  'cut-walls',
-  'railways',
-  'street-detail',
-  'plazas',
-  'gore',
-];
 /** A gantry clock is redrawn only while the camera is this close to it (m): each redraw uploads a texture. */
 const CLOCK_NEAR = 400;
-
-/** The far forest's colour on the ground: the stage's foliage, darker (a canopy seen from afar is mostly shade). */
-function forestColor(lib: TreeLibrary): Color {
-  const c = new Color(0, 0, 0);
-  const all = lib.all();
-  for (const v of all) c.add(new Color(...v.info.foliageColor));
-  if (all.length) c.multiplyScalar(0.55 / all.length);
-  else c.set(0x26341c);
-  return c;
-}
 
 /** Terrain LOD bands at lodScale 1 (m): 1 m grid / 2 m / 4 m / 8 m beyond. */
 const TERRAIN_LODS = [160, 520, 1100];
@@ -229,6 +221,28 @@ const GLARE =
   new URLSearchParams(location.search).get('glare') !== '0';
 /** Road spray on hard ground (lit like the dust). */
 const SPRAY_COLOR = 0xd4d9de;
+/** Take photo renders its frame with this long edge (px; 4K UHD), at most PHOTO_MAX_UPSCALE x the screen's resolution. */
+const PHOTO_LONG_EDGE = 3840;
+const PHOTO_MAX_UPSCALE = 3;
+/**
+ * Motion blur images across the shutter: enough that the fastest thing in view (a wheel's rim) moves about a pixel
+ * from one image to the next, or its fine detail (spokes, the sidewall print) shows as separate copies. `perFrame`
+ * are drawn each frame, so the picture gets smoother over the next frames (`PostFx.render`).
+ */
+const PHOTO_BLUR = {
+  /** While framing the shot. */
+  preview: { stepPx: 1, max: 512, perFrame: 16 },
+  /** Take photo (up to 4K). */
+  picture: { stepPx: 1.25, max: 768, perFrame: 8 },
+  min: 8,
+};
+/**
+ * Replay export: seconds of run-up before the section; frames held still before it while the streaming catches up
+ * (until this many quiet frames in a row, at most the cap).
+ */
+const EXPORT_RUN_UP = 1.5;
+const EXPORT_SETTLE_QUIET = 8;
+const EXPORT_SETTLE_MAX = 600;
 /** The replay keeps recording this long after the finish line (s): the car braking to a stop on the run-off. */
 const REPLAY_TAIL = 6;
 
@@ -313,6 +327,8 @@ export class RallyGame {
   private terrainLight?: TerrainLight;
   private hazeAcc = 0;
   audio: CarAudio;
+  /** The run's weather as the sound was built for it (a replay export builds the same synth again). */
+  private readonly soundWeather: { rain: number; wet: number };
   telemetry!: Telemetry;
   forceLines = new ForceLines();
   stats: StatsOverlay;
@@ -365,6 +381,24 @@ export class RallyGame {
   lastReplay?: Promise<Uint8Array>;
   private replayHeader?: ReplayHeader;
   private finishedAtFrame = -1;
+  /** Photo mode (game/photo/): open over the pause menu or a replay; the game stands still. */
+  photo?: PhotoMode;
+  /** Photo mode's post pass on a page without the High effects (made on open, gone on close). */
+  private photoPost?: PostFx;
+  /** Render scale before photo mode (it draws at full resolution). */
+  private photoScale = 1;
+  /** A picture asked for: taken right after the next frame's render. */
+  private photoShot?: (b: Blob | null) => void;
+  /** Pixel ratio to put back after a picture's high resolution frame (0 = none pending). */
+  private photoRatio = 0;
+  /** Size of the last picture (px). */
+  photoSize = { width: 0, height: 0 };
+  /** How much of the picture being taken is drawn, 0..1 (motion blur takes several frames; photo-ui.ts shows it). */
+  photoProgress = 0;
+  /** The lens of the picture being drawn (held with the camera until all its images are in). */
+  private photoLens?: PhotoLens;
+  /** What the motion blur's images so far were drawn with (camera, shutter); a change starts them over. */
+  private readonly photoView: number[] = [];
   /** Called when a replay opens / closes (the page swaps its overlays). */
   onReplayChange?: (on: boolean) => void;
   /** Called when the finished run's replay is encoded (and saved, ranked runs). */
@@ -384,16 +418,14 @@ export class RallyGame {
     bindCameraAspect(this.renderer, this.camera);
     const stage = opts.stage ?? opts.map.stages[0];
     this.season = seasonParam(
-      new URLSearchParams(location.search).get('season'),
+      urlParam('season'),
       stageSeason({ season: stage.season, environment: opts.map.environment }),
     );
     this.world = new World(mapInSeason(opts.map, this.season), stage);
     this.car = getCar(opts.carId);
-    const look = weatherLook(
-      weatherParam(new URLSearchParams(location.search).get('weather')),
-      stage.weather,
-    );
-    this.audio = new CarAudio(this.car, { rain: look.rain, wet: look.wet });
+    const look = weatherLook(weatherParam(urlParam('weather')), stage.weather);
+    this.soundWeather = { rain: look.rain, wet: look.wet };
+    this.audio = new CarAudio(this.car, this.soundWeather);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
     this.freeDrive = opts.spawn !== 'start';
     this.stats = new StatsOverlay(this.renderer, container, false);
@@ -439,7 +471,11 @@ export class RallyGame {
     // scatter chunk is used (their colliders come from the same skeletons).
     progress(0.08, 'Trees');
     this.treeLibrary = await TreeLibrary.load(
-      TreeLibrary.speciesOf(this.world.placedAssets(), this.season),
+      TreeLibrary.speciesOf(
+        this.world.placedAssets(),
+        this.season,
+        seasonMonth(this.world.map.environment),
+      ),
       this.renderer,
       (f) => progress(0.08 + 0.06 * f, 'Trees'),
     );
@@ -457,11 +493,7 @@ export class RallyGame {
     // Whole-map static meshes (the stage road's chunks, path / building tiles, walls, rails ...): one multi-draw per
     // material instead of a draw per tile (world/static-batch.ts). Not the gantries / signs / cable cars (own
     // textures or moving parts).
-    batchStatic(road);
-    for (const name of STATIC_ROAD_GROUPS) {
-      const g = road.getObjectByName(name);
-      if (g) batchStatic(g);
-    }
+    batchRoad(road);
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
     this.roadCull = new DistanceCull(road, q.viewDistance);
     await frame();
@@ -915,7 +947,7 @@ export class RallyGame {
 
   /** GPU time of the frame's render (`adaptScale`); not while the perf panel or tree timer use the queries. */
   private gpuTimed(): boolean {
-    if (!this.autoScale || this.paused || this.perf) return false;
+    if (!this.autoScale || this.paused || this.perf || this.photo) return false;
     if (this.trees.debug || this.trees.measure) return false;
     this.gpuTimer ??= this.renderer
       .getContext()
@@ -987,7 +1019,7 @@ export class RallyGame {
   private lightParticles(): void {
     const sun = this.env.sun.color
       .clone()
-      .multiplyScalar(this.env.sun.intensity / 3.1);
+      .multiplyScalar(this.env.sun.intensity / DAY_LIGHT.sun);
     // Half sky colour, half white: dust in the shade stays dust-coloured, not blue. Night: only the moon's blue.
     const ambient = this.env.night
       ? this.env.hemi.color.clone().multiplyScalar(0.25)
@@ -1176,6 +1208,8 @@ export class RallyGame {
 
   private onAction(a: InputAction): void {
     const v = this.vehicle;
+    // Photo mode owns the keys (game/photo/photo-ui.ts).
+    if (this.photo) return;
     // Watching a replay: the replay UI owns the keys; only mute and telemetry pass.
     if (this.watching && a !== 'mute' && a !== 'telemetry') return;
     switch (a) {
@@ -1487,6 +1521,174 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     return session;
   }
 
+  /**
+   * Open photo mode (game/photo/): over the pause menu or a replay (the replay pauses). The camera orbits the car with
+   * its own lens; the HUD hides. `exitPhoto` puts the game's camera back.
+   */
+  enterPhoto(): PhotoMode {
+    if (this.photo) return this.photo;
+    if (this.watching) this.watching.playing = false;
+    this.photo = new PhotoMode(this.camera, this.model.root, (x, z) =>
+      this.world.heightAt(x, z),
+    );
+    if (!this.post)
+      this.photoPost = new PostFx(
+        this.renderer,
+        this.scene,
+        this.camera,
+        this.opts.quality.antialias,
+        {
+          night: this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0,
+        },
+      );
+    this.photoScale = this.renderScale;
+    this.setRenderScale(1);
+    this.env.heldTime = this.env.time;
+    this.hud.el.classList.add('photo');
+    return this.photo;
+  }
+
+  exitPhoto(): void {
+    const p = this.photo;
+    if (!p) return;
+    this.photo = undefined;
+    this.env.heldTime = undefined;
+    // A picture still being drawn is dropped (it would be of the game's own view).
+    this.photoShot?.(null);
+    this.photoShot = undefined;
+    this.photoLens = undefined;
+    p.restore();
+    this.updateParticleScale();
+    this.post?.set({ photo: null });
+    this.post?.releaseShutter();
+    this.photoPost?.dispose();
+    this.photoPost = undefined;
+    this.setRenderScale(this.photoScale);
+    this.hud.el.classList.remove('photo');
+    if (this.watching) this.watching.director.snap();
+  }
+
+  /** Photo mode motion blur: the shutter time (s) when there is motion to blur, else 0. */
+  private photoMotion(): number {
+    const s = this.photo!.settings.shutter;
+    if (s <= 0) return 0;
+    const v = this.vehicle;
+    const moving =
+      v.velocity.lengthSq() > 0.01 ||
+      v.angularVelocity.lengthSq() > 1e-4 ||
+      v.wheels.some((w) => Math.abs(w.omega) > 0.5);
+    return moving ? s : 0;
+  }
+
+  /**
+   * Motion blur images across the shutter: the longest streak in px over the step size. The fastest points are a
+   * wheel's rim (its own turning, plus the car's speed when the camera holds still) at the wheel nearest the camera,
+   * and the car's turn over ~2.5 m.
+   */
+  private photoSamples(shutter: number): number {
+    const v = this.vehicle;
+    const cam = this.camera;
+    const root = this.model.root;
+    const h = this.renderer.domElement.height;
+    const fpx = h / (2 * Math.tan((cam.fov * Math.PI) / 360));
+    let d = cam.position.distanceTo(root.position);
+    let rim = 0;
+    for (let i = 0; i < 4; i++) {
+      const w = v.wheels[i];
+      rim = Math.max(rim, Math.abs(w.omega) * w.radius);
+      d = Math.min(
+        d,
+        cam.position.distanceTo(
+          root.localToWorld(this.photoAxis.copy(this.model.wheelPos[i])),
+        ),
+      );
+    }
+    const car = v.velocity.length();
+    const speed = Math.max(
+      this.photo?.settings.follow === 'ground' ? car + rim : Math.max(car, rim),
+      v.angularVelocity.length() * 2.5,
+    );
+    const px = ((speed * shutter) / Math.max(0.5, d)) * fpx;
+    const q = this.photoShot ? PHOTO_BLUR.picture : PHOTO_BLUR.preview;
+    return Math.max(PHOTO_BLUR.min, Math.min(q.max, Math.ceil(px / q.stepPx)));
+  }
+
+  /** True when the camera or the shutter changed since the last frame (the motion blur starts over). */
+  private photoViewChanged(shutter: number): boolean {
+    const cam = this.camera;
+    const now = [
+      ...cam.position.toArray(),
+      ...cam.quaternion.toArray(),
+      cam.fov,
+      cam.aspect,
+      shutter,
+      this.photo?.settings.follow === 'ground' ? 1 : 0,
+    ];
+    const was = this.photoView;
+    const changed =
+      was.length !== now.length || now.some((x, i) => x !== was[i]);
+    was.length = 0;
+    was.push(...now);
+    return changed;
+  }
+
+  private readonly photoBase = {
+    pos: new Vector3(),
+    quat: new Quaternion(),
+    cam: new Vector3(),
+    spin: [0, 0, 0, 0],
+    saved: false,
+  };
+  private readonly photoQ = new Quaternion();
+  private readonly photoAxis = new Vector3();
+
+  /**
+   * One image of the motion blur: the car moved `dt` s along its velocity, turned by its rotation and the wheels
+   * spun; the camera pans with it when the car is to stay sharp. `null` puts everything back.
+   */
+  private posePhotoSample(dt: number | null): void {
+    const b = this.photoBase;
+    const root = this.model.root;
+    const cam = this.camera;
+    if (!b.saved) {
+      b.pos.copy(root.position);
+      b.quat.copy(root.quaternion);
+      b.cam.copy(cam.position);
+      for (let i = 0; i < 4; i++) b.spin[i] = this.model.wheelSpin[i];
+      b.saved = true;
+    }
+    const v = this.vehicle;
+    const t = dt ?? 0;
+    root.position.copy(b.pos).addScaledVector(v.velocity, t);
+    const w = v.angularVelocity.length();
+    if (w > 1e-6 && t !== 0) {
+      this.photoQ.setFromAxisAngle(
+        this.photoAxis.copy(v.angularVelocity).divideScalar(w),
+        w * t,
+      );
+      root.quaternion.copy(b.quat).premultiply(this.photoQ);
+    } else root.quaternion.copy(b.quat);
+    for (let i = 0; i < 4; i++)
+      this.model.wheelSpin[i] = b.spin[i] + v.wheels[i].omega * t;
+    this.model.syncWheels();
+    cam.position.copy(b.cam);
+    if (this.photo?.settings.follow === 'car')
+      cam.position.addScaledVector(v.velocity, t);
+    if (dt === null) b.saved = false;
+  }
+
+  /** The next frame as a JPEG, rendered at up to PHOTO_LONG_EDGE px (photo mode's Take photo). */
+  takePhoto(): Promise<Blob | null> {
+    return new Promise((resolve) => {
+      const prev = this.photoShot;
+      if (!prev) this.photoProgress = 0;
+      this.photoShot = (b) => {
+        prev?.(b);
+        resolve(b);
+      };
+    });
+  }
+
   /** Clean tyres (spawn, a replay's start). */
   private resetTyreDust(): void {
     this.tyreDust.reset();
@@ -1510,6 +1712,164 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.hud.el.classList.remove('replay', 'clean');
     this.audio.setPaused(this.paused || !this.running);
     this.onReplayChange?.(false);
+  }
+
+  /** A replay export is rendering (`exportReplay`): background work gets its full slice every frame. */
+  private exporting = false;
+
+  /**
+   * Export a section (replay seconds `from`-`to`) of the replay being watched (game/replay/export.ts): the game loop
+   * stops and every frame is rendered at a fixed 1 / EXPORT_FPS step at exactly `size`, with the current camera choice,
+   * into the writer `open` makes for the canvas. Before the section the replay holds still until the ground, objects
+   * and trees around the camera are loaded, then a short run-up (not in the file) lets the cameras and dust settle.
+   * `onStatus` reports each step. Resolves with the writer's file, or null (cancelled, nothing to encode with, or the
+   * writer saved it itself).
+   */
+  async exportReplay(opts: {
+    from: number;
+    to: number;
+    size: ExportSize;
+    open: (canvas: HTMLCanvasElement) => Promise<ExportWriter | null>;
+    onStatus?: (s: ExportStatus) => void;
+    signal?: AbortSignal;
+  }): Promise<Blob | null> {
+    const r = this.watching;
+    if (!r) throw new Error('no replay open');
+    const step = 1 / EXPORT_FPS;
+    const from = Math.max(0, Math.min(r.duration, opts.from));
+    const to = Math.max(from, Math.min(r.duration, opts.to));
+    const total = Math.max(1, Math.round((to - from) * EXPORT_FPS));
+    const wasRunning = this.running;
+    const saved = {
+      time: r.time,
+      speed: r.speed,
+      scale: this.renderScale,
+      auto: this.autoScale,
+    };
+    const status = opts.onStatus ?? (() => {});
+    const t0 = performance.now();
+    const times: string[] = [];
+    let lap = t0;
+    const mark = (what: string) => {
+      const now = performance.now();
+      times.push(`${what} ${((now - lap) / 1000).toFixed(1)} s`);
+      lap = now;
+    };
+    const yieldTask = () => new Promise<void>((res) => setTimeout(res, 0));
+    // Wait for the GPU to finish what it was given (a 1-pixel read back): before the section nothing reads the canvas,
+    // so the run-up piles up on the GPU and the first encoded frame would wait for all of it.
+    const gl = this.renderer.getContext();
+    const px = new Uint8Array(4);
+    const gpuSync = () => {
+      const fb = gl.getParameter(
+        gl.FRAMEBUFFER_BINDING,
+      ) as WebGLFramebuffer | null;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    };
+    const aborted = () => !!opts.signal?.aborted;
+    this.stop();
+    this.exporting = true;
+    this.autoScale = false;
+    this.setRenderScale(1);
+    fixRenderSize(this.renderer, { w: opts.size.w, h: opts.size.h });
+    // Silent from here: the run-up's calls go to a tape that is thrown away.
+    this.audio.setTape(new AudioTape());
+    let out: ExportWriter | null = null;
+    try {
+      status({ phase: 'encoder' });
+      await yieldTask();
+      out = await opts.open(this.renderer.domElement);
+      mark('encoder');
+      if (!out || aborted()) {
+        await out?.cancel();
+        return null;
+      }
+      // Hold still before the section until the streaming has caught up (a few quiet frames in a row).
+      const runUp = Math.round(Math.min(from, EXPORT_RUN_UP) * EXPORT_FPS);
+      r.speed = 1;
+      r.playing = false;
+      r.seek(from - runUp * step);
+      let quiet = 0;
+      for (
+        let i = 0;
+        i < EXPORT_SETTLE_MAX && quiet < EXPORT_SETTLE_QUIET;
+        i++
+      ) {
+        this.frame(0);
+        const busy =
+          this.terrain.pending > 0 || this.streamer.busy || this.trees.busy;
+        quiet = busy ? 0 : quiet + 1;
+        if (i % 4 === 3) {
+          status({ phase: 'stage', left: this.terrain.pending });
+          await yieldTask();
+          if (aborted()) {
+            await out.cancel();
+            return null;
+          }
+        }
+      }
+      mark('loading');
+      r.playing = true;
+      for (let i = 0; i < runUp; i++) {
+        this.frame(step);
+        if (i % 8 === 7) {
+          status({ phase: 'runup', done: (i + 1) / runUp });
+          await yieldTask();
+        }
+      }
+      // Once, before the section: let the GPU finish the run-up it was given, so frame 1 doesn't wait for it.
+      gpuSync();
+      mark('run-up');
+      const tape = new AudioTape();
+      this.audio.setTape(tape);
+      for (let i = 0; i < total; i++) {
+        if (aborted()) {
+          await out.cancel();
+          return null;
+        }
+        r.playing = true;
+        this.frame(step);
+        tape.next();
+        // Straight after the render: the canvas is cleared once the page composites it.
+        await out.frame(i);
+        status({ phase: 'frames', done: i + 1, total });
+        if (i % 4 === 3) await yieldTask();
+      }
+      mark(`${total} frames`);
+      this.audio.setTape(undefined);
+      status({ phase: 'sound' });
+      await yieldTask();
+      const sound = await renderAudioTape(
+        tape,
+        this.car,
+        this.soundWeather,
+        EXPORT_FPS,
+      );
+      mark('sound');
+      status({ phase: 'file' });
+      await yieldTask();
+      const file = await out.finish(sound);
+      mark('file');
+      console.info(
+        `replay export ${opts.size.w}x${opts.size.h}, ${total} frames in ${((performance.now() - t0) / 1000).toFixed(1)} s: ${times.join(', ')}`,
+      );
+      return file;
+    } catch (e) {
+      await out?.cancel().catch(() => {});
+      throw e;
+    } finally {
+      this.audio.setTape(undefined);
+      this.exporting = false;
+      fixRenderSize(this.renderer, null);
+      this.autoScale = saved.auto;
+      this.setRenderScale(saved.scale);
+      r.speed = saved.speed;
+      r.playing = false;
+      r.seek(saved.time);
+      if (wasRunning) this.start();
+    }
   }
 
   /** Replay frame: pose the car at the replay's time; knocked-over posts, people and tyre marks follow it. */
@@ -1769,6 +2129,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
    * a little progress, and the ground near the car is built whatever it costs (terrain-renderer `URGENT_MS`).
    */
   private frameSlack(dt: number): number {
+    if (this.exporting) return 8;
     if (dt > 0) this.frameInterval += (dt * 1000 - this.frameInterval) * 0.1;
     return Math.min(
       8,
@@ -1866,7 +2227,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
     // Paused: the camera freezes where it is (the rig would keep carrying it at the car's frozen velocity).
-    if (replay)
+    // The camera holds still while a picture's motion blur is drawn (several frames).
+    if (this.photo) {
+      if (!this.photoShot) this.photo.update();
+    } else if (replay)
       replay.director.update(
         replay.dt,
         v,
@@ -1880,7 +2244,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       this.updateParticleScale();
     // Tyre detail (tyre-lod.ts): full tread at rest / close, smeared tread at speed, cheap tyres far from the camera.
     // In a replay the wheels turn at the playback rate: paused (photo) = full detail, slow motion = less smear.
-    const playback = replay ? (dt > 0 ? fdt / dt : 0) : 1;
+    // Photo mode: full detail (its own motion blur spins the real tread).
+    const playback = this.photo ? 0 : replay ? (dt > 0 ? fdt / dt : 0) : 1;
     this.model.setTyreLod(
       v.speed * 3.6 * playback,
       this.camera.position.distanceTo(this.renderPos),
@@ -1900,7 +2265,11 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.trees.setJobBudget(Math.min(1.5, Math.max(0.3, this.slack)));
     this.trees.update(
       this.camera,
-      replay ? replay.director.rig.steady : this.rig.steady,
+      this.photo
+        ? this.camera.position
+        : replay
+          ? replay.director.rig.steady
+          : this.rig.steady,
     );
     const tTrees = performance.now();
     const treeJob = this.trees.current.jobMs;
@@ -2085,8 +2454,62 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ? 0
         : 1 - 0.7 * (this.env.def.cloudCoverage ?? 0.4),
     );
-    if (this.post?.active) this.post.render();
-    else this.renderer.render(this.scene, this.camera);
+    // Back to the screen's resolution after a picture (a resize clears the canvas, so not in the picture's frame).
+    if (this.photoRatio && !this.photoShot) {
+      this.renderer.setPixelRatio(this.photoRatio);
+      this.photoRatio = 0;
+      this.renderer.domElement.dispatchEvent(new CustomEvent('resized'));
+    }
+    // A picture: this one frame at up to PHOTO_LONG_EDGE px (the post targets follow the 'resized' event).
+    if (this.photoShot && !this.photoRatio) {
+      const r = this.renderer;
+      const c = r.domElement;
+      const gl = r.getContext();
+      const max = Math.min(
+        PHOTO_LONG_EDGE,
+        gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number,
+        gl.getParameter(gl.MAX_TEXTURE_SIZE) as number,
+      );
+      const k = Math.min(PHOTO_MAX_UPSCALE, max / Math.max(c.width, c.height));
+      if (k > 1.05) {
+        this.photoRatio = r.getPixelRatio();
+        r.setPixelRatio(this.photoRatio * k);
+        c.dispatchEvent(new CustomEvent('resized'));
+      }
+    }
+    const post = this.photo ? (this.post ?? this.photoPost) : this.post;
+    if (this.photoShot && this.photo) this.photoLens ??= this.photo.lens;
+    else this.photoLens = undefined;
+    post?.set({
+      photo: this.photo ? (this.photoLens ?? this.photo.lens) : null,
+    });
+    const blur = this.photo ? this.photoMotion() : 0;
+    // Motion blur: a share of the shutter's images each frame; a picture waits for all of them.
+    let whole = true;
+    if (post && blur > 0) {
+      const shot = !!this.photoShot;
+      whole = post.render({
+        samples: this.photoSamples(blur),
+        perFrame: (shot ? PHOTO_BLUR.picture : PHOTO_BLUR.preview).perFrame,
+        pose: (t) => this.posePhotoSample(t * blur),
+        restart: this.photoViewChanged(blur),
+      });
+      this.posePhotoSample(null);
+    } else {
+      this.photoView.length = 0;
+      if (post?.active) post.render();
+      else this.renderer.render(this.scene, this.camera);
+    }
+    if (this.photoShot)
+      this.photoProgress = blur > 0 && post ? post.shutterProgress : 1;
+    if (this.photoShot && whole) {
+      // Read the canvas in the same task as its render (no preserveDrawingBuffer needed).
+      const done = this.photoShot;
+      this.photoShot = undefined;
+      const c = this.renderer.domElement;
+      this.photoSize = { width: c.width, height: c.height };
+      c.toBlob(done, 'image/jpeg', 0.95);
+    }
     if (timed) gl.endQuery(this.gpuTimer!.TIME_ELAPSED_EXT);
     this.perf?.gpuEnd();
     const tRender = performance.now();

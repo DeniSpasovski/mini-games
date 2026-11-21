@@ -5,6 +5,7 @@ import type { SurfaceId } from '../physics/surfaces';
 import type { TunnelAcoustics } from '../world/world';
 import type { CameraMode } from './camera-rig';
 import { engineWave } from './engine-sound';
+import type { AudioTape } from './replay/audio-tape';
 
 /**
  * How a slide sounds per surface: grain scrub (gain, band-pass centre Hz + Hz per m/s, Q), low rumble
@@ -185,7 +186,11 @@ export class CarAudio {
   private readonly sound: CarSoundDef;
   private readonly idleRpm: number;
   private readonly redline: number;
-  private ctx?: AudioContext;
+  private ctx?: BaseAudioContext;
+  /** Rendering a replay export (`renderAudioTape`): no gestures, no suspend / resume, always plays. */
+  private readonly offline: boolean;
+  /** Set while a replay export renders its frames: the calls are taped, not played (`AudioTape`). */
+  private tape?: AudioTape;
   private master?: GainNode;
   /** Every source mixes here (before the tunnel EQ / echo). */
   private mix?: GainNode;
@@ -257,12 +262,24 @@ export class CarAudio {
   private enclosed = false;
 
   /** `weather`: rain rate (mm/h) and road wetness of the run (`weather.ts`); the rain sounds are built only when either is above 0. */
-  constructor(car: CarDef, weather = { rain: 0, wet: 0 }) {
+  constructor(
+    car: CarDef,
+    weather = { rain: 0, wet: 0 },
+    /** A replay export's offline context (`renderAudioTape`): built on it straight away, at the default volume. */
+    offline?: OfflineAudioContext,
+  ) {
     this.rain = weather.rain;
     this.wet = weather.wet;
     this.sound = car.sound;
     this.idleRpm = car.physics.engine.idleRpm;
     this.redline = car.physics.engine.redlineRpm;
+    this.offline = !!offline;
+    if (offline) {
+      this.muted = false;
+      this.paused = false;
+      this.start(offline);
+      return;
+    }
     const gestures = ['keydown', 'pointerdown', 'touchend', 'click'] as const;
     const unlock = () => {
       this.start();
@@ -270,7 +287,7 @@ export class CarAudio {
       // without one, and a key held from the countdown sends only repeats, which do not count as a gesture.
       // `sync` then suspends it again if nothing should play.
       const ctx = this.ctx;
-      if (ctx?.state === 'suspended')
+      if (ctx instanceof AudioContext && ctx.state === 'suspended')
         void ctx.resume().then(
           () => this.sync(),
           () => {},
@@ -295,16 +312,25 @@ export class CarAudio {
     this.sync();
   }
 
+  /** A replay export renders: tape every frame's calls instead of playing them, silent until set back to undefined. */
+  setTape(tape: AudioTape | undefined): void {
+    this.tape = tape;
+    this.sync();
+  }
+
   /** Camera mode = where the listener is (on board hears more intake and gearbox, less exhaust). */
   setListener(mode: CameraMode): void {
+    if (this.tape) return this.tape.listener(mode);
     this.listener = LISTENER[mode];
   }
 
   /** Run the context only while playing and visible. */
   private sync(): void {
     const ctx = this.ctx;
-    if (!ctx || ctx.state === 'closed') return;
-    const want = !this.paused && document.visibilityState === 'visible';
+    if (!ctx || this.offline || !(ctx instanceof AudioContext)) return;
+    if (ctx.state === 'closed') return;
+    const want =
+      !this.paused && !this.tape && document.visibilityState === 'visible';
     // Re-checked when a resume / suspend lands: a pause while one was under way (the pause key also being the gesture
     // that unblocked the sound) left the engine running behind the pause menu.
     if (want && ctx.state !== 'running')
@@ -316,11 +342,11 @@ export class CarAudio {
       void ctx.suspend().then(() => this.sync());
   }
 
-  private start(): void {
+  private start(offline?: OfflineAudioContext): void {
     if (this.ctx) return;
-    let ctx: AudioContext;
+    let ctx: BaseAudioContext;
     try {
-      ctx = new AudioContext();
+      ctx = offline ?? new AudioContext();
     } catch {
       return;
     }
@@ -532,7 +558,7 @@ export class CarAudio {
   }
 
   private buildRain(
-    ctx: AudioContext,
+    ctx: BaseAudioContext,
     loop: () => AudioNode,
     filter: (type: BiquadFilterType, f: number, q?: number) => BiquadFilterNode,
     silent: () => GainNode,
@@ -561,6 +587,7 @@ export class CarAudio {
 
   /** Rain rate (mm/h, 0 = none falling) and how wet the road is (0..1); `weather.ts`. */
   setWeather(rain: number, wet: number): void {
+    if (this.tape) return this.tape.weather(rain, wet);
     this.rain = rain;
     this.wet = wet;
   }
@@ -576,20 +603,12 @@ export class CarAudio {
     return this.muted;
   }
 
-  /** The mix as a media stream (replay video, game/replay/video.ts); null before the first sound or muted. */
-  captureStream(): { stream: MediaStream; release: () => void } | null {
-    const master = this.master;
-    if (!this.ctx || !master || this.muted) return null;
-    const dest = this.ctx.createMediaStreamDestination();
-    master.connect(dest);
-    return { stream: dest.stream, release: () => master.disconnect(dest) };
-  }
-
   /**
    * The portal around the car (World.tunnelAt), undefined in the open: echo level, a slap off each wall at its
    * distance (narrow = tighter, stronger flutter), a tail that grows with the tunnel length, bass build-up.
    */
   setEnclosure(tunnel: TunnelAcoustics | undefined, speed = 0): void {
+    if (this.tape) return this.tape.enclosure(tunnel, speed);
     const ctx = this.ctx;
     if (!ctx || !this.tunnelSend) return;
     const t = ctx.currentTime;
@@ -616,10 +635,13 @@ export class CarAudio {
   }
 
   update(s: CarSoundFrame): void {
+    if (this.tape) return this.tape.update(s);
     const ctx = this.ctx;
     // A suspended context (pause, hidden tab, sound blocked) keeps currentTime still: every setTargetAtTime would
-    // pile up in the params' timelines and each call gets slower (ms per frame after a few minutes).
-    if (!ctx || !this.oscA || ctx.state !== 'running') return;
+    // pile up in the params' timelines and each call gets slower (ms per frame after a few minutes). An offline
+    // context is suspended at each frame on purpose (`renderAudioTape`) and moves on after.
+    if (!ctx || !this.oscA || (ctx.state !== 'running' && !this.offline))
+      return;
     const t = ctx.currentTime;
     const dt = Math.min(0.1, Math.max(0, t - this.lastT));
     this.lastT = t;
@@ -1007,7 +1029,7 @@ export class CarAudio {
   }
 
   dispose(): void {
-    void this.ctx?.close();
+    if (this.ctx instanceof AudioContext) void this.ctx.close();
   }
 }
 
@@ -1022,7 +1044,7 @@ function distortionCurve(k: number): Float32Array<ArrayBuffer> {
 }
 
 /** Impulse response of the tunnel tail: stereo noise with an exponential decay (~1.2 s to -60 dB), dark-ish. */
-function tunnelImpulse(ctx: AudioContext): AudioBuffer {
+function tunnelImpulse(ctx: BaseAudioContext): AudioBuffer {
   const len = Math.floor(ctx.sampleRate * 1.3);
   const buf = ctx.createBuffer(2, len, ctx.sampleRate);
   for (let c = 0; c < 2; c++) {

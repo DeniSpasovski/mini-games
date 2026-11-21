@@ -339,6 +339,8 @@ export function impostorArray(
     });
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
     renderer.resetState();
+    // Uploaded once and never updated: drop the CPU copy (every layer, ~180 MB on a forest map) so the heap does not keep it.
+    (t.image as { data: Uint8Array | null }).data = null;
   }
   return t;
 }

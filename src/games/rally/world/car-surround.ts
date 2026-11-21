@@ -24,6 +24,8 @@ const NEAR_SLICE = 32;
 const FAR_SLICE = 3;
 /** Time constant (s) the reflection eases to a new surrounding with: trees slide through it, never pop. */
 const EASE = 0.12;
+/** Shortest time between rebuilds (s): above ~90 fps every other frame (the easing hides the step). */
+const MIN_STEP = 1 / 90;
 /** The car's reflecting surfaces: this high over its origin (m). */
 const EYE = 0.9;
 /** Blur radius (azimuth bins) per texture row: sharp clear coat .. rough paint. */
@@ -79,6 +81,8 @@ export class CarSurround {
   private canopy = new Float32Array(4);
   private at = { x: NaN, z: NaN };
   private primed = false;
+  /** Time since the last rebuild (s). */
+  private wait = 0;
   /** Covered share of the sky light at the car (0..1), eased; the car's diffuse sky light drops with it. */
   blocked = 0;
 
@@ -100,6 +104,10 @@ export class CarSurround {
     this.at.x = pos.x;
     this.at.z = pos.z;
     if (jumped) this.primed = false;
+    this.wait += dt;
+    if (this.primed && this.wait < MIN_STEP) return;
+    dt = this.wait;
+    this.wait = 0;
     const lamb0 = light.night ? 0.012 : 0.25;
     this.measureTerrain(
       pos,

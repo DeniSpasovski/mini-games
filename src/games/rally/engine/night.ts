@@ -20,7 +20,7 @@ export const NIGHT_UNTIL = 4.5;
 /** Night look constants shared by the environment and the cars (see `Environment.apply`). */
 export const NIGHT = {
   moonColor: '#9db4e6',
-  /** Moon directional light (the sun is 3.1 at midday). */
+  /** Moon directional light (the sun is `DAY_LIGHT.sun` at midday). */
   moonIntensity: 0.2,
   fogColor: '#0a0e18',
   /** x the map's `fogDensity`: dark air shows little. */

@@ -4,6 +4,7 @@ maps/<id>/culverts.json. Drainage on the map's own baked height grid (data.json 
 grid round it), so the folds are the ones the player sees.
 
     python scripts/realmap/culverts.py scripts/realmap/vodno.json [--min-area 2] [--min-fold 0.6] [--preview out.png] [--dry]
+        [--osm-check] [--confirm-radius 40] [--confirmed-only] [--out path]
 
 Method:
 - sinks filled (priority flood), multiple-flow-direction accumulation (Freeman, slope^1.1 over the lower neighbours):
@@ -16,6 +17,10 @@ Method:
   ground (--skip-covers: streets drain to sewers) and away from OSM water ways (bridged / culverted already) and bridge
   spans;
 - the flow direction there (MFD flow vector round the point) = the pipe's direction.
+--osm-check: each estimate gets a verdict from OpenStreetMap (Overpass, ODbL): "confirmed" = a mapped culvert
+(`tunnel=culvert`, `culvert=*`, `man_made=culvert`) or a waterway crossing the route within --confirm-radius m;
+"contradicted" = a bridge on a road there (the water passes under a deck, not a pipe); else "no evidence". It also
+lists mapped culverts near the route that no estimate found. --confirmed-only writes only the confirmed ones.
 The engine projects every point onto the game road (world/culverts.ts): the file holds world points, not distances.
 "lines" = the D8 links where the MFD catchment is >= --line-area ha within --line-reach m of the route (map viewer
 `drain=1`).
@@ -33,6 +38,7 @@ from scipy.ndimage import map_coordinates
 from scipy.spatial import cKDTree
 
 import bake
+import overpass
 
 N8 = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
@@ -156,6 +162,49 @@ def seg_intersect(p, q, a, b):
     return (t, u) if 0 <= t <= 1 and 0 <= u <= 1 else None
 
 
+def osm_evidence(cfg, route, reach=60.0):
+    """OSM culverts, waterways and road bridges near the route (Overpass, cached) -> (culverts, waterways, bridges):
+    culverts = [(x, z, label)], waterways / bridges = [(polyline (n, 2) world, label)]."""
+    P = bake.Proj(*cfg['origin'])
+    lo = P.inv(route[:, 0].min() - reach, route[:, 1].max() + reach)
+    hi = P.inv(route[:, 0].max() + reach, route[:, 1].min() - reach)
+    bb = f'{lo[0]:.5f},{lo[1]:.5f},{hi[0]:.5f},{hi[1]:.5f}'
+    q = (
+        f'[out:xml][timeout:180];(way["tunnel"="culvert"]({bb});way["culvert"]({bb});node["culvert"]({bb});'
+        f'node["man_made"="culvert"]({bb});way["man_made"="culvert"]({bb});way["waterway"]({bb});'
+        f'way["highway"]["bridge"]({bb}););(._;>;);out body;'
+    )
+    nodes, ntags, ways, _ = overpass.parse(overpass.run(q, bake.CACHE, f'culvert-check-{cfg["id"]}'))
+
+    def line(w):
+        return np.array([P.fwd(*nodes[r]) for r in w['refs']], np.float64).reshape(-1, 2)
+
+    culv, water, bridges = [], [], []
+    for nid, t in ntags.items():
+        if 'culvert' in t or t.get('man_made') == 'culvert':
+            culv.append((*P.fwd(*nodes[nid]), f'node {nid}'))
+    for wid, w in ways.items():
+        t, pts = w['tags'], line(w)
+        if len(pts) < 1:
+            continue
+        if t.get('tunnel') == 'culvert' or 'culvert' in t or t.get('man_made') == 'culvert':
+            for p in pts:
+                culv.append((p[0], p[1], f'way {wid} ({t.get("waterway", "culvert")})'))
+        elif 'waterway' in t and len(pts) > 1:
+            water.append((pts, f'way {wid} ({t["waterway"]})'))
+        elif 'highway' in t and t.get('bridge') not in (None, 'no') and len(pts) > 1:
+            bridges.append((pts, f'way {wid} ({t["highway"]} bridge)'))
+    return culv, water, bridges
+
+
+def seg_dist(p, pts):
+    """Distance from p to a polyline."""
+    a, b = pts[:-1], pts[1:]
+    d = b - a
+    t = np.clip(((p - a) * d).sum(1) / np.maximum((d * d).sum(1), 1e-9), 0, 1)
+    return float(np.min(np.linalg.norm(a + d * t[:, None] - p, axis=1)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('config')
@@ -174,6 +223,10 @@ def main():
     ap.add_argument('--to', type=float, default=1e9, help='... and before this one (m)')
     ap.add_argument('--preview', help='PNG: hillshade, drainage lines, route, culverts')
     ap.add_argument('--dry', action='store_true', help='print only')
+    ap.add_argument('--osm-check', action='store_true', help='verdict per culvert from OSM culverts / waterways / bridges')
+    ap.add_argument('--confirm-radius', type=float, default=40.0, help='OSM evidence this close to a culvert counts (m)')
+    ap.add_argument('--confirmed-only', action='store_true', help='keep only the culverts OSM confirms (implies --osm-check)')
+    ap.add_argument('--out', help='write here instead of maps/<id>/culverts.json')
     args = ap.parse_args()
     cfg = json.load(open(args.config, encoding='utf-8'))
     data_path = os.path.join(bake.ROOT, cfg['out'])
@@ -337,6 +390,36 @@ def main():
         if not why:
             keep.append(c)
     print(f'{len(keep)} culverts')
+    if args.osm_check or args.confirmed_only:
+        culv, water, bridges = osm_evidence(cfg, route)
+        R = args.confirm_radius
+        P = bake.Proj(*cfg['origin'])
+        print(f'OSM: {len(culv)} culvert points, {len(water)} waterways, {len(bridges)} road bridges near the route')
+        for c in keep:
+            p = np.array([c['x'], c['z']])
+            ev = [lb for x, z, lb in culv if math.hypot(x - p[0], z - p[1]) < R]
+            # a waterway counts where it crosses the route within R of the site (one alongside the road does not)
+            near_k = [k for k in range(len(route) - 1) if seg_dist(p, route[k : k + 2]) < R]
+            ev += [
+                lb
+                for pts, lb in water
+                if any(seg_intersect(pts[i], pts[i + 1], route[k], route[k + 1]) for i in range(len(pts) - 1) for k in near_k)
+            ]
+            con = [lb for pts, lb in bridges if seg_dist(p, pts) < R]
+            c['verdict'] = 'contradicted' if con and not ev else 'confirmed' if ev else 'no evidence'
+            c['evidence'] = sorted(set(con or ev))
+            lat, lon = P.inv(c['x'], c['z'])
+            print(f'  {c["along"]:7.0f} m  ({c["x"]:.0f}, {c["z"]:.0f})  {lat:.6f}, {lon:.6f}  {c["verdict"]}  {", ".join(c["evidence"])}')
+        near = {}
+        for x, z, lb in culv:
+            d, n = tree.query((x, z))
+            if d < R and not any(math.hypot(x - c['x'], z - c['z']) < R for c in keep):
+                near.setdefault(lb, (al[n], x, z, d))
+        for lb, (along, x, z, d) in near.items():
+            print(f'  missed: OSM culvert {lb} at {along:.0f} m ({x:.0f}, {z:.0f}), {d:.0f} m off the route')
+        if args.confirmed_only:
+            keep = [c for c in keep if c['verdict'] == 'confirmed']
+            print(f'{len(keep)} culverts confirmed by OSM')
 
     # drainage lines near the route (map viewer overlay): D8 links where the MFD catchment is >= line-area
     ys, xs = np.mgrid[0:H, 0:W]
@@ -384,6 +467,7 @@ def main():
             'maxArea': args.max_area,
             'merge': args.merge,
             'prominence': args.prominence,
+            **({'osmConfirmed': args.confirm_radius, 'osm': 'OpenStreetMap contributors (ODbL)'} if args.confirmed_only else {}),
         },
         'culverts': [
             {
@@ -422,7 +506,7 @@ def main():
         img.save(args.preview)
         print('preview', args.preview)
     if not args.dry:
-        path = os.path.join(os.path.dirname(data_path), 'culverts.json')
+        path = args.out or os.path.join(os.path.dirname(data_path), 'culverts.json')
         with open(path, 'w', encoding='utf-8', newline='\n') as fh:
             json.dump(out, fh, separators=(',', ':'))
             fh.write('\n')

@@ -15,6 +15,7 @@ import { STATION_FLAT } from './station';
 import { fieldLinkPads, fieldLotPad, startLotPad } from './service-park';
 import { startRowPads } from './start-row';
 import { forestEdge } from '../shared/forest-edge';
+import { seedingGrass } from '../shared/seasonal-grass';
 
 /**
  * "Ajvatovci Hill" - first real-world stage: Ilinden industrial zone (by the A2 motorway)
@@ -31,9 +32,10 @@ import { forestEdge } from '../shared/forest-edge';
  * real roads and buildings to explore (bounds below).
  */
 
-/** Road width by distance along the route (m): industrial street, field road, village, hill. */
+/** Road width by distance along the route (m): industrial street (to the start row's last kerb, round the first
+ * corner), field road, village, hill. */
 function widthAt(along: number): number {
-  if (along < 540) return 7;
+  if (along < 556) return 7;
   if (along < 2350) return 5.6;
   if (along < 3680) return 6;
   return 5.2;
@@ -437,6 +439,13 @@ export const ajvatovciMap: MapDef = {
       maxSlope: 0.5,
       scale: [0.7, 1.3],
     },
+    // Tall golden seeding grass on the verges and the fallow (ref-11): summer and autumn.
+    ...seedingGrass({
+      cover: [...WILD, 'orchard', 'trees', 'water'],
+      verge: 450,
+      fallow: 260,
+      fallowCover: ['grass', 'shrub', 'bare'],
+    }),
     ...seasonalGrass({
       asset: 'spring_grass',
       cover: ['crop'],
@@ -571,8 +580,18 @@ export const ajvatovciMap: MapDef = {
       spread: 18,
     },
   ],
-  // Concrete parapets on the canal bridge deck.
-  barriers: [{ kind: 'jersey', side: 'both', offset: 0.45, onBridge: true }],
+  // The canal bridge: low concrete kerbs; a chipped yellow pipe railing on the right, on the left only two posts and
+  // one pipe are left of it.
+  barriers: [
+    { kind: 'kerb', side: 'right', offset: 0.45, onBridge: true, rail: 'pipe' },
+    {
+      kind: 'kerb',
+      side: 'left',
+      offset: 0.45,
+      onBridge: true,
+      rail: 'pipe_broken',
+    },
+  ],
   // The A2 motorway at the start: its carriageways get a Jersey median wall and an outer guard rail.
   pathBarriers: {
     kinds: ['motorway'],
@@ -583,6 +602,8 @@ export const ajvatovciMap: MapDef = {
   },
   // The A2 overpasses and the small street bridges are modern concrete bridges with steel railings (not stone).
   bridgeStyle: 'concrete',
+  // The canal bridge on the stage is a small slab over the ditch: the reedy banks slope up to it, no wing walls.
+  stageSpanSlab: true,
   // Marshals / onlookers behind the closed junction mouths.
   // Benches, dustbins and utility cabinets along the village street.
   streetDressing: {

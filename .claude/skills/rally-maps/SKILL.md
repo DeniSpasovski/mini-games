@@ -28,7 +28,8 @@ generated deterministically from it. There is no map editor on purpose — edit 
   - The road must not cross itself or come within ~50 m of another part (terrain carving blends to the nearest road).
   - Crest / jump: three close points (~15 m apart) with `dy` 0 -> 1.5..2 -> 0 (see test map #16-18).
 - Height: the road follows terrain smoothed over `smoothing` m, clamped to `maxGrade` (0.11 = 11%), the grade changes rounded over
-  `gradeSmoothing` m (default 12; fast stages need ~50 or a +7/-7 % kink launches the car), then `dy` is added.
+  `gradeSmoothing` m (default 12; fast stages need ~50 or a +7/-7 % kink launches the car), then `dy` is added; `climb` makes a
+  mountain road's stretch never fall (Vodno).
 - Cross-section: `width`, `shoulder` (loose verge), `ditch`, `crown`.
 - Surface changes along the stage: `road.sections: [{ from: <metres along>, surface, texture }]` (applies until the
   next entry; `road.surface` / `texture` are used before the first). E.g. asphalt valley road -> gravel climb
@@ -47,7 +48,9 @@ generated deterministically from it. There is no map editor on purpose — edit 
 ## Scatter & props
 
 - `scatter` rules per asset: `density` per 1000 m², `minRoadDist` (from road EDGE), `maxSlope`, `mask` (noise clustering
-  -> forests/clearings), `scale`, `tilt`, `alignToGround`, `sink`, `detail` (grass: only near camera).
+  -> forests/clearings; same `group` = one shared clump field), `contour` (strips / rows along the contour), `fieldEdge`
+  (hedgerows on field parcel edges), `scale`,
+  `tilt`, `lean` (toward the road), `alignToGround`, `sink`, `detail` (grass: only near camera).
 - `roadside` rules: `every` m or `at: [metres]`, `side` (`outside` = outside of the bend), `offset` from edge,
   `maxRadius` (only in tight bends), `count/spread/depth` (crowds), `faceRoad`.
 - Real maps: grow the area by widening `detail` / `landcover` / `outer` extents and ADDING the new strips to
@@ -67,7 +70,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
    these to place `at:` props), checks the road is flat/gravel and no solid scatter is on the road.
 2. `npx rstest integration-tests/rally/stage-<map>.test.ts` (new map: add that file, `describeStages(<map>)`) — the autopilot must finish the stage with every car without rolling.
    If it fails, trace the failing distance (lower `maxGrade`, widen a hairpin, move a crest out of a corner).
-3. Look: `/games/rally/map-viewer.html?map=<id>&stage=<id>` (one stage of the map, default the first; oblique overview, `grid=1` chunk grid, `splat=1` surfaces,
+3. Look: `/games/rally/map-viewer.html?map=<id>&stage=<id>` (one stage of the map, default the first; oblique overview of the stage's route, `grid=1` chunk grid, `splat=1` surfaces, `far=1` far forest,
    click terrain -> "Drive from here").
 4. Drive: `/games/rally/?stage=<id>&spawn=<metres along the stage>&mute=1` to test a section directly.
 5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Conventions", `isMutedByUrl`).
@@ -101,7 +104,8 @@ Example: `maps/ajvatovci/` (`map.ts`, baked `data.json`, task list `TODO.md`, so
    `terrain.talus` / `terrain.streamBeds` and scatter `minSlope` give steep ground its bare rock, scree and crags and the
    streams their pebble beds, scatter `outcrop` (asset `rock_outcrop`) rock bands along the contour (rally DETAILS "Natural
    ground"); `landcover.needles` = pine-needle floor per cover, `fern` / `fern_autumn` (`season`) under shaded crowns;
-   `forestEdge()` for the shrub belt along a wood: "Forest edges".
+   woods as layered stands of generated trees (`forestEdge()` for the verge belt, scatter `mask.group` / `contour` /
+   `lean`): rally DETAILS "Stands"; pack models (`heroTrees`) are off the default path.
    `buildings.worldcover: true` generates houses on WorldCover built-up ground where no footprint data set covers
    the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon;
    `msRoads: { country, clearance, minLength }` adds roads OSM lacks from Microsoft ML Road Detections (ODbL,

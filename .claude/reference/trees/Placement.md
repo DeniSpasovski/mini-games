@@ -8,13 +8,14 @@ Trees are placed where the game's existing stage data places trees today. Each p
 
 - Each species pre-generates a pool of variants, 8 by default, each from its own seed, with every LOD and its impostor. The seeds were rolled once and are kept in a table (`VARIANT_SEEDS`, trees/variants.ts): tuning a species or the generator changes how a tree is drawn, never which tree stands on a spot. A new species or variant appends its seed; a seed is never changed.
 - A placed tree picks its variant from a hash of the stage id and its placement index, and its rotation about the vertical and its scale, within the species range, from the same hash. The scale the map gives the tree, its scatter rule's range, a hand-placed sapling or a street tree sized by its trunk, multiplies the species scale. A scattered tree also takes a rung of the stand's age ladder from the hash (a share young, a few veterans: `placement.ts` `YOUNG` / `VETERAN`), so a stand mixes sizes; trees the map sizes itself (measured heights, hand-placed) keep their size. A stage therefore grows the same forest every time.
+- Dead patches: a scattered oak, hornbeam, walnut, locust or pine standing in one (`bareTwin`, trees/placement.ts: one in twenty 90 m cells, 18 m across, from the stage id) is its bare twin about half the time, so dead trees are rare and come as a handful together.
 - Variants are drawn with instancing, one batch per variant and level.
 - A solid tree whose low leaves would hang over the stage road's edge by more than the map allows (`MapDef.treeCrownClear`, set on Vodno; the leaf points come from `variantFoliage`, trees/variants.ts) takes another variant, rotation and size from the same hash, the best of a few tries, so no limb hangs over the road. No tree is moved or removed, and a stage still grows the same forest every time.
 
 ## Caching
 
 - Generated variants are cached on disk keyed by the species hash, the variant seed and the generator version, and are regenerated whenever any of them changes.
-- The leaf atlases (and their mipmaps) are cached beside them, keyed by leaf style and generator version. The cache is read in the generator workers, which also make the cached impostors' mipmaps, so the main thread only uploads.
+- The leaf atlases (and their mipmaps) are cached beside them, keyed by leaf style and generator version. The cache is read in the generator workers, which also make the impostors' mipmaps (cached ones as they are read, freshly baked ones while the next variants bake), so the main thread only uploads.
 - The game's build generates every variant and impostor of every shipped species and ships the cache, so a player's stage load only reads it. Generation at load only happens for a species or generator changed since the build, as in development or a mod.
 - A tree load always finishes. If the generator worker fails to start or a variant fails in it, the remaining variants are generated on the main thread; if the cache cannot be opened in time or is blocked by another tab, the stage loads without it.
 
