@@ -12,6 +12,7 @@ import {
   type Material,
   Mesh,
   MeshBasicMaterial,
+  MeshLambertMaterial,
   MeshNormalMaterial,
   RepeatWrapping,
   MeshStandardMaterial,
@@ -228,7 +229,7 @@ export function cropTexture(look: CropLook): Texture {
 
 // --- materials ------------------------------------------------------------------------------------------------
 
-const materials = new Map<string, MeshStandardMaterial>();
+const materials = new Map<string, MeshStandardMaterial | MeshLambertMaterial>();
 
 /** Wind sway per m² of height (engine/world-shading.ts RALLY_WIND): wheat nods, the tall corn sways less per metre. */
 const WIND: Record<'wheat' | 'corn', number> = { wheat: 0.12, corn: 0.03 };
@@ -238,9 +239,9 @@ const THROUGH: Record<'wheat' | 'corn', number> = { wheat: 0.08, corn: 0.25 };
 /** The model's material (opaque, both sides, its own texture). */
 export function cropMaterial(look: CropLook): MeshStandardMaterial {
   const key = `model:${look}`;
-  let m = materials.get(key);
-  if (m) return m;
-  m = new MeshStandardMaterial({
+  const cached = materials.get(key) as MeshStandardMaterial | undefined;
+  if (cached) return cached;
+  const m = new MeshStandardMaterial({
     map: cropTexture(look),
     side: DoubleSide,
     roughness: 0.85,
@@ -300,20 +301,17 @@ const CROP_DEPTH_EXIT = /* glsl */ `
 `;
 
 /**
- * A crop card material: alpha-tested baked render, normals up like the grass cards. Wheat has two with ONE program
- * (same source, defines and cache key): the lit cards and their depth prepass (`depthOnly`, colour off).
+ * A crop card material: alpha-tested baked render, normals up like the grass cards. Lambert, so `groundLitCard` lights
+ * it at its vertices (a field is card over card: every covered pixel pays for the light model). Wheat has two with ONE
+ * program (same source, defines and cache key): the lit cards and their depth prepass (`depthOnly`, colour off).
  */
-function cardMaterial(
-  card: CropCard,
-  depthOnly: boolean,
-): MeshStandardMaterial {
+function cardMaterial(card: CropCard, depthOnly: boolean): MeshLambertMaterial {
   let t = cards.get(card);
   if (!t) cards.set(card, (t = emptyCard()));
-  const m = new MeshStandardMaterial({
+  const m = new MeshLambertMaterial({
     map: t,
     alphaTest: 0.5,
     side: DoubleSide,
-    roughness: 0.9,
   });
   m.alphaToCoverage = cardA2C;
   const model = MODEL_OF[lookOf(card)];
@@ -343,9 +341,9 @@ function cardMaterial(
 }
 
 /** The card material of a look (the lit cards). */
-export function cropCardMaterial(card: CropCard): MeshStandardMaterial {
+export function cropCardMaterial(card: CropCard): MeshLambertMaterial {
   const key = `card:${card}`;
-  let m = materials.get(key);
+  let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
   m = cardMaterial(card, false);
   m.name = `crop card ${card}`;
