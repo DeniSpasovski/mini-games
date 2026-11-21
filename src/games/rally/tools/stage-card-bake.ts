@@ -14,7 +14,7 @@ import { Environment } from '../engine/environment';
 import type { QualitySettings } from '../engine/quality';
 import { worldUniforms } from '../engine/world-shading';
 import { getStage, loadStage } from '../maps';
-import { mapSeason } from '../maps/shared/climate';
+import { mapSeason, seasonMonth } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import type { Season } from '../season';
 import { isTreeType, speciesOfType } from '../trees/species';
@@ -83,7 +83,7 @@ export async function bakeStageCard(
   log(`${mapId} ${season}: world`);
   await breathe();
   const world = new World(map, stage);
-  seasonCanopies(world.placedAssets(), season);
+  seasonCanopies(world.placedAssets(), season, seasonMonth(map.environment));
   const box = stageBox(world);
 
   // Card rectangle: the route's bounding box + CARD_MARGIN, inside the map's terrain, snapped to the height grid.
@@ -291,12 +291,16 @@ export async function bakeStageCard(
  * The canopy discs take their colour from the tree variants' registered summaries (trees/variants.ts); register the
  * season's (same shapes, that season's leaves) and drop the colours cached for the last season baked.
  */
-function seasonCanopies(assets: Iterable<string>, season: Season): void {
+function seasonCanopies(
+  assets: Iterable<string>,
+  season: Season,
+  month: number,
+): void {
   resetCanopies();
   for (const id of assets)
     if (isTreeType(id))
       registerVariant(
-        generateVariant(seasonal(speciesOfType(id), season), 0).info,
+        generateVariant(seasonal(speciesOfType(id), season, month), 0).info,
       );
 }
 

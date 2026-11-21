@@ -1,4 +1,4 @@
-import type { Group } from 'three';
+import { Matrix4, type Group } from 'three';
 import { hash3 } from '../../../../../shared/rng';
 import type { StaticCollider } from '../../../physics/types';
 import type { TerrainSampler } from '../../../world/heightfield';
@@ -8,7 +8,7 @@ import type { World } from '../../../world/world';
 import { newRoadQuery, Road } from '../../../world/road';
 import { Local } from '../../ajvatovci/hilltop/build/shapes';
 import { Bucket } from '../../ajvatovci/start-row/build/kit';
-import type { MapDef, MapFeaturePoint } from '../../shared/types';
+import type { MapDef, MapFeaturePoint, MapFeatures } from '../../shared/types';
 import {
   cylinderCollider,
   placeAt,
@@ -23,11 +23,12 @@ import {
   logRail,
   picnicTable,
   post,
-  wallSeg,
+  strut,
   WOOD,
   woodBoard,
 } from './park';
 import type { Site } from './sites';
+import { ROAD_LINES, ROAD_POINTS } from '../road-lines';
 
 /**
  * Park furniture and barriers OSM maps along the stage (`MapDef.features`, baked by scripts/realmap/features.py): picnic
@@ -47,6 +48,7 @@ const GATE_WHITE = '#ecebe6';
 const STEEL = '#6d7378';
 const STONE = '#cfc6b4';
 const CONCRETE = '#c9c6bf';
+const LOG_BROWN = '#5e3a20';
 /** Half width of a way a gate / block closes (m): the side roads and tracks here are 3-4 m wide. */
 const WAY_HALF = 2.2;
 
@@ -86,6 +88,12 @@ const RADIUS: Record<string, number> = {
   block: 1,
   bollard: 0.3,
   tree: 0.5,
+  sign_direction: 0.9,
+  sign_info: 0.6,
+  kiosk: 1.6,
+  concrete_block: 0.8,
+  timber_bollard: 0.2,
+  border_stone: 0.3,
 };
 
 /** The largest `RADIUS` and the cell size (m) of the grid `occupies` looks the spots up in. */
@@ -125,6 +133,25 @@ export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
     const p = road!.at(q.along);
     return { x: p.x, z: p.z, d: Math.abs(q.distance) - q.halfWidth };
   };
+  // The fences and walls OSM lacks, along the stage road (road-lines.ts), as feature lines: a point every 2 m.
+  type Line = MapFeatures['lines'][number];
+  let lineList: Line[] | undefined;
+  const allLines = (): Line[] =>
+    (lineList ??= [
+      ...lines,
+      ...ROAD_LINES.map((r, i): Line => {
+        road ??= new Road(map.road, () => 0);
+        const side = r.side === 'left' ? 1 : -1;
+        const pts: number[] = [];
+        for (let a = r.from; ; a = Math.min(r.to, a + 2)) {
+          const p = road.at(a);
+          const lat = side * (p.halfWidth + r.offset);
+          pts.push(p.x + p.tz * lat, p.z - p.tx * lat);
+          if (a >= r.to) break;
+        }
+        return { kind: r.kind, pts, id: -1 - i, type: r.type };
+      }),
+    ]);
   // Where each feature stands: off the verge, at least 1.5 m clear of the road edge (a point mapped on its line).
   let spotList: [number, number][] | undefined;
   const spots = (): [number, number][] =>
@@ -160,23 +187,45 @@ export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
       return undefined;
     return [x, z];
   };
+  // The pieces OSM lacks along the stage road (road-lines.ts): where they are listed, facing the road.
+  const roadPlaced = (): Placed[] => {
+    road ??= new Road(map.road, () => 0);
+    const r = road;
+    return ROAD_POINTS.flatMap((pt) => {
+      const out: Placed[] = [];
+      const side = pt.side === 'left' ? 1 : -1;
+      for (let a = pt.at; a <= (pt.to ?? pt.at) + 1e-6; a += pt.every ?? 1) {
+        const p = r.at(a);
+        const lat = side * (p.halfWidth + pt.offset);
+        const x = p.x + p.tz * lat;
+        const z = p.z - p.tx * lat;
+        // +z of the piece towards the road
+        const yaw = Math.atan2(p.x - x, p.z - z);
+        out.push({ kind: pt.kind, x, z, yaw, r: RADIUS[pt.kind] });
+      }
+      return out;
+    });
+  };
   // Yaws need the ground: set on first use (pure: the analytic ground every caller passes is the same).
   let placed: Placed[] | undefined;
   const place = (g: (x: number, z: number) => number): Placed[] =>
-    (placed ??= points.flatMap(([kind, , , wayYaw]: MapFeaturePoint, i) => {
-      const spot = level(g, i);
-      if (!spot) return [];
-      const [x, z] = spot;
-      let yaw = downhillYaw(g, x, z);
-      if (kind === 'lift_gate' || kind === 'gate' || kind === 'block')
-        // across the way: the piece's +x runs across it
-        yaw = -(wayYaw + Math.PI / 2);
-      else if (kind === 'board' || kind === 'guidepost') {
-        const p = nearest(x, z);
-        yaw = Math.atan2(p.x - x, p.z - z);
-      }
-      return [{ kind, x, z, yaw, r: RADIUS[kind] }];
-    }));
+    (placed ??= [
+      ...roadPlaced(),
+      ...points.flatMap(([kind, , , wayYaw]: MapFeaturePoint, i) => {
+        const spot = level(g, i);
+        if (!spot) return [];
+        const [x, z] = spot;
+        let yaw = downhillYaw(g, x, z);
+        if (kind === 'lift_gate' || kind === 'gate' || kind === 'block')
+          // across the way: the piece's +x runs across it
+          yaw = -(wayYaw + Math.PI / 2);
+        else if (kind === 'board' || kind === 'guidepost') {
+          const p = nearest(x, z);
+          yaw = Math.atan2(p.x - x, p.z - z);
+        }
+        return [{ kind, x, z, yaw, r: RADIUS[kind] }];
+      }),
+    ]);
 
   // Spot indices by grid cell: scatter asks for every candidate (grass included).
   let cells: Map<number, number[]> | undefined;
@@ -230,11 +279,38 @@ export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
           out.push(cylinderCollider(site, 0, 0, y, 0.5, 1.4));
         else if (p.kind === 'board')
           out.push(cylinderCollider(site, 0, 0, y, 0.9, 3));
+        else if (p.kind === 'sign_direction' || p.kind === 'sign_info')
+          out.push(cylinderCollider(site, 0, 0, y, 0.25, 3));
+        else if (p.kind === 'kiosk')
+          out.push(turnedBoxCollider(site, 0, 0, -p.yaw, 1.15, 1.15, y, 2.8));
+        else if (p.kind === 'concrete_block')
+          out.push(turnedBoxCollider(site, 0, 0, -p.yaw, 0.7, 0.45, y, 1.3));
         else if (p.kind === 'picnic_table')
           out.push(cylinderCollider(site, 0, 0, y, 1.05, 1.3));
         else if (p.kind === 'bench' || p.kind === 'viewpoint')
           out.push(cylinderCollider(site, 0, 0, y, 0.85, 1.1));
       }
+      // fences and walls near the stage road: a thin box per segment
+      for (const line of allLines())
+        for (let i = 0; i + 3 < line.pts.length; i += 2) {
+          const [ax, az, bx, bz] = line.pts.slice(i, i + 4);
+          const [x, z] = [(ax + bx) / 2, (az + bz) / 2];
+          const len = Math.hypot(bx - ax, bz - az);
+          if (len < 0.2 || nearest(x, z).d > REACH) continue;
+          const hx = len / 2 + 0.05;
+          const hz = line.kind === 'wall' ? 0.25 : 0.1;
+          out.push({
+            kind: 'box',
+            x,
+            z,
+            y: Math.min(ground.height(ax, az), ground.height(bx, bz)) - 0.3,
+            h: line.kind === 'wall' ? 1.15 : 1.3,
+            hx,
+            hz,
+            rot: -Math.atan2(bz - az, bx - ax),
+            r: Math.hypot(hx, hz),
+          });
+        }
       return out;
     },
     // Single trees OSM maps that the canopy height model's real trees miss (seats and tables are the park kit's,
@@ -269,7 +345,7 @@ export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
         piece(l, p, g);
       }
       yield;
-      for (const line of lines) {
+      for (const line of allLines()) {
         const pts: V2[] = [];
         for (let i = 0; i + 1 < line.pts.length; i += 2)
           pts.push([line.pts[i], line.pts[i + 1]]);
@@ -278,13 +354,31 @@ export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
         const yAt = (x: number, z: number) =>
           g(x + l.site.x, z + l.site.z) - l.baseY;
         if (line.kind === 'wall') {
+          // the wall follows the ground from point to point (its top sloped with the road, no steps)
           for (let i = 0; i + 1 < loc.length; i++) {
             const [a, b] = [loc[i], loc[i + 1]];
-            const y = Math.min(yAt(...a), yAt(...b));
-            wallSeg(l, a, b, y - 0.3, y + 0.85, 0.5, 'drystone', STONE);
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            if (len < 0.01) continue;
+            const [ya, yb] = [yAt(...a), yAt(...b)];
+            const mid = (ya + yb) / 2;
+            l.box(
+              'drystone',
+              [-len / 2 - 0.02, -0.3, -0.25],
+              // (every other piece a few mm taller: their tops never fight where two pieces lap at a corner)
+              [len / 2 + 0.02, 0.85 + (i % 2) * 0.006, 0.25],
+              STONE,
+              placeAt(
+                (a[0] + b[0]) / 2,
+                mid,
+                (a[1] + b[1]) / 2,
+                -Math.atan2(b[1] - a[1], b[0] - a[0]),
+              ).multiply(
+                new Matrix4().makeShear((yb - ya) / len, 0, 0, 0, 0, 0),
+              ),
+            );
           }
         } else if (line.type === 'metal') fenceRun(l, loc, yAt);
-        else logRail(l, loc, yAt);
+        else logRail(l, loc, yAt, 1.1, line.type === 'log');
       }
       yield;
       return bucket.build('vodno-osm-features');
@@ -311,10 +405,16 @@ function fenceRun(
       const y0 = yAt(...p0);
       const y1 = yAt(...p1);
       post(l, p0[0], p0[1], y0 - 0.3, y0 + 1.3, 0.06, 'metal', STEEL);
-      for (const h of [0.55, 1.25]) {
-        const y = Math.min(y0, y1) + h;
-        wallSeg(l, p0, p1, y, y + 0.04, 0.04, 'metal', STEEL);
-      }
+      // the rails straight from post to post, following the ground
+      for (const h of [0.57, 1.27])
+        strut(
+          l,
+          [p0[0], y0 + h, p0[1]],
+          [p1[0], y1 + h, p1[1]],
+          0.04,
+          'metal',
+          STEEL,
+        );
     }
     const [ex, ez] = pts[i + 1];
     if (i + 2 === pts.length)
@@ -502,5 +602,104 @@ function piece(l: Local, p: Placed, g: (x: number, z: number) => number): void {
     case 'bollard':
       bollard(l, 0, low(0.2), 0, 0, 0);
       break;
+    case 'sign_direction': {
+      // a yellow board on two steel posts, a dark arrow band across it (blank: no text)
+      const y = low(0.7);
+      for (const s of [-0.7, 0.7])
+        l.box(
+          'metal',
+          [s - 0.04, y - 0.3, -0.04],
+          [s + 0.04, y + 2.4, 0.04],
+          STEEL,
+          m,
+        );
+      l.box(
+        'paint',
+        [-0.95, y + 1.5, 0.05],
+        [0.95, y + 2.3, 0.1],
+        '#e2b21c',
+        m,
+      );
+      l.box(
+        'paint',
+        [-0.75, y + 1.82, 0.1],
+        [0.55, y + 1.98, 0.12],
+        '#2a2622',
+        m,
+      );
+      l.box(
+        'paint',
+        [0.55, y + 1.72, 0.1],
+        [0.75, y + 2.08, 0.12],
+        '#2a2622',
+        m,
+      );
+      break;
+    }
+    case 'sign_info': {
+      // a blue information plate with a white panel on one post
+      const y = low(0.3);
+      l.box('metal', [-0.04, y - 0.3, -0.04], [0.04, y + 2.5, 0.04], STEEL, m);
+      l.box('paint', [-0.4, y + 1.7, 0.05], [0.4, y + 2.4, 0.09], '#1d4f9e', m);
+      l.box('paint', [-0.3, y + 1.8, 0.09], [0.3, y + 2.3, 0.1], '#e9ecef', m);
+      break;
+    }
+    case 'kiosk': {
+      // a small timber kiosk, its hatch to the road under a shelf, a green roof in two steps (a low pitch)
+      const y = low(1.3);
+      l.box('paint', [-1.1, y - 0.2, -1.1], [1.1, y + 2.3, 1.1], '#7a5634', m);
+      l.box('paint', [-0.8, y + 1.0, 1.1], [0.8, y + 1.9, 1.14], '#2b2118', m);
+      l.box('paint', [-1, y + 0.95, 1.1], [1, y + 1.0, 1.4], WOOD, m);
+      l.box(
+        'paint',
+        [-1.35, y + 2.3, -1.35],
+        [1.35, y + 2.42, 1.35],
+        '#2f6a3b',
+        m,
+      );
+      l.box(
+        'paint',
+        [-1.2, y + 2.42, -0.7],
+        [1.2, y + 2.56, 0.7],
+        '#2f6a3b',
+        m,
+      );
+      break;
+    }
+    case 'concrete_block': {
+      const y = low(0.7);
+      l.box('wall', [-0.7, y - 0.2, -0.45], [0.7, y + 1.05, 0.45], CONCRETE, m);
+      break;
+    }
+    case 'timber_bollard': {
+      const y = low(0.1);
+      l.box(
+        'paint',
+        [-0.08, y - 0.3, -0.08],
+        [0.08, y + 0.7, 0.08],
+        LOG_BROWN,
+        m,
+      );
+      break;
+    }
+    case 'border_stone': {
+      // a white-painted stone, worn grey at the foot
+      const y = low(0.25);
+      l.box(
+        'drystone',
+        [-0.25, y - 0.15, -0.18],
+        [0.25, y + 0.05, 0.18],
+        STONE,
+        m,
+      );
+      l.box(
+        'paint',
+        [-0.24, y + 0.05, -0.17],
+        [0.24, y + 0.32, 0.17],
+        '#efeee8',
+        m,
+      );
+      break;
+    }
   }
 }

@@ -12,11 +12,12 @@ import {
 import {
   lotShape,
   onLot,
+  runThick,
   SREDNO,
-  stairsAnchor,
   wallRuns,
   SREDNO_BUS,
   VIDIKOVEC,
+  VIDIKOVEC_RIM,
 } from '../../src/games/rally/maps/vodno/landmarks/car-parks';
 import {
   gardenColliders,
@@ -38,6 +39,13 @@ import {
   roadZ,
 } from '../../src/games/rally/maps/vodno/landmarks/restaurant';
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
+import {
+  JUNCTION_PAINT,
+  NEW_FROM,
+  NEW_JOINT,
+  NEW_TO,
+  PATCHES,
+} from '../../src/games/rally/maps/vodno/surface';
 import { distance as polygonDistance } from '../../src/games/rally/world/pads';
 import {
   BANK,
@@ -131,7 +139,9 @@ describe('vodno stage', () => {
   });
 
   test('the hairpins get guard rails on the outside', () => {
-    const rails = map.barriers ?? [];
+    const rails = (map.barriers ?? []).filter(
+      (r) => r.kind !== 'edge' && r.kind !== 'gutter',
+    );
     expect(rails.length).toBeGreaterThanOrEqual(2);
     expect(rails.every((r) => r.kind === 'guardrail')).toBe(true);
   });
@@ -156,11 +166,16 @@ describe('cable car layout', () => {
     expect(lay.supports[0].station).toBe(true);
     expect(lay.supports[lay.supports.length - 1].station).toBe(true);
     expect(lay.supports.length).toBeGreaterThanOrEqual(10);
+    // 4 m over the slope; 3 m in the last 30 m into a station (the ropes run in at the height of its floor).
+    const stations = lay.supports.filter((s) => s.station);
     for (const rope of lay.ropes)
       for (let i = 0; i < rope.length; i += 3) {
         const clearance =
           rope[i + 1] - world.analytic.height(rope[i], rope[i + 2]);
-        expect(clearance).toBeGreaterThan(4);
+        const nearStation = stations.some(
+          (s) => Math.hypot(s.x - rope[i], s.z - rope[i + 2]) < 30,
+        );
+        expect(clearance).toBeGreaterThan(nearStation ? 3 : 4);
       }
   });
 
@@ -427,11 +442,18 @@ describe('vodno car parks', () => {
     }
     expect(LOT_PADS.map((p) => p.name)).toEqual([
       'vidikovec_lot',
-      'vidikovec_garden_2',
-      'vidikovec_garden_1',
-      'vidikovec_garden_ramp_1',
-      'vidikovec_garden_ramp_2',
+      'vidikovec_mouth',
+      'vidikovec_verge',
+      'vidikovec_garden_green',
+      'vidikovec_garden_red',
+      'vidikovec_garden_grey',
+      'vidikovec_slab',
+      'vidikovec_mouth_slab',
+      'vidikovec_flight_green',
+      'vidikovec_flight_red',
+      'vidikovec_garden_steps',
       'sredno_lot',
+      'sredno_between',
       'sredno_bus_lot',
       'trail_lot',
       'trail_mouth',
@@ -563,41 +585,48 @@ describe('vodno car park surroundings', () => {
       ).toBeLessThan(2.1);
   });
 
-  test('stairs go down from the mid parking through its wall to the garden, inside the garden span', () => {
-    const a = stairsAnchor(VIDIKOVEC)!;
-    expect(a).toBeTruthy();
-    // (the slab's edge point itself may fall either side of its outline: take one 40 cm in)
-    const [wx, wz] = toWorld(
-      VIDIKOVEC.site,
-      a.p[0] - a.n[0] * 0.4,
-      a.p[1] - a.n[1] * 0.4,
-    );
-    expect(onLot(VIDIKOVEC, wx, wz)).toBe(true);
-    // The garden's first terrace lies straight out from the stairs: its outline contains the point 3 m out.
-    const out = toWorld(
-      VIDIKOVEC.site,
-      a.p[0] + a.n[0] * 3,
-      a.p[1] + a.n[1] * 3,
-    );
-    const poly = gardenPolygon(0).map(([x, z]) =>
-      toWorld(VIDIKOVEC.site, x, z),
-    );
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const [ax, az] = poly[i];
-      const [bx, bz] = poly[j];
-      if (
-        az > out[1] !== bz > out[1] &&
-        out[0] < ((bx - ax) * (out[1] - az)) / (bz - az) + ax
-      )
-        inside = !inside;
+  test('stairs go down from the mid parking through the openings of its rim to the green and red terraces', () => {
+    const { T, R1, Q1, G } = VIDIKOVEC_RIM;
+    for (const [a, b, terrace] of [
+      [T, R1, 1],
+      [Q1, G, 0],
+    ] as const) {
+      const mx = (a[0] + b[0]) / 2;
+      const mz = (a[1] + b[1]) / 2;
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      // (the opening's normal, turned away from the lot)
+      let nx = -(b[1] - a[1]) / len;
+      let nz = (b[0] - a[0]) / len;
+      if (onLot(VIDIKOVEC, ...toWorld(VIDIKOVEC.site, mx + nx, mz + nz))) {
+        nx = -nx;
+        nz = -nz;
+      }
+      // 40 cm in is the slab; the terrace lies straight out: its outline contains the point 3 m out.
+      expect(
+        onLot(
+          VIDIKOVEC,
+          ...toWorld(VIDIKOVEC.site, mx - nx * 0.4, mz - nz * 0.4),
+        ),
+      ).toBe(true);
+      const poly = gardenPolygon(terrace);
+      const [ox, oz] = [mx + nx * 3, mz + nz * 3];
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [ax, az] = poly[i];
+        const [bx, bz] = poly[j];
+        if (
+          az > oz !== bz > oz &&
+          ox < ((bx - ax) * (oz - az)) / (bz - az) + ax
+        )
+          inside = !inside;
+      }
+      expect(inside, `terrace ${terrace}`).toBe(true);
     }
-    expect(inside).toBe(true);
   });
 
-  test('the garden terraces and the park strip are painted lush grass terrain, not decals', () => {
+  test('the garden terraces, the park strip and the east end of the lot are painted lush grass terrain, not decals', () => {
     const lawns = vodnoMap.terrain.lawns!;
-    expect(lawns.length).toBe(5);
+    expect(lawns.length).toBe(6);
     const out = new Float32Array(4);
     for (const poly of lawns) {
       // The polygon's vertex mean (a thin strip: inside enough for the feather).
@@ -652,7 +681,7 @@ describe('vodno car park surroundings', () => {
     expect(count(500, -700)).toBeGreaterThan(20);
   });
 
-  test('the rock walls of the mid parking and its garden are hard borders (colliders), the stairs opening is closed too', () => {
+  test('the rock walls of the mid parking and its garden are hard borders (colliders), the stair openings are closed too', () => {
     const cols = carParksLandmark.colliders(world.analytic);
     const inside = (x: number, z: number, y: number): boolean =>
       cols.some((c) => {
@@ -663,31 +692,29 @@ describe('vodno car park surroundings', () => {
         const lz = (x - c.x) * sn + (z - c.z) * cs;
         return Math.abs(lx) <= (c.hx ?? 0) && Math.abs(lz) <= (c.hz ?? 0);
       });
+    // (the solid runs: the stairs' openings in the rim are closed too)
     let checked = 0;
-    for (const run of wallRuns(VIDIKOVEC))
+    for (const run of wallRuns(VIDIKOVEC, true)) {
+      const T = runThick(run, VIDIKOVEC.wallThick ?? 0.6);
       for (let k = 0; k + 1 < run.p.length; k++) {
-        const T = VIDIKOVEC.wallThick ?? 0.6;
-        const mx =
-          (run.p[k][0] + run.p[k + 1][0]) / 2 + run.n[k][0] * (0.05 + T / 2);
-        const mz =
-          (run.p[k][1] + run.p[k + 1][1]) / 2 + run.n[k][1] * (0.05 + T / 2);
-        const [wx, wz] = toWorld(VIDIKOVEC.site, mx, mz);
-        // A car's hull point on the wall at slab height + 0.8 m is inside a box.
+        const px = (run.p[k][0] + run.p[k + 1][0]) / 2;
+        const pz = (run.p[k][1] + run.p[k + 1][1]) / 2;
+        const [nx, nz] = run.n[k];
+        const [wx, wz] = toWorld(
+          VIDIKOVEC.site,
+          px + nx * (0.05 + T / 2),
+          pz + nz * (0.05 + T / 2),
+        );
+        // A car's hull point on the wall, 1 m over the slab just inside it (a bank's own ground is the raised verge).
+        const [ix, iz] = toWorld(VIDIKOVEC.site, px - nx * 0.5, pz - nz * 0.5);
         expect(
-          inside(wx, wz, world.analytic.height(wx, wz) + 1),
+          inside(wx, wz, world.analytic.height(ix, iz) + 1),
           `(${wx}, ${wz})`,
         ).toBe(true);
         checked++;
       }
+    }
     expect(checked).toBeGreaterThan(40);
-    // The opening of the stairs from the lot is closed.
-    const a = stairsAnchor(VIDIKOVEC)!;
-    const [sx, sz] = toWorld(
-      VIDIKOVEC.site,
-      a.p[0] + a.n[0] * 0.5,
-      a.p[1] + a.n[1] * 0.5,
-    );
-    expect(inside(sx, sz, world.analytic.height(sx, sz) + 1)).toBe(true);
     // The garden's dividing wall (off its ramps and stairs gap) is solid; the lot's road side is open.
     expect(
       gardenColliders((x, z) => world.analytic.height(x, z)).length,
@@ -778,20 +805,93 @@ describe('vodno car park surroundings', () => {
     const rails = (map.barriers ?? []).filter((b) => b.kind === 'guardrail');
     const rusty = rails.filter((b) => b.rusty);
     expect(rusty.length).toBeGreaterThan(0);
+    // (three runs with grass-verge gaps between, as on the real road)
     expect(
-      rusty.some((b) => b.side === 'right' && b.from === 2600 && b.to === 2796),
-    ).toBe(true);
-    // The galvanised rails: between the road and the Vidikovec lot from its grass island's start, the left side after the first crossroad.
-    expect(rails.filter((b) => !b.rusty).map((b) => [b.side, b.from])).toEqual([
-      ['right', 2834],
-      ['left', 500],
+      rusty
+        .filter((b) => b.side === 'right' && b.from! >= 2470 && b.to! <= 2840)
+        .map((b) => [b.from, b.to]),
+    ).toEqual([
+      [2478, 2575],
+      [2680, 2715],
+      [2775, 2826],
     ]);
-    // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is.
+    // The galvanised rails: between the road and the Vidikovec lot from its grass island's start (two-tier), the left
+    // side after the first crossroad, and the runs the references show.
+    expect(
+      rails.filter((b) => !b.rusty).map((b) => [b.side, b.from, b.tiers ?? 1]),
+    ).toEqual([
+      ['right', 2854, 2],
+      ['left', 500, 1],
+      ['left', 780, 1],
+      ['right', 1322, 2],
+      ['right', 1388, 1],
+      ['left', 1668, 2],
+      ['left', 1895, 1],
+      ['right', 2093, 1],
+      ['right', 3020, 2],
+      ['right', 3095, 1],
+      ['right', 3400, 1],
+      ['right', 3463, 1],
+      ['right', 3715, 2],
+    ]);
+    // No two rails on one side of the same stretch (a hairpin rail gives way to the referenced one).
+    for (const a of rails)
+      for (const b of rails)
+        if (a !== b && a.side === b.side)
+          expect(a.from! < b.to! && a.to! > b.from!).toBe(false);
+    // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is; the
+    // re-laid upper road in fresh asphalt, the old tarmac again past the finish joint (no lines there).
     expect(map.road.texture).toBe('road_tarmac_lines');
     expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([
       ['road_tarmac_plain', WIDE_FROM],
       ['road_tarmac_lines', WIDE_TO],
+      ['road_tarmac_new', NEW_FROM],
+      ['road_tarmac_new', NEW_JOINT],
+      ['road_tarmac_plain', NEW_TO],
     ]);
+    // The big repairs lie on the old road (below the re-laid stretch or past its far joint), on it (not past its edges).
+    for (const p of PATCHES) {
+      if (p.kind !== 'patch') continue;
+      expect(p.to < NEW_FROM || p.from > NEW_TO).toBe(true);
+      expect(p.offset + p.width).toBeLessThanOrEqual(5.8);
+    }
+  });
+
+  test('the road only climbs from the first crossroad to the top, at a steady grade (the references)', () => {
+    const r = world.road;
+    let fall = 0;
+    let steep = 0;
+    let prev = r.at(WIDE_TO).y;
+    for (let a = WIDE_TO + 5; a <= r.length; a += 5) {
+      const y = r.at(a).y;
+      fall = Math.max(fall, prev - y);
+      if (y - prev > 0.101 * 5) steep++;
+      prev = y;
+    }
+    // never falls, never steeper than the 10 % cap
+    expect(fall).toBeLessThan(0.05);
+    expect(steep).toBe(0);
+    // the average grade of the real road (5.3 %): START 349 m -> the finish at Sredno Vodno
+    const grade = (r.at(FINISH).y - r.at(START).y) / (FINISH - START);
+    expect(grade).toBeGreaterThan(0.048);
+    expect(grade).toBeLessThan(0.058);
+  });
+
+  test('banks stand on one side: no trench (land high on both sides) outside the rock cuts', () => {
+    // 7 m past each edge: more than 2.5 m above the road on both sides only where the road crosses a spur.
+    let trench = 0;
+    for (let a = WIDE_TO; a < FINISH; a += 10) {
+      const s = world.road.at(a);
+      const up = [1, -1].map((side) => {
+        const d = s.halfWidth + 7;
+        return (
+          world.analytic.height(s.x + side * s.tz * d, s.z - side * s.tx * d) -
+          s.y
+        );
+      });
+      if (up[0] > 2.5 && up[1] > 2.5) trench += 10;
+    }
+    expect(trench).toBeLessThanOrEqual(40);
   });
 
   test('the service road that merges above the finish ends level with the summit road', () => {
@@ -849,7 +949,11 @@ describe('vodno start street and first crossroad', () => {
   });
 
   test('the crossroad lanes are painted: edge lines, a double centre line on the texture line, a left-turn arrow and a straight arrow', () => {
-    expect(map.road.markings).toBe(MARKINGS);
+    expect(map.road.markings).toEqual([
+      ...MARKINGS,
+      ...PATCHES,
+      ...JUNCTION_PAINT,
+    ]);
     const lines = MARKINGS.flatMap((m) => (m.kind === 'line' ? [m] : []));
     const arrows = MARKINGS.flatMap((m) => (m.kind === 'arrow' ? [m] : []));
     expect(lines.some((m) => m.dash)).toBe(true);
@@ -930,7 +1034,9 @@ describe('vodno start street and first crossroad', () => {
   test('the trees keep back from the road on the start street and ease in and out', () => {
     const set = map.treeSetback!;
     expect(set.length).toBeGreaterThan(0);
-    expect(setbackAt(set, 700)).toBe(8);
+    expect(setbackAt(set, 600)).toBe(8);
+    // (none where the woods close over the road)
+    expect(setbackAt(set, 830)).toBe(0);
     expect(setbackAt(set, set[0].from - 1)).toBe(0);
     expect(setbackAt(set, set[0].from + 10)).toBeLessThan(8);
   });

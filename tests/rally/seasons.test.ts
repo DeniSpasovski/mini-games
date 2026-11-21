@@ -22,6 +22,7 @@ import { SEASONS, seasonParam } from '../../src/games/rally/season';
 import { hexToLinear } from '../../src/games/rally/trees/math';
 import {
   allSeasons,
+  LATE_AUTUMN_MONTH,
   SEASONAL_SPECIES,
   seasonal,
   seasonOf,
@@ -250,7 +251,35 @@ describe('seasons: tree leaves', () => {
     const juniper = getSpecies('Juniper');
     for (const s of SEASONS) expect(seasonal(juniper, s)).toBe(juniper);
     expect(allSeasons(juniper)).toEqual([juniper]);
-    expect(allSeasons(getSpecies('Beech'))).toHaveLength(3);
+    // Spring, summer, autumn and late autumn.
+    expect(allSeasons(getSpecies('Beech'))).toHaveLength(4);
+  });
+
+  test('a November autumn is late autumn: broadleaves nearly bare and browner, conifers as before', () => {
+    const hornbeam = getSpecies('Hornbeam');
+    const autumn = seasonal(hornbeam, 'autumn', 10);
+    const late = seasonal(hornbeam, 'autumn', LATE_AUTUMN_MONTH);
+    expect(seasonal(hornbeam, 'autumn')).toBe(autumn);
+    expect(late).not.toBe(autumn);
+    expect(seasonOf(late)).toBe('autumn');
+    expect(summerOf(late)).toBe(hornbeam);
+    expect(allSeasons(hornbeam)).toContain(late);
+    expect(cacheKey(late, 0)).not.toBe(cacheKey(autumn, 0));
+    const sat = (hex: string) => {
+      const c = hexToLinear(hex);
+      return Math.max(...c) - Math.min(...c);
+    };
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(mean(late.foliage.palette.map(sat))).toBeLessThan(
+      mean(autumn.foliage.palette.slice(2).map(sat)),
+    );
+    const [a, b] = [autumn, late].map((d) => generateVariant(d, 0));
+    expect(b.info.height).toBeCloseTo(a.info.height, 0);
+    expect(b.meshes.sprites.count).toBeLessThan(a.meshes.sprites.count * 0.3);
+    for (const n of ['Black pine', 'Pine', 'Juniper', 'Broom'])
+      expect(seasonal(getSpecies(n), 'autumn', 11)).toBe(
+        seasonal(getSpecies(n), 'autumn'),
+      );
   });
 
   test('spring is fresher than autumn, which turns the broadleaves warm', () => {

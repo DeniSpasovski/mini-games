@@ -49,6 +49,7 @@ import { stageCardImageUrl } from '../tools/stage-card';
 import { PhotoUi } from '../game/photo/photo-ui';
 import { ReplayUi } from '../game/replay/replay-ui';
 import { readHeader } from '../game/replay/codec';
+import { warmTreeWorkers } from '../trees/load';
 import { nameForm, storageLine } from '../game/replay/manage-ui';
 import {
   cleanName,
@@ -251,6 +252,8 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   // The map's baked data is its own chunk: fetched here, behind the loading overlay.
   // The car's GLB downloads while the map's data loads / the world builds (both block the main thread a while).
   preloadCarModel(getCar(params.car));
+  // The tree workers start (and open their disk cache) meanwhile too.
+  warmTreeWorkers();
   const setLoading = (f: number, text: string) => {
     loading.querySelector<HTMLElement>('.bar div')!.style.width = `${f * 100}%`;
     loading.querySelector('.status')!.textContent = text;
