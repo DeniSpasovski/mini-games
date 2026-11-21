@@ -422,9 +422,11 @@ function kerb(
     [KERB_IN + 0.02, KERB_H],
     [KERB_IN, KERB_H - 0.02],
   ];
-  const uvOf = (r: Row, dy: number): [number, number] => [
+  // v unfolds the profile (up the faces, then across the top): by height alone the flat top got one texel row,
+  // smeared across it in streaks.
+  const uvOf = (r: Row, dy: number, o: number): [number, number] => [
     r.d / KERB_TS,
-    dy / KERB_TS,
+    (dy - o) / KERB_TS,
   ];
   // Weathered concrete, a little darker per piece (stains) - one strip per row pair.
   for (let i = 0; i < rows.length - 1; i++) {

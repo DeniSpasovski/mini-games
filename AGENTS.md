@@ -109,6 +109,7 @@ into `DETAILS.md`, never up.
 - `scripts/particles/bake-dust.py` - the rally dust puff atlas (`engine/particles/dust.webp`) from Kenney's CC0 Particle Pack (`sources/rally/kenney/`)
 - `scripts/plants/bake-plants.mjs` - the rally grass / weed / reed card atlases (`engine/plants/*.webp` + `plant-atlas.data.ts`) from CC0 Poly Haven plant
   models and CC BY Sketchfab reed / cattail models (`sources/rally/plants/`; `--sheets reeds` rebakes one sheet): `layout.ts` places the clumps (seeded), headless Chromium renders, `pack.py` packs and measures
+- `scripts/plants/bake-seasons.py` - the rally reed / weed season sheets (`engine/plants/reeds-autumn.webp`, `reeds-winter.webp`, `weeds-rust.webp` + `season-sheets.data.ts`) recoloured per texel from `reeds.webp` / `weeds.webp`: `python3 -I scripts/plants/bake-seasons.py`
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
