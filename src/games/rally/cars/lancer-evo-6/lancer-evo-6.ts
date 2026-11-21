@@ -226,6 +226,13 @@ export const lancerEvo6: CarDef = {
     },
     // The model carries its own cockpit: see-through glass shows it.
     glass: { color: 0x141c24, opacity: 0.6 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      seat: { x: 0.33, cushion: 0.4, back: [-0.18, 0.5, -0.39, 1.0] },
+      wheel: { at: [0.334, 0.838, 0.278], r: 0.18, tilt: 29.1 },
+      roof: 1.33,
+      floor: 0.22,
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).

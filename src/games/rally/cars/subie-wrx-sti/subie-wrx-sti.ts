@@ -207,6 +207,13 @@ export const subieWrxSti: CarDef = {
     },
     // The model carries its own cockpit: see-through glass shows it.
     glass: { color: 0x141c24, opacity: 0.6 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      seat: { x: 0.36, cushion: 0.42, back: [-0.35, 0.55, -0.52, 1.0] },
+      wheel: { at: [0.351, 0.891, 0.164], r: 0.174, tilt: 25.4 },
+      roof: 1.35,
+      floor: 0.24,
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).

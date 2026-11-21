@@ -87,6 +87,7 @@ import {
 } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
+import { CarCrew } from './car-crew';
 import { Autopilot, finishStopControls } from './autopilot';
 import { ContactShadow } from './contact-shadow';
 import {
@@ -326,6 +327,7 @@ export class RallyGame {
   /** Hill shadows past the shadow maps and sky light in valleys, baked in the background (world/terrain-light.ts). */
   private terrainLight?: TerrainLight;
   private hazeAcc = 0;
+  private crew?: CarCrew;
   audio: CarAudio;
   /** The run's weather as the sound was built for it (a replay export builds the same synth again). */
   private readonly soundWeather: { rain: number; wet: number };
@@ -671,6 +673,9 @@ export class RallyGame {
     this.scene.add(this.model.root);
     const w = this.env.weatherLook;
     if (w.wet > 0) this.model.setWet();
+    this.crew?.dispose();
+    this.crew = new CarCrew(this.car, this.model.crewLivery);
+    this.model.body.add(this.crew.group);
     // Rain / fog: lights switched on, a rain / fog day under BEAM_MIN_NEED (`carLights`).
     const lights = carLights(this.env.lightNeed, w);
     if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
@@ -2246,10 +2251,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // In a replay the wheels turn at the playback rate: paused (photo) = full detail, slow motion = less smear.
     // Photo mode: full detail (its own motion blur spins the real tread).
     const playback = this.photo ? 0 : replay ? (dt > 0 ? fdt / dt : 0) : 1;
-    this.model.setTyreLod(
-      v.speed * 3.6 * playback,
-      this.camera.position.distanceTo(this.renderPos),
-    );
+    const camDistance = this.camera.position.distanceTo(this.renderPos);
+    this.model.setTyreLod(v.speed * 3.6 * playback, camDistance);
+    this.crew?.update(camDistance);
 
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;

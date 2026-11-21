@@ -191,6 +191,13 @@ export const zastava101: CarDef = {
     doorBadge: { z: 0.1, y: 0.606 },
     paintFinish: 'satin',
     glass: { color: 0x2a343c, opacity: 0.45 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      seat: { x: 0.34, cushion: 0.57, back: [-0.335, 0.6, -0.42, 1.0] },
+      wheel: { at: [0.34, 0.9, 0.2], r: 0.19, tilt: 25.8 },
+      roof: 1.33,
+      floor: 0.36,
+    },
     wheels: buildZastavaWheel,
     tyreDust: true,
     suspensionStyle: 'road',

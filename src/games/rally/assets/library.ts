@@ -2,7 +2,8 @@ import { BufferAttribute, type BufferGeometry, type Material } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash3, hashString } from '../../../shared/rng';
 import { variantMaterial } from '../engine/materials';
-import { canRequestPerson, requestPerson } from './people-pool';
+import { canRequestPerson, materialOf, requestPerson } from './people-pool';
+import { crewSeated } from './builders/crew';
 import {
   chevronSign,
   fanFlag,
@@ -168,6 +169,13 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   spectator,
   mechanic,
   crew,
+  // Its parts name their material (the worker has none): here they get it.
+  crew_seated: (ctx) => ({
+    parts: crewSeated(ctx).parts.map((p) => ({
+      geometry: p.geometry,
+      material: materialOf(p.material as unknown as string),
+    })),
+  }),
   driver,
   marshal,
   photographer,

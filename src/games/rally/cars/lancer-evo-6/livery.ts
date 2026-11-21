@@ -120,13 +120,23 @@ const LIP_R_SIDE: Pt[] = [
 /** White roof square: the middle half of the roof panel (z -1.16..0.2, |x| <= 0.6) both ways. */
 const ROOF = { z: [-0.82, -0.14], x: 0.3 };
 
+/** The body colour and its stripes (seed 0 = the car's own). */
+const colors = (
+  info: LiveryInfo,
+  seed: number,
+): { red: string; white: string } => ({
+  red: seed === 0 ? '#d11a20' : info.base,
+  white: seed === 0 ? '#f3f4f6' : info.accent,
+});
+
+const BLACK = '#141516';
+
 function paint(
   ctx: CanvasRenderingContext2D,
   info: LiveryInfo,
   seed: number,
 ): void {
-  const red = seed === 0 ? '#d11a20' : info.base;
-  const white = seed === 0 ? '#f3f4f6' : info.accent;
+  const { red, white } = colors(info, seed);
 
   ctx.fillStyle = red;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -144,16 +154,15 @@ function paint(
   );
 
   // --- black: skirt between the arches, front diffuser lip, rear bumper bottom lip ---
-  const black = '#141516';
   const band = (z0: number, z1: number, y0: number, y1: number): Pt[] => [
     [z1, y0],
     [z0, y0],
     [z0, y1],
     [z1, y1],
   ];
-  sides(ctx, [[0.9, 0.1], [-1.0, 0.1], ...SILL], black);
-  sides(ctx, band(Z_BUMPER_F, Z_NOSE, 0, LIP_F_SIDE), black);
-  sides(ctx, [[-1.55, 0], [Z_TAIL, 0], ...LIP_R_SIDE], black);
+  sides(ctx, [[0.9, 0.1], [-1.0, 0.1], ...SILL], BLACK);
+  sides(ctx, band(Z_BUMPER_F, Z_NOSE, 0, LIP_F_SIDE), BLACK);
+  sides(ctx, [[-1.55, 0], [Z_TAIL, 0], ...LIP_R_SIDE], BLACK);
   fill(
     ctx,
     'front',
@@ -163,7 +172,7 @@ function paint(
       ...LIP_F.slice().reverse(),
       ...LIP_F.slice(1).map(([x, y]): Pt => [-x, y]),
     ],
-    black,
+    BLACK,
   );
   fill(
     ctx,
@@ -174,7 +183,7 @@ function paint(
       ...LIP_R.slice().reverse(),
       ...LIP_R.slice(1).map(([x, y]): Pt => [-x, y]),
     ],
-    black,
+    BLACK,
   );
 
   // --- top: white roof square, two white bonnet stripes outboard of the vents ---
@@ -208,4 +217,8 @@ export const lancerEvo6Livery: CarAtlas = {
   height: Math.ceil(A.height * K),
   layout: A,
   paint,
+  crew(info, seed) {
+    const { red, white } = colors(info, seed);
+    return { main: red, second: white, third: BLACK, motif: 'stripes' };
+  },
 };

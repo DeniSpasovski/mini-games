@@ -213,6 +213,13 @@ export const skodaRally: CarDef = {
     wheelModel: 'skoda_rally_wheel.glb',
     suspensionStyle: 'rally',
     glass: { color: 0x141c24, opacity: 0.6 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      seat: { x: 0.33, cushion: 0.32, back: [-0.42, 0.55, -0.56, 1.0] },
+      wheel: { at: [0.315, 0.848, 0.14], r: 0.161, tilt: 16.8 },
+      roof: 1.36,
+      floor: 0.25,
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py), tilt flattened by eye (the rule gives 2.4 deg).

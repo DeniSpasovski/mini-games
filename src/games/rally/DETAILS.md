@@ -27,7 +27,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   (scatter, tree debug `F6`, road centreline, stage route + markers, chunk grid, splat, drainage lines + culverts `drain=1`, wireframe, fog); click the terrain for a picked point (position,
   height, slope, surface, cover; real maps: lat / lon, satellite and Street View links; "Drive from here"); buildings (`building=<id>`); `along=<m>&zoom=<f>`
   flies to a spot on the stage road.
-- **Car viewer** (`pages/car-viewer.ts`): the cars (All / AWD / FWD / RWD chips), livery `seed`, `paint`, `tyre`, door plate `num` / `rally`, camera presets
+- **Car viewer** (`pages/car-viewer.ts`): the cars (All / AWD / FWD / RWD chips), livery `seed`, `paint`, `tyre`, door plate `num` / `rally`, `crew`, camera presets
   or an axle camera, pose (`steer`, `susp`, `spin`, `turntable`), scene (weather, time, `backdrop` studio / road with its `season` and `trees`, sun), lights
   (`beam`, `lamps`), wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` / `brakes` / `body`, axle camera `wcam`), debug (`wire`, `hull`, `fallback`),
   specs (numbers, torque / power chart, test-drive links, model credit) and sound (`debug/sound-debug.ts`). Console: `__carViewer`.
@@ -590,6 +590,13 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   `street-pack-extract.py --images`, then `bake-trucks.mjs`); the hub-cap emblem is blanked there.
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
+- **Crew** (`game/car-crew.ts`, `assets/builders/crew.ts` + `crew-helmet.ts` + `crew-gear.ts`): a driver and co-driver in every car whose cockpit
+  shows through its glass. They are built for that car from `model.cockpit` (seat, steering wheel, roof and floor as modelled; `rhd` swaps the
+  seats; measured with `scripts/car-model/cockpit.py`): hips in the seat, hands on the rim of the car's own wheel, the co-driver with the pace
+  notes, closed-visor helmet (no face is drawn), head restraint and harness. Built in the people worker, a mid level by default and the full one
+  when the camera is within a few metres. Car viewer `crew=0` hides them; `crew_seated` in the asset debugger shows one in a demo cockpit.
+  - Suit and helmet match the livery without copying it: a painted livery's `CarAtlas.crew` (`cars/<car>/livery.ts`) gives its colours and
+    motif (`CrewLivery`, `cars/shared/livery.ts`); without one the crew wears the paint colour with white panels (`plainCrew`).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
   doors. Liveries carry no numbers or lettering.
 - **Release flags** (`release.ts`): `CARS_LIST` / `STAGES_LIST` / `WEATHERS_LIST` list every car / stage / weather id (a map ships when one of its stages does; a hidden weather is left out of the Weather picker and `?weather=`); `hideInProd: true` = dev server + `npm run build:test` only (TEST badge). Same flag and `RELEASE_BUILD` check (`src/shared/release.ts`) as `game.json`.

@@ -124,13 +124,21 @@ const row = (zFront: number, zRear: number, y0: number, y1: number): Pt[] => [
 /** Top edge of the tailgate panel under the rear screen's black frame (rear chart y). */
 const TAILGATE_TOP = 1.07;
 
+/** The two greens of the stripes (seed 0 = the car's own). */
+const greens = (
+  info: LiveryInfo,
+  seed: number,
+): { bright: string; dark: string } => ({
+  bright: seed === 0 ? '#21c7a3' : info.accent,
+  dark: seed === 0 ? '#0b5446' : info.accent2,
+});
+
 function paint(
   ctx: CanvasRenderingContext2D,
   info: LiveryInfo,
   seed: number,
 ): void {
-  const bright = seed === 0 ? '#21c7a3' : info.accent;
-  const dark = seed === 0 ? '#0b5446' : info.accent2;
+  const { bright, dark } = greens(info, seed);
   const mint = seed === 0 ? '#93e6d3' : alpha(info.accent, 0.45);
 
   ctx.fillStyle = info.base;
@@ -325,4 +333,8 @@ export const skodaRallyLivery: CarAtlas = {
   height: Math.ceil(A.height * K),
   layout: A,
   paint,
+  crew(info, seed) {
+    const { bright, dark } = greens(info, seed);
+    return { main: info.base, second: bright, third: dark, motif: 'slant' };
+  },
 };

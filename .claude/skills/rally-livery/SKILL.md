@@ -47,7 +47,9 @@ body is painted by `<car>/livery.ts`.
    white cell ((col + row) odd).
 6. **Mirror** symmetric elements with a loop over `[1, -1]`; the mesh is symmetric in height but NOT guaranteed in every face -
    always look at both sides.
-7. Finish with the verification checklist (section 8) and update the car DETAILS.md "Livery" + TODO.
+7. **Dress the crew to match**: give the atlas a `crew(info, seed)` from the colour constants `paint` uses (rally `DETAILS.md` ->
+   Crew), and look at both seats in the car viewer.
+8. Finish with the verification checklist (section 8) and update the car DETAILS.md "Livery" + TODO.
 
 ## 3. Updating / fixing a livery (the usual request)
 
