@@ -8,7 +8,7 @@ import {
 } from '../assets/people-pool';
 import type { BuiltAsset } from '../assets/types';
 import type { CarDef } from '../cars/shared/types';
-import type { LiveryInfo } from '../cars/shared/livery';
+import type { CrewLivery } from '../cars/shared/livery';
 
 const ASSET = 'crew_seated';
 /** Up close (replay cameras, photo mode, the car viewer) the full figures, otherwise the mid-range ones. */
@@ -16,7 +16,7 @@ const NEAR = 4.5;
 
 /**
  * Driver and co-driver in the seats of a car whose cockpit shows through its glass (`model.glass` + `model.cockpit`):
- * built for that cockpit in the car's colours (assets/builders/crew.ts), in the people worker, so the car shows up
+ * built for that cockpit, dressed to match its livery (assets/builders/crew.ts), in the people worker, so the car shows up
  * first and the crew a moment later. Add `group` to the body (model space); it rolls and pitches with it.
  */
 export class CarCrew {
@@ -27,18 +27,11 @@ export class CarCrew {
   private readonly levels: (Group | undefined)[] = [];
   private level = -1;
 
-  constructor(def: CarDef, livery: LiveryInfo) {
+  constructor(def: CarDef, livery: CrewLivery) {
     this.group.name = 'crew';
     const { cockpit, glass } = def.model;
     if (!cockpit || !glass) return;
-    this.params = {
-      cockpit,
-      colors: {
-        base: livery.base,
-        accent: livery.accent,
-        accent2: livery.accent2,
-      },
-    };
+    this.params = { cockpit, livery };
     this.show(1);
   }
 

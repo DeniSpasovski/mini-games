@@ -288,4 +288,11 @@ export const bimmerGt2Livery: CarAtlas = {
   height: Math.ceil(A.height * K),
   layout: A,
   paint,
+  // The pixel blocks come back as checkers, in the blue and red of the blocks.
+  crew: (info, seed) => ({
+    main: PEARL,
+    second: seed === 0 ? BLUES[1] : info.accent,
+    third: seed === 0 ? REDS[0] : info.accent2,
+    motif: 'checker',
+  }),
 };

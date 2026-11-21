@@ -37,7 +37,12 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
 import { hasImportedModel, loadImportedCar, splitRecolor } from './car-gltf';
-import { liveryInfo, type LiveryInfo } from './livery';
+import {
+  crewLivery,
+  liveryInfo,
+  type CrewLivery,
+  type LiveryInfo,
+} from './livery';
 import { paintParams, type PaintFinish } from './paint-finish';
 import { buildProfileParts } from './profile-body';
 import { axleRadius, tyreSizeFor, type Axle } from '../../physics/car-tyres';
@@ -466,6 +471,8 @@ export class CarModel {
   readonly root = new Group();
   readonly body = new Group();
   readonly livery: LiveryInfo;
+  /** What the crew in the seats wears with that livery (game/car-crew.ts). */
+  readonly crewLivery: CrewLivery;
   readonly debug = new Group();
   /** Resolves true when an imported glTF body replaced the procedural one. */
   readonly imported: Promise<boolean>;
@@ -560,6 +567,7 @@ export class CarModel {
 
     const info = liveryInfo(def, opts.seed ?? 0, opts.paint);
     this.livery = info;
+    this.crewLivery = crewLivery(def, info, opts.seed ?? 0);
     const satin = def.model.paintFinish === 'satin';
     const plainMat = new MeshPhysicalMaterial({
       color: new Color(info.base),

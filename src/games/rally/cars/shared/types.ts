@@ -3,7 +3,7 @@ import type { SuspensionStyle } from './suspension-mesh';
 import type { CarPhysicsDef } from '../../physics/types';
 import type { SourceLink } from '../../maps/shared/types';
 import type { AtlasLayout } from './atlas-painter';
-import type { LiveryInfo } from './livery';
+import type { CrewLivery, LiveryInfo } from './livery';
 import type { BufferGeometry } from 'three';
 import type { TyreFamily } from '../../physics/tyres';
 import type { CarPartGeometry } from './car-parts';
@@ -250,6 +250,8 @@ export interface CarAtlas {
   height: number;
   /** Paint the whole atlas (seeded; info.base = chosen paint colour). */
   paint(ctx: CanvasRenderingContext2D, info: LiveryInfo, seed: number): void;
+  /** What the crew wears with this livery: its colours and motif (default: a plain suit in the paint colour). */
+  crew?(info: LiveryInfo, seed: number): CrewLivery;
   /** Atlas px rect [x, y, w, h] painted black that renders matte (no clearcoat) - wheel arches. */
   matteRect?: [number, number, number, number];
   /** Box-projection layout of an STL car's atlas (model.source.json): lets the `profile` fallback wear the livery. */

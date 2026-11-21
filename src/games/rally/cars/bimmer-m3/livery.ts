@@ -149,14 +149,21 @@ const rowY = (r: number): Pt => [
   r === ROWS.length - 1 ? B.y[1] : ROWS[r + 1],
 ];
 
+/** Seed 0 = the M3 ALMS livery (M blue, light blue, red); other seeds reuse the shapes. */
+const blues = (
+  info: LiveryInfo,
+  seed: number,
+): { blue: string; light: string } => ({
+  blue: seed === 0 ? '#1f2c8c' : info.accent,
+  light: seed === 0 ? '#3f9be0' : info.accent2,
+});
+
 function paint(
   ctx: CanvasRenderingContext2D,
   info: LiveryInfo,
   seed: number,
 ): void {
-  // Seed 0 = the M3 ALMS livery (M blue, light blue, red); other seeds reuse the shapes.
-  const blue = seed === 0 ? '#1f2c8c' : info.accent;
-  const light = seed === 0 ? '#3f9be0' : info.accent2;
+  const { blue, light } = blues(info, seed);
   const red = seed === 0 ? '#d4232b' : info.accent2;
   /** Checker colour by row: red on the bumper, blue, light blue at lamp height, blue on the shoulder. */
   const rowColour = (r: number) => (r <= 2 ? red : r === 5 ? light : blue);
@@ -313,5 +320,9 @@ export const bimmerM3Atlas: CarAtlas = {
     // Wheel-well liner (converter `wheels.liner`) maps to this texel patch: black + matte like every car's arches.
     ctx.fillStyle = '#000';
     ctx.fillRect(...matteRect);
+  },
+  crew(info, seed) {
+    const { blue, light } = blues(info, seed);
+    return { main: info.base, second: blue, third: light, motif: 'checker' };
   },
 };

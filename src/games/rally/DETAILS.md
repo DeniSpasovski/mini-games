@@ -592,8 +592,10 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 - **Crew** (`game/car-crew.ts`, `assets/builders/crew.ts` + `crew-helmet.ts` + `crew-gear.ts`): a driver and co-driver in every car whose cockpit
   shows through its glass. They are built for that car from `model.cockpit` (seat, steering wheel, roof and floor as modelled; `rhd` swaps the
   seats; measured with `scripts/car-model/cockpit.py`): hips in the seat, hands on the rim of the car's own wheel, the co-driver with the pace
-  notes, helmet, head restraint and harness; suit and helmet in the car's colours. Built in the people worker, a mid level by default and the
-  full one when the camera is within a few metres. Car viewer `crew=0` hides them; `crew_seated` in the asset debugger shows one in a demo cockpit.
+  notes, closed-visor helmet (no face is drawn), head restraint and harness. Built in the people worker, a mid level by default and the full one
+  when the camera is within a few metres. Car viewer `crew=0` hides them; `crew_seated` in the asset debugger shows one in a demo cockpit.
+  - Suit and helmet match the livery without copying it: a painted livery's `CarAtlas.crew` (`cars/<car>/livery.ts`) gives its colours and
+    motif (`CrewLivery`, `cars/shared/livery.ts`); without one the crew wears the paint colour with white panels (`plainCrew`).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
   doors. Liveries carry no numbers or lettering.
 - **Release flags** (`release.ts`): `CARS_LIST` / `STAGES_LIST` / `WEATHERS_LIST` list every car / stage / weather id (a map ships when one of its stages does; a hidden weather is left out of the Weather picker and `?weather=`); `hideInProd: true` = dev server + `npm run build:test` only (TEST badge). Same flag and `RELEASE_BUILD` check (`src/shared/release.ts`) as `game.json`.

@@ -151,13 +151,21 @@ const rect = (z0: number, z1: number, y0: number, y1: number): Pt[] => [
   [z0, y1],
 ];
 
+/** The colours of the two blocks (seed 0 = the car's own). */
+const blocks = (
+  info: LiveryInfo,
+  seed: number,
+): { red: string; blue: string } => ({
+  red: seed === 0 ? RED : info.accent,
+  blue: seed === 0 ? BLUE : info.accent2,
+});
+
 function paint(
   ctx: CanvasRenderingContext2D,
   info: LiveryInfo,
   seed: number,
 ): void {
-  const red = seed === 0 ? RED : info.accent;
-  const blue = seed === 0 ? BLUE : info.accent2;
+  const { red, blue } = blocks(info, seed);
 
   ctx.fillStyle = red;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -264,4 +272,8 @@ export const citroenC4Livery: CarAtlas = {
   height: Math.ceil(A.height * K),
   layout: A,
   paint,
+  crew(info, seed) {
+    const { red, blue } = blocks(info, seed);
+    return { main: red, second: blue, third: WHITE, motif: 'split' };
+  },
 };

@@ -3,8 +3,28 @@ import { Box3 } from 'three';
 import { buildCrew, crewSit } from '../../src/games/rally/assets/builders/crew';
 import { helmet } from '../../src/games/rally/assets/builders/crew-helmet';
 import { ALL_CARS } from '../../src/games/rally/cars';
+import {
+  crewLivery,
+  liveryInfo,
+  type CrewLivery,
+  type CrewMotif,
+} from '../../src/games/rally/cars/shared/livery';
 
-const COLORS = { base: '#1f4fb5', accent: '#f2f2f2', accent2: '#f0c020' };
+const MOTIFS: CrewMotif[] = [
+  'plain',
+  'stripes',
+  'slant',
+  'split',
+  'peaks',
+  'swoosh',
+  'checker',
+];
+const livery = (motif: CrewMotif): CrewLivery => ({
+  main: '#1f4fb5',
+  second: '#f2f2f2',
+  third: '#f0c020',
+  motif,
+});
 const tris = (parts: ReturnType<typeof buildCrew>): number =>
   parts.reduce(
     (n, p) =>
@@ -37,9 +57,9 @@ describe('rally crew in the seats', () => {
       expect(d.hip.z - k.hip.z, c.id).toBeLessThan(0.3);
       for (const codriver of [false, true]) {
         const box = new Box3();
-        for (const p of buildCrew(1, codriver, 1, {
+        for (const p of buildCrew(codriver, 1, {
           cockpit: cp,
-          colors: COLORS,
+          livery: livery('plain'),
         })) {
           p.geometry.computeBoundingBox();
           box.union(p.geometry.boundingBox!);
@@ -51,29 +71,55 @@ describe('rally crew in the seats', () => {
     }
   });
 
-  test('stays within its triangle budget', () => {
-    const cp = cars.find((c) => c.id === 'skoda_rally')!.model.cockpit!;
-    for (const codriver of [false, true]) {
-      expect(
-        tris(buildCrew(1, codriver, 0, { cockpit: cp, colors: COLORS })),
-      ).toBeLessThan(30000);
-      expect(
-        tris(buildCrew(1, codriver, 1, { cockpit: cp, colors: COLORS })),
-      ).toBeLessThan(12000);
+  test('dressed for the livery: its own colours, a motif where it has graphics', () => {
+    const of = (id: string): CrewLivery => {
+      const def = ALL_CARS.find((c) => c.id === id)!;
+      return crewLivery(def, liveryInfo(def, 0), 0);
+    };
+    expect(of('fiesta').motif).toBe('peaks');
+    expect(of('lancer_evo_6').motif).toBe('stripes');
+    expect(of('subie_22b').motif).toBe('swoosh');
+    const plain = of('peugeot_206');
+    expect(plain.motif).toBe('plain');
+    expect(plain.main).toBe(
+      ALL_CARS.find((c) => c.id === 'peugeot_206')!.model.paint,
+    );
+    // Every livery gives a motif and three different colours.
+    for (const c of ALL_CARS) {
+      const lv = crewLivery(c, liveryInfo(c, 0), 0);
+      expect(MOTIFS, c.id).toContain(lv.motif);
+      expect(new Set([lv.main, lv.second, lv.third]).size, c.id).toBe(3);
     }
   });
 
-  test('helmet shell faces outward', () => {
-    const h = helmet({ base: '#fff', stripe: '#f00', line: '#00f' }, true);
-    const p = h.shell.getAttribute('position');
-    const n = h.shell.getAttribute('normal');
-    let out = 0;
-    for (let i = 0; i < p.count; i++)
-      if (
-        p.getX(i) * n.getX(i) + p.getY(i) * n.getY(i) + p.getZ(i) * n.getZ(i) >
-        0
-      )
-        out++;
-    expect(out / p.count).toBeGreaterThan(0.97);
+  test('every motif stays within the triangle budget', () => {
+    const cp = cars.find((c) => c.id === 'skoda_rally')!.model.cockpit!;
+    for (const motif of MOTIFS)
+      for (const codriver of [false, true]) {
+        const of = (lod: number): number =>
+          tris(
+            buildCrew(codriver, lod, { cockpit: cp, livery: livery(motif) }),
+          );
+        expect(of(0), motif).toBeLessThan(30000);
+        expect(of(1), motif).toBeLessThan(12000);
+      }
+  });
+
+  test('helmet shell faces outward in every design', () => {
+    for (const motif of MOTIFS) {
+      const h = helmet(livery(motif), true);
+      const p = h.shell.getAttribute('position');
+      const n = h.shell.getAttribute('normal');
+      let out = 0;
+      for (let i = 0; i < p.count; i++)
+        if (
+          p.getX(i) * n.getX(i) +
+            p.getY(i) * n.getY(i) +
+            p.getZ(i) * n.getZ(i) >
+          0
+        )
+          out++;
+      expect(out / p.count, motif).toBeGreaterThan(0.97);
+    }
   });
 });

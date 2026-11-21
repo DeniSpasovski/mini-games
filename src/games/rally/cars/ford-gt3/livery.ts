@@ -1,6 +1,6 @@
 import { atlasKit, type Pt } from '../shared/atlas-painter';
 import { FENDER_POLYS } from './fender-mask';
-import type { LiveryInfo } from '../shared/livery';
+import { plainCrew, type LiveryInfo } from '../shared/livery';
 import type { CarAtlas } from '../shared/types';
 import source from './model.source.json';
 
@@ -244,4 +244,9 @@ export const fordGt3Livery: CarAtlas = {
   height: Math.ceil(A.height * K),
   layout: A,
   paint,
+  // The stripes are the car's own livery only (seed 0): any other paint is one flat colour.
+  crew: (info, seed) =>
+    seed === 0
+      ? { main: info.base, second: WHITE, third: SKY, motif: 'slant' }
+      : plainCrew(info.base),
 };

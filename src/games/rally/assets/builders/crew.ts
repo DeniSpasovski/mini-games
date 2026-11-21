@@ -6,8 +6,13 @@ import {
   Vector3,
   type Material,
 } from 'three';
-import { Rng } from '../../../../shared/rng';
 import { merge } from '../../engine/geo';
+import {
+  colorGap,
+  plainCrew,
+  type CrewLivery,
+  type CrewMotif,
+} from '../../cars/shared/livery';
 import type { Cockpit } from '../../cars/shared/types';
 import {
   camLock,
@@ -23,7 +28,6 @@ import {
   BONE,
   BONES,
   bodyRig,
-  packNormals,
   pose as poseBones,
   RIGS,
   skinPoints,
@@ -44,6 +48,7 @@ import {
 import { shoesOf } from './people-shoes';
 import { clipAll, field, join, posed, type Surf } from './people-surf';
 import {
+  alongOf,
   between,
   heightIn,
   painted,
@@ -51,8 +56,11 @@ import {
   splitIn,
   tailor,
   top,
+  type Field,
   type Piece,
+  type SplitOpts,
   type Tailor,
+  type Where,
 } from './people-tailor';
 import type { AssetBuilder } from '../types';
 import { TEAMS } from './teams';
@@ -69,12 +77,12 @@ import { TEAMS } from './teams';
 
 export interface CrewParams {
   cockpit: Cockpit;
-  /** The car's colours: suit, its panels and trim; the helmet's paint. */
-  colors: { base: string; accent: string; accent2: string };
+  /** What the crew wears with the car's livery: the colours and the motif of suit and helmet. */
+  livery: CrewLivery;
 }
 
-/** What a part is drawn with: the body's skin, the people atlas (cloth and matt gear), a glossy paint (helmet shells). */
-export type CrewLook = `skin|${string}` | 'atlas' | 'crew_gloss';
+/** What a part is drawn with: the people atlas (cloth and matt gear), a glossy paint (helmet shells and visors). */
+export type CrewLook = 'atlas' | 'crew_gloss';
 
 export interface CrewPart {
   geometry: BufferGeometry;
@@ -82,7 +90,6 @@ export interface CrewPart {
 }
 
 const MODEL: BodyModel = 'male';
-const SKIN = ['#d9a581', '#cc9470', '#b97f5a', '#9a6542', '#865535'];
 /** Hip joint above the cushion and ahead of the backrest of someone sat in a seat (m). */
 const HIP_UP = 0.085;
 /** The same on a cushion pressed down as far as it goes. */
@@ -114,43 +121,21 @@ const RIM = 0.016;
 const CARBON = '#1c1d20';
 /** Harness webbing: the one that shows best on the suit. */
 const WEBBING = ['#b8202a', '#1d3f9c', '#18191c'];
-const PANEL = ['#eeeeea', '#23252b'];
 const GLOVE_COLOR = '#1a1b1f';
+const BALACLAVA = '#e6e4dc';
 
 const v = (x: number, y: number, z: number): Vector3 => new Vector3(x, y, z);
 
 const shade = (css: string, k: number): string =>
   `#${new Color(css).multiplyScalar(k).getHexString()}`;
 
-/** How far apart two colours are (0 = the same, ~1.7 = black to white). */
-const apart = (a: string, b: string): number => {
-  const x = new Color(a);
-  const y = new Color(b);
-  return Math.hypot(x.r - y.r, x.g - y.g, x.b - y.b);
-};
-
-/**
- * A suit in the car's colour: its panels (shoulders, legs) white or charcoal, whichever stands out on it, the trim one
- * of the livery's accents, and the harness in the webbing that shows on both.
- */
-function suitColors(c: CrewParams['colors']): {
-  panel: string;
-  trim: string;
-  webbing: string;
-} {
-  const far = (list: string[], from: string[]): string =>
-    list.reduce((best, x) => {
-      const d = (y: string): number =>
-        Math.min(...from.map((f) => apart(y, f)));
-      return d(x) > d(best) ? x : best;
-    });
-  const panel = far(PANEL, [c.base]);
-  return {
-    panel,
-    trim: far([c.accent, c.accent2], [c.base, panel]),
-    webbing: far(WEBBING, [c.base, panel]),
-  };
-}
+/** The harness webbing that shows best on a suit of these colours. */
+const webbingOn = (lv: CrewLivery): string =>
+  WEBBING.reduce((best, x) => {
+    const d = (y: string): number =>
+      Math.min(colorGap(y, lv.main), colorGap(y, lv.second));
+    return d(x) > d(best) ? x : best;
+  });
 
 /** The elbow / knee of a two-bone limb from `from` reaching `to`, bent towards `pole`. */
 function reach(
@@ -244,19 +229,73 @@ function surface(t: Tailor) {
   };
 }
 
-/** A race suit: plain close-cut overalls with the panels of one - yoke, epaulettes, belt, patches, leg bands. */
+/** A mountain in a plane of two measures: under both slopes (`k` = rise over run) of a peak at (u0, v0). */
+const peakOf = (
+  U: Field,
+  V: Field,
+  u0: number,
+  v0: number,
+  k: number,
+): Field[] => [
+  (s, i) => v0 - V(s, i) - k * (U(s, i) - u0),
+  (s, i) => v0 - V(s, i) + k * (U(s, i) - u0),
+];
+
+/**
+ * A crescent in a plane of two measures, from `p` to `q`: between two arcs over that chord, one bulging `deep` to the
+ * right of p -> q, one `flat` (0 = the chord itself). Pointed at both ends, widest in the middle.
+ */
+function lune(
+  U: Field,
+  V: Field,
+  p: [number, number],
+  q: [number, number],
+  deep: number,
+  flat: number,
+): Field[] {
+  const c = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  const n = [(q[1] - p[1]) / c, -(q[0] - p[0]) / c];
+  const arc = (sag: number): { x: number; y: number; r: number } => {
+    const r = (c * c) / (8 * sag) + sag / 2;
+    return { x: mid[0] + n[0] * (sag - r), y: mid[1] + n[1] * (sag - r), r };
+  };
+  const a = arc(deep);
+  const inside: Field = (s, i) =>
+    a.r - Math.hypot(U(s, i) - a.x, V(s, i) - a.y);
+  if (flat < 1e-4)
+    return [
+      inside,
+      (s, i) => (U(s, i) - p[0]) * n[0] + (V(s, i) - p[1]) * n[1],
+    ];
+  const b = arc(flat);
+  return [inside, (s, i) => Math.hypot(U(s, i) - b.x, V(s, i) - b.y) - b.r];
+}
+
+/**
+ * A race suit: close-cut overalls in the livery's main colour that carry its motif in the other two - on the shoulders
+ * and sleeves first (what shows through the glass), then on the chest and legs. Matching, not a copy of the car: the
+ * stripes, the split, the mountains come back as a suit maker would cut them. Every graphic is a straight or circular
+ * cut of the cloth in its rest frame (people-tailor.ts `split`), so its edges are sharp at any mesh density.
+ */
 function raceSuit(
   t: Tailor,
-  c: CrewParams['colors'],
+  lv: CrewLivery,
+  hi: boolean,
 ): { pieces: Piece[]; cover: Float32Array } {
   const rig = RIGS[t.m];
+  const { main, second, third, motif } = lv;
   const Y = heightIn(t);
-  const X = (s: Surf, i: number): number => Math.abs(s.a.pos[i * 3]);
-  const front = (s: Surf, i: number): number => s.a.nor[i * 3 + 2] * 0.05;
-  // The second colour has to show on the first: the one further from it.
-  const { panel, trim } = suitColors(c);
+  const Xs: Field = (s, i) => s.a.pos[i * 3];
+  const X: Field = (s, i) => Math.abs(s.a.pos[i * 3]);
+  const Z: Field = (s, i) => s.a.pos[i * 3 + 2];
+  const front: Field = (s, i) => s.a.nor[i * 3 + 2] * 0.05;
+  const neg =
+    (f: Field): Field =>
+    (s, i) =>
+      -f(s, i);
   const suit = top(t, {
-    color: c.base,
+    color: main,
     sleeve: t.reach - 0.02,
     neck: 'high',
     hem: 0.88,
@@ -268,64 +307,278 @@ function raceSuit(
     seed: 7,
     cell: F_JERSEY,
     sleeveCell: F_JERSEY_SLEEVE,
-    trim: shade(panel, 0.9),
+    trim: motif === 'plain' ? shade(second, 0.9) : third,
     collar: 0.05,
     suit: { hem: 0.11, cell: F_TWILL, flare: 0.006 },
   });
   let out = suit.pieces;
-  // Yoke over the shoulders, front and back, carried down the outside of the sleeves.
-  const yoke = (s: Surf, i: number): number =>
-    s.a.pos[i * 3 + 1] + rig.hip - (rig.chest - 0.075);
-  out = split(out, yoke, { color: panel, fixed: true });
-  // The gauntlets of the gloves over the ends of the sleeves, a band of the trim colour round their edge: cut square
-  // to the forearm, measured back from the wrist.
-  const fore = [0, 1, 2].map((k) => rig.wrist[k] - rig.elbow[k]);
-  const fl = Math.hypot(...fore);
-  const upArm = (s: Surf, i: number): number => {
-    const p = s.a.pos;
-    const sd = Math.sign(p[i * 3]) || 1;
-    return (
-      -(
-        (p[i * 3] * sd - rig.wrist[0]) * fore[0] +
-        (p[i * 3 + 1] + rig.hip - rig.wrist[1]) * fore[1] +
-        (p[i * 3 + 2] - rig.wrist[2]) * fore[2]
-      ) / fl
-    );
+  // A cut is never cut again, so what lies on top is cut first.
+  const all = (f: Field[], color: string, o: SplitOpts = {}): void => {
+    out = split(out, f, { color, fixed: true, ...o });
   };
-  out = splitIn(
-    out,
-    { arm: [(s, i) => 0.1 - upArm(s, i)] },
-    {
-      color: GLOVE_COLOR,
-      cell: GLOVE,
-      raise: 0.005,
-      slope: 0.004,
-      fixed: true,
-    },
-  );
-  out = splitIn(
-    out,
-    { arm: [(s, i) => 0.116 - upArm(s, i)] },
-    { color: trim, cell: GLOVE, raise: 0.005, slope: 0.004, fixed: true },
-  );
+  const on = (
+    where: Where,
+    f: Field[],
+    color: string,
+    o: SplitOpts = {},
+  ): void => {
+    out = splitIn(out, { [where]: f }, { color, fixed: true, ...o });
+  };
+
+  // The arms' own measures (both arms as the left one): along and across the upper arm and the forearm.
+  const unit = (a: number[]): number[] => {
+    const l = Math.hypot(...a);
+    return a.map((x) => x / l);
+  };
+  const cross = (a: number[], b: number[]): number[] => [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+  const upper = unit(rig.elbow.map((x, k) => x - rig.shoulder[k]));
+  const fore = unit(rig.wrist.map((x, k) => x - rig.elbow[k]));
+  const inward = unit(cross(upper, fore));
+  const armM =
+    (from: number[], dir: number[], k = 1): Field =>
+    (s, i) => {
+      const p = s.a.pos;
+      return (
+        k *
+        ((Math.abs(p[i * 3]) - from[0]) * dir[0] +
+          (p[i * 3 + 1] + rig.hip - from[1]) * dir[1] +
+          (p[i * 3 + 2] - from[2]) * dir[2])
+      );
+    };
+  /** Back from the wrist along the forearm. */
+  const upArm = armM(rig.wrist, fore, -1);
+  /** Out of the plane of the arm: > 0 on its outside. */
+  const outer = armM(rig.shoulder, inward, -1);
+  /** Across the upper arm / the forearm, + = its front. */
+  const acU = armM(rig.shoulder, cross(inward, upper));
+  const acF = armM(rig.elbow, cross(inward, fore));
+  /** Past the elbow: < 0 on the upper arm, > 0 on the forearm. */
+  const elbow = armM(rig.elbow, unit(upper.map((x, k) => x + fore[k])));
+  const along = alongOf(t);
+
+  // The gauntlets of the gloves over the ends of the sleeves, a band of trim round their edge: cut square to the
+  // forearm, measured back from the wrist.
+  on('arm', [(s, i) => 0.1 - upArm(s, i)], GLOVE_COLOR, {
+    cell: GLOVE,
+    raise: 0.005,
+    slope: 0.004,
+  });
+  on('arm', [(s, i) => 0.116 - upArm(s, i)], third, {
+    cell: GLOVE,
+    raise: 0.005,
+    slope: 0.004,
+  });
   // Epaulettes: the straps a marshal pulls a driver out by.
-  out = splitIn(
-    out,
-    {
-      torso: [
+  if (motif !== 'stripes')
+    on(
+      'torso',
+      [
         ...between(X, 0.09, 0.165),
-        (s, i) => 0.02 - Math.abs(s.a.pos[i * 3 + 2] - rig.shoulder[2] - 0.02),
+        (s, i) => 0.02 - Math.abs(Z(s, i) - rig.shoulder[2] - 0.02),
         (s, i) => (s.a.nor[i * 3 + 1] - 0.3) * 0.05,
       ],
-    },
-    { color: trim, raise: 0.005, slope: 0.006, fixed: true },
+      third,
+      { raise: 0.005, slope: 0.006 },
+    );
+  // The belt of the suit.
+  const under = motif === 'peaks' ? second : main;
+  on(
+    'torso',
+    between(Y, rig.waist + 0.05, rig.waist + 0.095),
+    motif === 'stripes' ? third : shade(under, 0.82),
+    { raise: 0.003 },
   );
-  // The belt of the suit and the flap over the zip.
-  out = splitIn(
-    out,
-    { torso: between(Y, rig.waist + 0.05, rig.waist + 0.095) },
-    { color: shade(c.base, 0.82), raise: 0.003, fixed: true },
-  );
+  // Patches on the chest of a suit with nothing else there: a light one on the left, the trim colour on the right.
+  if (motif === 'plain' || motif === 'stripes') {
+    const patch = (sd: number, color: string, y0: number, y1: number): void =>
+      on(
+        'torso',
+        [
+          ...between((s, i) => Xs(s, i) * sd, 0.04, 0.125),
+          ...between(Y, y0, y1),
+          front,
+        ],
+        color,
+      );
+    patch(
+      1,
+      colorGap(main, '#f1f1ec') > 0.4 ? '#f1f1ec' : second,
+      rig.chest - 0.165,
+      rig.chest - 0.11,
+    );
+    patch(-1, third, rig.chest - 0.155, rig.chest - 0.12);
+  }
+
+  /** Yoke over the shoulders, front and back. */
+  const yoke: Field = (s, i) => Y(s, i) - (rig.chest - 0.075);
+  /** Knee to ankle: a band down the outside of each leg. */
+  const legBand = (color: string): void =>
+    on(
+      'leg',
+      [(s, i) => (Math.sign(Xs(s, i)) * s.a.nor[i * 3] - 0.9) * 0.05],
+      color,
+    );
+
+  switch (motif) {
+    case 'plain':
+      all([yoke], second);
+      legBand(second);
+      break;
+    case 'stripes': {
+      // Twin stripes from the collar over the shoulder and down the outside of the arm to the cuff, and down the legs.
+      for (const [a, b] of [
+        [-0.031, -0.007],
+        [0.007, 0.031],
+      ]) {
+        on('arm', [...between(acU, a, b), outer, neg(elbow)], second);
+        on('arm', [...between(acF, a, b), outer, elbow], second);
+        on(
+          'torso',
+          [
+            ...between(acU, a, b),
+            (s, i) => X(s, i) - 0.095,
+            (s, i) => (s.a.nor[i * 3 + 1] - 0.25) * 0.05,
+          ],
+          second,
+        );
+        on(
+          'leg',
+          [
+            ...between(Z, a, b),
+            (s, i) => (Math.sign(Xs(s, i)) * s.a.nor[i * 3] - 0.4) * 0.05,
+          ],
+          second,
+        );
+      }
+      break;
+    }
+    case 'slant': {
+      // Leaning bands that thin out, like speed stripes: a sash of them up the chest to one shoulder, and round the
+      // upper arms.
+      const a = 0.66;
+      const d: Field = (s, i) =>
+        (Y(s, i) - 1.19) * Math.cos(a) - Xs(s, i) * Math.sin(a);
+      const sash: [number, number, string][] = [
+        [0.05, 0.11, second],
+        [0.008, 0.038, third],
+        [-0.022, -0.004, second],
+        [-0.043, -0.031, third],
+        [-0.058, -0.051, second],
+      ];
+      // The thinnest of them on the close-up mesh only.
+      for (const [lo, up, c] of sash.slice(0, hi ? 5 : 3))
+        on('torso', between(d, lo, up), c);
+      const ring: Field = (s, i) => along(s, i) + 0.6 * acU(s, i);
+      const rings: [number, number, string][] = [
+        [0.06, 0.12, second],
+        [0.133, 0.163, third],
+        [0.175, 0.193, second],
+        [0.203, 0.213, third],
+      ];
+      for (const [lo, up, c] of rings.slice(0, hi ? 4 : 3))
+        on('arm', between(ring, lo, up), c);
+      break;
+    }
+    case 'split': {
+      // Two blocks of colour on a leaning line with a line of the third between them: one shoulder and its sleeve, and
+      // the lower legs the other way.
+      const f: Field = (s, i) => Y(s, i) - 1.24 + 0.75 * Xs(s, i);
+      all(between(f, -0.015, 0.015), third);
+      all([f], second);
+      const g: Field = (s, i) => 0.44 - Y(s, i) - 0.6 * Xs(s, i);
+      on('leg', between(g, -0.012, 0.012), third);
+      on('leg', [g], second);
+      break;
+    }
+    case 'peaks': {
+      // A mountain range: the second colour from the legs up to a ridge across the chest, the third as the higher range
+      // behind it; the same at the cuffs.
+      on('leg', [() => 1], second);
+      on('torso', [(s, i) => 1.13 - Y(s, i)], second);
+      for (const [x, y] of [
+        [-0.165, 1.245],
+        [-0.05, 1.21],
+        [0.065, 1.265],
+        [0.175, 1.225],
+      ])
+        on('torso', peakOf(Xs, Y, x, y, 1.35), second);
+      for (const [x, y] of [
+        [-0.105, 1.3],
+        [0.01, 1.275],
+        [0.125, 1.315],
+      ])
+        on('torso', peakOf(Xs, Y, x, y, 1.35), third);
+      on('arm', [(s, i) => 0.17 - upArm(s, i)], second);
+      on('arm', peakOf(acF, upArm, 0, 0.245, 1.5), second);
+      on('arm', peakOf(acF, upArm, 0.03, 0.275, 1.8), third);
+      on('arm', peakOf(acF, upArm, -0.035, 0.24, 1.8), third);
+      break;
+    }
+    case 'swoosh': {
+      // A swoosh of three lines: a crescent from one hip up to the other shoulder with two thinner ones under it, and
+      // one down each upper arm.
+      const p: [number, number] = [-0.18, 1.12];
+      const q: [number, number] = [0.2, 1.41];
+      on('torso', lune(Xs, Y, p, q, 0.075, 0.03), second);
+      if (hi) {
+        on('torso', lune(Xs, Y, p, q, 0.094, 0.084), third);
+        on('torso', lune(Xs, Y, p, q, 0.112, 0.105), second);
+      }
+      const a: [number, number] = [-0.04, 0.02];
+      const b: [number, number] = [0.04, 0.215];
+      on('arm', lune(acU, along, a, b, 0.034, 0.008), second);
+      if (hi) on('arm', lune(acU, along, a, b, 0.05, 0.042), third);
+      legBand(second);
+      break;
+    }
+    case 'checker': {
+      // A band of checkers across the chest and round the upper arms, under a yoke of the second colour.
+      all([yoke], second);
+      const w = 0.04;
+      if (hi)
+        for (const [lo, up] of [
+          [1.222, 1.229],
+          [1.321, 1.328],
+        ])
+          on('torso', between(Y, lo, up), third);
+      for (let r = 0; r < 2; r++)
+        for (let k = -5; k < 5; k++)
+          if ((k + r) & 1)
+            on(
+              'torso',
+              [
+                ...between(Y, 1.235 + r * w, 1.235 + (r + 1) * w),
+                ...between(Xs, k * w, (k + 1) * w),
+              ],
+              second,
+            );
+      const h = 0.034;
+      if (hi)
+        for (const [lo, up] of [
+          [0.088, 0.094],
+          [0.174, 0.18],
+        ])
+          on('arm', between(along, lo, up), third);
+      for (let r = 0; r < 2; r++)
+        for (let k = -2; k < 2; k++)
+          if ((k + r) & 1)
+            on(
+              'arm',
+              [
+                ...between(along, 0.1 + r * h, 0.1 + (r + 1) * h),
+                ...between(acU, k * 0.03, (k + 1) * 0.03),
+              ],
+              second,
+            );
+      legBand(second);
+      break;
+    }
+  }
+  // The flap over the zip, where the suit is still its own colour: a graphic runs over it.
   out = splitIn(
     out,
     {
@@ -335,33 +588,7 @@ function raceSuit(
         (s, i) => rig.chest + 0.04 - Y(s, i),
       ],
     },
-    { color: shade(c.base, 0.8), raise: 0.002, fixed: true },
-  );
-  // Patches on the chest: a light one on the left, the trim colour on the right.
-  const patch = (sd: number, color: string, y0: number, y1: number): void => {
-    out = splitIn(
-      out,
-      {
-        torso: [
-          ...between((s, i) => s.a.pos[i * 3] * sd, 0.04, 0.125),
-          ...between(Y, y0, y1),
-          front,
-        ],
-      },
-      { color, fixed: true },
-    );
-  };
-  patch(1, '#f1f1ec', rig.chest - 0.165, rig.chest - 0.11);
-  patch(-1, trim, rig.chest - 0.155, rig.chest - 0.12);
-  // Knee to ankle: a band of the panel colour down the outside of each leg.
-  out = splitIn(
-    out,
-    {
-      leg: [
-        (s, i) => (Math.sign(s.a.pos[i * 3]) * s.a.nor[i * 3] - 0.9) * 0.05,
-      ],
-    },
-    { color: panel, fixed: true },
+    { color: shade(main, 0.8), raise: 0.002, fixed: true },
   );
   return { pieces: out, cover: suit.cover };
 }
@@ -830,14 +1057,12 @@ function sheet(
 
 /** The crew of a car as parts with the look of their material: `codriver` picks the seat. */
 export function buildCrew(
-  seed: number,
   codriver: boolean,
   lod: number,
   params: CrewParams,
 ): CrewPart[] {
   const hi = lod === 0;
-  const skin = new Rng(seed).pick(SKIN);
-  const c = params.colors;
+  const lv = params.livery;
   const sat = sitIn(params.cockpit, codriver);
   const bp = poseBones(MODEL, sat.pose);
   const t = tailor(MODEL, lod);
@@ -846,18 +1071,25 @@ export function buildCrew(
   const warp = (s: Surf, out: Float32Array): void =>
     widen(s.a.pos, s.a.arm, s.n, abs, 1, out);
 
-  // The suit, and the body where nothing covers it: only the head (the gloves are built on the grips, not on the
-  // body's open hands).
-  const suit = raceSuit(t, c);
-  const low = field(
-    t.body.s,
-    (i) => abs.neck[0] - 0.07 - (t.body.s.a.pos[i * 3 + 1] + abs.hip),
+  // The suit. Of the body itself only the neck shows, between the helmet and the collar, in a balaclava.
+  const suit = raceSuit(t, lv, hi);
+  const height = (i: number): number => t.body.s.a.pos[i * 3 + 1] + abs.hip;
+  const neck = clipAll(t.body.s, [
+    field(t.body.s, (i) => 0.03 - suit.cover[i]),
+    field(t.body.s, (i) => height(i) - (abs.neck[0] - 0.1)),
+    field(t.body.s, (i) => abs.head[1] - 0.085 - height(i)),
+  ]);
+  const sock = posed(neck, bp.bones, warp, []);
+  const count = sock.getAttribute('position').count;
+  const sockColor = new Color(BALACLAVA).toArray();
+  sock.setAttribute(
+    'color',
+    new BufferAttribute(
+      Float32Array.from({ length: count * 3 }, (_, i) => sockColor[i % 3]),
+      3,
+    ),
   );
-  const visible = clipAll(
-    t.body.s,
-    [suit.cover, low].map((cv) => field(t.body.s, (i) => 0.03 - cv[i])),
-  );
-  const skinG = posed(visible, bp.bones, warp, ['uv']);
+  sock.setAttribute('uv', new BufferAttribute(new Float32Array(count * 2), 2));
   const cloth = (list: Surf[]): BufferGeometry => {
     const g = posed(join(list), bp.bones, warp, ['uv', 'color']);
     g.userData.cell = -1;
@@ -866,6 +1098,7 @@ export function buildCrew(
   const parts: BufferGeometry[] = [
     cloth(suit.pieces.map(painted)),
     cloth(shoesOf(MODEL, 'sneaker', '#17181b', '#2b2c30', hi)),
+    tag(sock, HAT),
   ];
 
   // Helmet on the head.
@@ -874,17 +1107,7 @@ export function buildCrew(
     .multiply(
       new Matrix4().makeTranslation(rig.head.x, rig.head.y, rig.head.z),
     );
-  const WHITE = '#f1f1ee';
-  const stripe = apart(c.base, WHITE) > 0.4 ? c.base : c.accent;
-  const line = [c.accent, c.accent2, '#17181b'].find(
-    (x) => apart(x, stripe) > 0.4 && apart(x, WHITE) > 0.4,
-  )!;
-  const hel = helmet(
-    { base: WHITE, stripe, line },
-    hi,
-    abs.eye[0] - abs.head[1],
-    abs.eye[1] - abs.head[2],
-  );
+  const hel = helmet(lv, hi);
   hel.shell.applyMatrix4(headAt);
   const trim = hel.trim.toNonIndexed();
   hel.trim.dispose();
@@ -894,7 +1117,7 @@ export function buildCrew(
   for (const h of sat.hands)
     parts.push(...gripGlove(h.grip, h.wrist, h.fore, GLOVE_COLOR, hi));
   if (sat.book) parts.push(...notes(...sat.book));
-  parts.push(...restraint(t, bp.bones, headAt, suitColors(c).webbing, hi));
+  parts.push(...restraint(t, bp.bones, headAt, webbingOn(lv), hi));
 
   const atlas = merge(
     parts.map((p) => {
@@ -912,13 +1135,11 @@ export function buildCrew(
   const place = new Matrix4()
     .makeTranslation(hip.x, hip.y, hip.z)
     .multiply(new Matrix4().makeScale(scale, scale, scale));
-  for (const g of [skinG, atlas, hel.shell]) {
+  for (const g of [atlas, hel.shell]) {
     g.applyMatrix4(place);
     g.computeBoundingSphere();
   }
-  if (hi) packNormals(skinG);
   return [
-    { geometry: skinG, look: `skin|${MODEL}|${skin}` },
     { geometry: atlas, look: 'atlas' },
     { geometry: hel.shell, look: 'crew_gloss' },
   ];
@@ -944,18 +1165,37 @@ const DEMO: Cockpit = {
   floor: 0.25,
 };
 
+const MOTIFS: CrewMotif[] = [
+  'plain',
+  'stripes',
+  'slant',
+  'split',
+  'peaks',
+  'swoosh',
+  'checker',
+];
+
+/** A livery to show the crew in on its own: the colours of a service-park team, each motif in turn. */
+function demoLivery(k: number): CrewLivery {
+  const team = TEAMS[k % TEAMS.length];
+  const motif = MOTIFS[k % MOTIFS.length];
+  return motif === 'plain'
+    ? plainCrew(team.base)
+    : { main: team.base, second: team.accent, third: team.accent2, motif };
+}
+
 /**
  * Catalog builder. Variant % 2 = the seat (driver, co-driver); `params` (`CrewParams`) names the car, without them it
- * is a demo cockpit in the colours of team variant / 2. The parts carry the look of their material (`CrewLook`) in
- * place of one: assets/people-pool.ts `materialOf` turns it into the material.
+ * is a demo cockpit and the livery of team variant / 2 (every motif in turn). The parts carry the look of their
+ * material (`CrewLook`) in place of one: assets/people-pool.ts `materialOf` turns it into the material.
  */
-export const crewSeated: AssetBuilder = ({ seed, variant, lod, params }) => {
+export const crewSeated: AssetBuilder = ({ variant, lod, params }) => {
   const p = (params as CrewParams | undefined) ?? {
     cockpit: DEMO,
-    colors: TEAMS[Math.floor(variant / 2) % TEAMS.length],
+    livery: demoLivery(Math.floor(variant / 2)),
   };
   return {
-    parts: buildCrew(seed, variant % 2 === 1, lod, p).map((part) => ({
+    parts: buildCrew(variant % 2 === 1, lod, p).map((part) => ({
       geometry: part.geometry,
       material: part.look as unknown as Material,
     })),

@@ -587,7 +587,7 @@ function rebuild(): void {
   model.root.position.y = def.physics.comHeight + model.tyreLift;
   model.debug.visible = state.hull;
   if (state.crew) {
-    crew = new CarCrew(def, model.livery);
+    crew = new CarCrew(def, model.crewLivery);
     model.body.add(crew.group);
   }
   carFrame.add(model.root);

@@ -362,4 +362,10 @@ export const subie22bLivery: CarAtlas = {
   height: Math.ceil(A.height * K),
   layout: A,
   paint,
+  crew: (info) => ({
+    main: info.base,
+    second: YELLOW,
+    third: EDGE,
+    motif: 'swoosh',
+  }),
 };

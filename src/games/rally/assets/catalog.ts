@@ -703,7 +703,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Crew in the seats',
     category: 'props',
     description:
-      "Driver and co-driver strapped in their seats: helmet, head restraint, harness, gloves on the wheel / the pace notes (game/car-crew.ts builds them for each car's cockpit). Here in a demo cockpit: variant % 2 = seat (driver, co-driver), variant / 2 = team.",
+      "Driver and co-driver strapped in their seats: closed-visor helmet, head restraint, harness, gloves on the wheel / the pace notes (game/car-crew.ts builds them for each car's cockpit). Here in a demo cockpit: variant % 2 = seat (driver, co-driver), variant / 2 = team (each livery motif in turn).",
     variants: 24,
     lods: PEOPLE_LODS,
   },

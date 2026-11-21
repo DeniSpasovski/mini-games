@@ -674,7 +674,7 @@ export class RallyGame {
     const w = this.env.weatherLook;
     if (w.wet > 0) this.model.setWet();
     this.crew?.dispose();
-    this.crew = new CarCrew(this.car, this.model.livery);
+    this.crew = new CarCrew(this.car, this.model.crewLivery);
     this.model.body.add(this.crew.group);
     // Rain / fog: lights switched on, a rain / fog day under BEAM_MIN_NEED (`carLights`).
     const lights = carLights(this.env.lightNeed, w);
