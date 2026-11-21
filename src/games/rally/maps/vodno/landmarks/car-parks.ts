@@ -96,13 +96,16 @@ export interface Lot {
 export type RimKind = 'wall' | 'low' | 'kerb' | 'bank' | 'open';
 
 /**
- * The Vidikovec's outer edge (local frame, from the owner's level diagrams): a lens from the west tip at the road (`W`, a
+ * The Vidikovec's outer edge (local frame, from the owner's level diagrams): open beside the road rail (`W0`-`W`), a lens from the west tip at the road (`W`, a
  * stone kerb with a railing) to the green terrace's tip (`T`), the corner where the wall between the two terraces starts
  * (`R1`), the red terrace's landing (`P1`-`Q1`), the grey strip's start (`G`), its end (`Eend`) and the lot's east end
  * (`M`-`D`). Past T-R1 the stairs go down to the green terrace, past Q1-G to the red one, past M-D the stone steps to the
  * green terrace's east end; G-Eend is the grey strip's low parapet (lot-park.ts `drawGarden`).
  */
 export const VIDIKOVEC_RIM = {
+  // (the asphalt runs on up the road to the road rail's bend, ~2 818 m along, its edge open under the rail that bends
+  // out to the kerb railing's first post: map.ts VIDIKOVEC_RAIL)
+  W0: [40.31, 1.57] as V2,
   W: [33.71, -0.76] as V2,
   T: [0.14, -18.57] as V2,
   // (the green stairs' head T-R1 sits where the wall P1-Q1 starts: R1-P1 runs on in line with it, no corner)
@@ -134,8 +137,9 @@ export function segDist(p: V2, a: V2, b: V2): number {
 }
 
 const vidikovecRim = (p: V2): RimKind => {
-  const { W, T, R1, P1, Q1, G, Eend, M, D } = VIDIKOVEC_RIM;
+  const { W0, W, T, R1, P1, Q1, G, Eend, M, D } = VIDIKOVEC_RIM;
   const runs: [V2, V2, RimKind][] = [
+    [W0, W, 'open'],
     [W, T, 'kerb'],
     [T, R1, 'open'],
     [R1, P1, 'wall'],
@@ -221,8 +225,8 @@ export const VIDIKOVEC: Lot = {
   wallDepth: 2.8,
   wallThick: 0.45,
   outer: (() => {
-    const { W, T, R1, P1, Q1, G, Eend, M, D } = VIDIKOVEC_RIM;
-    return [W, T, R1, P1, Q1, G, Eend, M, D];
+    const { W0, W, T, R1, P1, Q1, G, Eend, M, D } = VIDIKOVEC_RIM;
+    return [W0, W, T, R1, P1, Q1, G, Eend, M, D];
   })(),
   rim: vidikovecRim,
   insetLeft: vidikovecIslandInset,
@@ -819,6 +823,24 @@ export function runThick(run: WallRun, lotT: number): number {
   return run.low ? 0.4 : run.kerb ? 0.35 : run.bank ? 0.5 : lotT;
 }
 
+/** Inner face of a lot's wall from its outline (m). */
+const WALL_IN = 0.05;
+
+/** Lateral of a run's railing posts from its outline (m): on the outer edge of a thick wall, else along its middle. */
+const railOffset = (T: number): number =>
+  T > 0.6 ? WALL_IN + T - 0.2 : WALL_IN + T / 2;
+
+/** World (x, z) of the first railing post of a walled lot's outer edge (where a road rail meets it). */
+export function firstRailPost(lot: Lot): [number, number] {
+  const run = wallRuns(lot).find((r) => r.rail)!;
+  const o = railOffset(runThick(run, lot.wallThick ?? 0.6));
+  return toWorld(
+    lot.site,
+    run.p[0][0] + run.n[0][0] * o,
+    run.p[0][1] + run.n[0][1] * o,
+  );
+}
+
 /** A cap across the strip's end is open (no kerb, no wall) where it meets the road: a narrow mouth, or a cap that runs along the road. */
 function capOpenOf(shape: LotShape, i: number, lot: Lot): boolean {
   if (lot.mouth && i === 0) return true;
@@ -1062,7 +1084,7 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
    */
   const drawWall = (): void => {
     const lotT = lot.wallThick ?? 0.6;
-    const IN = 0.05;
+    const IN = WALL_IN;
     const depth = lot.wallDepth ?? 1.4;
     const runs = wallRuns(lot);
     for (const run of runs) {
@@ -1102,7 +1124,7 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       if (!run.rail) continue;
       // The railing: posts about every 2 m set into the top, rails sloping with it; on the outer edge of a thick wall, along
       // the middle of a thin one or a kerb (three rails on a kerb).
-      const ro = T > 0.6 ? OUT - 0.2 : IN + T / 2;
+      const ro = railOffset(T);
       const ks = [0];
       for (let k = 1, acc = 0; k < m; k++) {
         acc += Math.hypot(
