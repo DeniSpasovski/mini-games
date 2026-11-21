@@ -26,6 +26,7 @@ import data from './data.json';
 import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
 import { VODNO_FLATS } from './landmarks';
+import { VIDIKOVEC, firstRailPost } from './landmarks/car-parks';
 import { laybyPads, roadSidewalk } from './laybys';
 import { GATE_PAD } from './landmarks/gate';
 import { BUILDING_PAD, HOTEL_PAD } from './landmarks/hotel';
@@ -81,7 +82,7 @@ const VIDIKOVEC_RAIL = {
   runs: [
     [2478, 2575],
     [2680, 2715],
-    // (on to the lot's west tip, where its kerb railing takes over)
+    // (on to the lot's west tip, its end bent onto the kerb railing's first post)
     [2775, 2826],
   ] as const,
   lot: [2854, 2900] as const,
@@ -1614,6 +1615,10 @@ export const vodnoMap: MapDef = {
         from,
         to,
         skipJunctions: 4,
+        // (the last run bends out onto the first post of the lot's kerb railing, outside the road's verge)
+        ...(to === VIDIKOVEC_RAIL.runs[VIDIKOVEC_RAIL.runs.length - 1][1]
+          ? { endAt: firstRailPost(VIDIKOVEC) }
+          : {}),
       })),
     ].map((rule) => ({ ...rule, rusty: true })),
     // A short galvanised rail between the road and the Vidikovec lot, uphill of its lower entrance, ending at the grass

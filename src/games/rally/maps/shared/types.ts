@@ -1304,6 +1304,8 @@ export interface BarrierRule {
   rusty?: boolean;
   /** Guard rail only: 2 = a second W-beam under the first on the same posts (a two-tier rail). */
   tiers?: 2;
+  /** Guard rail only: its last metres bend out to end at this point (world x, z), e.g. a railing's first post it meets. */
+  endAt?: [number, number];
   /**
    * Kerb only: a painted (yellow, chipped) two-pipe railing on it; `pipe_broken` = what is left of one (two posts
    * and one pipe at the start of the run, the other posts cut off).

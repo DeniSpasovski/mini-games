@@ -30,15 +30,13 @@ import { impostorQuad } from '../trees/draw';
 import { impostorMaterial } from '../trees/materials';
 import { speciesOfType } from '../trees/species';
 import type { TreeLibrary } from '../trees/load';
-import type { ScatterInstance } from './scatter';
+import { ChunkFeed, type ScatterInstance } from './scatter';
 import { BAYER_DITHER_8 } from './lod-fade';
 import type { World } from './world';
 
 /** Metres per map cell (coarsened for very large maps so a side stays <= MAX_SIDE). */
 const RES = 8;
 const MAX_SIDE = 2048;
-/** Scatter chunk keys looked at per `update()` (a cheap Map lookup each). */
-const SCAN = 600;
 /** Main-thread budget per `update()` (ms): splatting new chunks, then encoding their cells. */
 const BUDGET = 1;
 /** Minimum time between texture uploads (ms): only the rows of the cells that changed (texture update ranges). */
@@ -229,9 +227,8 @@ export class FarForest {
   private z0: number;
   /** Heights are stored relative to this (m): half floats keep ~1 m steps over the map. */
   private base: number;
-  private todo: Int32Array;
-  private todoCount: number;
-  private cursor = 0;
+  /** Scatter chunks not splatted yet. */
+  private feed: ChunkFeed;
   /** Splatted chunks' cell rects (i0, i1, j0, j1) not encoded yet; encoded rows waiting for the next upload. */
   private dirty: number[] = [];
   private ranges: number[] = [];
@@ -307,8 +304,7 @@ export class FarForest {
     for (let cz = Math.floor(this.z0 / cs); cz * cs <= this.z0 + d; cz++)
       for (let cx = Math.floor(this.x0 / cs); cx * cs <= this.x0 + w; cx++)
         keys.push(cx, cz);
-    this.todo = Int32Array.from(keys);
-    this.todoCount = keys.length / 2;
+    this.feed = new ChunkFeed(world.scatter, keys);
 
     const shape = new DataTexture(
       this.shapeData,
@@ -409,17 +405,9 @@ export class FarForest {
 
   /** Loading: every chunk generated so far into the map at once, one whole upload. */
   fillNow(camera: Vector3): void {
-    const scatter = this.world.scatter;
-    for (let n = this.todoCount - 1; n >= 0; n--) {
-      const cx = this.todo[n * 2];
-      const cz = this.todo[n * 2 + 1];
-      const chunk = scatter.cachedChunk(cx, cz);
-      if (!chunk) continue;
-      this.splatChunk(cx, cz, chunk.instances);
-      this.todoCount--;
-      this.todo[n * 2] = this.todo[this.todoCount * 2];
-      this.todo[n * 2 + 1] = this.todo[this.todoCount * 2 + 1];
-    }
+    const feed = this.feed;
+    for (let chunk; (chunk = feed.take());)
+      this.splatChunk(feed.cx, feed.cz, chunk.instances);
     const d = this.dirty;
     for (let r = 0; r < d.length; r += 4)
       this.encode(d[r], d[r + 1], d[r + 2], d[r + 3]);
@@ -437,21 +425,9 @@ export class FarForest {
   /** Splat newly generated scatter chunks, upload when due, follow the camera. Cheap once everything near is in. */
   update(camera: Vector3, now = performance.now()): void {
     const t0 = performance.now();
-    const scatter = this.world.scatter;
-    for (let n = 0; n < SCAN && this.todoCount > 0; n++) {
-      if (this.cursor >= this.todoCount) this.cursor = 0;
-      const i = this.cursor * 2;
-      const cx = this.todo[i];
-      const cz = this.todo[i + 1];
-      const chunk = scatter.cachedChunk(cx, cz);
-      if (!chunk) {
-        this.cursor++;
-        continue;
-      }
-      this.splatChunk(cx, cz, chunk.instances);
-      this.todoCount--;
-      this.todo[i] = this.todo[this.todoCount * 2];
-      this.todo[i + 1] = this.todo[this.todoCount * 2 + 1];
+    const feed = this.feed;
+    for (let chunk; (chunk = feed.take());) {
+      this.splatChunk(feed.cx, feed.cz, chunk.instances);
       if (performance.now() - t0 > BUDGET) break;
     }
     // Encode the splatted cells (each chunk's rect once), then upload their rows.

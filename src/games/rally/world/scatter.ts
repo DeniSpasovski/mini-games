@@ -139,6 +139,9 @@ const FAR_CELL = 12;
 const FAR_FLOOR = 30;
 const FAR_REACH = 260;
 
+/** Generated chunks the `recent` ring remembers (a consumer further behind rescans). */
+const RECENT = 256;
+
 /** Cell of the real trees' density grid (m): `treeRulesAt` reports them as a density per cell. */
 const REAL_CELL = 48;
 
@@ -219,7 +222,7 @@ export interface ScatterChunk {
 export const NEAR_DETAIL_MAX = 40;
 
 /** Boosted grass (catalog `nearBoost`) is denser this close to a road edge (m). */
-export const NEAR_BOOST_ROAD = 14;
+export const NEAR_BOOST_ROAD = 20;
 
 /** Candidate points `ScatterField.generateSteps` tests between yields. */
 const SLICE = 256;
@@ -238,6 +241,12 @@ const reachOf = (asset: string) => {
 
 export class ScatterField {
   private chunks = new Map<number, ScatterChunk>();
+  /**
+   * Chunks generated so far (`chunk`) and the last RECENT of them as [cx, cz] pairs in a ring (slot = count % RECENT):
+   * a consumer reads what is new since its own count instead of polling `cachedChunk` over every key it waits for.
+   */
+  generated = 0;
+  readonly recent = new Int32Array(RECENT * 2);
   private details = new Map<number, ScatterInstance[]>();
   private nearDetails = new Map<number, ScatterInstance[]>();
   private fixed = new Map<number, ScatterInstance[]>();
@@ -481,6 +490,38 @@ export class ScatterField {
     nz: number;
     d: Float32Array;
   };
+  private chunkMin = new Map<number, number>();
+  /**
+   * A lower bound of the stage road's edge distance anywhere in chunk (cx, cz): the far field's nodes over the chunk
+   * and one cell around it, less two cells (its bilinear and sampling error), so a rule's `maxRoadDist` test would
+   * reject every candidate in a chunk beyond it.
+   */
+  private chunkRoadMin(cx: number, cz: number): number {
+    const k = key(cx, cz);
+    let m = this.chunkMin.get(k);
+    if (m !== undefined) return m;
+    const f = (this.far ??= this.buildFar());
+    const cs = this.chunkSize;
+    const ix0 = Math.max(0, Math.floor((cx * cs - f.x0) / FAR_CELL) - 1);
+    const iz0 = Math.max(0, Math.floor((cz * cs - f.z0) / FAR_CELL) - 1);
+    const ix1 = Math.min(
+      f.nx - 1,
+      Math.ceil(((cx + 1) * cs - f.x0) / FAR_CELL) + 1,
+    );
+    const iz1 = Math.min(
+      f.nz - 1,
+      Math.ceil(((cz + 1) * cs - f.z0) / FAR_CELL) + 1,
+    );
+    m = Infinity;
+    for (let iz = iz0; iz <= iz1; iz++)
+      for (let ix = ix0; ix <= ix1; ix++) m = Math.min(m, f.d[iz * f.nx + ix]);
+    // Nodes past the field's reach hold 1e9 (= Infinity); a chunk off the field is never skipped.
+    if (ix0 > ix1 || iz0 > iz1) m = -Infinity;
+    else if (m < 1e8) m -= 2 * FAR_CELL;
+    this.chunkMin.set(k, m);
+    return m;
+  }
+
   /** Distance (m) from (x, z) to the stage road's edge where the road query does not reach (FAR_CELL field). */
   farRoadDist(x: number, z: number): number {
     const f = (this.far ??= this.buildFar());
@@ -651,6 +692,9 @@ export class ScatterField {
         ),
       };
       this.chunks.set(k, c);
+      const r = (this.generated++ % RECENT) * 2;
+      this.recent[r] = cx;
+      this.recent[r + 1] = cz;
     }
     return c;
   }
@@ -749,6 +793,12 @@ export class ScatterField {
       // A rule for stretches of the stage road (`along`): only in the chunks beside them.
       const beside = this.alongChunksOf(rule);
       if (beside && !beside.has(key(cx, cz))) continue;
+      // A rule kept near the stage road (the boosted grass, wood bands): not in chunks well beyond its reach.
+      if (
+        rule.maxRoadDist !== undefined &&
+        this.chunkRoadMin(cx, cz) > rule.maxRoadDist
+      )
+        continue;
       const rng = new Rng(
         hash3(cx, cz, ri + salt, this.seed ^ hashString(rule.asset)),
       );
@@ -822,7 +872,7 @@ export class ScatterField {
           )
             continue;
         }
-        if (!this.inBounds(x, z) || this.excluded(x, z)) continue;
+        if (!this.inBounds(x, z)) continue;
         const q = this.road.query(x, z, this.q);
         const rd = q.found
           ? q.distance - q.halfWidth
@@ -854,6 +904,9 @@ export class ScatterField {
           )
         )
           continue;
+        // Flats, buildings, landmarks ... (the costliest test, after the cheap road-distance ones: most boosted grass
+        // candidates are too far from the road)
+        if (this.excluded(x, z)) continue;
         if (minPath > -Infinity && this.nearPath(x, z, minPath)) continue;
         if (tree && q.found && rd < 6 && this.ctx.railAt) {
           const rail = this.ctx.railAt(q.along, q.lateral >= 0 ? 1 : -1);
@@ -1388,6 +1441,66 @@ export function collidersOf(inst: ScatterInstance): StaticCollider[] {
     }
     return c0;
   });
+}
+
+/**
+ * The chunks of a set of keys, each once, as the scatter generates them (world/canopy-shadows.ts, world/far-forest.ts):
+ * read from its `recent` ring, so nothing polls `cachedChunk` over every key still waiting (most never come: far off
+ * the stage). A full look over the waiting keys at first and whenever more than RECENT chunks came in between.
+ */
+export class ChunkFeed {
+  private pending = new Set<number>();
+  private ready: number[] = [];
+  private next = 0;
+  private seen = -Infinity;
+  /** The last chunk `take` returned. */
+  cx = 0;
+  cz = 0;
+
+  /** `keys`: [cx, cz] pairs. */
+  constructor(
+    private scatter: ScatterField,
+    keys: ArrayLike<number>,
+  ) {
+    for (let k = 0; k < keys.length; k += 2)
+      this.pending.add(key(keys[k], keys[k + 1]));
+  }
+
+  /** The next waiting chunk that is generated (`cx`, `cz` say which), or undefined while none is. */
+  take(): ScatterChunk | undefined {
+    const s = this.scatter;
+    const gen = s.generated;
+    if (gen !== this.seen) {
+      if (gen - this.seen > RECENT)
+        for (const k of this.pending) {
+          const cx = Math.floor(k / 65536) - 32768;
+          const cz = (k % 65536) - 32768;
+          if (s.cachedChunk(cx, cz)) this.ready.push(cx, cz);
+        }
+      else
+        for (let g = this.seen; g < gen; g++) {
+          const r = (g % RECENT) * 2;
+          const cx = s.recent[r];
+          const cz = s.recent[r + 1];
+          if (this.pending.has(key(cx, cz))) this.ready.push(cx, cz);
+        }
+      this.seen = gen;
+    }
+    while (this.next < this.ready.length) {
+      const cx = this.ready[this.next++];
+      const cz = this.ready[this.next++];
+      const k = key(cx, cz);
+      // Taken already (listed twice), or pruned before its turn (it comes back when generated again).
+      const chunk = this.pending.has(k) ? s.cachedChunk(cx, cz) : undefined;
+      if (!chunk) continue;
+      this.pending.delete(k);
+      this.cx = cx;
+      this.cz = cz;
+      return chunk;
+    }
+    this.ready.length = this.next = 0;
+    return undefined;
+  }
 }
 
 function key(cx: number, cz: number): number {

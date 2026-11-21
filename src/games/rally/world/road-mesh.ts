@@ -727,6 +727,7 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     const worn = wear && WEAR_TEX.has(segTex);
     const rwA = worn ? new Float32Array(nv * 3) : null;
     const rwB = worn ? new Uint8Array(nv * 4) : null;
+    const rwC = worn ? new Uint8Array(nv * 2) : null;
     const blends = !!JUNCTION_OF[segTex as RoadSurfaceId];
     for (let r = 0; r < rows; r++) {
       const s = samples[start + r];
@@ -769,6 +770,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
           rwB[v * 4 + 1] = Math.round(255 * wear!.dirtR[i]);
           rwB[v * 4 + 2] = Math.round(255 * wear!.rub[i]);
           rwB[v * 4 + 3] = Math.round(255 * mudAt(wear!, i, lat, s.halfWidth));
+          rwC![v * 2] = Math.round(255 * wear!.vergeL[i]);
+          rwC![v * 2 + 1] = Math.round(255 * wear!.vergeR[i]);
         }
         // Across a junction mouth the edge band fades into the junction asphalt (only the outer columns, out to
         // where the side road's pad dips under: the stage road's own wheel paths run on through the junction).
@@ -842,6 +845,7 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
         if (rwA && rwB) {
           for (let i = 0; i < 3; i++) rwA[k * 3 + i] = rwA[e * 3 + i];
           for (let i = 0; i < 4; i++) rwB[k * 4 + i] = rwB[e * 4 + i];
+          for (let i = 0; i < 2; i++) rwC![k * 2 + i] = rwC![e * 2 + i];
         }
       }
     }
@@ -862,6 +866,7 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     if (rwA && rwB) {
       g.setAttribute('rwA', new BufferAttribute(rwA, 3));
       g.setAttribute('rwB', new BufferAttribute(rwB, 4, true));
+      g.setAttribute('rwC', new BufferAttribute(rwC!, 2, true));
     }
     g.setIndex(idx);
     g.computeBoundingSphere();

@@ -99,7 +99,7 @@ export const SPECTATOR_FLAG_FROM = 42;
 export const SPECTATOR_FLAG_COUNT = 12;
 
 /** Most grass the detail layer places near the camera (x the rule density; quality `grassNear` takes a share). */
-export const NEAR_GRASS = 3;
+export const NEAR_GRASS = 5;
 
 /** Grass: blade strips (`nearRoad`, none at present) to 35 m, crossed cards to 110 m. */
 const GRASS_LODS: LodSpec[] = [

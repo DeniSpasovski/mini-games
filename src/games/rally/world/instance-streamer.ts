@@ -906,11 +906,20 @@ export class InstanceStreamer {
     for (let i = 0; i <= BINS; i++) start[i + 1] += start[i];
     const cursor = _cursor;
     cursor.set(start.subarray(0, BINS + 1));
+    // (plain copies: a subarray per instance was most of the commit's time)
+    const sMat = b.sMat;
+    const cMat = b.cMat;
     for (let i = 0; i < n; i++) {
       const pos = cursor[bins[i]]++;
       b.order[i] = pos;
-      b.cMat.set(b.sMat.subarray(i * 16, i * 16 + 16), pos * 16);
-      if (b.tinted) b.cCol.set(b.sCol.subarray(i * 3, i * 3 + 3), pos * 3);
+      const si = i * 16;
+      const di = pos * 16;
+      for (let j = 0; j < 16; j++) cMat[di + j] = sMat[si + j];
+      if (b.tinted) {
+        b.cCol[pos * 3] = b.sCol[i * 3];
+        b.cCol[pos * 3 + 1] = b.sCol[i * 3 + 1];
+        b.cCol[pos * 3 + 2] = b.sCol[i * 3 + 2];
+      }
       if (b.variants) b.cVar[pos] = b.sVar[i];
       if (b.fades) {
         b.cFade[pos * 2] = b.sFade[i * 2];

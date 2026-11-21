@@ -62,6 +62,9 @@ export interface Wear {
   /** Mud out of mouths on the left / right (vertex value: `mudAt`). */
   mudL: Float32Array;
   mudR: Float32Array;
+  /** The loose verge each side (the input's): the asphalt edge crumbles into it (`ROAD_WEAR_FRAGMENT`). */
+  vergeL: Float32Array;
+  vergeR: Float32Array;
 }
 
 /** Bends cut with the inside wheels off the road: none at a radius of CUT_R0 m, full from CUT_R1 m. */
@@ -208,7 +211,7 @@ export function roadWear(inp: WearInput): Wear {
       }
     }
   }
-  return { dirtL, dirtR, rub, mudL, mudR };
+  return { dirtL, dirtR, rub, mudL, mudR, vergeL, vergeR };
 }
 
 /** Mud at a vertex of sample `i`, `lat` m left of the centre: the near half of the road gets the most. */
@@ -222,18 +225,22 @@ export function mudAt(w: Wear, i: number, lat: number, hw: number): number {
 
 /**
  * GLSL of the wear, for the baked asphalt shader (engine/road-surface.ts `applyRoadSurface` with `wear`). Attributes:
- * `rwA` = (metres left of the centre, half width, driven line offset), `rwB` = (dirt left, dirt right, rubber, mud).
+ * `rwA` = (metres left of the centre, half width, driven line offset), `rwB` = (dirt left, dirt right, rubber, mud),
+ * `rwC` = (loose verge left, right).
  */
 export const ROAD_WEAR_VERTEX_PARS = /* glsl */ `
 attribute vec3 rwA;
 attribute vec4 rwB;
+attribute vec2 rwC;
 varying vec3 vRwA;
 varying vec4 vRwB;
+varying vec2 vRwC;
 varying vec2 vRwXZ;`;
 
 export const ROAD_WEAR_VERTEX = /* glsl */ `
 vRwA = rwA;
 vRwB = rwB;
+vRwC = rwC;
 vRwXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;`;
 
 /** Needs `RW_*` defines (road-surface.ts) and `rsHash` / `rsNoise`. */
@@ -241,12 +248,15 @@ export const ROAD_WEAR_FRAGMENT_PARS = /* glsl */ `
 uniform mediump sampler2DArray tGround;
 varying vec3 vRwA;
 varying vec4 vRwB;
+varying vec2 vRwC;
 varying vec2 vRwXZ;
 float rwCover = 0.0;
 float rwMud = 0.0;
 float rwMudThick = 0.0;
 float rwRub = 0.0;
 float rwSeal = 0.0;
+float rwBroken = 0.0;
+float rwEdgeCrack = 0.0;
 // A line of half width hw at distance d, anti-aliased: thinner than a pixel it fades instead of crawling.
 float rwLine( float d, float hw, float pix ) {
   float w = max( hw, 0.5 * pix );
@@ -266,6 +276,37 @@ export const ROAD_WEAR_FRAGMENT = /* glsl */ `
   float pxL = fwidth( lat );
   float pxA = fwidth( along );
   float pix = max( pxL, pxA );
+  // Broken edge: where a loose verge meets it, a country road's edge has crumbled into the shoulder - a ragged band
+  // 0.03 - 0.27 m wide with bites out of it (outside the edge line), the verge's gravel and earth showing, and a crack running along behind it.
+  rwBroken = 0.0;
+  rwEdgeCrack = 0.0;
+  if ( vRwC.x + vRwC.y > 0.02 ) {
+    for ( int s = 0; s < 2; s++ ) {
+      float fs = float( s );
+      float v = s == 0 ? vRwC.x : vRwC.y;
+      if ( v < 0.02 ) continue;
+      float d = hw - ( s == 0 ? lat : - lat );
+      if ( d > 0.9 ) continue;
+      float band = v * ( 0.03 + 0.12 * rsNoise( vec2( along / 2.3, fs * 5.0 + 1.0 ) ) );
+      band += v * 0.12 * smoothstep( 0.68, 0.9, rsNoise( vec2( along / 1.1, fs * 3.0 + 7.0 ) ) );
+      float jag = 0.07 * ( rsNoise( vec2( along / 0.23, fs * 7.0 ) ) - 0.5 ) + 0.03 * ( rsNoise( wp / 0.06 + fs ) - 0.5 );
+      rwBroken = max( rwBroken, 1.0 - smoothstep( -0.5 * pix, 0.5 * pix, d - band + jag ) );
+      float cy = band + 0.12 + 0.12 * rsNoise( vec2( along / 3.7, fs * 9.0 + 2.0 ) );
+      float on = smoothstep( 0.4, 0.55, rsNoise( vec2( along / 5.0, fs * 4.0 + 3.0 ) ) );
+      rwEdgeCrack = max( rwEdgeCrack, v * on * rwLine( abs( d - cy + 0.03 * ( rsNoise( vec2( along / 0.4, fs ) ) - 0.5 ) ), 0.01, pxL ) );
+    }
+    if ( rwBroken > 0.0 ) {
+      // The verge's own dry earth and its stones (as the edge dirt below), lumps of the old asphalt left in it.
+      vec3 bSoil = textureGrad( tGround, vec3( wp * RW_SOIL_SCALE, RW_SOIL_LAYER ), dpx * RW_SOIL_SCALE, dpy * RW_SOIL_SCALE ).rgb / RW_SOIL_MEAN * RW_DUST;
+      vec3 bGrav = textureGrad( tGround, vec3( wp * RW_GR_SCALE, RW_GR_LAYER ), dpx * RW_GR_SCALE, dpy * RW_GR_SCALE ).rgb;
+      float bStone = smoothstep( 0.95, 1.25, dot( bGrav, vec3( 0.2126, 0.7152, 0.0722 ) ) / RW_GR_MEAN );
+      float lump = smoothstep( 0.62, 0.68, rsNoise( wp / 0.11 + 3.0 ) );
+      vec3 broken = mix( bSoil * ( 0.85 + 0.3 * rsNoise( wp / 0.7 ) ), bGrav, 0.3 + 0.5 * bStone );
+      broken = mix( broken, diffuseColor.rgb * 0.85, lump * 0.6 );
+      diffuseColor.rgb = mix( diffuseColor.rgb, broken, rwBroken );
+    }
+    diffuseColor.rgb *= 1.0 - 0.45 * rwEdgeCrack * ( 1.0 - rwBroken );
+  }
   // Old asphalt (roads with repair patches, rsPatch): potholes filled with darker new asphalt, cut square, mostly in the
   // wheel paths, and sealed cracks (black bitumen bands over the cracks, a little glossy; near only, thinner than a
   // pixel further): one across the road in some 9 m cells, runs along the centre joint and near each edge.
@@ -394,7 +435,7 @@ export const ROAD_WEAR_FRAGMENT = /* glsl */ `
 
 /** After the roughness line: dust and mud are matte (wet: glossier), sealant and rubber a little smoother. */
 export const ROAD_WEAR_ROUGHNESS = /* glsl */ `
-roughnessFactor = mix( roughnessFactor, mix( 1.0 - 0.22 * rwMudThick, 0.55, wsWet.x ), rwCover ) * ( 1.0 - 0.3 * rwSeal - 0.12 * rwRub );`;
+roughnessFactor = mix( roughnessFactor, mix( 1.0 - 0.22 * rwMudThick, 0.55, wsWet.x ), max( rwCover, rwBroken ) ) * ( 1.0 - 0.3 * rwSeal - 0.12 * rwRub );`;
 
 /** After the normal map: under dust and mud the asphalt grain is filled (flatter). */
 export const ROAD_WEAR_NORMAL = /* glsl */ `

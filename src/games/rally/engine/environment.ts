@@ -45,8 +45,10 @@ import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
 import {
   setCarEnvSun,
+  setAerial,
   setEnvDiffuse,
   setFogBase,
+  setHaze,
   setFogLayer,
   setShadowBox,
   setWet,
@@ -198,6 +200,12 @@ const LOOKS: Record<string, Partial<EnvironmentDef>> = {
  * `CLASSIC_LIGHT` = the sky at three quarters of the sun, no bounce: the studio's softboxes are tuned for it, and
  * `?look=classic` shows it in game (dry weather only).
  */
+/** `?haze=off`: the fog mixed in after tone mapping (the look before the aerial perspective). */
+const HAZE_OFF = urlString('haze') === 'off';
+/** How far past ~1 / density the haze keeps growing only linearly (`setAerial`): lower = clearer far ridges. */
+const HAZE_TAIL = 1.2;
+setAerial(HAZE_TAIL);
+
 export const DAY_LIGHT = {
   sun: 4.5,
   sunLow: 1.6,
@@ -841,6 +849,12 @@ export class Environment {
    */
   update(focus: Vector3, forward?: Vector3): void {
     setFogBase(focus.y);
+    // Aerial perspective before tone mapping by day (`?haze=off`: the display-space fog of before).
+    const fog = this.scene.fog;
+    setHaze(
+      this.night || !fog || HAZE_OFF ? null : fog.color,
+      this.renderer.toneMappingExposure,
+    );
     // In a fog layer the sun comes through dimmed (the climb out of it brings the sun and hard shadows back).
     const layer = worldUniforms.wsFogLayer.value;
     if (layer.w > 0 && !this.night) {
