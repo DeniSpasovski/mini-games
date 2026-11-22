@@ -83,13 +83,17 @@ describe.each(ALL_CARS.map((c) => c.id))('water %s', (carId) => {
   });
 });
 
-test('real canal: the car wades along the Ajvatovci drain', () => {
+test('real stream: the car wades along an Ajvatovci stream', () => {
   const world = new World(ALL_MAPS.find((m) => m.id === 'ajvatovci')!);
   const net = world.gen.channels!;
+  // (the drains and the canal are dry field ditches: `terrain.ditches`)
+  const ci = net.paths.findIndex(
+    (_, i) => !world.gen.ditchOf(i) && net.lengths[i] > 1000,
+  );
   const a = { x: 0, z: 0 };
   const b = { x: 0, z: 0 };
-  net.pointAt(1, 700, a);
-  net.pointAt(1, 712, b);
+  net.pointAt(ci, 700, a);
+  net.pointAt(ci, 712, b);
   const v = new Vehicle(getCar('skoda_rally').physics, world);
   v.reset(
     new Vector3(a.x, world.heightAt(a.x, a.z), a.z),
@@ -100,7 +104,7 @@ test('real canal: the car wades along the Ajvatovci drain', () => {
   const depth = v.waterDepth;
   const kmh = launch(v, 6);
   console.info(
-    `[ajvatovci drain] water ${depth.toFixed(2)} m, wheels on ${surfaces.join('/')}, 6 s full throttle -> ${kmh.toFixed(0)} km/h, engine ${(v.engineWater * 100).toFixed(0)}%`,
+    `[ajvatovci stream] water ${depth.toFixed(2)} m, wheels on ${surfaces.join('/')}, 6 s full throttle -> ${kmh.toFixed(0)} km/h, engine ${(v.engineWater * 100).toFixed(0)}%`,
   );
   expect(depth).toBeGreaterThan(0.5);
   expect(surfaces.every((s) => s === 'mud')).toBe(true);

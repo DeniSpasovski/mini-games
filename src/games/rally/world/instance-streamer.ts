@@ -27,6 +27,7 @@ import {
 import {
   lodFadeDepthMaterial,
   lodFadeMaterial,
+  plainDepthMaterial,
   prepassMaterial,
   shapedDepthMaterial,
   variantDepthMaterial,
@@ -1072,7 +1073,8 @@ export class InstanceStreamer {
       }
       const depth = set
         ? variantDepthMaterial(part.material)
-        : shapedDepthMaterial(part.material);
+        : (shapedDepthMaterial(part.material) ??
+          (bucket.castShadow ? plainDepthMaterial(part.material) : undefined));
       if (bucket.fades) {
         const fa = new InstancedBufferAttribute(new Float32Array(cap * 2), 2);
         fa.setUsage(DynamicDrawUsage);

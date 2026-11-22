@@ -33,6 +33,9 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'foliage_card_weeds'
   | 'foliage_card_reeds'
+  | 'foliage_card_reeds_dry'
+  | 'foliage_card_reeds_old'
+  | 'foliage_card_weeds_rust'
   | 'foliage_card_ferns'
   | 'foliage_card_ferns_autumn'
   | 'grass_blade'
@@ -144,6 +147,9 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card_spring',
   'foliage_card_weeds',
   'foliage_card_reeds',
+  'foliage_card_reeds_dry',
+  'foliage_card_reeds_old',
+  'foliage_card_weeds_rust',
   'foliage_card_ferns',
   'foliage_card_ferns_autumn',
 ];
@@ -237,6 +243,27 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 1,
       });
       break;
+    case 'foliage_card_reeds_dry':
+    case 'foliage_card_reeds_old':
+    case 'foliage_card_weeds_rust': {
+      // Season sheets recoloured per texel (scripts/plants/bake-seasons.py): the November reed stand (olive below,
+      // straw above, beige plumes), last year's bleached stand (spring), dead rust-red docks and knotweed (autumn).
+      const sheet =
+        id === 'foliage_card_reeds_dry'
+          ? 'reeds-autumn'
+          : id === 'foliage_card_reeds_old'
+            ? 'reeds-winter'
+            : 'weeds-rust';
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet(sheet),
+        color: new Color(...cardColor(sheet)),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    }
     case 'foliage_card_ferns':
     case 'foliage_card_ferns_autumn': {
       // Fern stands of the shaded woods, green / dead bracken (engine/plants/ferns*.webp).
@@ -578,5 +605,20 @@ export function shapedDepthMaterial(
   m.onBeforeCompile = (shader) => shape.apply(shader);
   m.customProgramCacheKey = () => `depth|${shape.key}`;
   shapedDepth.set(base, m);
+  return m;
+}
+
+const plainDepth = new Map<Material, MeshDepthMaterial>();
+
+/**
+ * Shadow-pass material of one `base` (`customDepthMaterial`), else three's own: three's single shared depth material
+ * takes each caster's `map` without a program change, so which program a caster gets depends on the draw order, and the
+ * load's warm frame can miss one (a mid-stage compile: 3-10 s on a fresh shader cache). One per base: always the same.
+ */
+export function plainDepthMaterial(base: Material): MeshDepthMaterial {
+  let m = plainDepth.get(base);
+  if (m) return m;
+  m = new MeshDepthMaterial();
+  plainDepth.set(base, m);
   return m;
 }

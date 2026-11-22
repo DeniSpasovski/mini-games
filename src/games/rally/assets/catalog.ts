@@ -170,6 +170,12 @@ const carLods = (full: number, reduced: number, far: number): LodSpec[] => [
 /** Service park vans and trucks (pack models, `carLods`): the full model near, shadows out to the end of the park. */
 const PACK_VEHICLE_LODS = carLods(50, 140, 480);
 
+/**
+ * Reed, cattail and weed cards of the ditches end here (m), as the reed bed's own cards (world/reed-bed.ts
+ * WALL_NEAR): past it the ground carries the look on its own.
+ */
+const DITCH_CARDS = 100;
+
 export const ASSET_CATALOG: AssetMeta[] = [
   // --- vegetation (detail layer; trees and bushes grow from L-systems: trees/species.ts) ---
   {
@@ -180,7 +186,91 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Reeds for canal / drain banks, one variant cattails: cards baked from CC BY reed and cattail models (no collision, detail layer only).',
     variants: 3,
-    lods: [{ maxDistance: 140, castShadow: false }],
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
+  },
+  {
+    id: 'cattails',
+    name: 'Cattails',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Cattail (Typha) stands for the water of canals and drains: green blades with brown spikes, cards of the reed sheet (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
+  },
+  {
+    id: 'cattails_dry',
+    name: 'Cattails (dry)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The cattail stands gone to straw (autumn): the cattail cards recoloured (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
+  },
+  {
+    id: 'cattails_young',
+    name: 'Cattails (young)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'New cattail shoots of spring (0.7-1.2 m) among the spikes of the year before: the cattail cards drawn short (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
+  },
+  {
+    id: 'reeds_dry',
+    name: 'Reeds (dry)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'The November reed stand: olive green below, straw above, beige plumes (the reeds-autumn sheet; no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
+  },
+  {
+    id: 'reeds_old',
+    name: 'Reeds (last year)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      "Last year's reed stand in spring, bleached straw-grey (the reeds-winter sheet; no collision, detail layer only).",
+    variants: 3,
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
+  },
+  {
+    id: 'rust_weeds',
+    name: 'Dead weeds (rust)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Dead docks and knotweed of ditch banks in autumn, a dull rust brown with dark seed spikes, 0.6-1.1 m (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: 100, castShadow: false }],
+  },
+  {
+    id: 'spoil_heap',
+    name: 'Ditch spoil heap',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'A heap of earth dredged out of a ditch, 2.5-4 m long and 0.6-1 m high, with cut straw stems sticking out of it. No collision.',
+    variants: 4,
+    // Near: the clods and the straw, with a shadow; far: a low mound of the same colours (one variant, one draw).
+    lods: [
+      { maxDistance: DITCH_CARDS, castShadow: true },
+      { maxDistance: 220, castShadow: false, oneVariant: true },
+    ],
+  },
+  {
+    id: 'reeds_young',
+    name: 'Reeds (young)',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'New reed shoots of spring (0.8-1.4 m): the reed cards drawn short (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'fern',
@@ -419,6 +509,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Nettle stands, green and dried, for field margins and ditches: cards of the scanned nettle (no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 120, castShadow: false }],
+  },
+  {
+    id: 'dry_weeds',
+    name: 'Dry weeds',
+    category: 'vegetation',
+    fade: true,
+    description:
+      'Nettles and docks dried off yellow-brown: the dried cells of the nettle scan (no collision, detail layer only).',
+    variants: 3,
+    lods: [{ maxDistance: DITCH_CARDS, castShadow: false }],
   },
   {
     id: 'grass_tuft',
