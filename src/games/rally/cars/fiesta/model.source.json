@@ -715,6 +715,33 @@
         "material": "carbon"
       },
       {
+        "$comment": "wheel wells, the rest: the inner walls round all four wheels (|x| 0.3 - 0.78, any facing - the rear wells had no rule and the strut towers' upper walls fell outside the one above) are carbon, not livery. Inside the arch radius only, so the arch lips and flares outside keep their paint",
+        "mat": "WCCARBODY",
+        "arch": {
+          "axles": [1.262, -1.218],
+          "y": 0.194,
+          "r": [0, 0.52],
+          "toward": -1,
+          "|x|": [0.3, 0.78],
+          "dy": -0.3
+        },
+        "material": "carbon"
+      },
+      {
+        "$comment": "wheel wells: the bumper / sill walls just inboard of the flares (|x| 0.78 - 0.95) that face fore-aft or up / down into the well - carbon; the outward-facing flare skin keeps its paint",
+        "mat": "WCCARBODY",
+        "arch": {
+          "axles": [1.262, -1.218],
+          "y": 0.194,
+          "r": [0, 0.46],
+          "toward": -1,
+          "|x|": [0.78, 0.95],
+          "dy": -0.3
+        },
+        "material": "carbon",
+        "facing": { "|x|": [0, 0.5] }
+      },
+      {
         "mat": "WCCARBODY",
         "material": "body"
       }
