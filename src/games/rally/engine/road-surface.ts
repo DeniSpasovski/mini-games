@@ -9,6 +9,7 @@ import {
 } from '../world/road-wear';
 import { getTerrainMaterial } from '../world/terrain-material';
 import { GROUND_LAYER, GROUND_MEAN, GROUND_SCAN } from './ground-textures';
+import { loadKtx2 } from './ktx2';
 import {
   DataTexture,
   LinearFilter,
@@ -142,7 +143,7 @@ export const isRoadSurface = (id: string): id is RoadSurfaceId =>
 
 interface Surface {
   map: Texture;
-  normal: DataTexture;
+  normal: Texture;
 }
 
 const surfaces = new Map<RoadSurfaceId, Surface>();
@@ -169,8 +170,42 @@ function pixels(img: HTMLImageElement): Uint8ClampedArray {
   return ctx.getImageData(0, 0, c.width, c.height).data;
 }
 
+function setSampling(t: Texture, aniso: number): Texture {
+  t.wrapS = t.wrapT = RepeatWrapping;
+  t.minFilter = LinearMipmapLinearFilter;
+  t.magFilter = LinearFilter;
+  t.anisotropy = aniso;
+  t.needsUpdate = true;
+  return t;
+}
+
+/**
+ * The GPU-compressed set (`<id>.<size>.color.ktx2` + `<id>.<size>.nr.ktx2`, normal xyz + roughness in alpha, already
+ * packed, mipmapped and flipped by `scripts/textures/bake-ktx2.mjs`). Rejects when the set has no .ktx2 files.
+ */
+async function loadSurfaceKtx2(
+  id: RoadSurfaceId,
+  size: number,
+): Promise<Surface> {
+  const urls = await Promise.all(
+    (['color', 'nr'] as const).map(async (part) => {
+      const m = await import(`./asphalt/${id}.${size}.${part}.ktx2`);
+      return (m.default ?? m) as string;
+    }),
+  );
+  const [map, normal] = await Promise.all(urls.map(loadKtx2));
+  const aniso = size === 1024 ? 16 : 8;
+  map.colorSpace = SRGBColorSpace;
+  return { map: setSampling(map, aniso), normal: setSampling(normal, aniso) };
+}
+
 async function loadSurface(id: RoadSurfaceId): Promise<Surface | undefined> {
   const size = tileSize();
+  try {
+    return await loadSurfaceKtx2(id, size);
+  } catch {
+    // No .ktx2 for this set (or no renderer yet): the webp set below.
+  }
   try {
     const urls = await Promise.all(
       (['color', 'normal', 'rough'] as const).map(async (part) => {

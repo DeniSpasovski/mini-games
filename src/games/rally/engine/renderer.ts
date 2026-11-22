@@ -5,6 +5,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import { setTreeFoliageAntialias } from '../trees/materials';
+import { initKtx2 } from './ktx2';
 import { setFoliageAntialias } from './materials';
 import type { QualitySettings } from './quality';
 
@@ -27,6 +28,7 @@ export function createRenderer(
   // MSAA on -> alpha-to-coverage on the grass / leaf cards.
   setFoliageAntialias(quality.antialias);
   setTreeFoliageAntialias(quality.antialias);
+  initKtx2(renderer);
   renderer.domElement.style.display = 'block';
   container.append(renderer.domElement);
 

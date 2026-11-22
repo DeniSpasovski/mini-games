@@ -60,6 +60,8 @@ const gamePublicFiles: Record<
   { from: string; to: string; transform?: CopyTransform }[]
 > = {
   rally: [
+    // KTX2 transcoder (src/games/rally/engine/ktx2.ts).
+    { from: 'node_modules/three/examples/jsm/libs/basis', to: 'basis' },
     {
       from: 'public/models',
       to: 'models',
@@ -218,6 +220,8 @@ export default defineConfig(({ envMode }) => ({
     // Domain lock (allowed hosts in src/site.config.ts) runs before every page,
     // then the cookie banner / Google Analytics loader (src/shared/consent.ts).
     preEntry: ['./src/shared/host-guard.ts', './src/shared/consent-boot.ts'],
+    // GPU-compressed textures (src/games/rally/engine/ktx2.ts): emitted as files like images.
+    assetsInclude: /\.ktx2$/,
     define: {
       __CAR_MODEL_FILES__: JSON.stringify(carModelFiles),
       __MUSIC_FILES__: JSON.stringify(musicFiles),
@@ -305,6 +309,24 @@ export default defineConfig(({ envMode }) => ({
           fs.writeFileSync(out, Buffer.from(b64, 'base64'));
           res.end(`saved ${path.relative(root, out)}`);
         });
+      });
+      // Dev: serve the KTX2 transcoder like the build copies it (dist/games/rally/basis).
+      const basisDir = path.resolve(
+        root,
+        'node_modules/three/examples/jsm/libs/basis',
+      );
+      server.middlewares.use('/games/rally/basis', (req, res, next) => {
+        const name = path.basename(
+          decodeURIComponent((req.url ?? '').split('?')[0]),
+        );
+        const file = path.join(basisDir, name);
+        if (!name.startsWith('basis_transcoder.') || !fs.existsSync(file))
+          return next();
+        res.setHeader(
+          'Content-Type',
+          name.endsWith('.wasm') ? 'application/wasm' : 'text/javascript',
+        );
+        fs.createReadStream(file).pipe(res);
       });
       // Dev-only helper: POST a JPEG data URL to save an in-game screenshot as
       // src/games/<game>/screenshots/<name>.jpg (see saveScreenshot in src/shared/thumbnail.ts).
