@@ -13,18 +13,15 @@ import {
   type WebGPURenderer,
 } from 'three/webgpu';
 import {
-  blendColor,
-  colorToDirection,
   diffuseColor,
-  directionToColor,
-  metalness,
   mrt,
   normalView,
   output,
+  packNormalToRGB,
   pass,
   roughness,
   sample,
-  vec2,
+  unpackRGBToNormal,
   vec4,
   velocity,
 } from 'three/tsl';
@@ -48,6 +45,8 @@ export interface Picture {
   aa: 'msaa' | 'traa' | 'taau' | 'none';
   scale: number;
   gi: boolean;
+  /** SSGI bounce strength (`gis`, default 1). */
+  giStrength: number;
   ssr: boolean;
   csm: boolean;
 }
@@ -64,6 +63,7 @@ export function parsePicture(params: URLSearchParams): Picture {
         ? Math.min(1, Math.max(0.5, scale))
         : 0.67,
     gi: params.get('gi') === '1',
+    giStrength: Number(params.get('gis')) > 0 ? Number(params.get('gis')) : 1,
     ssr: params.get('ssr') === '1',
     csm: params.get('csm') === '1',
   };
@@ -86,8 +86,11 @@ export function needsPipeline(p: Picture): boolean {
   return p.aa === 'traa' || p.aa === 'taau' || p.gi || p.ssr;
 }
 
-/** Cascaded shadows on the sun (call before the first render). */
-export function useCsm(sun: DirectionalLight, camera: PerspectiveCamera): void {
+/**
+ * Cascaded shadows on the sun (call before the first render). The node takes its camera from the first render: it
+ * builds its cascades only while `camera` is unset, so setting it here left it with none (black picture).
+ */
+export function useCsm(sun: DirectionalLight): void {
   const csm = new CSMShadowNode(sun, {
     cascades: 4,
     maxFar: 600,
@@ -95,30 +98,37 @@ export function useCsm(sun: DirectionalLight, camera: PerspectiveCamera): void {
     lightMargin: 120,
   });
   csm.fade = true;
-  csm.camera = camera;
   sun.shadow.mapSize.set(2048, 2048);
   (sun.shadow as unknown as { shadowNode: unknown }).shadowNode = csm;
 }
 
-/** The post pipeline for a picture; `render()` replaces renderer.render(scene, camera). */
+/**
+ * The post pipeline for a picture: `pipeline.render()` replaces renderer.render(scene, camera). `compile()` builds the
+ * scene pass's shaders ahead: its extra outputs (velocity, normals ...) give every material a new variant that the
+ * plain `compileAsync` does not cover, and building them on the first frames froze the page for seconds.
+ */
 export function buildPipeline(
   renderer: WebGPURenderer,
   scene: Scene,
   camera: Camera,
   p: Picture,
-): RenderPipeline {
+): { pipeline: RenderPipeline; compile: () => Promise<void> } {
   const scenePass = pass(scene, camera);
   const temporal = p.aa === 'traa' || p.aa === 'taau';
+  // WebGPU allows 32 bytes of colour attachments per pixel: colour (RGBA16F, 8) + normal (8 bits, 4) + diffuse (4) +
+  // velocity (RGBA16F, 8). Roughness rides in the normal's spare alpha instead of an attachment of its own, which
+  // took "All" to 40 bytes and failed its pipelines. Metalness is not stored: the slice has no bare metal that
+  // matters, and SSR reflects dielectrics by roughness.
   const outputs: Record<string, unknown> = { output };
-  if (p.gi || p.ssr) outputs.normal = directionToColor(normalView);
+  if (p.gi || p.ssr)
+    outputs.normal = vec4(packNormalToRGB(normalView), roughness);
   if (p.gi) outputs.diffuse = diffuseColor;
-  if (p.ssr) outputs.metalrough = vec2(metalness, roughness);
   if (temporal) outputs.velocity = velocity;
   scenePass.setMRT(mrt(outputs as Parameters<typeof mrt>[0]));
   if (p.aa === 'taau') scenePass.setResolutionScale(p.scale);
 
   // Small attachments in 8 bits (bandwidth); colour and velocity stay half float.
-  for (const name of ['normal', 'diffuse', 'metalrough'])
+  for (const name of ['normal', 'diffuse'])
     if (name in outputs) scenePass.getTexture(name).type = UnsignedByteType;
   if (temporal) scenePass.getTexture('velocity').type = HalfFloatType;
 
@@ -127,7 +137,7 @@ export function buildPipeline(
   const normalTex =
     'normal' in outputs ? scenePass.getTextureNode('normal') : null;
   const normal = normalTex
-    ? sample((uv) => colorToDirection(normalTex.sample(uv)))
+    ? sample((uv) => unpackRGBToNormal(normalTex.sample(uv).rgb))
     : null;
 
   // A texture node at first; the effects below wrap it (the TSL helpers take either at run time).
@@ -137,23 +147,30 @@ export function buildPipeline(
     gi.sliceCount.value = 2;
     gi.stepCount.value = 8;
     gi.radius.value = 6;
-    gi.giIntensity.value = 4;
+    // 4 washed the whole slice out (pale ground, bright trees): bounce light under an open sky is a small addition.
+    gi.giIntensity.value = p.giStrength;
     gi.useTemporalFiltering = temporal;
     const diffuse = scenePass.getTextureNode('diffuse');
     beauty = vec4(color.rgb.mul(gi.a).add(diffuse.rgb.mul(gi.rgb)), color.a);
   }
   if (p.ssr && normal) {
-    const mr = scenePass.getTextureNode('metalrough');
-    const refl = ssr(beauty as TextureNode, depth, normal, {
-      metalnessNode: mr.r,
-      roughnessNode: mr.g,
+    // The mirror path weights each hit by "metalness": smoothness squared here, so a rough road or grass barely
+    // reflects and smooth paint / water does.
+    const rough = normalTex!.a;
+    // SSR samples its input as a texture: it traces the plain scene colour (with SSGI on, the reflection misses the bounce).
+    const refl = ssr(color, depth, normal, {
+      metalnessNode: rough.oneMinus().pow(2),
+      roughnessNode: rough,
       reflectNonMetals: true,
       camera,
     });
     refl.maxDistance.value = 40;
     refl.thickness.value = 0.3;
     refl.quality.value = 0.5;
-    beauty = blendColor(beauty as TextureNode, refl);
+    // Traced at half resolution: full resolution cost 16 ms of GPU on the 3070 Ti for a barely visible dry-road reflection.
+    refl.resolutionScale = 0.5;
+    // The SSR output is the weighted reflection with the ray length in alpha (not a blend weight): add it.
+    beauty = vec4((beauty as TextureNode).rgb.add(refl.rgb), color.a);
   }
 
   const pipeline = new RenderPipeline(renderer);
@@ -164,5 +181,12 @@ export function buildPipeline(
       : p.aa === 'taau'
         ? taau(beauty as TextureNode, depth, velocityTex!, camera)
         : beauty;
-  return pipeline;
+  return {
+    pipeline,
+    compile: async () => {
+      await scenePass.compileAsync(renderer);
+      // The post passes' own shaders build on their first render: do it here, behind the loading label.
+      pipeline.render();
+    },
+  };
 }

@@ -72,6 +72,19 @@ const stageId = params.get('stage') ?? 'vodno';
 /** Diagnostics: `shadows=0` drops the sun shadow pass, `ts=0` turns the GPU timestamp queries off. */
 const shadows = params.get('shadows') !== '0';
 const timestamps = params.get('ts') !== '0';
+/**
+ * How often the sun's shadow map is drawn (the shadow pass is about a fifth of the CPU frame):
+ * - `shadow=frame` (default): every frame.
+ * - `shadow=alt`: every `every`-th frame (default 2). The map keeps the matrix it was drawn with, so it does not swim;
+ *   it lags the camera by up to `every` - 1 frames.
+ * - `shadow=move`: a cache, drawn again only once the camera is `step` m (default 20) from where it was last drawn.
+ *   Fits a static world; the game's car (and anything moving) would need its own small dynamic map on top.
+ */
+const shadowMode =
+  (['frame', 'alt', 'move'] as const).find((m) => m === params.get('shadow')) ??
+  'frame';
+const shadowEvery = Math.max(2, Math.round(Number(params.get('every')) || 2));
+const shadowStep = Math.max(1, Number(params.get('step')) || 20);
 const picture = parsePicture(params);
 /** Camera speed on the run (m/s). */
 const SPEED = 25;
@@ -104,7 +117,7 @@ const PICTURES: [string, Record<string, string>][] = [
   ['TRAA + CSM', { aa: 'traa', csm: '1' }],
   ['All', { aa: 'traa', gi: '1', ssr: '1', csm: '1' }],
 ];
-const PICTURE_KEYS = ['aa', 'scale', 'gi', 'ssr', 'csm'];
+const PICTURE_KEYS = ['aa', 'scale', 'gi', 'gis', 'ssr', 'csm'];
 
 function pictureLink(set: Record<string, string>): string {
   const p = new URLSearchParams(location.search);
@@ -305,8 +318,8 @@ async function main() {
   const target = new Object3D();
   sun.target = target;
   scene.add(sun, target);
-  if (mode !== 'classic' && picture.csm && shadows) useCsm(sun, camera);
-  const pipeline =
+  if (mode !== 'classic' && picture.csm && shadows) useCsm(sun);
+  const post =
     mode !== 'classic' && needsPipeline(picture)
       ? buildPipeline(renderer as WebGPURenderer, scene, camera, picture)
       : null;
@@ -366,6 +379,30 @@ async function main() {
   };
   placeCamera(0);
 
+  // `shadow=alt` / `move`: the map is drawn only when asked (CSM's cascades keep their own shadows: not covered).
+  sun.shadow.autoUpdate = shadowMode === 'frame';
+  let shadowFrame = 0;
+  let shadowAt: Vector3 | null = null;
+  let shadowDraws = 0;
+  const shadowLabel =
+    shadowMode === 'alt'
+      ? `every ${shadowEvery} frames`
+      : shadowMode === 'move'
+        ? `every ${shadowStep} m`
+        : 'every frame';
+  const askShadow = () => {
+    if (shadowMode === 'frame') return;
+    const due =
+      shadowMode === 'alt'
+        ? shadowFrame++ % shadowEvery === 0
+        : !shadowAt || camera.position.distanceTo(shadowAt) >= shadowStep;
+    if (!due) return;
+    sun.shadow.needsUpdate = true;
+    shadowDraws++;
+    if (shadowMode === 'move')
+      (shadowAt ??= new Vector3()).copy(camera.position);
+  };
+
   // GPU time: timestamp queries (WebGPURenderer) or the WebGL timer query (classic).
   let gpuMs = NaN;
   const gl =
@@ -384,6 +421,7 @@ async function main() {
   if (node) await (renderer as WebGPURenderer).compileAsync(scene, camera);
   else (renderer as WebGLRenderer).compile(scene, camera);
   if (gpu) await gpu.compile(renderer as WebGPURenderer);
+  if (post) await post.compile();
   status.textContent = summary;
 
   // A render bundle is recorded again on every frame while one of its pipelines (the shadow pass's are not covered by
@@ -443,6 +481,7 @@ async function main() {
           bench.t0 = now;
           bench.warmMs = now - warmSince;
           recorded = 0;
+          shadowDraws = 0;
           runAt = 0;
         } else bench.frames.push(dt);
         placeCamera(runAt);
@@ -457,7 +496,8 @@ async function main() {
       q = gl.createQuery();
       if (q) gl.beginQuery(timer.TIME_ELAPSED_EXT, q);
     }
-    if (pipeline) pipeline.render();
+    askShadow();
+    if (post) post.pipeline.render();
     else renderer.render(scene, camera);
     if (gl && timer && q) {
       gl.endQuery(timer.TIME_ELAPSED_EXT);
@@ -528,6 +568,8 @@ async function main() {
           : ''),
       stage: stageId,
       picture: mode === 'classic' ? 'MSAA' : pictureLabel(picture),
+      shadow: shadows ? shadowLabel : 'off',
+      shadowDraws: shadowMode === 'frame' ? b.frames.length : shadowDraws,
       from: Math.round(from),
       to: Math.round(to),
       pixels: `${renderer.domElement.width}x${renderer.domElement.height}`,

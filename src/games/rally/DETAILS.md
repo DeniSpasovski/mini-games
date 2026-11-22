@@ -38,6 +38,8 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   drawn by `r=webgpu` (`cull=gpu`: compute-pass culling + indirect draws; `cull=cpu`), `r=webgl2` (WebGPURenderer's fallback) or `r=classic`
   (WebGLRenderer); generated trees as pack trees of the same height (`trees=0` drops them). "Run benchmark" (`run=1`) drives the camera down the
   road at 90 km/h and reports fps, frame / CPU / GPU ms and draws (`__trialResult`). Own shell, not `viewer-shell.ts`.
+  Picture switches (WebGPU only, `gpu-trial/picture.ts`): `aa=traa|taau` (`scale`), `gi=1` (`gis`), `ssr=1`, `csm=1`; sun shadow map
+  `shadow=alt` (every `every` frames) or `shadow=move` (redrawn after `step` m of camera travel); neither throttles `csm` cascades.
 
 **URL parameters** (any of the play ones skips the menu):
 
