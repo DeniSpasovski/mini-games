@@ -16,6 +16,7 @@ import {
   MeshBasicMaterial,
   NeutralToneMapping,
   Object3D,
+  PerspectiveCamera,
   PlaneGeometry,
   PMREMGenerator,
   Scene,
@@ -894,8 +895,41 @@ export class Environment {
       this.time * (this.def.cloudSpeed ?? 1);
   }
 
+  /** Kept by `warmOutdoor` so its programs stay compiled (three frees a program with its last material). */
+  private warm?: { sky: Sky; ground: MeshBasicMaterial };
+
+  /**
+   * Compile the programs of the outdoor env map pass (sky + ground disc drawn into a cube target, `rebuildEnvMap`)
+   * without drawing anything, in the background where the GPU allows it (KHR_parallel_shader_compile). The menu
+   * builds only the studio env map until the stage screen, whose first view otherwise waited on these.
+   */
+  warmOutdoor(): Promise<unknown> {
+    if (this.warm) return Promise.resolve();
+    const sky = patchSky(new Sky());
+    const ground = new MeshBasicMaterial({ fog: false });
+    this.warm = { sky, ground };
+    const scene = new Scene();
+    const disc = new PlaneGeometry();
+    scene.add(sky, new Mesh(disc, ground));
+    // Programs differ for a render target (linear output, no tone mapping): compile them as the cube pass sees them.
+    const target = new WebGLCubeRenderTarget(1, { type: HalfFloatType });
+    const prev = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(target);
+    const done = this.renderer.compileAsync(scene, new PerspectiveCamera());
+    this.renderer.setRenderTarget(prev);
+    return done.finally(() => {
+      target.dispose();
+      disc.dispose();
+    });
+  }
+
   dispose(): void {
     this.offDisplay();
+    if (this.warm) {
+      this.warm.sky.material.dispose();
+      this.warm.sky.geometry.dispose();
+      this.warm.ground.dispose();
+    }
     this.nightSky.dispose();
     this.envMap?.dispose();
     this.pmrem.dispose();

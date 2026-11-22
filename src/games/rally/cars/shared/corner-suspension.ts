@@ -34,6 +34,9 @@ export interface CornerSuspensionDef {
   driven: ('front' | 'rear')[];
   /** false = only the upright and the coil-over show: no arms, bars, crossmember or drive shaft inboard (Fiat 126p: nothing shows under the bumper). */
   inboard?: boolean;
+  /** Wishbone: the coil-over's lower eye on the lower arm (default) or clamped on top of the upright, like a strut - a shallow wheel well
+   * (inner wall close to the wheel) needs the upright, or the unit ends up behind the wall. */
+  damperOn?: 'arm' | 'upright';
 }
 
 const Y = new Vector3(0, 1, 0);
@@ -231,7 +234,7 @@ export class CornerSuspension {
           this.joint(lower, 0.032);
           this.joint(upper, 0.028);
           chassis.set(cx, restY - 0.1, h.z);
-          this.damper(i, tmp.copy(lower).lerp(chassis, 0.35), top, isRear);
+          this.damper(i, this.damperLow(lower, upper, chassis), top, isRear);
           continue;
         }
         for (const dz of [0.2, -0.2]) {
@@ -246,7 +249,7 @@ export class CornerSuspension {
         this.joint(upper, 0.028);
         this.swayBar(i, h.z, cx, restY);
         chassis.set(cx, restY - 0.1, h.z);
-        this.damper(i, tmp.copy(lower).lerp(chassis, 0.35), top, isRear);
+        this.damper(i, this.damperLow(lower, upper, chassis), top, isRear);
       } else {
         // Rigid axle: trailing arm forward to the floor, upper link, coil-over beside the wheel.
         lower
@@ -277,6 +280,12 @@ export class CornerSuspension {
       ...this.rear,
     ])
       im.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Lower end of a wishbone corner's coil-over: on the lower arm, or on top of the upright. */
+  private damperLow(lower: Vector3, upper: Vector3, chassis: Vector3): Vector3 {
+    if (this.def.damperOn === 'upright') return this.tmp.copy(upper);
+    return this.tmp.copy(lower).lerp(chassis, 0.35);
   }
 
   private one = new Vector3(1, 1, 1);

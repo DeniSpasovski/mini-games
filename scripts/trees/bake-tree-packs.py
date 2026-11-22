@@ -492,6 +492,12 @@ def camel(kind, name):
     return kind + ''.join(p.capitalize() for p in name.split('-'))
 
 
+
+def data_bin(path):
+    """Moves the packed meshes out of the script into <name>.data.bin (scripts/data/data-bin.mjs)."""
+    tool = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'data-bin.mjs')
+    subprocess.run(['node', tool, path], check=True)
+
 def main():
     preview = sys.argv[sys.argv.index('--preview') + 1] if '--preview' in sys.argv else None
     args = [a for a in sys.argv[1:] if not a.startswith('--') and a != preview]
@@ -664,6 +670,7 @@ def main():
                     'export const PACK_MODELS: PackModel[] = [\n' + '\n'.join(body) + '\n];\n')
             total[kind] = total.get(kind, 0) + os.path.getsize(path)
             print(path, os.path.getsize(path) // 1024, 'KB')
+            data_bin(path)
 
     lazy = [k for k in kinds if not PACKS[k].get('eager')]
     lines = [
@@ -675,8 +682,8 @@ def main():
         'export type LazyPackKind = ' + ' | '.join(f"'{k}'" for k in lazy) + ';',
         'export interface PackLevel {',
         '  /** Packed meshes (layout: see the baker): the bark and the leaf cards. */',
-        '  bark: string;',
-        '  leaf: string;',
+        '  bark: Uint8Array;',
+        '  leaf: Uint8Array;',
         '}',
         'export interface PackModel {',
         '  /** Height (m) and widest reach from the trunk (m). */',
@@ -685,7 +692,7 @@ def main():
         '  /** Level of detail 0 (near) .. 2. */',
         '  lods: PackLevel[];',
         '  /** The far billboard (crossed cards on the kind\'s board atlas), packed like the meshes. */',
-        '  board?: string;',
+        '  board?: Uint8Array;',
         '}',
         'export interface PackTextures {',
         '  bark: string;',
@@ -721,6 +728,7 @@ def main():
         f.write('\n'.join(lines) + '\n')
     total['(eager data)'] = os.path.getsize(OUT)
     print(OUT, os.path.getsize(OUT) // 1024, 'KB')
+    data_bin(OUT)
     for k, v in total.items():
         print(f'total {k}: {v // 1024} KB')
 

@@ -2264,7 +2264,14 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         this.renderUp,
       );
     else if (!this.paused)
-      this.rig.update(dt, v, this.renderPos, this.renderFwd, this.renderUp);
+      this.rig.update(
+        dt,
+        v,
+        this.renderPos,
+        this.renderFwd,
+        this.renderUp,
+        this.input.look,
+      );
     if (Math.abs(this.camera.fov - this.lastFov) > 0.5)
       this.updateParticleScale();
     // Tyre detail (tyre-lod.ts): full tread at rest / close, smeared tread at speed, cheap tyres far from the camera.

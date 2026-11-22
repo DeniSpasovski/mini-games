@@ -223,8 +223,11 @@ export const porsche911930: CarDef = {
       style: 'classic',
       front: 'strut',
       rear: 'wishbone',
+      // Shallow wheel wells: the coil-over is clamped on top of the upright and its top mount sits just outboard of the well's
+      // inner wall, or most of it hides behind the wall.
       topY: { front: 0.42, rear: 0.38 },
-      topIn: { front: 0.2, rear: 0.22 },
+      topIn: { front: 0.12, rear: 0.13 },
+      damperOn: 'upright',
       driven: ['rear'],
     },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.

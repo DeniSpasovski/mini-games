@@ -212,8 +212,11 @@ export const fordGt3: CarDef = {
       style: 'gt3',
       front: 'wishbone',
       rear: 'wishbone',
+      // Shallow wheel wells: the coil-over is clamped on top of the upright and its top mount sits just outboard of the well's
+      // inner wall, or most of it hides behind the wall.
       topY: { front: 0.4, rear: 0.4 },
-      topIn: { front: 0.22, rear: 0.22 },
+      topIn: { front: 0.14, rear: 0.13 },
+      damperOn: 'upright',
       driven: ['rear'],
     },
     // The model carries its own cockpit: see-through glass shows it.
