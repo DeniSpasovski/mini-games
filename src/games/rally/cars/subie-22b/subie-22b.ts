@@ -202,7 +202,7 @@ export const subie22b: CarDef = {
     cockpit: {
       rhd: true,
       seat: { x: 0.36, cushion: 0.39, back: [-0.45, 0.5, -0.57, 1.0] },
-      wheel: { at: [-0.356, 0.81, 0.179], r: 0.174, tilt: 24.1 },
+      wheel: { at: [-0.356, 0.81, 0.179], r: 0.174, tilt: 24.1, pull: 0.08 },
       roof: 1.32,
       floor: 0.22,
     },

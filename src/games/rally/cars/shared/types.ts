@@ -272,8 +272,20 @@ export interface Cockpit {
     /** Front face of the backrest on the seat's centre line, low and high: [z, y, z, y]. */
     back: [number, number, number, number];
   };
-  /** Steering wheel: the centre of the rim, its radius (to the middle of the rim), how far it leans back (deg; 0 = upright). */
-  wheel: { at: [number, number, number]; r: number; tilt: number };
+  /**
+   * Steering wheel: the centre of the rim, its radius (to the middle of the rim), how far it leans back (deg; 0 = upright).
+   * `pull`: how far the wheel is brought back toward the driver on an extended boss (m, along its column), so that a
+   * driver with their back in the seat reaches it; `column`: the model has no column behind the wheel, so one is added.
+   */
+  wheel: {
+    at: [number, number, number];
+    r: number;
+    tilt: number;
+    pull?: number;
+    column?: boolean;
+  };
+  /** One seat only (a single-seater cockpit): no co-driver. */
+  solo?: boolean;
   /** Lowest thing over the heads (headliner, roll cage), and the floor of the footwell. */
   roof: number;
   floor: number;

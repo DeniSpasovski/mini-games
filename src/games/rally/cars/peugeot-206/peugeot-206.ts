@@ -207,7 +207,7 @@ export const peugeot206: CarDef = {
     // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
     cockpit: {
       seat: { x: 0.34, cushion: 0.46, back: [-0.45, 0.55, -0.63, 1.0] },
-      wheel: { at: [0.342, 0.89, 0.087], r: 0.161, tilt: 20.2 },
+      wheel: { at: [0.342, 0.89, 0.087], r: 0.161, tilt: 20.2, pull: 0.04 },
       roof: 1.38,
       floor: 0.27,
     },

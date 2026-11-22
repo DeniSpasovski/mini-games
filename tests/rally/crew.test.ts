@@ -52,9 +52,10 @@ describe('rally crew in the seats', () => {
       expect(Math.sign(k.hip.x), c.id).toBe(-Math.sign(cp.wheel.at[0]));
       expect(d.scale, c.id).toBe(k.scale);
       expect(d.scale, c.id).toBeGreaterThanOrEqual(0.9);
-      // The driver may sit ahead of the model's seat to reach its wheel, never behind it.
-      expect(d.hip.z, c.id).toBeGreaterThanOrEqual(k.hip.z - 1e-6);
-      expect(d.hip.z - k.hip.z, c.id).toBeLessThan(0.3);
+      // Both sit back in their seats: the wheel comes to the driver (cockpit.wheel.pull), not the driver to the wheel.
+      // Sat up, the driver's hips go a little further back into the seat than the slouched co-driver's.
+      expect(d.hip.z - k.hip.z, c.id).toBeGreaterThan(-0.05);
+      expect(d.hip.z - k.hip.z, c.id).toBeLessThan(0.06);
       for (const codriver of [false, true]) {
         const box = new Box3();
         for (const p of buildCrew(codriver, 1, {

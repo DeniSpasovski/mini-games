@@ -3,13 +3,16 @@ import {
   BufferGeometry,
   Box3,
   Mesh,
+  Raycaster,
   Vector3,
+  type Matrix4,
   type Group,
   type Object3D,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import type { CarDef, CarGltfRecolor } from './types';
+import { wheelAt, wheelAxis } from './cockpit';
+import type { CarDef, CarGltfRecolor, Cockpit } from './types';
 
 /**
  * Imported car models (glTF/GLB) - e.g. Sketchfab downloads - living in
@@ -103,15 +106,32 @@ export async function loadImportedCar(def: CarDef): Promise<Object3D> {
  * geometry is shared between cars, so it is never edited). `mesh` keeps the rest. Returns undefined if nothing matched.
  */
 export function splitRecolor(mesh: Mesh, r: CarGltfRecolor): Mesh | undefined {
+  const [x0, x1, y0, y1, z0, z1] = r.box;
+  mesh.updateMatrix();
+  return splitBy(mesh, mesh.matrix, (v) => {
+    const x = r.absX ? Math.abs(v.x) : v.x;
+    return (
+      x >= x0 && x <= x1 && v.y >= y0 && v.y <= y1 && v.z >= z0 && v.z <= z1
+    );
+  });
+}
+
+/**
+ * Cut the triangles of `mesh` whose centroid (through `matrix`) passes `take` out into a new mesh beside it (same
+ * attributes, own index: the geometry is shared between cars and never edited). Undefined if nothing matched.
+ */
+export function splitBy(
+  mesh: Mesh,
+  matrix: Matrix4,
+  take: (centroid: Vector3) => boolean,
+): Mesh | undefined {
   const g = mesh.geometry;
   const pos = g.getAttribute('position') as BufferAttribute;
   const src = g.index;
   const n = src ? src.count : pos.count;
-  const [x0, x1, y0, y1, z0, z1] = r.box;
   const taken: number[] = [];
   const kept: number[] = [];
   const v = new Vector3();
-  mesh.updateMatrix();
   for (let i = 0; i + 2 < n; i += 3) {
     const t = [0, 1, 2].map((k) => (src ? src.getX(i + k) : i + k));
     v.set(0, 0, 0);
@@ -120,12 +140,8 @@ export function splitRecolor(mesh: Mesh, r: CarGltfRecolor): Mesh | undefined {
       v.y += pos.getY(j);
       v.z += pos.getZ(j);
     }
-    v.divideScalar(3).applyMatrix4(mesh.matrix);
-    const x = r.absX ? Math.abs(v.x) : v.x;
-    (x >= x0 && x <= x1 && v.y >= y0 && v.y <= y1 && v.z >= z0 && v.z <= z1
-      ? taken
-      : kept
-    ).push(...t);
+    v.divideScalar(3).applyMatrix4(matrix);
+    (take(v) ? taken : kept).push(...t);
   }
   if (!taken.length) return undefined;
   const index = (a: number[]) => {
@@ -145,3 +161,61 @@ export function splitRecolor(mesh: Mesh, r: CarGltfRecolor): Mesh | undefined {
   mesh.parent?.add(piece);
   return piece;
 }
+
+/**
+ * The steering wheel of a cockpit model brought back to the driver (`wheel.pull`): its triangles (rim, spokes, hub) are
+ * cut out of the model's parts and moved along the column. Returns the column to draw, from the wheel's hub to the dash
+ * (the model's own column when the wheel was pulled off it; `wheel.column`: the model has none), or undefined.
+ * `obj` is the loaded model before it is added to the car, so its world space is the cockpit's model space.
+ */
+export function fitWheel(
+  obj: Object3D,
+  cp: Cockpit,
+): { from: Vector3; to: Vector3 } | undefined {
+  const pull = cp.wheel.pull ?? 0;
+  if (!pull && !cp.wheel.column) return undefined;
+  obj.updateMatrixWorld(true);
+  const at = new Vector3(...cp.wheel.at);
+  const axis = wheelAxis(cp);
+  const meshes: Mesh[] = [];
+  obj.traverse((o) => {
+    const m = o as Mesh;
+    if (m.isMesh && m.visible && m.userData.partName !== 'glass')
+      meshes.push(m);
+  });
+  const d = new Vector3();
+  const moved: Mesh[] = [];
+  if (pull)
+    for (const m of meshes) {
+      const piece = splitBy(m, m.matrixWorld, (c) => {
+        d.copy(c).sub(at);
+        const along = d.dot(axis);
+        return (
+          along > -WHEEL_DEPTH &&
+          along < WHEEL_DEPTH &&
+          d.addScaledVector(axis, -along).length() < cp.wheel.r + WHEEL_GRIP
+        );
+      });
+      if (!piece) continue;
+      piece.userData.partName = m.userData.partName;
+      const p = piece.parent ?? obj;
+      const a = p.worldToLocal(new Vector3());
+      const b = p.worldToLocal(axis.clone().multiplyScalar(-pull));
+      piece.position.add(b.sub(a));
+      moved.push(piece);
+    }
+  // The column: from the back of the (moved) hub forward to whatever the model has there (its column or the dash).
+  const from = wheelAt(cp).addScaledVector(axis, 0.03);
+  const start = at.clone().addScaledVector(axis, WHEEL_DEPTH);
+  const ray = new Raycaster(start, axis, 0, 0.6);
+  const hit = ray.intersectObjects(
+    meshes.filter((m) => !moved.includes(m)),
+    false,
+  )[0];
+  const to = start.addScaledVector(axis, (hit?.distance ?? 0.2) + 0.01);
+  return { from, to };
+}
+
+/** How far a steering wheel reaches either side of its rim's plane (hub, spokes, rim), and past the rim (m). */
+const WHEEL_DEPTH = 0.05;
+const WHEEL_GRIP = 0.03;

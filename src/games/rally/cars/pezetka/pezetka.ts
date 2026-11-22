@@ -224,7 +224,7 @@ export const pezetka: CarDef = {
     // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
     cockpit: {
       seat: { x: 0.31, cushion: 0.44, back: [-0.13, 0.5, -0.19, 0.95] },
-      wheel: { at: [0.27, 0.747, 0.537], r: 0.151, tilt: 20.7 },
+      wheel: { at: [0.27, 0.747, 0.537], r: 0.151, tilt: 20.7, pull: 0.08 },
       roof: 1.22,
       floor: 0.18,
     },

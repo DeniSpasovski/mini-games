@@ -36,7 +36,12 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
-import { hasImportedModel, loadImportedCar, splitRecolor } from './car-gltf';
+import {
+  fitWheel,
+  hasImportedModel,
+  loadImportedCar,
+  splitRecolor,
+} from './car-gltf';
 import {
   crewLivery,
   liveryInfo,
@@ -742,6 +747,24 @@ export class CarModel {
                 const piece = splitRecolor(m, r);
                 if (piece) piece.material = paintMat;
               }
+            }
+            // The steering wheel within the driver's reach, on its column (cockpit.wheel.pull / column).
+            const cockpit = def.model.glass ? def.model.cockpit : undefined;
+            const column = cockpit && fitWheel(obj, cockpit);
+            if (column) {
+              const len = column.from.distanceTo(column.to);
+              const tube = new CylinderGeometry(0.021, 0.026, len, 14, 1);
+              this.owned.push(tube);
+              const m = new Mesh(tube, interiorMat);
+              m.name = 'steering column';
+              m.castShadow = false;
+              m.position.lerpVectors(column.from, column.to, 0.5);
+              m.quaternion.setFromUnitVectors(
+                new Vector3(0, 1, 0),
+                column.to.clone().sub(column.from).normalize(),
+              );
+              m.updateMatrixWorld();
+              obj.attach(m);
             }
             // Plate targets in body space (obj has no parent yet, so matrixWorld = obj -> body).
             obj.updateMatrixWorld(true);

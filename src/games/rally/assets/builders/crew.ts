@@ -15,6 +15,7 @@ import {
   type CrewMotif,
 } from '../../cars/shared/livery';
 import type { Cockpit } from '../../cars/shared/types';
+import { wheelAt } from '../../cars/shared/cockpit';
 import {
   camLock,
   gripGlove,
@@ -104,11 +105,13 @@ const BACK: [number, number][] = [
 /** Size of the figure against the base body (a tall one): a driver of average height. */
 const SCALE = 0.96;
 /** How straight the arms reach for the wheel at most (1 = straight) while the seat can still move forward. */
-const REACH = 0.86;
-/** How far forward of the model's seat a driver may sit for that (m). */
-const SLIDE = 0.2;
+const REACH = 0.9;
+/** How far forward of the model's seat a driver may sit for that (m): little, the wheel comes to the driver instead. */
+const SLIDE = 0.04;
+/** Upper arms of the crew against the base body's (which are short for a seated reach). */
+const ARM = 1.18;
 /** How far a driver sits up from the slouch to reach the wheel (rad). */
-const SIT_UP = 0.1;
+const SIT_UP = 0.14;
 /** The lowest the pace notes are held above the hips: on the thighs. */
 const LAP = 0.2;
 /** The wrist to the knuckles (people-body.ts poses a hand this far past the wrist). */
@@ -625,7 +628,7 @@ function sitIn(cp: Cockpit, codriver: boolean): Posed {
   const [z0, y0, z1, y1] = cp.seat.back;
   const recline = Math.atan2(z0 - z1, y1 - y0);
   const backZ = (y: number): number => z0 + ((z1 - z0) * (y - y0)) / (y1 - y0);
-  const lu = rig.elbow.distanceTo(rig.shoulder);
+  const lu = rig.elbow.distanceTo(rig.shoulder) * ARM;
   const lf = rig.wrist.distanceTo(rig.elbow) + HAND;
   const lt = rig.kneeJ.distanceTo(rig.hipJ);
   const ls = rig.ankleJ.distanceTo(rig.kneeJ);
@@ -646,7 +649,7 @@ function sitIn(cp: Cockpit, codriver: boolean): Posed {
     return neck.y + up.y + HELMET_TOP;
   };
   // Under a low roof: first the cushion gives, then the figure gets smaller, then it sits lower still.
-  const slouch = Math.min(0.46, Math.max(recline, 0.3));
+  const slouch = Math.min(0.55, Math.max(recline, 0.3));
   // Both of the crew are one size: what fits the driver sat up.
   const top = topOf(slouch - SIT_UP);
   const ceil = cp.roof - HEADROOM;
@@ -682,7 +685,7 @@ function sitIn(cp: Cockpit, codriver: boolean): Posed {
           .multiplyScalar(Math.cos(a))
           .addScaledVector(upW, Math.sin(a));
         return {
-          at: toBody(v(...cp.wheel.at).addScaledVector(out, cp.wheel.r)),
+          at: toBody(wheelAt(cp).addScaledVector(out, cp.wheel.r)),
           bar: v(sd, 0, 0)
             .multiplyScalar(-Math.sin(a))
             .addScaledVector(upW, Math.cos(a)),
@@ -773,6 +776,7 @@ function sitIn(cp: Cockpit, codriver: boolean): Posed {
     head: headM(sit.lean),
     headScale: 1,
     broad: 1,
+    armLong: ARM,
     arm: [
       { up: arm[0].up, low: arm[0].low },
       { up: arm[1].up, low: arm[1].low },

@@ -54,7 +54,8 @@ export class CarCrew {
 
   /** The wanted level when it is built, till then whichever is. */
   private sync(): void {
-    const ready = (g?: Group): boolean => !!g && g.children.length === 2;
+    const seats = this.params?.cockpit.solo ? 1 : 2;
+    const ready = (g?: Group): boolean => !!g && g.children.length === seats;
     const want = this.levels[this.level];
     const pick = ready(want) ? want : this.levels.find((g) => ready(g));
     for (const g of this.levels) if (g) g.visible = g === pick;
@@ -65,7 +66,8 @@ export class CarCrew {
     const level = new Group();
     this.levels[lod] = level;
     this.group.add(level);
-    for (const seat of [0, 1]) {
+    // A single-seater has no co-driver.
+    for (const seat of params.cockpit.solo ? [0] : [0, 1]) {
       const seed = variantSeed(ASSET, seat);
       const add = (a: BuiltAsset): void => {
         if (this.disposed) {
