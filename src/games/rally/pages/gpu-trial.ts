@@ -32,6 +32,13 @@ import {
 } from '../gpu-trial/materials';
 import { CpuDraw } from '../gpu-trial/cpu-draw';
 import { GpuDraw } from '../gpu-trial/gpu-draw';
+import {
+  buildPipeline,
+  needsPipeline,
+  parsePicture,
+  pictureLabel,
+  useCsm,
+} from '../gpu-trial/picture';
 
 /**
  * GPU trial (dev page, gravel rally v2): one stretch of a stage drawn by three renderers on the same scene, so the
@@ -45,6 +52,8 @@ import { GpuDraw } from '../gpu-trial/gpu-draw';
  * The scene is plain on purpose (gpu-trial/materials.ts): terrain coloured by slope, the road and every scatter /
  * detail instance with its own model and textures, sun shadows and fog; none of the game's own shading. The
  * benchmark drives the camera down the road at 90 km/h and reports frame times, CPU and GPU time.
+ *
+ * Picture switches for the WebGPURenderer modes (`aa`, `scale`, `gi`, `ssr`, `csm`): gpu-trial/picture.ts.
  */
 
 type Mode = 'webgpu' | 'webgl2' | 'classic';
@@ -63,6 +72,7 @@ const stageId = params.get('stage') ?? 'vodno';
 /** Diagnostics: `shadows=0` drops the sun shadow pass, `ts=0` turns the GPU timestamp queries off. */
 const shadows = params.get('shadows') !== '0';
 const timestamps = params.get('ts') !== '0';
+const picture = parsePicture(params);
 /** Camera speed on the run (m/s). */
 const SPEED = 25;
 
@@ -83,6 +93,26 @@ live.style.cssText =
 const results = document.createElement('pre');
 results.style.cssText =
   'margin:8px 0 0;white-space:pre-wrap;font:12px/1.4 ui-monospace,monospace;display:none';
+
+/** Picture presets in the panel (WebGPURenderer modes). */
+const PICTURES: [string, Record<string, string>][] = [
+  ['MSAA', {}],
+  ['TRAA', { aa: 'traa' }],
+  ['TAAU 67 %', { aa: 'taau' }],
+  ['TRAA + SSGI', { aa: 'traa', gi: '1' }],
+  ['TRAA + SSR', { aa: 'traa', ssr: '1' }],
+  ['TRAA + CSM', { aa: 'traa', csm: '1' }],
+  ['All', { aa: 'traa', gi: '1', ssr: '1', csm: '1' }],
+];
+const PICTURE_KEYS = ['aa', 'scale', 'gi', 'ssr', 'csm'];
+
+function pictureLink(set: Record<string, string>): string {
+  const p = new URLSearchParams(location.search);
+  for (const k of PICTURE_KEYS) p.delete(k);
+  for (const [k, v] of Object.entries(set)) p.set(k, v);
+  p.delete('run');
+  return `?${p}`;
+}
 
 function link(m: Mode, cull?: 'cpu'): string {
   const p = new URLSearchParams(location.search);
@@ -109,14 +139,29 @@ function header(slice: TrialSlice | null, from: number, to: number) {
     [MODE_LABELS.webgl2, link('webgl2'), mode === 'webgl2'],
     [MODE_LABELS.classic, link('classic'), mode === 'classic'],
   ];
-  for (const [label, href, on] of opts) {
+  const chip = (row: HTMLElement, label: string, href: string, on: boolean) => {
     const a = document.createElement('a');
     a.textContent = label;
     a.href = href;
     a.style.cssText = `padding:3px 8px;border-radius:5px;text-decoration:none;color:${on ? '#0e0d0b' : '#f3efe6'};background:${on ? '#f0a020' : 'rgba(255,255,255,.12)'}`;
-    modes.append(a);
+    row.append(a);
+  };
+  for (const [label, href, on] of opts) chip(modes, label, href, on);
+  panel.append(title, modes);
+  if (mode !== 'classic') {
+    const pics = document.createElement('div');
+    pics.style.cssText = modes.style.cssText;
+    const current = pictureLabel(picture);
+    for (const [label, set] of PICTURES)
+      chip(
+        pics,
+        label,
+        pictureLink(set),
+        pictureLabel(parsePicture(new URLSearchParams(set))) === current,
+      );
+    panel.append(pics);
   }
-  panel.append(title, modes, status, live, results);
+  panel.append(status, live, results);
   if (slice) {
     const row = document.createElement('div');
     row.style.cssText =
@@ -184,7 +229,9 @@ async function main() {
   header(slice, from, to);
 
   // Renderer.
-  const antialias = quality.antialias;
+  // Temporal AA replaces MSAA (and TAAU must not have it).
+  const antialias =
+    quality.antialias && (mode === 'classic' || picture.aa === 'msaa');
   let renderer: WebGLRenderer | WebGPURenderer;
   if (mode === 'classic') {
     const r = new WebGLRenderer({
@@ -258,6 +305,11 @@ async function main() {
   const target = new Object3D();
   sun.target = target;
   scene.add(sun, target);
+  if (mode !== 'classic' && picture.csm && shadows) useCsm(sun, camera);
+  const pipeline =
+    mode !== 'classic' && needsPipeline(picture)
+      ? buildPipeline(renderer as WebGPURenderer, scene, camera, picture)
+      : null;
 
   const node = mode !== 'classic';
   const material = (m: Material): Material =>
@@ -405,7 +457,8 @@ async function main() {
       q = gl.createQuery();
       if (q) gl.beginQuery(timer.TIME_ELAPSED_EXT, q);
     }
-    renderer.render(scene, camera);
+    if (pipeline) pipeline.render();
+    else renderer.render(scene, camera);
     if (gl && timer && q) {
       gl.endQuery(timer.TIME_ELAPSED_EXT);
       queries.push(q);
@@ -474,6 +527,7 @@ async function main() {
             : ', CPU culling'
           : ''),
       stage: stageId,
+      picture: mode === 'classic' ? 'MSAA' : pictureLabel(picture),
       from: Math.round(from),
       to: Math.round(to),
       pixels: `${renderer.domElement.width}x${renderer.domElement.height}`,
