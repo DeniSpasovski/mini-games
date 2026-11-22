@@ -1,10 +1,14 @@
 """Bake the terrain tiles of the rally ground (engine/ground/*.webp) from Poly Haven (CC0) scans.
 
-usage: python3 scripts/ground/bake.py <dir with <id>_diff_1k.jpg or <id>.jpg> [out dir [tile names]]
+usage: python3 scripts/ground/bake.py <dir with <id>_diff_1k.jpg or <id>.jpg (+ <id>_nor_gl_1k.jpg)> [out dir [tile names]]
 
 One 512 px tile per layer, the whole scan (its size in metres is `SCAN` in engine/ground-textures.ts). The meadow tiles
 are only a luminance / structure source: the terrain shader tints them to the season's grass colour, so they are
-normalised to one mean brightness and kept slightly desaturated; soil, gravel, rock and leaves keep their own colour.
+normalised to one mean brightness and keep a good part of their own colour (straw, green and soil specks: the shader's
+tint scales it, it does not repaint it); soil, gravel, rock and leaves keep their own colour.
+
+With the scan's OpenGL normal map next to it (`<id>_nor_gl_1k.jpg`), each tile also gets `<name>_n.webp`: its normals
+at the same 512 px (x, y in red / green, z in blue), the stones', clumps' and ruts' relief in the near terrain.
 """
 import os
 import sys
@@ -25,9 +29,9 @@ GRAVEL_TINT = np.array([1.0, 0.88, 0.70], dtype=np.float32)
 NEEDLE_TINT = np.array([1.06, 0.95, 0.82], dtype=np.float32)
 # tile: (Poly Haven id, mean linear luminance or None, colour kept 0..1, contrast around the mean, meadow hue 0..1)
 TILES = {
-    'grass_spring': ('forrest_ground_01', 0.077, 0.8, 1.0, 0.7),
-    'grass_summer': ('grass_ground', 0.077, 0.8, 1.1, 0.7),
-    'grass_autumn': ('leafy_grass', 0.077, 0.8, 1.0, 0.7),
+    'grass_spring': ('forrest_ground_01', 0.077, 0.95, 1.0, 0.35),
+    'grass_summer': ('grass_ground', 0.077, 0.95, 1.1, 0.35),
+    'grass_autumn': ('leafy_grass', 0.077, 0.95, 1.0, 0.35),
     'soil': ('brown_mud_dry', None, 0.85, 1.0, 0),
     'gravel': ('rocky_trail', GRAVEL_LUM, 0.85, 1.0, 0),
     'rock': ('rock_boulder_dry', 0.22, 0.8, 1.0, 0),
@@ -98,6 +102,12 @@ def main():
         a = lin_to_srgb(np.clip(a, 0, 1))
         Image.fromarray((a * 255 + 0.5).astype(np.uint8)).save(os.path.join(out, f'{name}.webp'), quality=80, method=6)
         print(name, pid, round(float((srgb_to_lin(a) * LUMA).sum(2).mean()), 3))
+        nor = os.path.join(src, f'{pid}_nor_gl_1k.jpg')
+        if os.path.exists(nor):
+            n = np.asarray(Image.open(nor).convert('RGB').resize((SZ, SZ), Image.LANCZOS)).astype(np.float32) / 255 * 2 - 1
+            n /= np.maximum(np.linalg.norm(n, axis=2, keepdims=True), 1e-6)
+            n = np.clip(n * 0.5 + 0.5, 0, 1)
+            Image.fromarray((n * 255 + 0.5).astype(np.uint8)).save(os.path.join(out, f'{name}_n.webp'), quality=85, method=6)
 
 
 if __name__ == '__main__':

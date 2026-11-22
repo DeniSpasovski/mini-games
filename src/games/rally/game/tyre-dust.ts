@@ -24,6 +24,12 @@ const OFF_ROAD: Partial<Record<SurfaceId, number>> = {
 const FIRST_DUST = SURFACES.gravel.dustColor;
 /** Tarmac wipes dust off at this share of the distance. */
 const WIPE = 0.08;
+/** Body dirt (`bodyDirt`): loose-ground metres to the e-fold; road grime alone reaches GRIME after many km. */
+const BODY_AT = 1800;
+const GRIME = 0.18;
+const GRIME_AT = 3000;
+/** Road grime (tarmac): a grey-brown film. */
+const GRIME_COLOR = new Color(0x4d463f);
 
 export class TyreDust {
   /** Loose-ground metres so far (wiped down on tarmac). */
@@ -31,11 +37,16 @@ export class TyreDust {
   step = 0;
   /** Linear colour of the dust on the tyres. */
   readonly color = new Color(FIRST_DUST);
+  /** Metres driven on any ground (road grime on the body). */
+  driven = 0;
+  /** Linear colour of the dirt on the body (`bodyDirt`). */
+  readonly bodyColor = new Color();
   private weight = 0;
   private readonly c = new Color();
 
   reset(): void {
     this.amount = 0;
+    this.driven = 0;
     this.weight = 0;
     this.step = 0;
     this.color.setHex(FIRST_DUST);
@@ -44,6 +55,7 @@ export class TyreDust {
   /** Once per simulation frame; true when the step changed. */
   update(dt: number, v: Vehicle): boolean {
     const n = v.wheels.length;
+    this.driven += Math.abs(v.speed) * dt;
     for (const w of v.wheels) {
       if (!w.contact) continue;
       const d = (Math.abs(v.speed) * dt) / n;
@@ -68,5 +80,18 @@ export class TyreDust {
 
   get level(): number {
     return TYRE_DUST_LEVELS[this.step];
+  }
+
+  /**
+   * How dirty the body is, 0..1 (engine/world-shading.ts `setCarDirt`): grows smoothly with the loose ground (not in
+   * the tyres' steps), plus a light road grime from the distance alone; `bodyColor` the mix of the two.
+   */
+  get bodyDirt(): number {
+    const dust = 1 - Math.exp(-this.amount / BODY_AT);
+    const grime = GRIME * (1 - Math.exp(-this.driven / GRIME_AT));
+    this.bodyColor
+      .copy(GRIME_COLOR)
+      .lerp(this.color, Math.min(1, dust / Math.max(grime + dust, 1e-6)));
+    return Math.max(dust, grime);
   }
 }

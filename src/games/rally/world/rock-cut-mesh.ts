@@ -15,7 +15,7 @@ import { bridgeMaterials } from './bridge-mesh';
 import { newRoadQuery } from './road';
 import { getTerrainMaterial } from './terrain-material';
 import { WALL_FACE, WALL_SKIN, WALL_THICK } from './terrain-gen';
-import type { RockLook } from '../maps/shared/types';
+import { rockCutSection, type Section } from './rock-cut-section';
 import type { World } from './world';
 
 /**
@@ -24,17 +24,13 @@ import type { World } from './world';
  * the land on top - one ribbon per run of face along the road, never a row of boxes. The ribbon follows the carved
  * ground (sampled across the face) a little proud of it, with ledges along the strata; its first and last rows tuck into
  * the ground. On a `walls` stretch the face is a low retaining wall instead: the same ribbon, flat, in dark coursed stone.
- * The terrain under it is the collider.
+ * Their colliders are boxes along the foot (cut-wall-colliders.ts), the shared section in rock-cut-section.ts.
  */
 
 /** Road samples (m). */
 const STEP = 2;
 /** Rows across the face. */
 const ROWS = 7;
-/** Lowest face that gets a ribbon (m). */
-const MIN_FACE = 1.4;
-/** ... and of a retaining wall's (m). */
-const MIN_WALL = 0.6;
 /** Longest piece of one mesh (m of road): culled in pieces. */
 const PIECE = 120;
 /** How far the ribbon stands proud of the ground (m) and the depth of the strata ledges. */
@@ -169,21 +165,6 @@ export function rockCutMaterial(): MeshStandardMaterial {
   return material;
 }
 
-/** One cross-section of a face: the road point it belongs to, the lateral span of the face and its side. */
-interface Section {
-  d: number;
-  x: number;
-  z: number;
-  tx: number;
-  tz: number;
-  /** Lateral offsets of the foot and the top of the face (signed: + = left of travel). */
-  lo: number;
-  hi: number;
-  /** A low retaining wall (RoadDef.rockCuts `walls`), not rock. */
-  wall: boolean;
-  look: RockLook;
-}
-
 export function* rockCutMeshJob(
   world: World,
   /** The ground skin on top of a wall: the terrain's material (a plain one where there is no GPU texture, the tests). */
@@ -198,55 +179,8 @@ export function* rockCutMeshJob(
   const group = new Group();
   group.name = 'rock-cuts';
 
-  // The face across the road at `d` on side `s` (+1 left, -1 right): foot and top offsets, or null when there is none.
-  const section = (d: number, s: number): Section | null => {
-    const p = road.at(d);
-    const lat = (l: number) => [p.x + p.tz * l * s, p.z - p.tx * l * s];
-    const foot = gen.rockCutFoot(p.halfWidth, d, s);
-    // Is this stretch a rock cut at all (the carve's own weight, half-way up a typical face)?
-    const [mx, mz] = lat(foot + 2);
-    if (
-      gen.rockCutWeightAt(mx, mz, gen.naturalHeight(mx, mz) - p.y, d, s) < 0.5
-    )
-      return null;
-    const wall = !!gen.rockCutWall(d, s);
-    // March up the face to where the carve meets the land again (the natural slope above is not cut).
-    const h = (l: number) => {
-      const [x, z] = lat(l);
-      return gen.height(x, z);
-    };
-    const below = (l: number) => {
-      const [x, z] = lat(l);
-      return gen.naturalHeight(x, z) - gen.height(x, z);
-    };
-    // March up while the ground is steep (a face) and still cut below the land.
-    let top = foot;
-    for (
-      let k = 0;
-      k < 40 &&
-      below(top) > 0.3 &&
-      (top < foot + 1.5 || h(top + 0.5) - h(top) > 0.4);
-      k++
-    )
-      top += 0.5;
-    // (a retaining wall stands down to a low bank: its face is only as tall as the land, terrain-gen `rockCutWeightAt`)
-    if (h(top) - h(foot) < (wall ? MIN_WALL : MIN_FACE)) return null;
-    // The face must belong to this stretch of road (not to the other leg of a hairpin).
-    const [tx, tz] = lat(top);
-    road.query(tx, tz, rq);
-    if (!rq.found || Math.abs(rq.along - d) > 12) return null;
-    return {
-      d,
-      x: p.x,
-      z: p.z,
-      tx: p.tx,
-      tz: p.tz,
-      lo: (foot - 0.3) * s,
-      hi: (top + (wall ? 0.15 : 0.4)) * s,
-      wall,
-      look: gen.rockCutStretch(d, s)?.look ?? 'schist',
-    };
-  };
+  const section = (d: number, s: number): Section | null =>
+    rockCutSection(road, gen, d, s, rq);
 
   // `open`: the run goes on before its first / after its last section (a piece boundary: no taper there).
   const build = (run: Section[], s: number, open: [boolean, boolean]): void => {

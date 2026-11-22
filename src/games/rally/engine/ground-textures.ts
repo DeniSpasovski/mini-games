@@ -2,7 +2,9 @@ import {
   DataArrayTexture,
   LinearFilter,
   LinearMipmapLinearFilter,
+  NoColorSpace,
   RepeatWrapping,
+  RGFormat,
   SRGBColorSpace,
   type Texture,
 } from 'three';
@@ -17,6 +19,16 @@ import litterUrl from './ground/litter.webp';
 import leavesUrl from './ground/leaves.webp';
 import stubbleUrl from './ground/stubble.webp';
 import needlesUrl from './ground/needles.webp';
+import grassSpringN from './ground/grass_spring_n.webp';
+import grassSummerN from './ground/grass_summer_n.webp';
+import grassAutumnN from './ground/grass_autumn_n.webp';
+import soilN from './ground/soil_n.webp';
+import gravelN from './ground/gravel_n.webp';
+import rockN from './ground/rock_n.webp';
+import litterN from './ground/litter_n.webp';
+import leavesN from './ground/leaves_n.webp';
+import stubbleN from './ground/stubble_n.webp';
+import needlesN from './ground/needles_n.webp';
 
 /**
  * Terrain scans (Poly Haven, CC0): one texture array, a layer per ground material, read by the terrain material
@@ -77,29 +89,60 @@ const URLS = [
   stubbleUrl,
   needlesUrl,
 ];
+/** The scans' own normal maps (OpenGL: green up the image), same layers: the relief of the near terrain. */
+const NORMAL_URLS = [
+  grassSpringN,
+  grassSummerN,
+  grassAutumnN,
+  soilN,
+  gravelN,
+  rockN,
+  litterN,
+  leavesN,
+  stubbleN,
+  needlesN,
+];
 const SIZE = 512;
 
 let array: DataArrayTexture | undefined;
+let normals: DataArrayTexture | undefined;
 /** The array; layers fill in as their images decode (mid grey until then, and in headless tests). */
 export function groundArray(): DataArrayTexture {
-  if (array) return array;
-  const data = new Uint8Array(SIZE * SIZE * 4 * URLS.length).fill(110);
-  const tex = new DataArrayTexture(data, SIZE, SIZE, URLS.length);
-  tex.colorSpace = SRGBColorSpace;
+  return (array ??= loadArray(URLS, 110, SRGBColorSpace));
+}
+
+/**
+ * The scans' normals (flat until they decode): x and y only (RG8, half the colour array's fetch; the terrain shader
+ * rebuilds z), 4x anisotropic (their relief fades out within the detail distance anyway).
+ */
+export function groundNormalArray(): DataArrayTexture {
+  return (normals ??= loadArray(NORMAL_URLS, 128, NoColorSpace, 2, 4));
+}
+
+function loadArray(
+  urls: string[],
+  fill: number,
+  colorSpace: string,
+  channels: 2 | 4 = 4,
+  anisotropy = 8,
+): DataArrayTexture {
+  const data = new Uint8Array(SIZE * SIZE * channels * urls.length).fill(fill);
+  const tex = new DataArrayTexture(data, SIZE, SIZE, urls.length);
+  if (channels === 2) tex.format = RGFormat;
+  tex.colorSpace = colorSpace;
   tex.wrapS = tex.wrapT = RepeatWrapping;
   tex.magFilter = LinearFilter;
   tex.minFilter = LinearMipmapLinearFilter;
   tex.generateMipmaps = true;
-  tex.anisotropy = 8;
+  tex.anisotropy = anisotropy;
   tex.needsUpdate = true;
-  array = tex;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = SIZE;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx || typeof Image === 'undefined') return tex;
   // One upload once every layer has decoded.
   Promise.all(
-    URLS.map((url) => {
+    urls.map((url) => {
       const img = new Image();
       img.src = url;
       return img.decode().then(() => img);
@@ -112,11 +155,16 @@ export function groundArray(): DataArrayTexture {
         ctx.drawImage(img, 0, 0, SIZE, SIZE);
         const px = ctx.getImageData(0, 0, SIZE, SIZE).data;
         // Array layers are not flipped like canvas textures: v = 0 is the first row.
-        for (let y = 0; y < SIZE; y++)
-          data.set(
-            px.subarray((SIZE - 1 - y) * row, (SIZE - y) * row),
-            (layer * SIZE + y) * row,
-          );
+        for (let y = 0; y < SIZE; y++) {
+          const src = (SIZE - 1 - y) * row;
+          if (channels === 4)
+            data.set(px.subarray(src, src + row), (layer * SIZE + y) * row);
+          else
+            for (let x = 0, d = (layer * SIZE + y) * SIZE * 2; x < SIZE; x++) {
+              data[d + x * 2] = px[src + x * 4];
+              data[d + x * 2 + 1] = px[src + x * 4 + 1];
+            }
+        }
       });
       tex.needsUpdate = true;
     },

@@ -1,4 +1,4 @@
-import { wetCar } from '../../engine/world-shading';
+import { dirtyCar, wetCar } from '../../engine/world-shading';
 import { CornerSuspension } from './corner-suspension';
 import {
   AxesHelper,
@@ -30,6 +30,7 @@ import {
   Vector3,
   type ColorRepresentation,
   type Material,
+  type Object3D,
   type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -1874,6 +1875,36 @@ export class CarModel {
         const m = (o as Mesh).material as MeshPhysicalMaterial | undefined;
         if ((o as Mesh).isMesh && m && !Array.isArray(m) && m.clearcoat >= 0.5)
           wetCar(m);
+      }),
+    );
+  }
+
+  /**
+   * The body gets dirty on a stage (engine/world-shading.ts `dirtyCar`, the level via `setCarDirt`): its opaque paint,
+   * plastics and trim, not the glass, lamps, wheels or the crew (`userData.noDirt`). Before the first compile; once the model has loaded.
+   */
+  setDirtyBody(): void {
+    const walk = (o: Object3D, visit: (o: Object3D) => void): void => {
+      if (o.userData.noDirt) return;
+      visit(o);
+      for (const c of o.children) walk(c, visit);
+    };
+    void this.ready.then(() =>
+      walk(this.body, (o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh || (o as InstancedMesh).isInstancedMesh) return;
+        if (mesh.userData.headLamp || mesh.userData.brakeLamp) return;
+        const mats = Array.isArray(mesh.material)
+          ? mesh.material
+          : [mesh.material];
+        for (const m of mats as MeshPhysicalMaterial[]) {
+          if (!m || !(m as MeshStandardMaterial).isMeshStandardMaterial)
+            continue;
+          if (m.transparent || (m.transmission ?? 0) > 0) continue;
+          if (m.userData.brakeLamp || m.userData.headLamp) continue;
+          if (m.emissiveMap || m.emissive.getHex() !== 0) continue;
+          dirtyCar(m);
+        }
       }),
     );
   }
