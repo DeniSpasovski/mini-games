@@ -57,7 +57,10 @@ import {
   WIDE_TO,
 } from '../../src/games/rally/maps/vodno/crossroad';
 import { GATE } from '../../src/games/rally/maps/vodno/landmarks/gate';
-import { cutWallColliders } from '../../src/games/rally/world/cut-wall-colliders';
+import {
+  cutWallColliders,
+  retainingWallColliders,
+} from '../../src/games/rally/world/cut-wall-colliders';
 import { CORNER_HOUSE } from '../../src/games/rally/maps/vodno/landmarks/start-blocks';
 import { wallSections } from '../../src/games/rally/maps/vodno/landmarks/start-wall';
 import { SKYLINE } from '../../src/games/rally/maps/vodno/skyline';
@@ -1020,6 +1023,23 @@ describe('vodno start street and first crossroad', () => {
       expect(r.lateral).toBeLessThan(0);
       expect(r.distance - r.halfWidth).toBeGreaterThan(0.3);
       expect(r.distance - r.halfWidth).toBeLessThan(3);
+    }
+  });
+
+  test('the Vidikovec retaining wall is solid: boxes along its stone face, on the left, from the face back', () => {
+    const wall = map.road.rockCuts!.walls![0];
+    const boxes = retainingWallColliders(world.road, world.gen, map.road);
+    expect(boxes.length).toBeGreaterThan(40);
+    const q2 = newRoadQuery();
+    for (const b of boxes) {
+      const r = world.road.query(b.x, b.z, q2);
+      expect(r.along).toBeGreaterThan(wall.from - 3);
+      expect(r.along).toBeLessThan(wall.to + 3);
+      // (centre 0.3 m behind the face: the face itself `offset` + 0.3 m past the road edge)
+      expect(r.lateral).toBeGreaterThan(0);
+      expect(r.distance - r.halfWidth).toBeCloseTo(wall.offset + 0.6, 0);
+      // over the stone's top
+      expect(b.y + b.h).toBeGreaterThan(world.road.at(r.along).y + 1.5);
     }
   });
 

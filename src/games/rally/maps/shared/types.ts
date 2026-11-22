@@ -866,9 +866,10 @@ export interface RoadDef {
   /**
    * Natural rock cuts (a hill road blasted into the slope): where the land beside the road rises more than `minRise` m
    * above it, the embankment becomes a steep face (`slope` = rise per m across, at most `maxFace` m high, a deeper cut
-   * lies back as an earth bank above it) from `foot` m beyond the verge, a
-   * layered rock face is laid on it (world/rock-cut-mesh.ts) and its foot is painted with scree. The terrain is the
-   * collider. Off near other roads (their mouths keep the gentle bank) and over `exclude` ranges along the road.
+   * lies back as an earth bank above it) from `foot` m beyond the verge, a layered rock face is laid on it
+   * (world/rock-cut-mesh.ts) and its foot is painted with scree. Box colliders stand along its foot
+   * (world/cut-wall-colliders.ts `rockFaceColliders`). Off near other roads (their mouths keep the gentle bank) and over
+   * `exclude` ranges along the road.
    */
   rockCuts?: {
     minRise: number;
@@ -890,7 +891,8 @@ export interface RoadDef {
      * Stretches where the cut is held by a low masonry retaining wall instead of a rock face (even inside `exclude`):
      * on `side` (+1 left of travel, -1 right) from `from` to `to` m along, a vertical face of at most `height` m standing
      * `offset` m from the road edge (a level grass strip in front), laid as dark coursed stone, the rest of the cut a
-     * grassed bank above it (trees and bushes grow there).
+     * grassed bank above it (trees and bushes grow there). The stone is solid (world/cut-wall-colliders.ts
+     * `retainingWallColliders`).
      */
     walls?: {
       from: number;
