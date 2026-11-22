@@ -267,6 +267,8 @@ const ROAD_CLEAR = 3.6;
 const ROAD_SIDE = ROAD_CLEAR + 2;
 /** Stage road centre line -> the outer edge of a lot's mouth (m): at the road ribbon's edge (half width 2.9), so its edge line stays in view. */
 const MOUTH_EDGE = 2.95;
+/** Stage road centre line -> just past its edge line (m): where a lot's asphalt laid over the ribbon's gravel rim meets the road. */
+const EDGE_LINE = 2.85;
 
 /** Resample a polyline to points at most `step` apart. */
 function resample(pts: V2[], step: number): V2[] {
@@ -664,8 +666,8 @@ export interface CutWall {
  * The drawn terrain's cut at walls (`MapDef.terrain.meshSink`; local frame of `site`): the 1 m terrain mesh cannot hold a
  * wall's step. Inside a wall over lower land its points drop to that land's level, so the slope lies behind the wall's top
  * (under a slab, or a narrow dip behind a parapet) instead of rising in teeth at its foot. At a verge's wall (`bank`) the
- * points in front of it (under the slab) drop far down and those inside it rise to the verge's level, which leaves the
- * slope between them a near-vertical sliver inside the wall's face. `height` = the levelled terrain (world); the physics
+ * points in front of it (under the slab) drop, more the further out they lie, and those inside it rise to the verge's
+ * level, which leaves the slope between them inside the wall. `height` = the levelled terrain (world); the physics
  * ground is not changed.
  */
 export function wallMeshCut(
@@ -749,10 +751,120 @@ export function wallMeshCut(
       lx + best.n[0] * back,
       lz + best.n[1] * back,
     );
-    const step = height(bx, bz) - height(x, z);
-    if (!best.bank) return step < -0.05 ? -step : 0;
+    const h = height(x, z);
+    if (!best.bank) return h - height(bx, bz) > 0.05 ? h - height(bx, bz) : 0;
+    // A bank: the slab's level a metre in front of the wall against the verge's behind it.
+    const [fx, fz] = toWorld(
+      site,
+      lx + best.n[0] * (-1 - bd),
+      lz + best.n[1] * (-1 - bd),
+    );
+    const lot = height(fx, fz);
+    const step = height(bx, bz) - lot;
     if (step < 0.05) return 0;
-    return bd < 0 ? step * 12 : -step;
+    // Points from BANK_RISE into the wall rise to the verge; those before it drop to the slab's level and, in front of the
+    // wall, on down along the slope from that line through the foot: every triangle up to the verge then passes the
+    // inner face under the slab (rising from just inside the face, as from the face itself, it would stand in teeth on
+    // the slab). Its other end dips beside the wall's back; the bank's lawn shelf (`drawWall`) covers that.
+    if (bd >= BANK_RISE) return h - height(bx, bz);
+    return h - lot + (step * Math.max(0, -bd)) / BANK_RISE + 0.05;
+  };
+}
+
+/** Rows of a lot's strip under this wide (m) are a tail along the road, not a slab with an edge (the Vidikovec's west tip). */
+const TAIL = 0.6;
+/** How far a tail's asphalt reaches past its line (m): out under the road rail along it, tapered to nothing at the strip's end. */
+const TAIL_REACH = 0.25;
+/** A road-side apron's lift over the ground at the road's edge (m): over the road ribbon's gravel shoulder, as a bevel's. */
+const ROAD_SIDE_LIFT = 0.04;
+/** How far the drawn terrain is cut under a tail (m). */
+const TAIL_SINK = 0.15;
+/** How far a bank's lawn shelf lies under the verge's ground (m): hidden where the drawn terrain holds the ground. */
+const SHELF_SINK = 0.05;
+/** How far into a bank's wall the drawn terrain rises to the verge (m, from the inner face; `wallMeshCut`). */
+const BANK_RISE = 0.25;
+
+/** Unit outward normal of one long edge of a strip at row k (`side` -1 = left): its two edges' normals, each weighted by its length. */
+export function edgeNormal(pts: V2[], side: 1 | -1, k: number): V2 {
+  let x = 0;
+  let z = 0;
+  for (const j of [k - 1, k])
+    if (j >= 0 && j + 1 < pts.length) {
+      x -= (pts[j + 1][1] - pts[j][1]) * side;
+      z += (pts[j + 1][0] - pts[j][0]) * side;
+    }
+  const len = Math.hypot(x, z) || 1;
+  return [x / len, z / len];
+}
+
+/**
+ * The point across from p (local) at the outer side of the road's edge line (the ribbon's gravel rim past it is covered),
+ * or undefined with no road near.
+ */
+function roadEdge(site: Site, p: V2): V2 | undefined {
+  const [wx, wz] = toWorld(site, p[0], p[1]);
+  const h = nearestRoad(wx, wz);
+  if (!Number.isFinite(h.d) || h.d > ROAD_SIDE + 4) return undefined;
+  const side = Math.sign(h.lat) || 1;
+  return toLocal(
+    site,
+    h.x + side * EDGE_LINE * -h.tz,
+    h.z + side * EDGE_LINE * h.tx,
+  ) as V2;
+}
+
+/** One piece of a lot's tail (rows i, i + 1): its outer line a-b and the road ribbon's edge a2-b2 across from it (local). */
+export interface TailPiece {
+  i: number;
+  a: V2;
+  b: V2;
+  a2: V2;
+  b2: V2;
+}
+
+/**
+ * Where a lot's strip narrows to nothing along the road (rows under `TAIL` wide), its asphalt runs from its outer line, a
+ * little past it, to the road's edge: no slab to bevel off (buildLot draws it, `lotTailSink` cuts the drawn terrain under it).
+ */
+export function lotTail(lot: Lot): TailPiece[] {
+  const { left, right } = lotShape(lot);
+  const width = (i: number): number =>
+    Math.hypot(left[i][0] - right[i][0], left[i][1] - right[i][1]);
+  const out = (i: number): V2 => {
+    const [x, z] = edgeNormal(right, 1, i);
+    const o =
+      TAIL_REACH *
+      Math.min(
+        1,
+        Math.hypot(left[i][0] - left[0][0], left[i][1] - left[0][1]) / 4,
+      );
+    return [left[i][0] + x * o, left[i][1] + z * o];
+  };
+  const pieces: TailPiece[] = [];
+  for (let i = 0; i + 1 < left.length; i++) {
+    if (width(i) >= TAIL || width(i + 1) >= TAIL) continue;
+    const a2 = roadEdge(lot.site, left[i]);
+    const b2 = roadEdge(lot.site, left[i + 1]);
+    if (a2 && b2) pieces.push({ i, a: out(i), b: out(i + 1), a2, b2 });
+  }
+  return pieces;
+}
+
+/** `MapDef.terrain.meshSink` under a lot's tail (`lotTail`), out to its outer line and 1 m in under the road's ribbon: the
+ * 1 m terrain mesh would poke through asphalt laid this close to the ground. */
+export function lotTailSink(lot: Lot): (x: number, z: number) => number {
+  let quads: V2[][] | undefined;
+  return (x, z) => {
+    quads ??= lotTail(lot).map(({ a, b, a2, b2 }) => {
+      const under = (p: V2, q: V2): V2 => {
+        const l = Math.hypot(p[0] - q[0], p[1] - q[1]) || 1;
+        return [p[0] + (p[0] - q[0]) / l, p[1] + (p[1] - q[1]) / l];
+      };
+      return [a, b, under(b2, b), under(a2, a)];
+    });
+    if (!quads.length) return 0;
+    const [lx, lz] = toLocal(lot.site, x, z);
+    return quads.some((q) => inPolygon(q, lx, lz)) ? TAIL_SINK : 0;
   };
 }
 
@@ -1019,6 +1131,8 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
     cap: boolean;
     /** A cap: its end of the strip (row 0 or n - 1); a long edge: its row. */
     end?: number;
+    /** A long edge: its side (-1 = `left`, 1 = `right`). */
+    side?: 1 | -1;
   }
   /**
    * A cap across the strip's end is open (no kerb, no wall) where it meets the road: a narrow mouth, or a cap that runs along the
@@ -1035,7 +1149,8 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
     open: boolean,
     cap: boolean,
     end?: number,
-  ) => edges.push({ a, b, nx, nz, open, cap, end });
+    side?: 1 | -1,
+  ) => edges.push({ a, b, nx, nz, open, cap, end, side });
   for (let i = 0; i + 1 < n; i++) {
     for (const [pts, d, s] of [
       [left, dl, -1],
@@ -1050,9 +1165,12 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
         b,
         (-(b[1] - a[1]) / len) * s,
         ((b[0] - a[0]) / len) * s,
-        d[i] < ROAD_SIDE && d[i + 1] < ROAD_SIDE,
+        // (an outer line is the lot's far edge, never its road side: where the strip narrows to it, as at the Vidikovec's
+        // west tail, a bevel there would lie out past the edge)
+        d[i] < ROAD_SIDE && d[i + 1] < ROAD_SIDE && !(lot.outer && s === 1),
         false,
         i,
+        s,
       );
     }
   }
@@ -1121,6 +1239,24 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
         // (the kerb: white limestone rubble)
         run.kerb ? '#e6e2d8' : undefined,
       );
+      // A bank's lawn shelf: 1.2 m of grass along its back, just under the verge's ground. The 1 m terrain cannot
+      // step at a 0.5 m wall: a triangle from the slab's sunk ground to the verge dips into notches beside the wall
+      // (`wallMeshCut`); the shelf fills them and lies hidden under the terrain everywhere else.
+      if (run.bank)
+        for (let k = 0; k + 1 < m; k++)
+          for (const [o0, o1] of [
+            [OUT, OUT + 0.6],
+            [OUT + 0.6, OUT + 1.2],
+          ])
+            l.fan(
+              'lawn',
+              [at(k, o0), at(k + 1, o0), at(k + 1, o1), at(k, o1)].map(
+                (q): V3 => [q[0], y(q, -SHELF_SINK), q[1]],
+              ),
+              '#d2f560',
+              up,
+              (q) => [q[0], q[2]],
+            );
       if (!run.rail) continue;
       // The railing: posts about every 2 m set into the top, rails sloping with it; on the outer edge of a thick wall, along
       // the middle of a thin one or a kerb (three rails on a kerb).
@@ -1235,21 +1371,44 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
     const a2 = toRoad(a);
     const b2 = toRoad(b);
     if (!a2 || !b2) return false;
+    apron(a, b, a2, b2, 20, 8, ['a', 'b']);
+    return true;
+  }
+
+  /**
+   * Asphalt on the ground from the slab's edge a-b out to a2-b2 at the road's edge (under the road ribbon, drawn over it):
+   * a fine grid, `m` cells along a-b and `k` across (~0.5 m: the verge's bumps must not poke through), each point on the
+   * ground plus a lift easing from `lift` (at a, at b: the slab's top by default) to `low` at the road's edge (by default
+   * just under the road's top: the ribbon lies 2 cm over the ground), so it runs on under the ribbon with no lip and no
+   * slot under its edge (`ROAD_SIDE_LIFT`: over the ribbon's gravel shoulder, up to its edge line). `skirts`:
+   * its sides with a skirt of asphalt down into the ground ('a' = a-a2, 'b' = b-b2, 'edge' = a-b), so the land beside never
+   * shows a gap or cuts over it.
+   */
+  function apron(
+    a: V2,
+    b: V2,
+    a2: V2,
+    b2: V2,
+    m: number,
+    k: number,
+    skirts: ('a' | 'b' | 'edge')[],
+    lift: [number, number] = [SLAB, SLAB],
+    low = 0.015,
+    /** Level across at the road edge's height (+ `low`), not on the ground: asphalt that runs on beside the road. */
+    level = false,
+  ): void {
     const lerp = (p: V2, q: V2, t: number): V2 => [
       p[0] + (q[0] - p[0]) * t,
       p[1] + (q[1] - p[1]) * t,
     ];
-    // A fine grid (~0.5 m: the verge's bumps must not poke through), each point on the ground plus a lift easing from
-    // the slab's top to just under the road's top at its edge (the ribbon lies 2 cm over the ground), so the apron runs
-    // on under the ribbon with no lip and no slot under its edge.
-    const M = 20;
-    const N = 8;
     const pt = (u: number, v: number): V3 => {
-      const p = lerp(lerp(a, b, u / M), lerp(a2, b2, u / M), v / N);
-      return [p[0], y(p, SLAB + (0.015 - SLAB) * (v / N)), p[1]];
+      const p = lerp(lerp(a, b, u / m), lerp(a2, b2, u / m), v / k);
+      if (level) return [p[0], y(lerp(a2, b2, u / m), low), p[1]];
+      const top = lift[0] + ((lift[1] - lift[0]) * u) / m;
+      return [p[0], y(p, top + (low - top) * (v / k)), p[1]];
     };
-    for (let u = 0; u < M; u++)
-      for (let v = 0; v < N; v++) {
+    for (let u = 0; u < m; u++)
+      for (let v = 0; v < k; v++) {
         const q = [pt(u, v), pt(u + 1, v), pt(u + 1, v + 1), pt(u, v + 1)];
         // (each cell wound to face up, whichever way the flare turns it: a cell seen from below is culled)
         const up1 =
@@ -1258,39 +1417,41 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
         if (up1 < 0) q.reverse();
         l.fan('asphalt', q, LOT_ASPHALT, up, (c) => [c[0], c[2]]);
       }
-    // Its two flared sides: a skirt of asphalt down into the ground, so the land beside never shows a gap or cuts over it.
-    const [cx, , cz] = pt(M / 2, N / 2);
-    for (const u of [0, M])
-      for (let v = 0; v < N; v++) {
-        const t0 = pt(u, v);
-        const t1 = pt(u, v + 1);
-        const foot = (t: V3): V3 => [t[0], y([t[0], t[2]], -0.3), t[2]];
-        let nx = -(t1[2] - t0[2]);
-        let nz = t1[0] - t0[0];
-        const nl = Math.hypot(nx, nz) || 1;
-        nx /= nl;
-        nz /= nl;
-        if ((t0[0] - cx) * nx + (t0[2] - cz) * nz < 0) {
-          nx = -nx;
-          nz = -nz;
-        }
-        const q = [t0, t1, foot(t1), foot(t0)];
-        // (wound to face out, away from the apron's middle: its face normal (t1 - t0) x (foot - t0) along n)
-        const f1 = q[2];
-        const ax = t1[0] - t0[0];
-        const ay = t1[1] - t0[1];
-        const az = t1[2] - t0[2];
-        const bx = f1[0] - t0[0];
-        const by = f1[1] - t0[1];
-        const bz = f1[2] - t0[2];
-        if ((ay * bz - az * by) * nx + (ax * by - ay * bx) * nz < 0)
-          q.reverse();
-        l.fan('asphalt', q, LOT_ASPHALT, [nx, 0, nz], (c) => [
-          c[0] * nz - c[2] * nx,
-          c[1],
-        ]);
+    const [cx, , cz] = pt(m / 2, k / 2);
+    const skirt = (t0: V3, t1: V3): void => {
+      const foot = (t: V3): V3 => [t[0], y([t[0], t[2]], -0.3), t[2]];
+      let nx = -(t1[2] - t0[2]);
+      let nz = t1[0] - t0[0];
+      const nl = Math.hypot(nx, nz) || 1;
+      nx /= nl;
+      nz /= nl;
+      if ((t0[0] - cx) * nx + (t0[2] - cz) * nz < 0) {
+        nx = -nx;
+        nz = -nz;
       }
-    return true;
+      const q = [t0, t1, foot(t1), foot(t0)];
+      // (wound to face out, away from the apron's middle: its face normal (t1 - t0) x (foot - t0) along n)
+      const f1 = q[2];
+      const ax = t1[0] - t0[0];
+      const ay = t1[1] - t0[1];
+      const az = t1[2] - t0[2];
+      const bx = f1[0] - t0[0];
+      const by = f1[1] - t0[1];
+      const bz = f1[2] - t0[2];
+      if ((ay * bz - az * by) * nx + (ax * by - ay * bx) * nz < 0) q.reverse();
+      l.fan('asphalt', q, LOT_ASPHALT, [nx, 0, nz], (c) => [
+        c[0] * nz - c[2] * nx,
+        c[1],
+      ]);
+    };
+    for (const side of skirts)
+      if (side === 'edge')
+        for (let u = 0; u < m; u++) skirt(pt(u, 0), pt(u + 1, 0));
+      else
+        for (let v = 0; v < k; v++) {
+          const u = side === 'a' ? 0 : m;
+          skirt(pt(u, v), pt(u, v + 1));
+        }
   }
 
   // The open road side: a short bevel of asphalt from the slab's edge to the ground beside it (the road's shoulder), so the lot
@@ -1298,6 +1459,9 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
   const BEVEL = 0.9;
   const mid = centre[n >> 1];
   const mouths = new Set(lot.mouth && buildMouth(0) ? [0] : []);
+  const tails = new Map(lotTail(lot).map((t) => [t.i, t]));
+  const vertexNormal = (side: 1 | -1, k: number): V2 =>
+    edgeNormal(side < 0 ? left : right, side, k);
   for (const e of edges) {
     if (!e.open) continue;
     // (an open end with a mouth to the road has its own apron: buildMouth)
@@ -1309,7 +1473,65 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       ((mouths.has(0) && e.end < 3) || (mouths.has(n - 1) && e.end > n - 5))
     )
       continue;
+    // A tail where the strip narrows to nothing along the road (the Vidikovec's west tip): no slab to bevel off, asphalt
+    // from its line on to the road's edge instead.
+    const t = e.end !== undefined && !e.cap ? tails.get(e.end) : undefined;
+    if (t) {
+      if (e.side === -1) {
+        const len = Math.hypot(t.b[0] - t.a[0], t.b[1] - t.a[1]);
+        apron(
+          t.a,
+          t.b,
+          t.a2,
+          t.b2,
+          Math.max(1, Math.ceil(len / 0.5)),
+          3,
+          ['edge', ...(t.i === 0 ? (['a'] as const) : [])],
+          [SLAB, SLAB],
+          ROAD_SIDE_LIFT,
+          true,
+        );
+      }
+      continue;
+    }
+    // The rest of a cut lot's road side where it lies on the road's clearance line: asphalt on to the road's edge too, each
+    // piece from its rows' points at the road, so neighbouring pieces (the tail's too) join with no wedge of ground between.
+    if (
+      lot.outer &&
+      e.side === -1 &&
+      e.end !== undefined &&
+      dl[e.end] < ROAD_CLEAR + 0.3 &&
+      dl[e.end + 1] < ROAD_CLEAR + 0.3
+    ) {
+      const a2 = roadEdge(site, e.a);
+      const b2 = roadEdge(site, e.b);
+      if (a2 && b2) {
+        const len = Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]);
+        apron(
+          e.a,
+          e.b,
+          a2,
+          b2,
+          Math.max(1, Math.ceil(len / 0.5)),
+          2,
+          [],
+          [SLAB, SLAB],
+          ROAD_SIDE_LIFT,
+        );
+        continue;
+      }
+    }
     let [nx, nz] = [e.nx, e.nz];
+    // A long edge's bevel is offset along its two vertices' normals (each the mean of the edges either side): the bevels of
+    // a bent edge meet with no wedge of ground between them, and a short edge between two close rows cannot turn its own.
+    let [an, bn]: [V2, V2] = [
+      [nx, nz],
+      [nx, nz],
+    ];
+    if (e.side && e.end !== undefined) {
+      an = vertexNormal(e.side, e.end);
+      bn = vertexNormal(e.side, e.end + 1);
+    }
     if (e.cap) {
       const dx = e.b[0] - e.a[0];
       const dz = e.b[1] - e.a[1];
@@ -1325,9 +1547,10 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
         nx = -nx;
         nz = -nz;
       }
+      an = bn = [nx, nz];
     }
-    const a2: V2 = [e.a[0] + nx * BEVEL, e.a[1] + nz * BEVEL];
-    const b2: V2 = [e.b[0] + nx * BEVEL, e.b[1] + nz * BEVEL];
+    const a2: V2 = [e.a[0] + an[0] * BEVEL, e.a[1] + an[1] * BEVEL];
+    const b2: V2 = [e.b[0] + bn[0] * BEVEL, e.b[1] + bn[1] * BEVEL];
     l.fan(
       'asphalt',
       [

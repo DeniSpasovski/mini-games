@@ -20,11 +20,13 @@ import {
 import {
   lotMeshSink,
   lotPolygon,
+  lotTailSink,
   SLAB,
   SREDNO,
   SREDNO_BUS,
   TRAIL,
   VIDIKOVEC,
+  VIDIKOVEC_RIM,
 } from './landmarks/car-parks';
 
 /**
@@ -36,6 +38,8 @@ import {
  */
 const GRADED_MARGIN = 2.5;
 const PAD_LIFT = -(SLAB + 0.1);
+/** The Vidikovec mouth's shelf past its slab (m): the land drops off just past the kerb railing. */
+const MOUTH_MARGIN = 0.8;
 /** The trail lot's fall from the road to its far end (m): a gentle slant, not the land's 6.5 m. */
 const TRAIL_FALL = 3;
 /** Stage road points along the Vidikovec lot (its pad takes their heights). */
@@ -63,11 +67,18 @@ const VIDIKOVEC_MOUTH_X = 1;
 const vidikovecMouthRamp: PadDef['ramp'] = {
   from: toWorld(VIDIKOVEC.site, 33.7, -1) as [number, number],
   to: toWorld(VIDIKOVEC.site, VIDIKOVEC_MOUTH_X, -5) as [number, number],
-  lift: [-2.64, 0],
+  // (the slab's top at the road's edge there)
+  lift: [-2.55, 0],
   linear: true,
 };
+/**
+ * The rows of the lot's pads: up to its west tip (`VIDIKOVEC_RIM.W`). Its tail on along the road (W0-W) is asphalt on the road's
+ * own embankment: a pad there, folded over the tail's rows of no width, pulled the ground into spikes through it.
+ */
+const vidikovecPad = (c: [number, number]): boolean =>
+  c[0] < VIDIKOVEC_RIM.W[0] + 0.3;
 const vidikovecMouth = (c: [number, number]): boolean =>
-  c[0] > VIDIKOVEC_MOUTH_X;
+  c[0] > VIDIKOVEC_MOUTH_X && vidikovecPad(c);
 const VIDIKOVEC_FRONTAGE = [
   1500.2, -557.2, 1535, -574.6, 1553, -580.7, 1570.4, -584.9, 1591.3, -584.5,
   1603.7, -581.2,
@@ -80,16 +91,23 @@ export const LOT_PADS: PadDef[] = [
   // The ones under the road's level `hold` it over the road's embankment.
   {
     name: 'vidikovec_lot',
-    polygon: lotPolygon(VIDIKOVEC, GRADED_MARGIN),
-    // (a long, gentle embankment down to the land, no cliff under the west kerb)
+    // (east of the mouth, a row past it for the joint: its level and long blend round the lower west tip left a fake
+    // ridge over the drop beyond the kerb railing)
+    polygon: lotPolygon(
+      VIDIKOVEC,
+      GRADED_MARGIN,
+      (c) => c[0] <= VIDIKOVEC_MOUTH_X + 1,
+    ),
+    // (a long, gentle embankment down to the land)
     blend: 14,
     level: VIDIKOVEC_LEVEL,
     ramp: vidikovecRise(0),
   },
   {
     name: 'vidikovec_mouth',
-    polygon: lotPolygon(VIDIKOVEC, GRADED_MARGIN, vidikovecMouth),
-    blend: 6,
+    // (a narrow shelf and a short blend: past the west kerb's railing the land drops off, as in the references)
+    polygon: lotPolygon(VIDIKOVEC, MOUTH_MARGIN, vidikovecMouth),
+    blend: 2,
     level: VIDIKOVEC_LEVEL,
     ramp: vidikovecMouthRamp,
   },
@@ -117,7 +135,8 @@ export const LOT_PADS: PadDef[] = [
   })),
   {
     name: 'vidikovec_slab',
-    polygon: lotPolygon(VIDIKOVEC, 0.4),
+    // (east of the mouth, as the lot's: over the mouth its level stood ~2 m above the mouth's, and leaked through at the road)
+    polygon: lotPolygon(VIDIKOVEC, 0.4, (c) => c[0] <= VIDIKOVEC_MOUTH_X + 1),
     blend: 0.1,
     // (well under the road at its east end: the road's embankment must not reach in over it)
     hold: true,
@@ -276,7 +295,8 @@ const REPLACED = new Set([
 /** Painted lawns (`MapDef.terrain.lawns`): the Sredno park strip, the two garden terraces and the trail start's bank. */
 export const LAWNS: number[][] = lawnPolygons();
 const vidikovecCut = lotMeshSink(VIDIKOVEC);
-/** The drawn terrain's cut at the Vidikovec's walls and its garden's (`MapDef.terrain.meshSink`): the larger one. */
+const vidikovecTail = lotTailSink(VIDIKOVEC);
+/** The drawn terrain's cut at the Vidikovec's walls, its garden's and under its west tail (`MapDef.terrain.meshSink`): the largest. */
 export const LOT_MESH_SINK = (
   x: number,
   z: number,
@@ -284,7 +304,9 @@ export const LOT_MESH_SINK = (
 ): number => {
   const a = vidikovecCut(x, z, height);
   const b = gardenMeshSink(x, z, height);
-  return Math.abs(a) >= Math.abs(b) ? a : b;
+  const c = vidikovecTail(x, z);
+  const ab = Math.abs(a) >= Math.abs(b) ? a : b;
+  return Math.abs(ab) >= c ? ab : c;
 };
 
 /**
