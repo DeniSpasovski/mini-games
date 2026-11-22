@@ -49,6 +49,27 @@ describe('right-stick look around', () => {
     expect(step({ x: 0, y: 0 }).position.distanceTo(home)).toBeLessThan(0.05);
   });
 
+  test('chase: the camera aims at the car the same way at every stick angle', () => {
+    const { step } = rig();
+    const dir = new Vector3();
+    const pitch = (look: { x: number; y: number }) => {
+      const cam = step(look);
+      cam.getWorldDirection(dir);
+      // Points at the car (the origin), whatever the angle round it.
+      const toCar = cam.position.clone().negate().setY(0).normalize();
+      expect(dir.clone().setY(0).normalize().dot(toCar)).toBeGreaterThan(0.999);
+      return dir.y;
+    };
+    const down = pitch({ x: 0, y: 1 });
+    for (const look of [
+      { x: 1, y: 0 },
+      { x: 0.7, y: 0.7 },
+      { x: 0, y: -1 },
+      { x: -0.7, y: 0.7 },
+    ])
+      expect(pitch(look)).toBeCloseTo(down, 3);
+  });
+
   test('in car: stick right looks right, down looks back', () => {
     const { step } = rig('hood');
     const dir = new Vector3();

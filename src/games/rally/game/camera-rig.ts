@@ -43,6 +43,8 @@ export class CameraRig {
   private shake = 0;
   /** Look-around: view yaw off the car's heading (rad, + = looking right). Eased back when the stick is released. */
   private lookYaw = 0;
+  /** 0 = default aim (a little ahead of the car), 1 = aim at the car: 1 while the stick is held, at every stick angle. */
+  private lookAim = 0;
   /** Camera position before shake and body bounce: what the tree level choice measures from (trees/draw.ts). */
   readonly steady = new Vector3();
 
@@ -85,7 +87,10 @@ export class CameraRig {
       d * (1 - Math.exp(-dt * (held ? LOOK_FOLLOW : LOOK_RETURN)));
     this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
     if (!held && Math.abs(this.lookYaw) < 1e-3) this.lookYaw = 0;
-    const lookAmount = Math.min(1, Math.abs(this.lookYaw) / 0.6);
+    this.lookAim +=
+      ((held ? 1 : 0) - this.lookAim) *
+      (1 - Math.exp(-dt * (held ? LOOK_FOLLOW : LOOK_RETURN)));
+    if (!held && this.lookAim < 1e-3) this.lookAim = 0;
     const speed = v.velocity.length();
     this.shake = Math.max(
       this.shake * Math.exp(-dt * 6),
@@ -189,9 +194,9 @@ export class CameraRig {
     // Aim along the smoothed heading, not the body's raw pitch / roll.
     cam.lookAt(
       target.set(
-        this.focus.x + Math.sin(placeYaw) * 2.5 * (1 - lookAmount),
+        this.focus.x + Math.sin(placeYaw) * 2.5 * (1 - this.lookAim),
         this.focus.y,
-        this.focus.z + Math.cos(placeYaw) * 2.5 * (1 - lookAmount),
+        this.focus.z + Math.cos(placeYaw) * 2.5 * (1 - this.lookAim),
       ),
     );
     cam.fov = MathUtils.lerp(
