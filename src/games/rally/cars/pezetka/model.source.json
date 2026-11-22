@@ -112,6 +112,14 @@
         "material": "drop"
       },
       {
+        "$comment": "front wheel wells: the model's own well walls and drum backing plates (same material as the cockpit trim) are black, not light grey",
+        "mat": "Fiat_126P_Shadow",
+        "x": [-0.65, 0.65],
+        "y": [0, 0.6],
+        "z": [0.62, 1.4],
+        "material": "trim:2s"
+      },
+      {
         "mat": "Fiat_126P_Shadow",
         "material": "interiorgrey:2s"
       },
@@ -197,43 +205,279 @@
     "drop": ["logo", "drop"],
     "fills": [
       {
-        "$comment": "door cards + rear side trim (ours, black vinyl): the model's doors are one-sided skins, from inside you saw through them",
+        "$comment": "door card (left; ours, black vinyl): the model's doors are one-sided skins, from inside you saw through them. Stops at the rear wheel arch",
         "material": "trim:2s",
         "poly": [
-          [0.565, 0.15, -0.95],
+          [0.565, 0.15, -0.4],
           [0.565, 0.15, 0.7],
           [0.565, 0.83, 0.7],
+          [0.565, 0.83, -0.4]
+        ]
+      },
+      {
+        "$comment": "rear side trim above the rear wheel arch (left): cut round the arch (hub z -0.737, r 0.36) so it no longer stands in the wheel well in front of the suspension",
+        "material": "trim:2s",
+        "poly": [
+          [0.565, 0.83, -0.67],
+          [0.565, 0.83, -0.4],
+          [0.565, 0.377, -0.4],
+          [0.565, 0.521, -0.5],
+          [0.565, 0.583, -0.6],
+          [0.565, 0.61, -0.737],
+          [0.565, 0.592, -0.85],
+          [0.565, 0.54, -0.95],
           [0.565, 0.83, -0.95]
         ]
       },
       {
-        "$comment": "kick panel ahead of the door, up to the dash (ours)",
+        "$comment": "kick panel ahead of the door, up to the dash (left): cut round the front wheel arch (hub z 1.106, r 0.36)",
         "material": "trim:2s",
         "poly": [
+          [0.565, 0.72, 0.76],
+          [0.565, 0.72, 0.7],
           [0.565, 0.15, 0.7],
-          [0.565, 0.15, 0.9],
-          [0.565, 0.72, 0.9],
-          [0.565, 0.72, 0.7]
+          [0.565, 0.15, 0.745],
+          [0.565, 0.349, 0.76],
+          [0.565, 0.44, 0.8],
+          [0.565, 0.503, 0.85],
+          [0.565, 0.545, 0.9],
+          [0.565, 0.72, 0.9]
         ]
       },
       {
-        "$comment": "door card, right side",
+        "$comment": "door card (right; ours, black vinyl): the model's doors are one-sided skins, from inside you saw through them. Stops at the rear wheel arch",
         "material": "trim:2s",
         "poly": [
-          [-0.565, 0.15, -0.95],
+          [-0.565, 0.15, -0.4],
           [-0.565, 0.15, 0.7],
           [-0.565, 0.83, 0.7],
+          [-0.565, 0.83, -0.4]
+        ]
+      },
+      {
+        "$comment": "rear side trim above the rear wheel arch (right): cut round the arch (hub z -0.737, r 0.36) so it no longer stands in the wheel well in front of the suspension",
+        "material": "trim:2s",
+        "poly": [
+          [-0.565, 0.83, -0.67],
+          [-0.565, 0.83, -0.4],
+          [-0.565, 0.377, -0.4],
+          [-0.565, 0.521, -0.5],
+          [-0.565, 0.583, -0.6],
+          [-0.565, 0.61, -0.737],
+          [-0.565, 0.592, -0.85],
+          [-0.565, 0.54, -0.95],
           [-0.565, 0.83, -0.95]
         ]
       },
       {
-        "$comment": "kick panel ahead of the door, up to the dash (ours)",
+        "$comment": "kick panel ahead of the door, up to the dash (right): cut round the front wheel arch (hub z 1.106, r 0.36)",
         "material": "trim:2s",
         "poly": [
+          [-0.565, 0.72, 0.76],
+          [-0.565, 0.72, 0.7],
           [-0.565, 0.15, 0.7],
-          [-0.565, 0.15, 0.9],
-          [-0.565, 0.72, 0.9],
-          [-0.565, 0.72, 0.7]
+          [-0.565, 0.15, 0.745],
+          [-0.565, 0.349, 0.76],
+          [-0.565, 0.44, 0.8],
+          [-0.565, 0.503, 0.85],
+          [-0.565, 0.545, 0.9],
+          [-0.565, 0.72, 0.9]
+        ]
+      },
+      {
+        "$comment": "rear wheel well liner (left, ours, black): the model's rear well is open to the engine bay and cabin; inner wall inboard of the suspension + the arch roof out to the body",
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.25, -0.737],
+          [0.44, 0.2, -1.093],
+          [0.44, 0.343, -1.085],
+          [0.44, 0.456, -1.032],
+          [0.44, 0.545, -0.943],
+          [0.44, 0.598, -0.83],
+          [0.44, 0.609, -0.706],
+          [0.44, 0.576, -0.585],
+          [0.44, 0.505, -0.482],
+          [0.44, 0.402, -0.411],
+          [0.44, 0.2, -0.381]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.2, -1.093],
+          [0.6, 0.2, -1.093],
+          [0.6, 0.343, -1.085],
+          [0.44, 0.343, -1.085]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.343, -1.085],
+          [0.6, 0.343, -1.085],
+          [0.6, 0.456, -1.032],
+          [0.44, 0.456, -1.032]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.456, -1.032],
+          [0.6, 0.456, -1.032],
+          [0.6, 0.545, -0.943],
+          [0.44, 0.545, -0.943]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.545, -0.943],
+          [0.6, 0.545, -0.943],
+          [0.6, 0.598, -0.83],
+          [0.44, 0.598, -0.83]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.598, -0.83],
+          [0.6, 0.598, -0.83],
+          [0.6, 0.609, -0.706],
+          [0.44, 0.609, -0.706]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.609, -0.706],
+          [0.6, 0.609, -0.706],
+          [0.6, 0.576, -0.585],
+          [0.44, 0.576, -0.585]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.576, -0.585],
+          [0.6, 0.576, -0.585],
+          [0.6, 0.505, -0.482],
+          [0.44, 0.505, -0.482]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.505, -0.482],
+          [0.6, 0.505, -0.482],
+          [0.6, 0.402, -0.411],
+          [0.44, 0.402, -0.411]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [0.44, 0.402, -0.411],
+          [0.6, 0.402, -0.411],
+          [0.6, 0.2, -0.381],
+          [0.44, 0.2, -0.381]
+        ]
+      },
+      {
+        "$comment": "rear wheel well liner (right, ours, black): the model's rear well is open to the engine bay and cabin; inner wall inboard of the suspension + the arch roof out to the body",
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.25, -0.737],
+          [-0.44, 0.2, -1.093],
+          [-0.44, 0.343, -1.085],
+          [-0.44, 0.456, -1.032],
+          [-0.44, 0.545, -0.943],
+          [-0.44, 0.598, -0.83],
+          [-0.44, 0.609, -0.706],
+          [-0.44, 0.576, -0.585],
+          [-0.44, 0.505, -0.482],
+          [-0.44, 0.402, -0.411],
+          [-0.44, 0.2, -0.381]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.2, -1.093],
+          [-0.6, 0.2, -1.093],
+          [-0.6, 0.343, -1.085],
+          [-0.44, 0.343, -1.085]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.343, -1.085],
+          [-0.6, 0.343, -1.085],
+          [-0.6, 0.456, -1.032],
+          [-0.44, 0.456, -1.032]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.456, -1.032],
+          [-0.6, 0.456, -1.032],
+          [-0.6, 0.545, -0.943],
+          [-0.44, 0.545, -0.943]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.545, -0.943],
+          [-0.6, 0.545, -0.943],
+          [-0.6, 0.598, -0.83],
+          [-0.44, 0.598, -0.83]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.598, -0.83],
+          [-0.6, 0.598, -0.83],
+          [-0.6, 0.609, -0.706],
+          [-0.44, 0.609, -0.706]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.609, -0.706],
+          [-0.6, 0.609, -0.706],
+          [-0.6, 0.576, -0.585],
+          [-0.44, 0.576, -0.585]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.576, -0.585],
+          [-0.6, 0.576, -0.585],
+          [-0.6, 0.505, -0.482],
+          [-0.44, 0.505, -0.482]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.505, -0.482],
+          [-0.6, 0.505, -0.482],
+          [-0.6, 0.402, -0.411],
+          [-0.44, 0.402, -0.411]
+        ]
+      },
+      {
+        "material": "trim:2s",
+        "poly": [
+          [-0.44, 0.402, -0.411],
+          [-0.6, 0.402, -0.411],
+          [-0.6, 0.2, -0.381],
+          [-0.44, 0.2, -0.381]
         ]
       }
     ]
@@ -292,9 +536,22 @@
         ],
         "parts": [
           {
+            "$comment": "the floor without its outer wheel tubs: they stood in the wheel wells in front of the suspension (|x| > 0.4 round the rear axle, model z -0.863)",
             "node": "assoalho_assoalho_0",
-            "x": [-0.6, 0.6],
+            "x": [-0.4, 0.4],
             "z": [-1.0, 0.95],
+            "material": "src:int:pezetka_floor.png"
+          },
+          {
+            "node": "assoalho_assoalho_0",
+            "x": [-0.6, -0.4],
+            "z": [-0.38, 0.62],
+            "material": "src:int:pezetka_floor.png"
+          },
+          {
+            "node": "assoalho_assoalho_0",
+            "x": [0.4, 0.6],
+            "z": [-0.38, 0.62],
             "material": "src:int:pezetka_floor.png"
           },
           {

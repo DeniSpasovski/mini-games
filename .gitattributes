@@ -1,2 +1,5 @@
 # LF everywhere, also on Windows checkouts with core.autocrlf=true (doc-matching tests compare exact text)
 * text=auto eol=lf
+
+# Baked mesh files (scripts/data/data-bin.mjs)
+*.data.bin binary

@@ -75,7 +75,11 @@ import {
   laneWalls,
   type LaneWallRow,
 } from './portals';
-import { cutWallColliders } from './cut-wall-colliders';
+import {
+  cutWallColliders,
+  retainingWallColliders,
+  rockFaceColliders,
+} from './cut-wall-colliders';
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
 import { bakeGroundMoisture, type GroundMoisture } from './ground-moisture';
 import { cornerFanInstances, PEOPLE_ASSETS } from './corner-fans';
@@ -636,6 +640,10 @@ export class World implements GroundProvider {
       this.scatter.addFixedCollider(c);
     for (const c of this.parapetColliders()) this.scatter.addFixedCollider(c);
     for (const c of cutWallColliders(this.road, this.gen, map.road))
+      this.scatter.addFixedCollider(c);
+    for (const c of retainingWallColliders(this.road, this.gen, map.road))
+      this.scatter.addFixedCollider(c);
+    for (const c of rockFaceColliders(this.road, this.gen, map.road))
       this.scatter.addFixedCollider(c);
     for (const bd of this.buildings.buildings) {
       if (bd.kind) {

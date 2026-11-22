@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MeshoptSimplifier } from 'meshoptimizer';
+import { dataBin } from '../data/data-bin.mjs';
 
 const dir = process.argv[2];
 const OUT = 'src/games/rally/engine/people-base.data.ts';
@@ -218,7 +219,7 @@ export interface BodyData {
   map: string;
   mask: string;
   skinBase: [number, number, number];
-  lods: [string, string];
+  lods: [Uint8Array, Uint8Array];
 }
 
 export const PEOPLE_BASE: Record<'male' | 'female', BodyData> = {
@@ -292,5 +293,6 @@ for (const name of ['male', 'female']) {
 }
 ts += '};\n';
 fs.writeFileSync(OUT, ts);
+dataBin(OUT);
 fs.writeFileSync(path.join(dir, 'baked.json'), JSON.stringify(debug));
 console.log(OUT, (ts.length / 1e6).toFixed(2), 'MB');

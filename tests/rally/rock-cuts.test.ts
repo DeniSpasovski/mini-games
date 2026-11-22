@@ -2,6 +2,7 @@ import { describe, expect, test } from '@rstest/core';
 import { type BufferGeometry, type Mesh, MeshStandardMaterial } from 'three';
 import { trailLotLandmark } from '../../src/games/rally/maps/vodno/landmarks';
 import { vodnoMap } from '../../src/games/rally/maps/vodno/map';
+import { rockFaceColliders } from '../../src/games/rally/world/cut-wall-colliders';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { rockCutMeshJob } from '../../src/games/rally/world/rock-cut-mesh';
 import { World } from '../../src/games/rally/world/world';
@@ -24,6 +25,18 @@ describe('Vodno rock cuts', () => {
         if (q.found)
           expect(Math.abs(q.distance) - q.halfWidth).toBeGreaterThan(edge);
       }
+    }
+  });
+
+  test('the rock faces are solid: boxes from their foot back, beside the road, never on it', () => {
+    const boxes = rockFaceColliders(world.road, world.gen, vodnoMap.road);
+    expect(boxes.length).toBeGreaterThan(100);
+    for (const b of boxes) {
+      world.road.query(b.x, b.z, q);
+      // (the box's road side, half its depth in front of its centre, stays off the road and its shoulder)
+      expect(Math.abs(q.distance) - b.hz! - q.halfWidth).toBeGreaterThan(
+        vodnoMap.road.shoulder,
+      );
     }
   });
 
