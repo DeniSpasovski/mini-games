@@ -17,6 +17,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { lodChain, readPrimitive } from './mesh-kit.mjs';
+import { dataBin } from '../data/data-bin.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
@@ -70,7 +71,7 @@ export interface OutcropModelData {
   /** Size (m): width (x), height (y), depth (z, the face at +z). */
   size: [number, number, number];
   /** Packed mesh per level of detail (layout: scripts/rocks/mesh-kit.mjs, positions / ${UNIT}). */
-  lods: string[];
+  lods: Uint8Array[];
 }
 
 export const OUTCROP_UNIT = ${UNIT};
@@ -81,6 +82,7 @@ ${out.map((r) => `  // ${r.id}\n  { size: [${r.size.map((v) => v.toFixed(3)).joi
 `;
 const dataFile = 'src/games/rally/assets/builders/outcrop-models.data.ts';
 fs.writeFileSync(path.join(root, dataFile), ts);
+dataBin(path.join(root, dataFile));
 // The repo's formatting, so a bake with nothing changed leaves no diff.
 execFileSync('npx', ['prettier', '--write', dataFile], {
   cwd: root,

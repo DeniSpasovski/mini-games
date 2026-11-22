@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { createRequire } from 'node:module';
+import { dataBin } from '../data/data-bin.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
@@ -227,7 +228,7 @@ export interface RockModelData {
   /** Height above the ground at a unit footprint (largest horizontal half-extent 1). */
   height: number;
   /** Packed mesh per level of detail (layout: see the baker). */
-  lods: string[];
+  lods: Uint8Array[];
 }
 
 export const ROCK_MODELS: RockModelData[] = [
@@ -238,6 +239,7 @@ fs.writeFileSync(
   path.join(root, 'src/games/rally/assets/builders/rock-models.data.ts'),
   ts,
 );
+dataBin(path.join(root, 'src/games/rally/assets/builders/rock-models.data.ts'));
 
 // Textures: the set's 1k colour and normal maps as WebP (Pillow via python, kept simple).
 const require = createRequire(import.meta.url);

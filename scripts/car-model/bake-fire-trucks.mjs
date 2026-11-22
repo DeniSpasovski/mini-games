@@ -15,6 +15,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { dataBin } from '../data/data-bin.mjs';
 import {
   bounds,
   clamp01,
@@ -179,6 +180,7 @@ import type { StreetCarData } from './street-cars.data';
 export const FIRE_TRUCK_DATA: StreetCarData[] = ${JSON.stringify(rows, null, 2)};
 `;
   fs.writeFileSync(`${OUT}/fire-trucks.data.ts`, ts);
+  dataBin(`${OUT}/fire-trucks.data.ts`);
   for (const name of ['us', 'mk'])
     fs.copyFileSync(
       path.join(dir, `fire-${name}.jpg`),
