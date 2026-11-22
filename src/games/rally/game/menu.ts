@@ -652,6 +652,8 @@ class MainMenu {
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
     if (screen === 'map') this.showMap(this.map);
     else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
+    // While the player is on the start menu, get the stage screen's map view ready.
+    if (screen === 'welcome') this.showroom.warmMap(this.map.id);
     // First visit with no quality chosen: measure the picking screens, the stage then starts on the result.
     if ((screen === 'map' || screen === 'car') && needsAutoQuality())
       this.showroom.measureFrameTime((ms) => {
