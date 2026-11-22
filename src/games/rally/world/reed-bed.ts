@@ -30,12 +30,17 @@ import type { World } from './world';
  * rooted in the ditch's bed and slopes, its top `height` m above the bank line, plus a wall of cards along each side for
  * the silhouette. Stems only, no solid fill: the gaps between them stay open and dark, as in the real bed. The scattered
  * reed cards (`ditchTop` rules) grow among them. Merged per 128 m cell, drawn only near the camera (it fades out by
- * WALL_NEAR, as the scattered cards end). Built once per world.
+ * WALL_NEAR, as the scattered cards end). Past it a far bed takes over (a dithered swap): five rows of cards per ditch
+ * (sides, middle and between, the same bands and gaps) at twice the step, out to FAR_END. Built once per world.
  */
 /** Wall cells (m) and where the wall has faded out (m from the camera; the ditch cards' `DITCH_CARDS`). */
 const WALL_CELL = 128;
 const WALL_NEAR = 100;
 const WALL_FADE = 80;
+/** The far bed: its cells (m), and where it fades out (m from the camera). */
+const FAR_CELL = 256;
+const FAR_FADE = 300;
+const FAR_END = 360;
 /** Along-ditch step (m): one reed cell of the wall per step (the sheet's cells are 1.2 m wide). */
 const STEP = 1.2;
 /** The stand reaches this share of the ditch's half top width (the reeds fill it to just inside the lips). */
@@ -95,18 +100,29 @@ const LOOKS: Record<Season, Look> = {
   },
 };
 
-const wallMats = new Map<Season, MeshStandardMaterial>();
+const wallMats = new Map<string, MeshStandardMaterial>();
 
-/** The wall of reed cards: the season's reed sheet, alpha tested, lit like the ground (as the scattered cards). */
-function wallMaterial(season: Season): MeshStandardMaterial {
-  let m = wallMats.get(season);
+/**
+ * The wall of reed cards: the season's reed sheet, alpha tested, lit like the ground (as the scattered cards). `far`:
+ * the far bed's, drawn where the near one dithers out (the same pattern, complementary: no pixel drawn twice) and
+ * itself gone by FAR_END; a lower alpha cut keeps its thin stems from vanishing in the sheet's small mips.
+ */
+function wallMaterial(season: Season, far = false): MeshStandardMaterial {
+  const key = far ? `${season}-far` : season;
+  let m = wallMats.get(key);
   if (m) return m;
   const sheet = LOOKS[season].sheet;
+  const keep = far
+    ? /* glsl */ `float rbD = distance( vRbW.xz, cameraPosition.xz );
+	float rbFar = smoothstep( ${WALL_FADE.toFixed(1)}, ${WALL_NEAR.toFixed(1)}, rbD ) * ( 1.0 - smoothstep( ${FAR_FADE.toFixed(1)}, ${FAR_END.toFixed(1)}, rbD ) );
+	if ( fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) ) >= rbFar ) discard;`
+    : /* glsl */ `float rbFar = smoothstep( ${WALL_FADE.toFixed(1)}, ${WALL_NEAR.toFixed(1)}, distance( vRbW.xz, cameraPosition.xz ) );
+	if ( rbFar > 0.0 && fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) ) < rbFar ) discard;`;
   m = new MeshStandardMaterial({
     vertexColors: true,
     map: plantSheet(sheet),
     color: new Color(...cardColor(sheet)),
-    alphaTest: 0.5,
+    alphaTest: far ? 0.3 : 0.5,
     side: DoubleSide,
     roughness: 1,
   });
@@ -124,9 +140,13 @@ function wallMaterial(season: Season): MeshStandardMaterial {
       .replace(
         'void main() {',
         /* glsl */ `void main() {
-	// Dithered out between WALL_FADE and WALL_NEAR m (before any texture read: the far wall costs no fill).
-	float rbFar = smoothstep( ${WALL_FADE.toFixed(1)}, ${WALL_NEAR.toFixed(1)}, distance( vRbW.xz, cameraPosition.xz ) );
-	if ( rbFar > 0.0 && fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) ) < rbFar ) discard;`,
+	// Near: dithered out between WALL_FADE and WALL_NEAR m; far: in there, out by FAR_END (before any texture read).
+	${keep}`,
+      )
+      .replace(
+        '#include <alphatest_fragment>',
+        // Far: the small mips average the thin stems' alpha away; doubled, they keep their cover at range.
+        `${far ? 'diffuseColor.a = min( 1.0, diffuseColor.a * 2.0 );\n\t' : ''}#include <alphatest_fragment>`,
       )
       .replace(
         '#include <normal_fragment_begin>',
@@ -137,9 +157,9 @@ function wallMaterial(season: Season): MeshStandardMaterial {
         '#include <lights_fragment_end>\n\treflectedLight.directSpecular = vec3( 0.0 );\n\treflectedLight.indirectSpecular = vec3( 0.0 );',
       );
   };
-  m.customProgramCacheKey = () => 'reed-bed-wall';
-  m.name = `reed_bed_wall_${season}`;
-  wallMats.set(season, m);
+  m.customProgramCacheKey = () => (far ? 'reed-bed-far' : 'reed-bed-wall');
+  m.name = `reed_bed_${far ? 'far' : 'wall'}_${season}`;
+  wallMats.set(key, m);
   return m;
 }
 
@@ -282,10 +302,16 @@ export function* reedBedMeshJob(
   const ground = world.heightfield;
   const reedCells = [0, 1, 2, 3, 4, 5];
   const walls = new Map<string, Acc>();
-  const wallAt = (x: number, z: number) => {
-    const key = `${Math.floor(x / WALL_CELL)},${Math.floor(z / WALL_CELL)}`;
-    let t = walls.get(key);
-    if (!t) walls.set(key, (t = acc()));
+  const fars = new Map<string, Acc>();
+  const cellAt = (
+    cells: Map<string, Acc>,
+    size: number,
+    x: number,
+    z: number,
+  ) => {
+    const key = `${Math.floor(x / size)},${Math.floor(z / size)}`;
+    let t = cells.get(key);
+    if (!t) cells.set(key, (t = acc()));
     return t;
   };
   const pt = { x: 0, z: 0 };
@@ -406,11 +432,14 @@ export function* reedBedMeshJob(
         top0: number,
         top1: number,
         seed: number,
+        far = false,
       ) => {
         const cell = reedCells[Math.abs(seed) % reedCells.length];
         const [u0, v0, u1, v1] = cellRect(look.sheet, cell);
         const flip = (seed >> 3) & 1;
-        const wall = wallAt(x0, z0);
+        const wall = far
+          ? cellAt(fars, FAR_CELL, x0, z0)
+          : cellAt(walls, WALL_CELL, x0, z0);
         const w0 = wall.pos.length / 3;
         const h0 = top0 - bottom0;
         const h1 = top1 - bottom1;
@@ -437,7 +466,9 @@ export function* reedBedMeshJob(
         wall.uv.push(ua, vb0, ub, vb1, ub, vTop, ua, vTop);
         for (let k = 0; k < 4; k++) wall.nor.push(0, 1, 0);
         // Dark at the foot (inside the bed), lit at the plumes.
-        wall.col.push(0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 1, 1, 1, 1, 1, 1);
+        // (Far: lighter, the one card stands for a whole lit bed.)
+        const foot = far ? 0.6 : 0.3;
+        wall.col.push(foot, foot, foot, foot, foot, foot, 1, 1, 1, 1, 1, 1);
         wall.idx.push(w0, w0 + 1, w0 + 2, w0, w0 + 2, w0 + 3);
       };
       for (const sgn of [-1, 1])
@@ -522,6 +553,49 @@ export function* reedBedMeshJob(
             }
           }
       }
+      // The far bed: five rows across (the sides, the middle, between) every other step, each card two reed cells long (the stems read
+      // thicker at range, where the near ones thin out to nothing), with the near bed's bands and gaps.
+      for (let k = 0; k < run.length - 1; k += 2) {
+        const k1 = Math.min(k + 2, run.length - 1);
+        const r0 = run[k];
+        const r1 = run[k1];
+        const e0 = taper(k, run.length, cutStart, cutEnd);
+        const e1 = taper(k1, run.length, cutStart, cutEnd);
+        for (const [side, row] of [
+          [-1, 6],
+          [-0.5, 1],
+          [0, 2],
+          [0.5, 4],
+          [1, 8],
+        ] as const) {
+          const x0 = r0.x + r0.rx * wallHalf * side;
+          const z0 = r0.z + r0.rz * wallHalf * side;
+          const x1 = r1.x + r1.rx * wallHalf * side;
+          const z1 = r1.z + r1.rz * wallHalf * side;
+          if (gap(x0, z0, row)) continue;
+          const rise = Math.abs(side) === 1 ? WALL_RISE : 0.55;
+          const g0 = ground.height(x0, z0);
+          const g1 = ground.height(x1, z1);
+          quad(
+            x0,
+            z0,
+            x1,
+            z1,
+            g0 - 0.05,
+            g1 - 0.05,
+            Math.max(
+              g0 + 0.3,
+              g0 + (r0.top - g0 + rise + band(x0, z0, row)) * e0,
+            ),
+            Math.max(
+              g1 + 0.3,
+              g1 + (r1.top - g1 + rise + band(x1, z1, row)) * e1,
+            ),
+            Math.floor(r0.x * 5 + r0.z * 11) + row,
+            true,
+          );
+        }
+      }
       // An end against a bridge: a wall of cards across the bed as well (the face seen from the deck), its stems
       // reaching down into the water under the bridge.
       for (const [cut, k, dir] of [
@@ -560,29 +634,34 @@ export function* reedBedMeshJob(
   }
   const group = new Group();
   group.name = 'reed-beds';
-  const wallMat = wallMaterial(season);
-  // Each wall cell is a LOD about its centre: drawn while the camera is within WALL_NEAR of some part of it.
-  const reach = WALL_NEAR + (WALL_CELL * Math.SQRT2) / 2 + 10;
-  for (const [key, w] of walls) {
-    if (!w.idx.length) continue;
-    const [i, j] = key.split(',').map(Number);
-    const cx = (i + 0.5) * WALL_CELL;
-    const cz = (j + 0.5) * WALL_CELL;
-    let cy = 0;
-    for (let k = 1; k < w.pos.length; k += 3) cy += w.pos[k];
-    cy /= w.pos.length / 3;
-    for (let k = 0; k < w.pos.length; k += 3) {
-      w.pos[k] -= cx;
-      w.pos[k + 1] -= cy;
-      w.pos[k + 2] -= cz;
+  // Each cell is a LOD about its centre: drawn while the camera is within WALL_NEAR (the far bed: FAR_END) of some
+  // part of it.
+  const layers = [
+    [walls, WALL_CELL, WALL_NEAR, wallMaterial(season)],
+    [fars, FAR_CELL, FAR_END, wallMaterial(season, true)],
+  ] as const;
+  for (const [cells, size, end, mat] of layers)
+    for (const [key, w] of cells) {
+      if (!w.idx.length) continue;
+      const reach = end + (size * Math.SQRT2) / 2 + 10;
+      const [i, j] = key.split(',').map(Number);
+      const cx = (i + 0.5) * size;
+      const cz = (j + 0.5) * size;
+      let cy = 0;
+      for (let k = 1; k < w.pos.length; k += 3) cy += w.pos[k];
+      cy /= w.pos.length / 3;
+      for (let k = 0; k < w.pos.length; k += 3) {
+        w.pos[k] -= cx;
+        w.pos[k + 1] -= cy;
+        w.pos[k + 2] -= cz;
+      }
+      const lod = new LOD();
+      lod.position.set(cx, cy, cz);
+      lod.addLevel(toMesh(w, mat, false), 0);
+      lod.addLevel(new Object3D(), reach);
+      lod.updateMatrix();
+      group.add(lod);
+      yield;
     }
-    const lod = new LOD();
-    lod.position.set(cx, cy, cz);
-    lod.addLevel(toMesh(w, wallMat, false), 0);
-    lod.addLevel(new Object3D(), reach);
-    lod.updateMatrix();
-    group.add(lod);
-    yield;
-  }
   return group;
 }

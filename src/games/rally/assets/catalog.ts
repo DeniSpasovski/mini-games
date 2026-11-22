@@ -244,7 +244,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     category: 'vegetation',
     fade: true,
     description:
-      'Dead docks and knotweed of ditch banks in autumn, rust red and brown with dark seed spikes, 0.6-1.1 m (no collision, detail layer only).',
+      'Dead docks and knotweed of ditch banks in autumn, a dull rust brown with dark seed spikes, 0.6-1.1 m (no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 100, castShadow: false }],
   },

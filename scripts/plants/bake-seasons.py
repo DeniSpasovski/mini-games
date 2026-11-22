@@ -10,8 +10,8 @@ models and the CC0 nettle scan) and writes, in the same layouts:
   (luminance against the class mean) on a new colour by height in the plant: olive green in the lower half, straw in
   the top third, a per-stem (texel column) mix between. Plumes go beige, dead leaves stay pale straw.
 - reeds-winter.webp: last year's stand in spring: everything bleached straw-grey, the plumes grey-beige.
-- weeds-rust.webp: dead docks / knotweed of the ditch banks in autumn, the nettle cells gone rust red and brown, their
-  seed spikes dark red-brown.
+- weeds-rust.webp: dead docks / knotweed of the ditch banks in autumn, the nettle cells gone a dull rust brown, their
+  seed spikes darker.
 
 It writes their means to season-sheets.data.ts (the shape of plant-atlas.data.ts). Deterministic: no randomness but
 a fixed hash per texel column.
@@ -154,10 +154,11 @@ def winter(new, green, pale, head, sg, sp, sh, hgt, col):
 
 
 def rust(new, green, pale, head, sg, sp, sh, hgt, col):
-    red = hex_lin('#8e4a2c')
-    brown = hex_lin('#735036')
-    spike = hex_lin('#5e3220')
-    # Whole plants red or browner (per column noise), the seed spikes up top darker.
+    red = hex_lin('#74503a')
+    brown = hex_lin('#655440')
+    spike = hex_lin('#4a362a')
+    # Whole plants rust brown or duller (per column noise), the seed spikes up top darker: dead docks are a dark,
+    # weathered brown with a hint of red, not orange.
     k = smooth(0.35, 0.65, col)
     leaf = red[None, None, :] * (1 - k[..., None]) + brown[None, None, :] * k[..., None]
     top = smooth(0.6, 0.85, hgt)[..., None]
@@ -265,7 +266,7 @@ def main():
         lines.append('    ],')
         lines.append('  },')
     lines.append('} as const satisfies Record<string, PlantSheetInfo>;')
-    with open(os.path.join(PLANTS, 'season-sheets.data.ts'), 'w', encoding='utf8') as f:
+    with open(os.path.join(PLANTS, 'season-sheets.data.ts'), 'w', encoding='utf8', newline='\n') as f:
         f.write('\n'.join(lines) + '\n')
     print('wrote', ', '.join(sheets))
 

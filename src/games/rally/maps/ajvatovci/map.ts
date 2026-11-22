@@ -89,7 +89,7 @@ const DITCHES: DitchDef = {
  *   open gaps; these scattered reeds grow among them for the plumes (`ditchTop`: the tops level, 0.8-1.4 m above the bank): green in summer, the November stand in autumn (olive
  *   below, straw above, beige plumes), last year's bleached stems over the new shoots in spring. A few cattails.
  * - The weedy bank (the left): broadleaf saplings and shrubs 1-2 m (ash / elm, box elder), bramble tangles, nettles,
- *   rust-red dead docks and knotweed in autumn, dry brush, rank grass.
+ *   dull rust-brown dead docks and knotweed in autumn, dry brush, rank grass.
  * - The track side (the right): a mown strip and the track (painted on the ground), short grass, the row of spoil heaps
  *   and dead brush beyond the track.
  */
@@ -195,7 +195,7 @@ const canalGrowth = (): ScatterRule[] => {
       season: ['autumn'],
       ditchTop: { top: [0.3, 0.8], height: 1.7 },
     },
-    // The weedy bank: nettles and docks (green in spring / summer), rust-red dead docks and knotweed in autumn.
+    // The weedy bank: nettles and docks (green in spring / summer), dull rust-brown dead docks and knotweed in autumn.
     { ...wild, asset: 'tall_weeds', density: 90, season: ['spring', 'summer'] },
     {
       ...wild,
