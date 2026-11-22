@@ -9,6 +9,7 @@ import {
   type Texture,
 } from 'three';
 import { imageTexture } from './image-texture';
+import { adoptCompressedArray, ktx2For } from './ktx2';
 import grassSpringUrl from './ground/grass_spring.webp';
 import grassSummerUrl from './ground/grass_summer.webp';
 import grassAutumnUrl from './ground/grass_autumn.webp';
@@ -136,10 +137,29 @@ function loadArray(
   tex.generateMipmaps = true;
   tex.anisotropy = anisotropy;
   tex.needsUpdate = true;
+  if (typeof Image === 'undefined') return tex;
+  // The GPU-compressed layers when every one was baked (engine/ktx2.ts); else, or if they fail, the images below.
+  const ktx2 = urls.map(ktx2For);
+  if (ktx2.every((u) => u !== undefined))
+    adoptCompressedArray(tex, ktx2 as string[]).catch((e: unknown) => {
+      console.warn('ktx2: ground layers fall back to their images', e);
+      fillFromImages(tex, data, urls, channels);
+    });
+  else fillFromImages(tex, data, urls, channels);
+  return tex;
+}
+
+/** Draws each layer's image into the array's data (flipped to the texture's rows; RG only for the normals). */
+function fillFromImages(
+  tex: DataArrayTexture,
+  data: Uint8Array,
+  urls: string[],
+  channels: 2 | 4,
+): void {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = SIZE;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx || typeof Image === 'undefined') return tex;
+  if (!ctx) return;
   // One upload once every layer has decoded.
   Promise.all(
     urls.map((url) => {
@@ -170,7 +190,6 @@ function loadArray(
     },
     () => undefined,
   );
-  return tex;
 }
 
 const scans = new Map<GroundLayer, Texture>();

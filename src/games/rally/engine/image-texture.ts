@@ -1,4 +1,5 @@
 import { RepeatWrapping, SRGBColorSpace, Texture } from 'three';
+import { adoptCompressed, ktx2For, loadKtx2 } from './ktx2';
 
 const decoded = new WeakMap<Texture, Promise<void>>();
 
@@ -35,18 +36,40 @@ export function imageTexture(
   tex.anisotropy = 4;
   tex.name = name;
   tex.needsUpdate = true;
+  // Materials that copy their uniforms (UniformsUtils.merge) clone the textures in them. A clone keeps the placeholder
+  // when it was made before the compressed copy arrived, and is no compressed texture when made after, so every copy
+  // of this texture is the texture itself (it never changes after its picture arrives).
+  tex.clone = function (this: Texture) {
+    return this;
+  } as Texture['clone'];
   if (typeof Image === 'undefined') return tex;
-  const img = new Image();
-  img.src = url;
-  decoded.set(
-    tex,
-    img.decode().then(
+  const fromImage = (): Promise<void> => {
+    const img = new Image();
+    img.src = url;
+    return img.decode().then(
       () => {
         tex.image = img;
         tex.needsUpdate = true;
       },
       () => undefined,
-    ),
+    );
+  };
+  // The GPU-compressed copy when one was baked (engine/ktx2.ts), else (or if it fails) the image.
+  const ktx2 = ktx2For(url);
+  decoded.set(
+    tex,
+    ktx2
+      ? loadKtx2(ktx2).then(
+          (c) => {
+            adoptCompressed(tex, c);
+            c.dispose();
+          },
+          (e: unknown) => {
+            console.warn(`ktx2: ${name} falls back to its image`, e);
+            return fromImage();
+          },
+        )
+      : fromImage(),
   );
   return tex;
 }

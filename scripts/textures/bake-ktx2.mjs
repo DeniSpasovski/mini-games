@@ -2,12 +2,16 @@
  * Bakes GPU-compressed copies (KTX2, Basis Universal) of the road asphalt sets next to their webp files in
  * src/games/rally/engine/asphalt/:
  *
- *   node scripts/textures/bake-ktx2.mjs [id ...]        (default: every set, both sizes)
+ *   node scripts/textures/bake-ktx2.mjs [id ...]        (default: every set, both sizes, then every file in FILES)
  *
  * Per set and size: `<id>.<size>.color.ktx2` (UASTC + Zstandard, sRGB) and `<id>.<size>.nr.ktx2` (UASTC + Zstandard, linear:
  * normal xyz with the rough map's green in alpha, the packing engine/road-surface.ts did on the CPU at load).
  * Both carry mipmaps and are flipped (compressed textures never use flipY). The game loads them through
  * engine/ktx2.ts and falls back to the webp set when a file is missing. Rerun after scripts/asphalt/bake.mjs.
+ *
+ * Then single textures (`FILES` below: the ground scans, props, bark, dust, bridge stones): `<name>.ktx2` next to
+ * each `<name>.webp`, UASTC, sRGB unless it is a normal map, alpha kept. engine/ktx2-files.ts pairs them by path;
+ * pass `files` (or a file's path) to bake only those.
  *
  * The webp tiles are decoded in headless Chromium (canvas, as the game did) and encoded with the `ktx2-encoder`
  * package (MIT, the Basis Universal encoder as WebAssembly). Not a dependency of the repo: install it anywhere and
@@ -19,7 +23,33 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const dir = path.resolve(here, '../../src/games/rally/engine/asphalt');
+const rally = path.resolve(here, '../../src/games/rally');
+const dir = path.join(rally, 'engine/asphalt');
+
+/** Single textures baked to `<name>.ktx2` (paths under src/games/rally; folders take every webp in them). */
+const FILES = [
+  'engine/ground',
+  'engine/props/cut-face.color.webp',
+  'engine/props/cut-face.normal.webp',
+  'engine/props/outcrop.color.webp',
+  'engine/props/outcrop.normal.webp',
+  'engine/props/rocks.color.webp',
+  'engine/props/rocks.normal.webp',
+  'engine/props/simready-forest.color.webp',
+  'engine/props/simready-forest.normal.webp',
+  'engine/props/straw.webp',
+  'engine/particles/dust.webp',
+  'engine/facades/ashlar.webp',
+  'engine/facades/block.webp',
+  'trees/bark',
+];
+/**
+ * The single files add rate-distortion optimisation (RDO) on top: about 30 % smaller after Zstandard for 41-50 dB on
+ * colour (ETC1S would be a third of the size but 31-39 dB, the grain loss seen on the asphalt).
+ */
+const RDO = { enableRDO: true, rdoQualityLevel: 1.0 };
+/** A normal map: linear, no sRGB curve. */
+const isNormal = (f) => /(_n|-n|\.normal)\.webp$/.test(f);
 
 const encoderPath = process.env.KTX2_ENCODER_MODULE;
 const { encodeToKTX2 } = await import(
@@ -54,8 +84,20 @@ for (const f of fs.readdirSync(dir)) {
   if (m) sets.set(`${m[1]}.${m[2]}`, { id: m[1], size: Number(m[2]) });
 }
 const only = new Set(process.argv.slice(2));
+const files = FILES.flatMap((f) =>
+  f.endsWith('.webp')
+    ? [f]
+    : fs
+        .readdirSync(path.join(rally, f))
+        .filter((n) => n.endsWith('.webp'))
+        .map((n) => `${f}/${n}`),
+);
 const todo = [...sets.values()].filter((s) => !only.size || only.has(s.id));
-if (!todo.length) throw new Error(`no asphalt sets match ${[...only]}`);
+const todoFiles = files.filter(
+  (f) => !only.size || only.has('files') || only.has(f),
+);
+if (!todo.length && !todoFiles.length)
+  throw new Error(`nothing matches ${[...only]}`);
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || undefined,
@@ -116,6 +158,20 @@ for (const { id, size } of todo) {
   after += outColor.length + outNr.length;
   console.log(
     `${id}.${size}: webp ${(webp / 1024).toFixed(0)} KB -> ktx2 ${((outColor.length + outNr.length) / 1024).toFixed(0)} KB (${Date.now() - t0} ms)`,
+  );
+}
+for (const f of todoFiles) {
+  const t0 = Date.now();
+  const src = path.join(rally, f);
+  const img = await rgba(src);
+  const normal = isNormal(f);
+  const out = await encode(img, { ...(normal ? NR : COLOR), ...RDO });
+  fs.writeFileSync(src.replace(/\.webp$/, '.ktx2'), out);
+  const webp = fs.statSync(src).size;
+  before += webp;
+  after += out.length;
+  console.log(
+    `${f}: webp ${(webp / 1024).toFixed(0)} KB -> ktx2 ${(out.length / 1024).toFixed(0)} KB (${Date.now() - t0} ms)`,
   );
 }
 console.log(

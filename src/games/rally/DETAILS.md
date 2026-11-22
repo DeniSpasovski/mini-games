@@ -488,6 +488,11 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
     bake time) from `scripts/textures/bake-ktx2.mjs`, rerun after `bake.mjs`. They stay compressed in video memory (about a quarter of the RGBA
     textures) and skip the image decode at load. `engine/ktx2.ts` loads them (KTX2Loader, three's transcoder copied as `basis/`); a set without
     `.ktx2` files, or `?ktx2=0`, loads the webp set.
+  - The same script bakes single textures to `<name>.ktx2` next to their webp (its `FILES`: the ground scans, rock and
+    cliff props, bark, dust, bridge stones; UASTC with RDO). `engine/ktx2.ts` pairs every baked file with its webp
+    URL, so `imageTexture` and the ground arrays (`engine/ground-textures.ts`, assembled into one compressed array)
+    take the compressed copy and fall back to the webp when it is missing or fails. On Vodno (High) the textures that
+    have copies take about 50 MB of video memory instead of 190 MB, for a download of about 44 MB instead of 16 MB.
   - Rally-worn tarmac (`world/road-wear.ts`, the stage road's `WEAR_TEX` tarmacs): per-sample masks in the `rwA` / `rwB` vertex attributes,
     drawn by the asphalt shader - a light film of earth on the inside of some hairpins (under ~40 m radius, not on decks, kerbed
     streets or behind barriers), rubber on the braking line, mud out of dirt tracks, sealed cracks on `PATCHES` roads. Visual only.
