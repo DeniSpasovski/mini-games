@@ -29,7 +29,8 @@ export type LotTextureId =
   | 'lot_ashlar'
   | 'lot_rubble'
   | 'lot_roof_tiles'
-  | 'lot_brick';
+  | 'lot_brick'
+  | 'lot_rust_post';
 
 export interface LotTexDef {
   name: string;
@@ -899,6 +900,40 @@ export const LOT_DEFS: Record<LotTextureId, LotTexDef> = {
       ctx.putImageData(img, 0, 0);
       // Lichen / dust specks.
       grit(ctx, w, h, 833, 2500, 0.1);
+    },
+  },
+  lot_rust_post: {
+    // Round around (u) x one 1 m bollard (v, bottom to top): bare rust with flakes of its old white paint, the faded
+    // reflective squares of its top band and a black ring under the cap.
+    name: 'Lot: rusty bollard (old white paint, reflectors)',
+    size: [128, 512],
+    color: true,
+    draw(ctx, w, h) {
+      const n = tileNoise(w, h, 4, 5, 911, 0.55);
+      const p = tileNoise(w, h, 6, 4, 917, 0.6);
+      const img = ctx.createImageData(w, h);
+      const dark: RGB = [74, 38, 20];
+      const orange: RGB = [150, 72, 32];
+      const paint: RGB = [214, 208, 196];
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          const i = y * w + x;
+          let c = mix(dark, orange, Math.min(1, Math.max(0, n[i] * 1.6 - 0.3)));
+          // (old paint holds on more near the top, where the car bumpers never reached)
+          const keep = p[i] + (1 - y / h) * 0.18;
+          if (keep > 0.66)
+            c = mix(paint, c, Math.min(1, (0.72 - keep) * 8 + 0.15));
+          // (the reflector band: two faded squares round the post, rust eating in from their edges)
+          const fy = y / h;
+          const fx = (x / w) % 0.5;
+          if (fy > 0.1 && fy < 0.2 && fx > 0.08 && fx < 0.42 && n[i] > 0.38)
+            c = mix([196, 190, 160], c, 0.25);
+          // (the black ring under the cap)
+          if (fy < 0.05 && p[i] > 0.4) c = mix([34, 32, 30], c, 0.2);
+          img.data.set([c[0], c[1], c[2], 255], i * 4);
+        }
+      ctx.putImageData(img, 0, 0);
+      grit(ctx, w, h, 919, 600, 0.25);
     },
   },
   lot_brick: {

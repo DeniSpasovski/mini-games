@@ -101,6 +101,13 @@ export const MATS = {
   paint: { tile: [1, 1], roughness: 0.75 },
   /** Bare metal (frames, rails, poles, pipes). */
   metal: { tile: [1, 1], roughness: 0.4, metalness: 0.75 },
+  /** A rusty round bollard (cylinder UVs 0..1: round, up). */
+  rustPost: {
+    map: 'lot_rust_post',
+    tile: [1, 1],
+    roughness: 0.85,
+    metalness: 0.25,
+  },
   /** Foliage and soil (flat shaded, vertex colour). */
   leaf: { tile: [1, 1], roughness: 1, flatShading: true },
   /** Yard asphalt. */
@@ -272,6 +279,7 @@ const GROUPS: Partial<Record<MatKey, MatGroup>> = {
   barrier: 'solid',
   paint: 'solid',
   metal: 'solid',
+  rustPost: 'solid',
   ashlar: 'solid',
   rubble: 'solid',
   drystone: 'solid',

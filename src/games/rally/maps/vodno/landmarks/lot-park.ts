@@ -571,22 +571,7 @@ function vidikovecLayout(): void {
       lift: 0,
     });
   }
-  // The binocular viewer on the red terrace's grass, in front of its flight's foot, looking out; solar lamps along the outer
-  // edge (the west one outside the kerb, behind its railing).
-  const foot = redRiser(RED_FLIGHT.count + 1);
-  const bp = push(
-    [(foot.w[0] + foot.s[0]) / 2, (foot.w[1] + foot.s[1]) / 2],
-    RED_FLIGHT.g,
-    2.5,
-  );
-  out.push({
-    kind: 'binocular',
-    x: bp[0],
-    z: bp[1],
-    yaw: yawFacing(RED_FLIGHT.g[0], RED_FLIGHT.g[1]),
-    onSlab: false,
-    lift: 0,
-  });
+  // Solar lamps along the outer edge (the west one outside the kerb, behind its railing).
   for (const [q, o] of [
     [0.16, 0.9],
     [0.96, -0.9],
@@ -602,19 +587,72 @@ function vidikovecLayout(): void {
       ...(o < 0 ? {} : { lift: 0 }),
     });
   }
-  // Rusty bollards across the lot beyond the bays' end.
-  const end = shape.centre.length - 1;
-  const bl = shape.left[Math.max(0, end - 6)];
-  const br = shape.right[Math.max(0, end - 6)];
-  const n = 6;
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
+  // Rusty bollards in an L in front of the red terrace's flight (Q1-G): a short row out from its G end into the lot, then
+  // one across to the lot's outer wall past Q1, the front row run over, all still solid (the lot's far end is
+  // open, no bollards). The binocular viewer stands inside the L, off the flight's head. (`s` m along G -> Q1, `d` m in.)
+  {
+    const { Q1, G } = VIDIKOVEC_RIM;
+    const o = edgeNormal(Q1, G, LOT_INSIDE);
+    const u = unitV(Q1[0] - G[0], Q1[1] - G[1]);
+    const at = (s: number, d: number): V2 => [
+      G[0] + u[0] * s - o[0] * d,
+      G[1] + u[1] * s - o[1] * d,
+    ];
+    const row = (
+      s0: number,
+      d0: number,
+      s1: number,
+      d1: number,
+      n: number,
+    ): V2[] =>
+      Array.from({ length: n }, (_, i) =>
+        at(lerp(s0, s1, i / (n - 1)), lerp(d0, d1, i / (n - 1))),
+      );
+    const posts = [
+      // (the short row 40 cm further out than the line to the corner, the corner 15 cm towards the flight: in line with both)
+      ...row(1.2, 1.2, 2.2, 5.7, 4).map((q, i) =>
+        i < 3
+          ? ([q[0] - u[0] * 0.4, q[1] - u[1] * 0.4] as V2)
+          : ([q[0] + o[0] * 0.15, q[1] + o[1] * 0.15] as V2),
+      ),
+      ...row(2.2, 5.7, 9, 5, 7).slice(1),
+    ];
+    // (the front row past the corner lies over like the fallen one in the short row, all one way: back towards the flight
+    // and its G end, as if a car ran it over; the corner one, i = 3, stands)
+    const runOver = Math.atan2(
+      -0.88 * u[1] + 0.46 * o[1],
+      -0.88 * u[0] + 0.46 * o[0],
+    );
+    posts.forEach((p, i) => {
+      const yaw =
+        i > 3
+          ? runOver + ((i * 0.13) % 0.2) - 0.1
+          : i === 1 || i === 2
+            ? 2.3 + (i - 1) * 0.25
+            : (i * 2.3) % (Math.PI * 2);
+      // (the short row: its 2nd and 3rd lie over like a run-over one, their middles on the row's line; the 1st stands)
+      const r =
+        i > 3
+          ? 1.0 + ((i * 7) % 3) * 0.04
+          : i === 1 || i === 2
+            ? 1.05 + (i - 1) * 0.05
+            : 0.04 + ((i * 7) % 5) * 0.03;
+      const back = i === 1 || i === 2 ? (Math.sin(r) * 0.95) / 2 : 0;
+      out.push({
+        kind: 'bollard',
+        x: p[0] - Math.cos(yaw) * back,
+        z: p[1] - Math.sin(yaw) * back,
+        yaw,
+        r,
+        onSlab: true,
+      });
+    });
+    const bp = at(6.4, 2.2);
     out.push({
-      kind: 'bollard',
-      x: lerp(bl[0], br[0], t),
-      z: lerp(bl[1], br[1], t),
-      yaw: (i * 2.3) % (Math.PI * 2),
-      r: 0.05 + ((i * 7) % 5) * 0.07,
+      kind: 'binocular',
+      x: bp[0],
+      z: bp[1],
+      yaw: yawFacing(o[0], o[1]),
       onSlab: true,
     });
   }
@@ -1763,6 +1801,18 @@ export function pieceCollider(
       return cylinderCollider(site, lx, lz, yBase, 0.4, 1.5);
     case 'pole':
       return cylinderCollider(site, lx, lz, yBase, 0.16, 9);
+    case 'bollard': {
+      // (round the middle of its lean: `bollard` tips its 0.95 m post `r` rad towards `yaw`)
+      const off = Math.sin(p.r ?? 0.1) * 0.95;
+      return cylinderCollider(
+        site,
+        lx + (Math.cos(p.yaw) * off) / 2,
+        lz + (Math.sin(p.yaw) * off) / 2,
+        yBase,
+        0.06 + off / 2,
+        1,
+      );
+    }
     case 'woodBoard':
       return turnedBoxCollider(site, lx, lz, -p.yaw, 1.4, 0.2, yBase, 3);
     case 'containers': {
