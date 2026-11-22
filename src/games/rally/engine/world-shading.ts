@@ -159,20 +159,66 @@ export function addWorldUniforms(
  * Grass / crop cards lit like the ground under them: their normals point up, and three would turn them down on a
  * card's back face (dark backs). No specular either: the camera sees an up-facing card at a grazing angle, where the
  * Fresnel sky reflection whitens it like a sheet of glass (worst on tall cards: reeds, corn). `key` names the
- * program (one per material kind).
+ * program (one per material kind); `more` edits its shaders further (same edit for every material of that key).
+ *
+ * On a lambert material the card is vertex-lit as well (`WS_CARD_LAMBERT`): a field is card over card, and every
+ * covered pixel pays for the whole light model, so the terms that change slowly over the ground (clouds, the hills'
+ * baked light, canopy, far forest, the sky's light; `CARD_VERTEX`) are worked out at its vertices; the shadow maps and
+ * the fog stay per pixel (`CARD_PARS_FRAGMENT`).
  */
-export function groundLitCard(m: Material, key: string): void {
+export function groundLitCard(
+  m: Material,
+  key: string,
+  more?: (shader: WebGLProgramParametersWithUniforms) => void,
+): void {
+  const lambert = (m as Material & { isMeshLambertMaterial?: boolean })
+    .isMeshLambertMaterial;
   m.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <normal_fragment_begin>',
-        '#include <normal_fragment_begin>\n\tnormal = normalize( vNormal );',
-      )
-      .replace(
+    more?.(shader);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <normal_fragment_begin>',
+      '#include <normal_fragment_begin>\n\tnormal = normalize( vNormal );',
+    );
+    if (!lambert) {
+      shader.fragmentShader = shader.fragmentShader.replace(
         '#include <lights_fragment_end>',
         '#include <lights_fragment_end>\n\treflectedLight.directSpecular = vec3( 0.0 );\n\treflectedLight.indirectSpecular = vec3( 0.0 );',
       );
+      return;
+    }
+    // The env map's blurred level (three defines it for fragment shaders only).
+    const env = shader as { envMapPMREM?: boolean; envMapMaxLod?: number };
+    shader.vertexShader =
+      '#define WS_CARD_LAMBERT\n' +
+      (env.envMapPMREM
+        ? `#define WS_CARD_ENV_LOD ${env.envMapMaxLod}.0\n`
+        : '') +
+      shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${CARD_PARS_VERTEX}`)
+        .replace(
+          '#include <fog_vertex>',
+          `${CARD_VERTEX}\t#include <fog_vertex>`,
+        );
+    shader.fragmentShader =
+      '#define WS_CARD_LAMBERT\n' +
+      shader.fragmentShader
+        .replace(
+          '#include <lights_lambert_pars_fragment>',
+          `#include <lights_lambert_pars_fragment>\n${CARD_PARS_FRAGMENT}`,
+        )
+        .replace(
+          '#include <shadowmap_pars_fragment>',
+          `#include <shadowmap_pars_fragment>\n${CARD_SHADOW_FRAGMENT}`,
+        )
+        .replace(
+          '#include <lights_fragment_maps>',
+          '\tiblIrradiance += vWsCardSky;',
+        )
+        .replace(
+          '#include <lights_fragment_end>',
+          `#include <lights_fragment_end>\n\treflectedLight.indirectDiffuse *= WS_CARD_SKY;`,
+        );
   };
   m.customProgramCacheKey = () => `ground-lit-card|${key}`;
 }
@@ -728,24 +774,34 @@ vec3 transformed = vec3( position );
 	vPosition = vec3( position );
 #endif
 #ifdef RALLY_WIND
-	if ( wsWind.z > 0.0 ) {
-		vec3 wsBase = vec3( 0.0 );
-		#ifdef USE_INSTANCING
-			wsBase = instanceMatrix[ 3 ].xyz;
-		#endif
-		wsBase = ( modelMatrix * vec4( wsBase, 1.0 ) ).xyz;
+	vec3 wsBase = vec3( 0.0 );
+	#ifdef USE_INSTANCING
+		wsBase = instanceMatrix[ 3 ].xyz;
+	#endif
+	wsBase = ( modelMatrix * vec4( wsBase, 1.0 ) ).xyz;
+	// RALLY_WIND_FAR: no sway past this distance from the camera (m), fading out over its last 40 %.
+	#ifdef RALLY_WIND_FAR
+		float wsStill = smoothstep( 0.6 * float( RALLY_WIND_FAR ), float( RALLY_WIND_FAR ), distance( wsBase, cameraPosition ) );
+	#else
+		float wsStill = 0.0;
+	#endif
+	if ( wsWind.z > 0.0 && wsStill < 1.0 ) {
 		float wsH = max( position.y, 0.0 );
 		float wsPh = wsTime * wsWind.w + dot( wsBase.xz, vec2( 0.071, 0.093 ) );
 		// Slow gust envelope * two sways, bend grows with height^2 (roots stay put).
 		float wsGust = 0.65 + 0.35 * sin( wsTime * 0.31 + dot( wsBase.xz, vec2( 0.011, 0.007 ) ) );
 		vec2 wsSway = vec2( sin( wsPh ) + 0.35 * sin( wsPh * 2.7 + 1.3 ), 0.6 * cos( wsPh * 0.83 + 0.4 ) );
-		transformed.xz += wsSway * ( float( RALLY_WIND ) * wsWind.z * wsGust * wsH * wsH );
+		transformed.xz += wsSway * ( float( RALLY_WIND ) * wsWind.z * wsGust * wsH * wsH * ( 1.0 - wsStill ) );
 	}
 #endif
 ${FLAG_VERTEX}`;
 const BEGIN_VERTEX = BEGIN_VERTEX_BASE + LOD_FADE_VERTEX;
 
-const LIGHTS_PARS = /* glsl */ `
+/**
+ * The light terms that change slowly over the ground (clouds, the hills' baked light, the baked canopy): every lit
+ * fragment shader has them (`LIGHTS_PARS`), and the vertex shader of the vertex-lit cards (`CARD_PARS_VERTEX`).
+ */
+const SMOOTH_PARS = /* glsl */ `
 uniform sampler2D wsMacro;
 uniform sampler2D wsCanopy;
 uniform vec4 wsCanopyMap;
@@ -753,15 +809,175 @@ uniform sampler2D wsCanopyLocal;
 uniform vec4 wsCanopyLocalMap;
 uniform float wsCanopyAO;
 uniform vec4 wsShadowBox;
+uniform vec4 wsForest;
+uniform sampler2D wsTerrain;
+uniform vec4 wsTerrainMap;
+uniform vec3 wsTerrainK;
+/** Baked terrain light at a world position (world/terrain-light.ts): x the sun past the hills at its height, y the sky in view; 1 = clear. */
+vec2 wsTerrainLight( vec3 wp ) {
+	if ( wsTerrainK.x <= 0.0 ) return vec2( 1.0 );
+	vec3 t = texture2D( wsTerrain, ( wp.xz - wsTerrainMap.xy ) * wsTerrainMap.zw ).rgb;
+	// The sun past the hills at this point's own height (a crown over a shaded slope can stand in the sun).
+	float sun = clamp( ( wp.y - wsTerrainK.z - t.r ) / t.b + 0.5, 0.0, 1.0 );
+	return mix( vec2( 1.0 ), vec2( sun, t.g ), wsTerrainK.xy );
+}
+/** Sun visibility under the clouds at a world position, 1 = clear. */
+float wsCloudShadow( vec3 wp ) {
+	if ( wsCloud.x <= 0.0 ) return 1.0;
+	// Follow the sun ray up to the cloud layer, then drift with the wind.
+	vec2 p = wp.xz + wsSunDir.xz / max( wsSunDir.y, 0.2 ) * wsCloud.w - wsWind.xy * wsTime;
+	float n = texture2D( wsMacro, p * wsCloud.z ).r * 0.7 + texture2D( wsMacro, p * wsCloud.z * 3.7 + 0.37 ).r * 0.3;
+	float t = 0.72 - wsCloud.y * 0.4;
+	return 1.0 - wsCloud.x * smoothstep( t - 0.05, t + 0.07, n );
+}
+/** How dark the baked tree shadows are at a world position (0 = no shadow; the canopy strength x the baked shade). */
+float wsCanopyDark( vec3 wp ) {
+	if ( wsShadowBox.w <= 0.0 ) return 0.0;
+	float d = texture2D( wsCanopy, ( wp.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
+	float str = wsShadowBox.w;
+	// The finer window around the camera (blended out over its outer fifth).
+	if ( wsCanopyLocalMap.z > 0.0 ) {
+		vec2 lu = ( wp.xz - wsCanopyLocalMap.xy ) * wsCanopyLocalMap.zw;
+		float lw = 1.0 - smoothstep( 0.38, 0.48, max( abs( lu.x - 0.5 ), abs( lu.y - 0.5 ) ) );
+		if ( lw > 0.0 ) {
+			d = mix( d, texture2D( wsCanopyLocal, lu ).r, lw );
+			str = mix( str, min( str * 1.4, 0.9 ), lw );
+		}
+	}
+	return str * d;
+}
+/** Where tree crowns stand over the ground (0..1; G of the baked canopy textures: under the crowns, not their shadow): leaf litter. */
+float wsCanopyCover( vec2 xz ) {
+	float d = texture2D( wsCanopy, ( xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).g;
+	if ( wsCanopyLocalMap.z > 0.0 ) {
+		vec2 lu = ( xz - wsCanopyLocalMap.xy ) * wsCanopyLocalMap.zw;
+		float lw = 1.0 - smoothstep( 0.38, 0.48, max( abs( lu.x - 0.5 ), abs( lu.y - 0.5 ) ) );
+		if ( lw > 0.0 ) d = mix( d, texture2D( wsCanopyLocal, lu ).g, lw );
+	}
+	return d;
+}
+/** Hash 0..1 of a lattice point (sin-free: the same on every GPU at map-sized coordinates). */
+float wsFloorHash( vec2 p ) {
+	vec3 q = fract( p.xyx * 0.1031 );
+	q += dot( q, q.yzx + 33.33 );
+	return fract( ( q.x + q.y ) * q.z );
+}
+/** Value noise 0..1 on a 1 m lattice (the forest floor's crown edges). */
+float wsFloorNoise( vec2 p ) {
+	vec2 i = floor( p );
+	vec2 f = fract( p );
+	f = f * f * ( 3.0 - 2.0 * f );
+	return mix(
+		mix( wsFloorHash( i ), wsFloorHash( i + vec2( 1.0, 0.0 ) ), f.x ),
+		mix( wsFloorHash( i + vec2( 0.0, 1.0 ) ), wsFloorHash( i + 1.0 ), f.x ),
+		f.y
+	);
+}
+/**
+ * The forest floor's crown cover (\`GroundTint.shade\` maps): \`wsCanopyCover\` looked up ~1.7 m off by a noise warp
+ * (~3 m swirls) and its rim pushed in and out by ~1 m blots, so a lone tree's humus / shade has a ragged edge, not a
+ * disc; a closed stand's inside (cover ~1 all round) is unchanged.
+ */
+float wsFloorCover( vec2 xz ) {
+	vec2 warp = vec2( wsFloorNoise( xz * 0.33 ), wsFloorNoise( xz * 0.33 + 19.1 ) ) - 0.5;
+	float c = wsCanopyCover( xz + warp * 3.4 );
+	float n = wsFloorNoise( xz * 1.1 + 7.3 );
+	return clamp( c + ( n - 0.5 ) * 1.2 * ( 1.0 - c ) * smoothstep( 0.0, 0.25, c ), 0.0, 1.0 );
+}
+`;
+
+/** What a vertex-lit card (`groundLitCard` on a lambert material) hands its fragments. */
+const CARD_VARYINGS = /* glsl */ `
+#ifdef WS_CARD_LAMBERT
+	// x the sun under the clouds and past the hills, y the sky the terrain leaves in view, z the baked canopy shade,
+	// w the far forest's share of the colour.
+	varying vec4 vWsCard;
+	// The sky light the crowns shut out (forest-floor maps).
+	varying float vWsCardAO;
+	// The env map's diffuse light on the card's normal (one normal a card: the same on all of it).
+	varying vec3 vWsCardSky;
+#endif
+`;
+
+/** Vertex shader of a vertex-lit card: declarations (after `common`) and the terms themselves (end of `main`). */
+const CARD_PARS_VERTEX =
+  SMOOTH_PARS +
+  CARD_VARYINGS +
+  /* glsl */ `
+#ifdef WS_CARD_ENV_LOD
+	uniform samplerCube envMap;
+	uniform mat3 envMapRotation;
+	uniform float envMapIntensity;
+	uniform float wsEnvCut;
+#endif
+`;
+const CARD_VERTEX = /* glsl */ `
+	{
+		vec4 wsCardP = vec4( transformed, 1.0 );
+		#ifdef USE_INSTANCING
+			wsCardP = instanceMatrix * wsCardP;
+		#endif
+		vec3 wsCardWP = ( modelMatrix * wsCardP ).xyz;
+		vec2 wsCardTL = wsTerrainLight( wsCardWP );
+		vWsCard = vec4( wsCloudShadow( wsCardWP ) * wsCardTL.x, wsCardTL.y, 0.0, 0.0 );
+		vWsCardAO = 0.0;
+		vWsCardSky = vec3( 0.0 );
+		#ifdef WS_CARD_ENV_LOD
+			// (three's getIBLIrradiance with the world's share of it, as \`install\` patches it)
+			vWsCardSky = PI * textureLod( envMap, envMapRotation * inverseTransformDirection( transformedNormal, viewMatrix ), WS_CARD_ENV_LOD ).rgb * envMapIntensity * ( 1.0 - wsEnvCut );
+		#endif
+		#ifdef RALLY_GROUND
+			vWsCard.z = wsCanopyDark( wsCardWP );
+			if ( wsForest.w > 0.0 && wsShadowBox.w > 0.0 ) {
+				float wsFd = texture2D( wsCanopy, ( wsCardWP.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
+				vWsCard.w = clamp( wsFd * 1.5, 0.0, 1.0 ) * smoothstep( wsForest.w * 0.75, wsForest.w, length( wsCardWP.xz - cameraPosition.xz ) );
+			}
+			if ( wsCanopyAO > 0.0 ) vWsCardAO = wsCanopyAO * smoothstep( 0.05, 0.7, wsFloorCover( wsCardWP.xz ) );
+		#endif
+	}
+`;
+
+/**
+ * Fragment shader of a vertex-lit card. Its sun: the diffuse light less the share a rough surface reflects off its
+ * top (Schlick, F0 0.04), as the physical material does. Its shadow lookup: one filtered tap of the sun's map instead
+ * of three's five (the stalks break a shadow's edge up far more than the wider filter softens it).
+ */
+const CARD_PARS_FRAGMENT = /* glsl */ `
+void RE_Direct_Card( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in LambertMaterial material, inout ReflectedLight reflectedLight ) {
+	float wsFr = 1.0 - saturate( dot( geometryViewDir, normalize( directLight.direction + geometryViewDir ) ) );
+	float wsFr2 = wsFr * wsFr;
+	reflectedLight.directDiffuse += saturate( dot( geometryNormal, directLight.direction ) ) * directLight.color * BRDF_Lambert( material.diffuseColor ) * ( 0.96 - 0.96 * wsFr2 * wsFr2 * wsFr );
+}
+#undef RE_Direct
+#define RE_Direct RE_Direct_Card
+// The share of the sky's light that surface reflection leaves the diffuse (roughness 0.9; a wet card: \`WET_LAMBERT\`).
+#define WS_CARD_SKY 0.95
+`;
+const CARD_SHADOW_FRAGMENT = /* glsl */ `
+#if defined( USE_SHADOWMAP ) && defined( SHADOWMAP_TYPE_PCF )
+	float wsCardShadow( sampler2DShadow shadowMap, vec2 shadowMapSize, float shadowIntensity, float shadowBias, float shadowRadius, vec4 shadowCoord ) {
+		shadowCoord.xyz /= shadowCoord.w;
+		#ifdef USE_REVERSED_DEPTH_BUFFER
+			shadowCoord.z -= shadowBias;
+		#else
+			shadowCoord.z += shadowBias;
+		#endif
+		bool inFrustum = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;
+		float shadow = inFrustum && shadowCoord.z <= 1.0 ? texture( shadowMap, shadowCoord.xyz ) : 1.0;
+		return mix( 1.0, shadow, shadowIntensity );
+	}
+	#define getShadow wsCardShadow
+#endif
+`;
+
+const LIGHTS_PARS = /* glsl */ `
+${SMOOTH_PARS}
+${CARD_VARYINGS}
 uniform vec3 wsNear;
 uniform vec4 wsFar;
 uniform vec4 wsFarDisc;
 uniform mat4 wsFarMatrix;
 uniform sampler2D wsFarShadow;
-uniform vec4 wsForest;
-uniform sampler2D wsTerrain;
-uniform vec4 wsTerrainMap;
-uniform vec3 wsTerrainK;
 uniform vec4 wsWet;
 uniform vec4 wsDryA[ ${DRY_ZONES} ];
 uniform vec4 wsDryB[ ${DRY_ZONES} ];
@@ -783,23 +999,6 @@ float wsDryAt( vec3 wp ) {
 }
 vec3 wsWorldPos( vec3 viewPos ) {
 	return ${WORLD_FROM_VIEW.replace('%v', 'viewPos')};
-}
-/** Baked terrain light at a world position (world/terrain-light.ts): x the sun past the hills at its height, y the sky in view; 1 = clear. */
-vec2 wsTerrainLight( vec3 wp ) {
-	if ( wsTerrainK.x <= 0.0 ) return vec2( 1.0 );
-	vec3 t = texture2D( wsTerrain, ( wp.xz - wsTerrainMap.xy ) * wsTerrainMap.zw ).rgb;
-	// The sun past the hills at this point's own height (a crown over a shaded slope can stand in the sun).
-	float sun = clamp( ( wp.y - wsTerrainK.z - t.r ) / t.b + 0.5, 0.0, 1.0 );
-	return mix( vec2( 1.0 ), vec2( sun, t.g ), wsTerrainK.xy );
-}
-/** Sun visibility under the clouds at a world position, 1 = clear. */
-float wsCloudShadow( vec3 wp ) {
-	if ( wsCloud.x <= 0.0 ) return 1.0;
-	// Follow the sun ray up to the cloud layer, then drift with the wind.
-	vec2 p = wp.xz + wsSunDir.xz / max( wsSunDir.y, 0.2 ) * wsCloud.w - wsWind.xy * wsTime;
-	float n = texture2D( wsMacro, p * wsCloud.z ).r * 0.7 + texture2D( wsMacro, p * wsCloud.z * 3.7 + 0.37 ).r * 0.3;
-	float t = 0.72 - wsCloud.y * 0.4;
-	return 1.0 - wsCloud.x * smoothstep( t - 0.05, t + 0.07, n );
 }
 /**
  * Weight of the sun's shadow map at a fragment (its shadow coordinate): 1 inside the box, 0 at its edge and past
@@ -850,56 +1049,7 @@ float wsCanopyShadow( vec3 wp, float cover ) {
 	if ( wsShadowBox.w <= 0.0 ) return 1.0;
 	float fade = 1.0 - cover;
 	if ( fade <= 0.0 ) return 1.0;
-	float d = texture2D( wsCanopy, ( wp.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
-	float str = wsShadowBox.w;
-	// The finer window around the camera (blended out over its outer fifth).
-	if ( wsCanopyLocalMap.z > 0.0 ) {
-		vec2 lu = ( wp.xz - wsCanopyLocalMap.xy ) * wsCanopyLocalMap.zw;
-		float lw = 1.0 - smoothstep( 0.38, 0.48, max( abs( lu.x - 0.5 ), abs( lu.y - 0.5 ) ) );
-		if ( lw > 0.0 ) {
-			d = mix( d, texture2D( wsCanopyLocal, lu ).r, lw );
-			str = mix( str, min( str * 1.4, 0.9 ), lw );
-		}
-	}
-	return 1.0 - str * fade * d;
-}
-/** Where tree crowns stand over the ground (0..1; G of the baked canopy textures: under the crowns, not their shadow): leaf litter. */
-float wsCanopyCover( vec2 xz ) {
-	float d = texture2D( wsCanopy, ( xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).g;
-	if ( wsCanopyLocalMap.z > 0.0 ) {
-		vec2 lu = ( xz - wsCanopyLocalMap.xy ) * wsCanopyLocalMap.zw;
-		float lw = 1.0 - smoothstep( 0.38, 0.48, max( abs( lu.x - 0.5 ), abs( lu.y - 0.5 ) ) );
-		if ( lw > 0.0 ) d = mix( d, texture2D( wsCanopyLocal, lu ).g, lw );
-	}
-	return d;
-}
-/** Hash 0..1 of a lattice point (sin-free: the same on every GPU at map-sized coordinates). */
-float wsFloorHash( vec2 p ) {
-	vec3 q = fract( p.xyx * 0.1031 );
-	q += dot( q, q.yzx + 33.33 );
-	return fract( ( q.x + q.y ) * q.z );
-}
-/** Value noise 0..1 on a 1 m lattice (the forest floor's crown edges). */
-float wsFloorNoise( vec2 p ) {
-	vec2 i = floor( p );
-	vec2 f = fract( p );
-	f = f * f * ( 3.0 - 2.0 * f );
-	return mix(
-		mix( wsFloorHash( i ), wsFloorHash( i + vec2( 1.0, 0.0 ) ), f.x ),
-		mix( wsFloorHash( i + vec2( 0.0, 1.0 ) ), wsFloorHash( i + 1.0 ), f.x ),
-		f.y
-	);
-}
-/**
- * The forest floor's crown cover (\`GroundTint.shade\` maps): \`wsCanopyCover\` looked up ~1.7 m off by a noise warp
- * (~3 m swirls) and its rim pushed in and out by ~1 m blots, so a lone tree's humus / shade has a ragged edge, not a
- * disc; a closed stand's inside (cover ~1 all round) is unchanged.
- */
-float wsFloorCover( vec2 xz ) {
-	vec2 warp = vec2( wsFloorNoise( xz * 0.33 ), wsFloorNoise( xz * 0.33 + 19.1 ) ) - 0.5;
-	float c = wsCanopyCover( xz + warp * 3.4 );
-	float n = wsFloorNoise( xz * 1.1 + 7.3 );
-	return clamp( c + ( n - 0.5 ) * 1.2 * ( 1.0 - c ) * smoothstep( 0.0, 0.25, c ), 0.0, 1.0 );
+	return 1.0 - fade * wsCanopyDark( wp );
 }
 `;
 
@@ -921,7 +1071,12 @@ varying vec3 wsShadowWP;
  */
 const SUN_TERMS = /* glsl */ `
 		vec3 wsWP = wsWorldPos( geometryPosition );
-		directLight.color *= wsCloudShadow( wsWP );
+		#ifdef WS_CARD_LAMBERT
+			// A vertex-lit card: the clouds and the hills' shadow come from its vertices.
+			directLight.color *= vWsCard.x;
+		#else
+			directLight.color *= wsCloudShadow( wsWP );
+		#endif
 		// The sun before the shadow map and how much of it the map lets through (foliage: light through the leaves).
 		vec3 wsSunC = directLight.color;
 		float wsSelfT = 1.0;
@@ -949,12 +1104,17 @@ const SUN_TERMS = /* glsl */ `
 		#endif
 		// The hills' baked shadows, over the maps too: a ridge outside a map's box casts into neither, and a low sun's
 		// shadow of it runs on for a kilometre (where a map shades the same spot, both are 0 there: no double shade).
+		#ifndef WS_CARD_LAMBERT
 		if ( wsTerrainK.x > 0.0 ) {
 			float wsHill = wsTerrainLight( wsWP ).x;
 			directLight.color *= wsHill;
 			wsSunC *= wsHill;
 		}
-		#ifdef RALLY_GROUND
+		#endif
+		#if defined( RALLY_GROUND ) && defined( WS_CARD_LAMBERT )
+			directLight.color *= 1.0 - ( 1.0 - max( wsNearW, wsFarW ) ) * vWsCard.z;
+			material.diffuseColor = mix( material.diffuseColor, wsForest.rgb, vWsCard.w );
+		#elif defined( RALLY_GROUND )
 			directLight.color *= wsCanopyShadow( wsWP, max( wsNearW, wsFarW ) );
 			// The far forest (no trees drawn there): the ground under the canopy takes the canopy's colour.
 			if ( wsForest.w > 0.0 && wsShadowBox.w > 0.0 ) {
@@ -1162,9 +1322,24 @@ const PUDDLE_SKY = /* glsl */ `
 	#endif
 `;
 
-/** Wet foliage and other lambert materials: a little darker (prepended to `lights_lambert_fragment`). */
+/**
+ * Wet foliage and other lambert materials: a little darker (prepended to `lights_lambert_fragment`). A vertex-lit
+ * card soaks dark like the rough physical material it stands in for (`WET_PHYSICAL`'s porous term: a face up holds the
+ * most water, a card's back the thin film).
+ */
 const WET_LAMBERT = /* glsl */ `
-	diffuseColor.rgb *= 1.0 - 0.18 * wsWet.x;
+	#ifdef WS_CARD_LAMBERT
+		float wsCardWet = wsWet.x * ( gl_FrontFacing ? 1.0 : 0.3 );
+		vec3 wsCardPw = wsWorldPos( - vViewPosition );
+		if ( wsWet.w > 0.5 ) wsCardWet *= 1.0 - smoothstep( wsWet.z - 15.0, wsWet.z + 5.0, wsCardPw.y );
+		if ( wsCardWet > 0.0 && wsDryN > 0 ) wsCardWet *= 1.0 - wsDryAt( wsCardPw );
+		diffuseColor.rgb *= 1.0 - 0.55 * wsCardWet;
+		// (the water film is smoother: it reflects more of the sky away)
+		#undef WS_CARD_SKY
+		#define WS_CARD_SKY ( 0.95 - 0.1 * wsCardWet )
+	#else
+		diffuseColor.rgb *= 1.0 - 0.18 * wsWet.x;
+	#endif
 `;
 
 /**
@@ -1173,11 +1348,15 @@ const WET_LAMBERT = /* glsl */ `
  */
 const CANOPY_FLOOR = /* glsl */ `
 #ifdef RALLY_GROUND
+	#ifdef WS_CARD_LAMBERT
+		reflectedLight.indirectDiffuse *= 1.0 - vWsCardAO;
+	#else
 	if ( wsCanopyAO > 0.0 ) {
 		float wsUnder = wsCanopyAO * smoothstep( 0.05, 0.7, wsFloorCover( wsWorldPos( geometryPosition ).xz ) );
 		reflectedLight.indirectDiffuse *= 1.0 - wsUnder;
 		reflectedLight.indirectSpecular *= 1.0 - wsUnder;
 	}
+	#endif
 #endif
 `;
 
@@ -1239,7 +1418,9 @@ function wetShading(on: boolean): void {
  * constant chunk so every rebuild of `lights_fragment_end` (`wetShading`, each `setWet`) keeps it.
  */
 const TERRAIN_SKY = /* glsl */ `
-#ifdef RALLY_GROUND
+#if defined( RALLY_GROUND ) && defined( WS_CARD_LAMBERT )
+	reflectedLight.indirectDiffuse *= vWsCard.y;
+#elif defined( RALLY_GROUND )
 	reflectedLight.indirectDiffuse *= wsTerrainLight( wsWorldPos( geometryPosition ) ).y;
 #endif
 `;

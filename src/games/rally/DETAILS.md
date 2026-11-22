@@ -332,9 +332,11 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `crop` grow only there (`TerrainGenerator.cropAt`, not within 0.8 m of a parcel edge). Wheat is green and short in spring, ripe in summer and gone in autumn
   (stubble tint): 1 m card patches to 90 m, at least 2 m clear of the stage road. Corn (`corn`, `corn_row`; no stage grows it yet) grows in rows 0.75 m apart
   along the strips (`rows.fields`). Both are CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`;
-  `bakeCropCards` (`engine/crops.ts`) renders the cards once per page, 4 variants each with its own mix of plant heights so the field tops are uneven. Near
-  detail is chosen by road distance, never camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within `NEAR_BOOST_ROAD` m of the stage road
-  and is crossed cards at every distance, so nothing swaps or fills in as the car drives on.
+  `bakeCropCards` (`engine/crops.ts`) renders the cards once per page, 4 variants each with its own mix of plant heights so the field tops are uneven. The cards
+  are vertex-lit (`groundLitCard` on a lambert material, `engine/world-shading.ts`): clouds, the hills' light, canopy and sky light at the vertices, only the
+  shadow maps and the fog per pixel (a field is card over card, and each covered pixel pays for the light model). Near
+  detail is chosen by road distance, never camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within `NEAR_BOOST_ROAD` m of the stage road and is crossed cards at
+  every distance, so nothing swaps or fills in as the car drives on.
 - **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from seven atlases (`engine/plants/*.webp`, coverage mips)
   that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models (green / dry / spring grass tufts, the weed margin, nettles `tall_weeds`) and
   CC BY Sketchfab models by Nicholas-3D (reed beds and cattails `reeds`; `--sheets reeds` rebakes only that sheet; credits in `THIRD-PARTY.md` and About), and the woods' ferns (`fern`,
@@ -727,6 +729,11 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   depth). One copy casts the shadow; when the fades end, a bucket without outgoing copies draws plain again (`endFades`), one
   with them keeps the fade material (the copies collapsed) until the next rebuild drops them. The far end of the last
   level fades too, and while driving an instance new to the stream fades in.
+- Wheat depth prepass (`engine/crops.ts` `setCropPrepass`, streamer `prepassChild`): every wheat mesh has a child drawing
+  the same instances first, depth only (the lit program itself, stopping after the alpha test), and the lit cards then test
+  LESS-OR-EQUAL without writing depth, so each pixel of a field is lit once instead of once per card layer. Instances are
+  committed nearest first. It follows the trees' sprite prepass and its load check (off on touch devices); `?cropprepass=0|1`
+  forces it, the perf panel switches it. Wheat stops swaying past 40 m (`RALLY_WIND_FAR`).
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**
