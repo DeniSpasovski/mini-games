@@ -59,12 +59,8 @@ export function keyboardSteerLimit(speed: number): number {
   return 1 / (1 + (Math.max(0, speed) / 18) ** 1.5);
 }
 
-/** Right stick axis -> -1..1 with the dead zone removed. */
-function lookAxis(v: number): number {
-  const dz = 0.15;
-  const a = Math.abs(v);
-  return a < dz ? 0 : Math.sign(v) * Math.min(1, (a - dz) / (1 - dz));
-}
+/** Right stick radial dead zone: inside it the stick counts as released. */
+const LOOK_DEAD_ZONE = 0.3;
 
 export interface DriveState {
   /** Forward speed (m/s). */
@@ -92,7 +88,7 @@ export class InputController {
   stickX = 0;
   /** Touch steering stick X (-1..1), set by touch-controls.ts; null = touch steers with the left / right buttons. */
   touchStick: number | null = null;
-  /** Right stick (-1..1, dead zone removed), for the look-around camera: x + = look right, y + = stick down. Zero while a menu owns the pad. */
+  /** Right stick for the look-around camera (camera-rig.ts): x + = right, y + = down; (0, 0) inside the dead zone and while a menu owns the pad. */
   readonly look = { x: 0, y: 0 };
   /** Last device used, for HUD hints. */
   device: 'keyboard' | 'gamepad' | 'touch' = 'keyboard';
@@ -267,9 +263,11 @@ export class InputController {
         this.emit(a);
       this.padButtons[i] = b.pressed;
     });
-    if (this.enabled) {
-      this.look.x = lookAxis(pad.axes[2] ?? 0);
-      this.look.y = lookAxis(pad.axes[3] ?? 0);
+    const lx = pad.axes[2] ?? 0;
+    const ly = pad.axes[3] ?? 0;
+    if (this.enabled && Math.hypot(lx, ly) > LOOK_DEAD_ZONE) {
+      this.look.x = lx;
+      this.look.y = ly;
     }
     // Raw stick X: the dead zone, curve and rack are PadSteering's.
     const steer = pad.axes[0] ?? 0;

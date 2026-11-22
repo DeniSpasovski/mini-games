@@ -14,14 +14,13 @@ export const CAMERA_MODES: CameraMode[] = [
   'bumper',
 ];
 
-/** Look-around (right stick): orbit speed at full deflection (rad/s), return rate, and how far the camera can tilt. */
-const LOOK_SPEED = 2.6;
-const LOOK_RETURN = 3.5;
-const LOOK_UP = 0.35;
-const LOOK_DOWN = 0.5;
+/** Look-around (right stick): how fast the view turns to the stick's direction, and back to the default view on release (1/s). */
+const LOOK_FOLLOW = 12;
+const LOOK_RETURN = 8;
 
+/** Right stick, dead zone removed: (0, 0) = released. */
 export interface LookInput {
-  /** + = look right (orbit to the car's left). */
+  /** + = stick right. */
   x: number;
   /** + = stick down. */
   y: number;
@@ -42,9 +41,8 @@ export class CameraRig {
   private ground = 0;
   private initialized = false;
   private shake = 0;
-  /** Look-around offset: yaw (rad, + = looking right of the car's heading) and tilt (-1..1, + = stick down: camera up / view down). Eased back when the stick is released. */
+  /** Look-around: view yaw off the car's heading (rad, + = looking right). Eased back when the stick is released. */
   private lookYaw = 0;
-  private lookTilt = 0;
   /** Camera position before shake and body bounce: what the tree level choice measures from (trees/draw.ts). */
   readonly steady = new Vector3();
 
@@ -72,16 +70,15 @@ export class CameraRig {
     look: LookInput = NO_LOOK,
   ): void {
     const cam = this.camera;
-    // Right stick: x orbits while held (any angle, 360), y tilts; both ease back to the default view on release.
-    if (look.x !== 0) this.lookYaw += look.x * LOOK_SPEED * dt;
+    // Right stick: the stick's direction is the view's direction (up = ahead, right = the right side,
+    // down = behind), the shortest way round; released, the view goes back behind the car.
+    const held = look.x !== 0 || look.y !== 0;
+    let d = held ? Math.atan2(look.x, -look.y) - this.lookYaw : -this.lookYaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    this.lookYaw +=
+      d * (1 - Math.exp(-dt * (held ? LOOK_FOLLOW : LOOK_RETURN)));
     this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
-    if (look.x === 0)
-      this.lookYaw -= this.lookYaw * (1 - Math.exp(-dt * LOOK_RETURN));
-    this.lookTilt +=
-      (look.y - this.lookTilt) *
-      (1 - Math.exp(-dt * (look.y === 0 ? LOOK_RETURN : 9)));
-    if (Math.abs(this.lookTilt) < 1e-3) this.lookTilt = 0;
-    if (Math.abs(this.lookYaw) < 1e-3 && look.x === 0) this.lookYaw = 0;
+    if (!held && Math.abs(this.lookYaw) < 1e-3) this.lookYaw = 0;
     const lookAmount = Math.min(1, Math.abs(this.lookYaw) / 0.6);
     const speed = v.velocity.length();
     this.shake = Math.max(
@@ -100,16 +97,13 @@ export class CameraRig {
         .applyAxisAngle(_up, Math.atan2(forward.x, forward.z))
         .add(carPos);
       cam.up.copy(up);
-      // Looking around from the seat: turn the view about the car's up axis, tilt it up / down.
+      // Looking around from the seat: turn the view about the car's up axis.
       _t.copy(forward).applyAxisAngle(up, -this.lookYaw);
       cam.lookAt(
         _t
           .multiplyScalar(10)
           .add(cam.position)
-          .addScaledVector(
-            up,
-            (this.mode === 'hood' ? -0.3 : 0.1) - this.lookTilt * 7,
-          ),
+          .addScaledVector(up, this.mode === 'hood' ? -0.3 : 0.1),
       );
       cam.fov = MathUtils.lerp(
         cam.fov,
@@ -128,23 +122,8 @@ export class CameraRig {
     dy = Math.atan2(Math.sin(dy), Math.cos(dy));
     this.yaw += dy * (1 - Math.exp(-dt * (far ? 3.5 : 4.5)));
 
-    let dist = (far ? 7.8 : 5.4) + Math.min(speed, 40) * 0.025;
-    let height = (far ? 2.6 : 1.75) + Math.min(speed, 40) * 0.008;
-    if (this.lookTilt !== 0) {
-      // Tilt: swing the camera up / down along its orbit around the car (same radius).
-      const r = Math.hypot(dist, height);
-      const e = MathUtils.clamp(
-        Math.atan2(height, dist) +
-          (this.lookTilt > 0
-            ? this.lookTilt * LOOK_DOWN
-            : this.lookTilt * LOOK_UP),
-        -0.25,
-        // Never steeper than ~55 deg: scatter / tree view culling switches off when looking steeply down.
-        0.95,
-      );
-      dist = r * Math.cos(e);
-      height = r * Math.sin(e);
-    }
+    const dist = (far ? 7.8 : 5.4) + Math.min(speed, 40) * 0.025;
+    const height = (far ? 2.6 : 1.75) + Math.min(speed, 40) * 0.008;
     const placeYaw = this.yaw - this.lookYaw;
     // Low-pass the car position the camera works from: on a rough road edge the
     // body bounces / sways every frame and a rigid follow turns that into jitter.
