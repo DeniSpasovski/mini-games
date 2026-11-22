@@ -211,8 +211,11 @@ export const pezetka: CarDef = {
       style: 'micro',
       front: 'wishbone',
       rear: 'wishbone',
+      // Shallow wheel wells: the coil-over is clamped on top of the upright and its top mount sits just outboard of the well's
+      // inner wall, or most of it hides behind the wall.
       topY: { front: 0.34, rear: 0.22 },
-      topIn: { front: 0.18, rear: 0.08 },
+      topIn: { front: 0.07, rear: 0.08 },
+      damperOn: 'upright',
       driven: ['rear'],
       inboard: false,
     },

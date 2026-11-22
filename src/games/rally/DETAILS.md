@@ -335,7 +335,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `bakeCropCards` (`engine/crops.ts`) renders the cards once per page, 4 variants each with its own mix of plant heights so the field tops are uneven. The cards
   are vertex-lit (`groundLitCard` on a lambert material, `engine/world-shading.ts`): clouds, the hills' light, canopy and sky light at the vertices, only the
   shadow maps and the fog per pixel (a field is card over card, and each covered pixel pays for the light model). Near
-  detail is chosen by road distance, never camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road and is crossed cards at
+  detail is chosen by road distance, never camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within `NEAR_BOOST_ROAD` m of the stage road and is crossed cards at
   every distance, so nothing swaps or fills in as the car drives on.
 - **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from seven atlases (`engine/plants/*.webp`, coverage mips)
   that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models (green / dry / spring grass tufts, the weed margin, nettles `tall_weeds`) and

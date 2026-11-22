@@ -2,6 +2,7 @@ import {
   Color,
   Material,
   MathUtils,
+  Matrix3,
   Matrix4,
   ShaderChunk,
   Vector3,
@@ -120,6 +121,19 @@ export const worldUniforms = {
   wsFogLayer: { value: new Vector4(0, 0, 0.05, 0) },
   /** The layer's colour (linear). */
   wsFogLayerColor: { value: new Color(0.6, 0.62, 0.64) },
+  /**
+   * Aerial perspective (`setHaze`): rgb the haze's light (linear, before tone mapping: what a fully hazed hill shows),
+   * w = 1 on (the fog then works before tone mapping, `HAZE_FRAGMENT`), 0 = the plain display-space fog.
+   */
+  wsHaze: { value: new Vector4(0, 0, 0, 0) },
+  /** xyz how much more each channel is dimmed than the mean (blue most: far land turns blue), w the haze's tail (see `HAZE_FRAGMENT`). */
+  wsAerial: { value: new Vector4(0.87, 1.0, 1.2, 1.2) },
+  /** Dirt on the player's car (`setCarDirt`): rgb the dust's colour (linear), w how dirty (0 = clean). */
+  wsCarDirt: { value: new Vector4(0, 0, 0, 0) },
+  /** World to the car's model space (y = 0 ground, +z forward), for `RALLY_CAR_DIRT` materials. */
+  wsCarInv: { value: new Matrix4() },
+  /** The car's half length, height and half width (m). */
+  wsCarBox: { value: new Vector3(2, 1.4, 0.9) },
   /**
    * Dry zones under a roof (tunnels, bridge decks; `setDryZones`): capsules in x / z, a (x, z) to b (x, z) in `wsDryA`,
    * radius and the roof's height (world y; dry below it) in `wsDryB` xy. `wsDryN` of them are set.
@@ -410,6 +424,97 @@ export function setFogLayer(
   if (color) u.wsFogLayerColor.value.copy(color);
 }
 
+/**
+ * Aerial perspective before tone mapping (null = off: the display-space fog). `display` is the fog colour as the map
+ * gives it (linear, the colour a fully fogged hill shows on screen); the haze gets the light that tone maps to it at
+ * `exposure` (`inverseAces`), so the far horizon looks as before while everything nearer keeps its own light and shade.
+ */
+export function setHaze(display: Color | null, exposure = 1): void {
+  const h = worldUniforms.wsHaze.value;
+  if (!display) {
+    h.w = 0;
+    return;
+  }
+  inverseAces(display, exposure, _haze);
+  h.set(_haze.r, _haze.g, _haze.b, 1);
+}
+const _haze = new Color();
+
+/** Tail of the haze's optical depth (see `HAZE_FRAGMENT`) and how much more blue is dimmed than red. */
+export function setAerial(tail: number, blue = 1.2): void {
+  const a = worldUniforms.wsAerial.value;
+  // Weights that keep the mean (luminance) dimming as the plain fog's.
+  const r = 0.87;
+  const l = 0.2126 * r + 0.7152 + 0.0722 * blue;
+  a.set(r / l, 1 / l, blue / l, tail);
+}
+
+const ACES_IN = new Matrix3().set(
+  0.59719,
+  0.35458,
+  0.04823,
+  0.076,
+  0.90834,
+  0.01566,
+  0.0284,
+  0.13383,
+  0.83777,
+);
+const ACES_OUT = new Matrix3().set(
+  1.60475,
+  -0.53108,
+  -0.07367,
+  -0.10208,
+  1.10813,
+  -0.00605,
+  -0.00327,
+  -0.07276,
+  1.07602,
+);
+const ACES_IN_INV = ACES_IN.clone().invert();
+const ACES_OUT_INV = ACES_OUT.clone().invert();
+
+/** three's ACES filmic curve at `exposure` (no grade): scene light -> linear display. */
+export function aces(c: Color, exposure: number, out: Color): Color {
+  const v = new Vector3(c.r, c.g, c.b)
+    .multiplyScalar(exposure / 0.6)
+    .applyMatrix3(ACES_IN);
+  const f = (x: number) =>
+    (x * (x + 0.0245786) - 0.000090537) /
+    (x * (0.983729 * x + 0.432951) + 0.238081);
+  v.set(f(v.x), f(v.y), f(v.z)).applyMatrix3(ACES_OUT);
+  return out.setRGB(
+    MathUtils.clamp(v.x, 0, 1),
+    MathUtils.clamp(v.y, 0, 1),
+    MathUtils.clamp(v.z, 0, 1),
+  );
+}
+
+const _acesV = new Vector3();
+
+/** The scene light that `aces` turns into `c` (each channel kept below the curve's shoulder). */
+export function inverseAces(c: Color, exposure: number, out: Color): Color {
+  const v = _acesV
+    .set(
+      MathUtils.clamp(c.r, 0, 0.96),
+      MathUtils.clamp(c.g, 0, 0.96),
+      MathUtils.clamp(c.b, 0, 0.96),
+    )
+    .applyMatrix3(ACES_OUT_INV);
+  // y = (x^2 + 0.0245786 x - 0.000090537) / (0.983729 x^2 + 0.432951 x + 0.238081), solved for x >= 0.
+  const fi = (y: number) => {
+    const a = 1 - 0.983729 * y;
+    const b = 0.0245786 - 0.432951 * y;
+    const k = -0.000090537 - 0.238081 * y;
+    const d = Math.max(0, b * b - 4 * a * k);
+    return Math.max(0, (-b + Math.sqrt(d)) / (2 * a));
+  };
+  v.set(fi(v.x), fi(v.y), fi(v.z))
+    .applyMatrix3(ACES_IN_INV)
+    .multiplyScalar(0.6 / exposure);
+  return out.setRGB(Math.max(0, v.x), Math.max(0, v.y), Math.max(0, v.z));
+}
+
 /** Optical depth along a straight ray from height `h0` to `h1` (m) of length `len` through a fog layer (see `setFogLayer`). */
 export function layerTau(
   h0: number,
@@ -457,6 +562,23 @@ uniform vec4 wsFog;
 uniform float wsFogBase;
 uniform vec4 wsFogLayer;
 uniform vec3 wsFogLayerColor;
+uniform vec4 wsHaze;
+uniform vec4 wsAerial;
+#ifdef RALLY_CAR_DIRT
+uniform vec4 wsCarDirt;
+uniform mat4 wsCarInv;
+uniform vec3 wsCarBox;
+float wsDirtN( vec2 p ) {
+	vec2 i = floor( p );
+	vec2 f = p - i;
+	f = f * f * ( 3.0 - 2.0 * f );
+	float a = fract( sin( dot( i, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	float b = fract( sin( dot( i + vec2( 1.0, 0.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	float c = fract( sin( dot( i + vec2( 0.0, 1.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	float d = fract( sin( dot( i + vec2( 1.0, 1.0 ), vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+	return mix( mix( a, b, f.x ), mix( c, d, f.x ), f.y );
+}
+#endif
 float wsLayerF( float h ) {
 	return h <= wsFogLayer.x ? wsFogLayer.y * h : wsFogLayer.y * wsFogLayer.x + wsFogLayer.y / wsFogLayer.z * ( 1.0 - exp( - wsFogLayer.z * ( h - wsFogLayer.x ) ) );
 }
@@ -506,8 +628,11 @@ ${WORLD_SHADING_DECL}
 #endif
 `;
 
-const FOG_FRAGMENT = /* glsl */ `
-#ifdef USE_FOG
+/**
+ * The fog's density along this pixel's ray (the map's FogExp2 density, its mean over the height falloff) and the ray.
+ * Shared by the display-space fog (`FOG_FRAGMENT`) and the aerial perspective before tone mapping (`HAZE_FRAGMENT`).
+ */
+const FOG_DENSITY = /* glsl */ `
 	vec3 wsFogRay = vFogWorld - cameraPosition;
 	#ifdef FOG_EXP2
 		float wsFogDensity = fogDensity;
@@ -519,25 +644,70 @@ const FOG_FRAGMENT = /* glsl */ `
 		}
 		float fogFactor = 1.0 - exp( - wsFogDensity * wsFogDensity * vFogDepth * vFogDepth );
 	#else
+		float wsFogDensity = 0.0;
 		float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
 	#endif
-	vec3 wsFogCol = fogColor;
-	if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
-		float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
-		// A lobe ~20 deg wide: wider, a low sun ahead whitens the whole horizon.
-		wsSunAmt *= wsSunAmt;
-		wsSunAmt *= wsSunAmt;
-		wsFogCol += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt );
+`;
+
+/**
+ * Aerial perspective, before tone mapping (`wsHaze.w` on, day): the scene's light is dimmed along the ray and the
+ * haze's own light added (both in scene light, so a far ridge keeps its lit and its shaded side under the haze instead
+ * of being mixed into one display colour). The optical depth grows like the FogExp2 fog near the camera, (d x)^2, and
+ * only linearly past ~1 / (d s) (\`wsAerial.w\` = s): far ridges stay readable in layers instead of all turning to the
+ * fog colour past a few km. Blue is dimmed most (\`wsAerial.xyz\`): far land goes blue, the haze brightest towards the
+ * sun (the map's sun glow). Additive light (lamp pools) only dims.
+ */
+const HAZE_FRAGMENT = /* glsl */ `
+#if defined( USE_FOG ) && defined( TONE_MAPPING ) && defined( FOG_EXP2 )
+	// (near pixels skipped: their optical depth stays under ~1e-3, invisible, even at the height falloff's 2.5x cap)
+	if ( wsHaze.w > 0.5 && fogDensity * vFogDepth > 0.012 ) {
+		${FOG_DENSITY}
+		float wsX = wsFogDensity * vFogDepth;
+		float wsTauH = wsX * wsX / ( 1.0 + wsX / wsAerial.w );
+		vec3 wsT = exp( - wsTauH * wsAerial.xyz );
+		#ifdef RALLY_ADDITIVE
+			gl_FragColor.rgb *= wsT;
+		#else
+			vec3 wsHz = wsHaze.rgb;
+			if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
+				float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
+				wsSunAmt *= wsSunAmt;
+				wsSunAmt *= wsSunAmt;
+				wsHz += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt ) * dot( wsHaze.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) * 1.6;
+			}
+			gl_FragColor.rgb = gl_FragColor.rgb * wsT + wsHz * ( 1.0 - wsT );
+		#endif
 	}
-	// Light added over the scene (\`defines.RALLY_ADDITIVE\`, lamp pools) fades into the fog: mixed towards the fog colour
-	// it would add the fog's grey over its whole quad, a bright square in thick fog.
-	#ifdef RALLY_ADDITIVE
-		gl_FragColor.rgb *= 1.0 - fogFactor;
-	#else
-		gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogCol, fogFactor );
+#endif
+`;
+
+const FOG_FRAGMENT = /* glsl */ `
+#ifdef USE_FOG
+	bool wsDisplayFog = true;
+	#if defined( TONE_MAPPING ) && defined( FOG_EXP2 )
+		// Done before tone mapping (\`HAZE_FRAGMENT\`): only the fog layer below.
+		wsDisplayFog = wsHaze.w < 0.5;
 	#endif
+	if ( wsDisplayFog ) {
+		${FOG_DENSITY}
+		vec3 wsFogCol = fogColor;
+		if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
+			float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
+			// A lobe ~20 deg wide: wider, a low sun ahead whitens the whole horizon.
+			wsSunAmt *= wsSunAmt;
+			wsSunAmt *= wsSunAmt;
+			wsFogCol += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt );
+		}
+		// Light added over the scene (\`defines.RALLY_ADDITIVE\`, lamp pools) fades into the fog: mixed towards the fog colour
+		// it would add the fog's grey over its whole quad, a bright square in thick fog.
+		#ifdef RALLY_ADDITIVE
+			gl_FragColor.rgb *= 1.0 - fogFactor;
+		#else
+			gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogCol, fogFactor );
+		#endif
+	}
 	if ( wsFogLayer.w > 0.0 ) {
-		float wsTau = wsLayerDepth( cameraPosition.y, vFogWorld.y, length( wsFogRay ) );
+		float wsTau = wsLayerDepth( cameraPosition.y, vFogWorld.y, length( vFogWorld - cameraPosition ) );
 		#ifdef RALLY_ADDITIVE
 			gl_FragColor.rgb *= exp( - wsTau );
 		#else
@@ -1010,6 +1180,48 @@ const FOLIAGE_TERM = /* glsl */ `
  * up reaches: tarmac ~0.15, gravel ~0.4); without it 0.55, a damp sheen (earth, grass, walls, wood). Smooth paint and
  * metal keep their own.
  */
+/**
+ * Dirt on the car (`dirtyCar` materials, `setCarDirt`): the dust the wheels throw settles low on the body - the sills,
+ * the bumpers and behind the wheels, in streaks that reach higher where the spray hit - and on the tail, where the air
+ * behind a car drops it; a thin film on the roof and bonnet. Dirt is matte: rough, no metal, and it dulls the clear coat
+ * (`CAR_DIRT_END`). In the car's own space, so it rides with the body. Before the wet shading: rain darkens it.
+ */
+const CAR_DIRT = /* glsl */ `
+#ifdef RALLY_CAR_DIRT
+	float wsDirtA = 0.0;
+	#ifdef USE_FOG
+	if ( wsCarDirt.w > 0.0 ) {
+		vec3 wsCp = ( wsCarInv * vec4( vFogWorld, 1.0 ) ).xyz;
+		vec3 wsCn = normalize( mat3( wsCarInv ) * ( transpose( mat3( viewMatrix ) ) * nonPerturbedNormal ) );
+		float wsH = wsCp.y / wsCarBox.y;
+		float wsRear = clamp( - wsCp.z / wsCarBox.x, 0.0, 1.0 );
+		// Streaks: long upright smears (thrown up by the wheels), patchy clouds, and fine splatter at the edges.
+		float wsStreak = wsDirtN( vec2( wsCp.z * 7.0 + wsCp.x * 3.0, wsCp.y * 0.9 ) );
+		float wsPatch = wsDirtN( wsCp.zy * 2.3 + wsCp.x );
+		float wsSpeck = wsDirtN( vec2( wsCp.z + wsCp.x, wsCp.y ) * 55.0 );
+		float wsLow = 1.0 - smoothstep( 0.08, 0.32 + 0.3 * wsStreak * wsCarDirt.w, wsH );
+		float wsBack = smoothstep( -0.25, -0.75, wsCn.z ) * smoothstep( 0.55, 0.95, wsRear ) * ( 0.45 + 0.4 * wsPatch );
+		float wsTop = smoothstep( 0.55, 0.9, wsCn.y ) * 0.22 * wsPatch;
+		float wsSide = abs( wsCn.x ) * ( 0.3 + 0.7 * smoothstep( 0.2, 1.0, wsRear + 0.3 ) );
+		wsDirtA = wsLow * ( 0.55 + 0.45 * wsPatch ) * ( 0.6 + 0.4 * wsSide ) + wsBack + wsTop;
+		wsDirtA *= wsCarDirt.w * ( 0.8 + 0.4 * wsSpeck );
+		wsDirtA = clamp( wsDirtA, 0.0, 0.92 );
+		vec3 wsDirtC = wsCarDirt.rgb * ( 0.8 + 0.35 * wsPatch );
+		diffuseColor.rgb = mix( diffuseColor.rgb, wsDirtC, wsDirtA );
+		roughnessFactor = mix( roughnessFactor, 0.9, wsDirtA );
+		metalnessFactor *= 1.0 - wsDirtA;
+	}
+	#endif
+#endif
+`;
+
+const CAR_DIRT_END = /* glsl */ `
+#if defined( RALLY_CAR_DIRT ) && defined( USE_CLEARCOAT )
+	material.clearcoat *= 1.0 - 0.9 * wsDirtA;
+	material.clearcoatRoughness = mix( material.clearcoatRoughness, 0.8, wsDirtA );
+#endif
+`;
+
 const WET_PHYSICAL = /* glsl */ `
 	float wsWetAmt = wsWet.x;
 	float wsPd = 0.0;
@@ -1167,9 +1379,36 @@ export function wetCar(m: Material): void {
   m.needsUpdate = true;
 }
 
+/**
+ * A body material of the player's car that gets dirty (`CAR_DIRT`, `setCarDirt`): paint, plastics and trim. Call
+ * once per material, before its first compile.
+ */
+export function dirtyCar(m: Material): void {
+  if (m.defines?.RALLY_CAR_DIRT !== undefined) return;
+  m.defines = { ...m.defines, RALLY_CAR_DIRT: '' };
+  m.needsUpdate = true;
+}
+
+/**
+ * How dirty the car is (0 = clean, 1 = caked), the dust's colour (linear), the body's world matrix (model space: y = 0
+ * ground, +z forward) and its half length, height and half width. Once per frame while the car is dirty.
+ */
+export function setCarDirt(
+  level: number,
+  color: Color,
+  body: Matrix4,
+  box: Vector3,
+): void {
+  const u = worldUniforms;
+  u.wsCarDirt.value.set(color.r, color.g, color.b, level);
+  u.wsCarInv.value.copy(body).invert();
+  u.wsCarBox.value.copy(box);
+}
+
 function wetShading(on: boolean): void {
   const chunks = ShaderChunk as Record<string, string>;
-  chunks.lights_physical_fragment = (on ? WET_PHYSICAL : '') + basePhysical;
+  chunks.lights_physical_fragment =
+    CAR_DIRT + (on ? WET_PHYSICAL : '') + basePhysical + CAR_DIRT_END;
   chunks.lights_lambert_fragment = (on ? WET_LAMBERT : '') + baseLambert;
   chunks.lights_fragment_end = lightsEnd(on);
 }
@@ -1205,6 +1444,7 @@ function install(): void {
   chunks.fog_vertex = FOG_VERTEX;
   chunks.fog_pars_fragment = FOG_PARS_FRAGMENT;
   chunks.fog_fragment = FOG_FRAGMENT;
+  chunks.tonemapping_fragment = HAZE_FRAGMENT + chunks.tonemapping_fragment;
   chunks.begin_vertex = BEGIN_VERTEX;
   // Dithered fade between detail levels (world/lod-fade.ts): materials with `defines.RALLY_LOD_FADE`. Appended to the
   // shared chunks for every program (not per material) so the fade copies of any material, and their shadow pass, get
@@ -1213,6 +1453,7 @@ function install(): void {
   chunks.uv_pars_fragment = chunks.uv_pars_fragment + LOD_FADE_PARS_FRAGMENT;
   chunks.alphatest_fragment = chunks.alphatest_fragment + LOD_FADE_FRAGMENT;
   basePhysical = chunks.lights_physical_fragment;
+  chunks.lights_physical_fragment = CAR_DIRT + basePhysical + CAR_DIRT_END;
   baseLambert = chunks.lights_lambert_fragment;
   baseLightsEnd = chunks.lights_fragment_end;
   chunks.beginnormal_vertex = chunks.beginnormal_vertex + FLAG_NORMAL;

@@ -29,6 +29,8 @@ export class CarCrew {
 
   constructor(def: CarDef, livery: CrewLivery) {
     this.group.name = 'crew';
+    // Not the car's body: the dirt shader stays off the figures (their materials are shared with every person).
+    this.group.userData.noDirt = true;
     const { cockpit, glass } = def.model;
     if (!cockpit || !glass) return;
     this.params = { cockpit, livery };

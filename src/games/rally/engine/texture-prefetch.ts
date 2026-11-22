@@ -80,6 +80,7 @@ const BY_MAP: Record<string, TextureId[]> = {
     'lot_roller_door',
     'lot_roof_tiles',
     'lot_roofing',
+    'lot_rust_post',
     'lot_sheet',
     'lot_solar',
     'macro',

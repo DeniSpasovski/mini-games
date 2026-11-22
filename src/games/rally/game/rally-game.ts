@@ -85,9 +85,11 @@ import {
   setCanopyShadows,
   setDryZones,
   setForest,
+  setCarDirt,
   setNearShadowFade,
   setTerrainLight,
   type DryZone,
+  worldUniforms,
 } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
@@ -332,6 +334,7 @@ export class RallyGame {
   private terrainLight?: TerrainLight;
   private hazeAcc = 0;
   private crew?: CarCrew;
+  private readonly dirtBox = new Vector3();
   audio: CarAudio;
   /** The run's weather as the sound was built for it (a replay export builds the same synth again). */
   private readonly soundWeather: { rain: number; wet: number };
@@ -677,6 +680,7 @@ export class RallyGame {
     this.scene.add(this.model.root);
     const w = this.env.weatherLook;
     if (w.wet > 0) this.model.setWet();
+    this.model.setDirtyBody();
     this.crew?.dispose();
     this.crew = new CarCrew(this.car, this.model.crewLivery);
     this.model.body.add(this.crew.group);
@@ -788,11 +792,12 @@ export class RallyGame {
     );
     if (q.name !== 'low') {
       this.haze = new ParticleSystem(
-        Math.round(q.particles / 8),
+        Math.round(q.particles / 4),
         false,
         undefined,
         floor,
       );
+      this.haze.hold = true;
       this.haze.material.uniforms.uLight.value.setScalar(1.7);
       this.scene.add(this.haze.points);
     }
@@ -1700,6 +1705,19 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     });
   }
 
+  /** The body's dirt (game/tyre-dust.ts `bodyDirt`) and where the body is, for its shading; after the model moved. */
+  private updateCarDirt(): void {
+    const p = this.car.physics;
+    this.model.body.updateWorldMatrix(true, false);
+    this.dirtBox.set(p.length / 2, p.height, p.width / 2);
+    setCarDirt(
+      this.tyreDust.bodyDirt,
+      this.tyreDust.bodyColor,
+      this.model.body.matrixWorld,
+      this.dirtBox,
+    );
+  }
+
   /** Clean tyres (spawn, a replay's start). */
   private resetTyreDust(): void {
     this.tyreDust.reset();
@@ -2228,6 +2246,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // --- car model + camera -------------------------------------------------------------
     this.model.updateFromVehicle(v, alpha);
     this.contactShadow.update(this.model.root);
+    this.updateCarDirt();
     // In reverse gear the throttle key brakes (see Vehicle.resolvePedals), so that is the brake lamp's pedal.
     const reversing = v.drivetrain.gear === -1;
     const brakePedal = reversing ? v.controls.throttle : v.controls.brake;
@@ -2367,7 +2386,11 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.dust.update(fdt);
     this.splash.update(fdt, 0.9, -9.8);
     this.gravel.update(fdt, 0.35, -9.8);
-    this.haze?.update(fdt, 0.12, 0.02);
+    // The plume drifts off downwind (the clouds' drift direction, at the foliage's wind strength).
+    const wind = worldUniforms.wsWind.value;
+    const wl = Math.hypot(wind.x, wind.y);
+    const breeze = wl > 0 ? (0.7 * wind.z) / wl : 0;
+    this.haze?.update(fdt, 0.25, 0.03, wind.x * breeze, wind.y * breeze);
     this.forceLines.update(v);
     const slide = Math.max(
       ...v.wheels.map((w) => (w.contact ? w.slideSpeed : 0)),
@@ -2733,31 +2756,37 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         }
       }
     }
-    // Hanging dust: a faint cloud left over the road behind a fast car, drifting for 10-15 s.
+    // Hanging dust: the plume a fast car leaves over a dry loose road - it rolls up behind the car, spreads to the
+    // verges and hangs for 15 - 25 s, drifting off downwind (the next car drives into it).
     const rearDust =
       (v.wheels[2].contact ? v.wheels[2].surface.dust : 0) +
       (v.wheels[3].contact ? v.wheels[3].surface.dust : 0);
     const speed = Math.abs(v.speed);
-    if (this.haze && rearDust > 0 && speed > 6 && wet < 0.3) {
-      this.hazeAcc += rearDust * 2.2 * Math.min(1, speed / 25) * quality * dt;
+    if (this.haze && rearDust > 0 && speed > 5 && wet < 0.3) {
+      const slide = Math.min(
+        1,
+        Math.max(v.wheels[2].slideSpeed, v.wheels[3].slideSpeed) / 8,
+      );
+      this.hazeAcc +=
+        rearDust * 5 * Math.min(1, speed / 22) * (1 + slide) * quality * dt;
       this.dustColor.setHex(v.wheels[2].surface.dustColor);
       while (this.hazeAcc >= 1) {
         this.hazeAcc -= 1;
         const r = () => (Math.random() - 0.5) * 2;
         p.copy(v.position)
-          .addScaledVector(v.forward, -3 - Math.random() * 3)
-          .addScaledVector(v.right, r() * 1.5);
-        p.y = this.world.heightAt(p.x, p.z) + 0.8 + Math.random() * 0.8;
+          .addScaledVector(v.forward, -2.5 - Math.random() * 4)
+          .addScaledVector(v.right, r() * 1.4);
+        p.y = this.world.heightAt(p.x, p.z) + 0.6 + Math.random() * 1.2;
         this.haze.emit(
           p,
-          v.velocity.x * 0.12 + r() * 0.4,
-          0.1,
-          v.velocity.z * 0.12 + r() * 0.4,
-          2.5 + Math.random() * 1.5,
-          0.6 + Math.random() * 0.4,
-          9 + Math.random() * 6,
+          v.velocity.x * 0.2 + r() * 0.7,
+          0.25 + Math.random() * 0.35,
+          v.velocity.z * 0.2 + r() * 0.7,
+          2.2 + Math.random() * 1.6,
+          0.9 + Math.random() * 0.8,
+          15 + Math.random() * 10,
           this.dustColor,
-          0.06 + Math.random() * 0.03,
+          (0.1 + Math.random() * 0.06) * dry,
         );
       }
     }

@@ -1,4 +1,10 @@
-import { IcosahedronGeometry, Matrix4, Quaternion, Vector3 } from 'three';
+import {
+  CylinderGeometry,
+  IcosahedronGeometry,
+  Matrix4,
+  Quaternion,
+  Vector3,
+} from 'three';
 import type { MatKey } from '../../ajvatovci/start-row/build/materials';
 import { placeAt, type Local, type V2, type V3 } from './common';
 
@@ -15,7 +21,6 @@ const GREY = '#9ba1a5';
 const WHITE = '#ecece6';
 const BLUE = '#1d4fa3';
 const GREEN = '#2f6a3b';
-const RUST = '#7a4a2e';
 
 const GLOBE = new IcosahedronGeometry(1, 1);
 
@@ -607,7 +612,34 @@ export function crowdBarrier(
   }
 }
 
-/** A rusty steel bollard sticking out of the asphalt, leaning by `lean` rad towards `dir`. */
+const BOLLARD = new CylinderGeometry(0.05, 0.05, 1, 10);
+const BOLLARD_CAP = new CylinderGeometry(0.035, 0.055, 1, 10);
+
+/** A round post from `a` to `b` (local metres): `geo` is a unit-high cylinder along Y. */
+function roundPost(
+  l: Local,
+  a: V3,
+  b: V3,
+  geo: CylinderGeometry,
+  key: MatKey,
+  color: string,
+): void {
+  const d = new Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  const len = d.length();
+  if (len < 1e-4) return;
+  const q = new Quaternion().setFromUnitVectors(
+    new Vector3(0, 1, 0),
+    d.divideScalar(len),
+  );
+  const m = new Matrix4().compose(
+    new Vector3((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2),
+    q,
+    new Vector3(1, len, 1),
+  );
+  l.add(key, geo, color, m);
+}
+
+/** A rusty round steel bollard sticking out of the asphalt (once white, a black cap), leaning by `lean` rad towards `dir`. */
 export function bollard(
   l: Local,
   x: number,
@@ -622,12 +654,21 @@ export function bollard(
     y + Math.cos(lean) * h,
     z + Math.sin(dir) * Math.sin(lean) * h,
   ];
-  strut(l, [x, y - 0.1, z], top, 0.1, 'metal', RUST);
-  strut(
+  roundPost(l, [x, y - 0.1, z], top, BOLLARD, 'rustPost', '#ffffff');
+  const k = 0.06 / h;
+  roundPost(
     l,
-    [top[0] - (top[0] - x) * 0.12, top[1] - 0.1, top[2] - (top[2] - z) * 0.12],
-    top,
-    0.11,
+    [
+      top[0] - (top[0] - x) * k,
+      top[1] - (top[1] - y) * k,
+      top[2] - (top[2] - z) * k,
+    ],
+    [
+      top[0] + (top[0] - x) * k * 0.6,
+      top[1] + (top[1] - y) * k * 0.6,
+      top[2] + (top[2] - z) * k * 0.6,
+    ],
+    BOLLARD_CAP,
     'paint',
     '#2a2a2a',
   );
