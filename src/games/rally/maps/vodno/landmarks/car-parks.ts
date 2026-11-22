@@ -1236,7 +1236,37 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
     const IN = WALL_IN;
     const depth = lot.wallDepth ?? 1.4;
     const runs = wallRuns(lot);
-    for (const run of runs) {
+    // (a bank's top at each vertex: the verge 1.6 m behind it along its own normal - two runs meeting at a corner look at
+    // different grass, so their ends take the higher of the two: no step and no end face at the corner)
+    const rawTop = runs.map((run) => {
+      const T = runThick(run, lotT);
+      return run.p.map((q, k) =>
+        run.bank
+          ? Math.max(
+              y(q) + 0.15,
+              y(
+                [
+                  q[0] + run.n[k][0] * (IN + T + 1.6),
+                  q[1] + run.n[k][1] * (IN + T + 1.6),
+                ],
+                0,
+              ) + 0.05,
+            )
+          : NaN,
+      );
+    });
+    const cornerTop = (ri: number, k: number): number => {
+      const q = runs[ri].p[k];
+      let best = rawTop[ri][k];
+      runs.forEach((r, rj) => {
+        if (rj === ri || !r.bank) return;
+        for (const e of [0, r.p.length - 1])
+          if (Math.hypot(r.p[e][0] - q[0], r.p[e][1] - q[1]) < 1.2)
+            best = Math.max(best, rawTop[rj][e]);
+      });
+      return best;
+    };
+    for (const [ri, run] of runs.entries()) {
       const m = run.p.length;
       if (m < 2) continue;
       const T = runThick(run, lotT);
@@ -1254,7 +1284,9 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       // (a bank's top is the verge's grass behind it, a kerb 20 cm over the asphalt)
       const top = (q: V2, k: number): number =>
         run.bank
-          ? Math.max(y(q) + 0.15, y(at(k, OUT + 1.6), 0) + 0.05)
+          ? k === 0 || k === m - 1
+            ? cornerTop(ri, k)
+            : rawTop[ri][k]
           : y(q) + (run.low ? 0.3 : run.kerb ? 0.2 : 0.55);
       const hi = smooth(smooth(run.p.map(top)));
       const sunk = run.kerb ? 0.6 : run.bank ? 1 : depth;
