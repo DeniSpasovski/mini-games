@@ -67,8 +67,8 @@ export const galichicaMap: MapDef = {
     // [grass, dirt, rock, gravel]
     splat: {
       grass: [0.82, 0.12, 0.06, 0],
-      // Karst pasture: thin golden grass over pale limestone.
-      pasture: [0.62, 0.1, 0.28, 0],
+      // Karst pasture: thin grass with pale limestone showing through (more of it washes the meadows out).
+      pasture: [0.74, 0.1, 0.16, 0],
       shrub: [0.62, 0.22, 0.16, 0],
       trees: [0.5, 0.45, 0.05, 0],
       // Beech forest floor: brown leaf litter.

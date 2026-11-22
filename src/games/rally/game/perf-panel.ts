@@ -2,6 +2,7 @@ import '../../../shared/debug-panel.css';
 import './perf-panel.css';
 import type { Fog, Texture } from 'three';
 import { PanelSection } from '../../../shared/debug-panel';
+import { setCropPrepass } from '../engine/crops';
 import { worldUniforms } from '../engine/world-shading';
 import { OBJECT_DISTANCE } from './settings';
 import type { TreePart } from '../trees/draw';
@@ -84,6 +85,13 @@ const SWITCHES: Switch[] = [
       g.streamer.setOptions({
         detailDensity: on ? g.opts.quality.detailDensity : 0,
       }),
+  },
+  {
+    id: 'cropPrepass',
+    label: 'Wheat depth prepass',
+    section: 'World',
+    // Off, or as the game decided (the trees' prepass check; `?cropprepass=` wins).
+    set: (g, on) => setCropPrepass(on && g.trees.prepassOn),
   },
   {
     id: 'trees',
