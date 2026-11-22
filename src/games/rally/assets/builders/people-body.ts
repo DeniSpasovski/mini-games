@@ -6,6 +6,7 @@ import {
   Vector3,
 } from 'three';
 import { PEOPLE_BASE } from '../../engine/people-base.data';
+import { dataView } from '../../../../shared/data-bin';
 
 /**
  * The two clean base bodies (credits: THIRD-PARTY.md) as game figures: an A-pose mesh skinned on the CPU to the joint
@@ -127,17 +128,9 @@ interface Model {
   mid: Mesh;
 }
 
-function bytes(b64: string): Uint8Array {
-  const s = atob(b64);
-  const a = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
-  return a;
-}
-
 /** Decodes a pack of scripts/people/bake-base.mjs. */
-function unpack(b64: string, withUv: boolean, rig: Rig): Mesh {
-  const u8 = bytes(b64);
-  const dv = new DataView(u8.buffer);
+function unpack(u8: Uint8Array, withUv: boolean, rig: Rig): Mesh {
+  const dv = dataView(u8);
   const n = dv.getUint32(0, true);
   const nt = dv.getUint32(4, true);
   const lo = [8, 12, 16].map((o) => dv.getFloat32(o, true));

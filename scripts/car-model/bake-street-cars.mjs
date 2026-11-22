@@ -24,6 +24,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { dataBin } from '../data/data-bin.mjs';
 import {
   bounds,
   clamp01,
@@ -320,7 +321,7 @@ export interface StreetCarData {
   roofX: number;
   sideZ: number;
   /** One packed mesh per LOD, nearest first (layout: see the baker). */
-  lods: string[];
+  lods: Uint8Array[];
 }
 
 export const STREET_CAR_DATA: StreetCarData[] = ${list};
@@ -328,6 +329,7 @@ export const STREET_CAR_DATA: StreetCarData[] = ${list};
 const out = 'src/games/rally/assets/builders';
 const file = VANS ? 'service-vehicles.data.ts' : 'street-cars.data.ts';
 fs.writeFileSync(`${out}/${file}`, ts);
+dataBin(`${out}/${file}`);
 fs.copyFileSync(path.join(dir, 'atlas.jpg'), `${out}/street-car-atlas.jpg`);
 fs.copyFileSync(path.join(dir, 'mask.png'), `${out}/street-car-mask.png`);
 console.log('wrote', file, (ts.length / 1024).toFixed(0), 'KB');
