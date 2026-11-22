@@ -14,7 +14,7 @@ export const CAMERA_MODES: CameraMode[] = [
   'bumper',
 ];
 
-/** Look-around (right stick): how fast the view turns to the stick's direction, and back to the default view on release (1/s). */
+/** Look-around (right stick): how fast the view follows the stick, and goes back to the default view on release (1/s). */
 const LOOK_FOLLOW = 12;
 const LOOK_RETURN = 8;
 
@@ -70,10 +70,16 @@ export class CameraRig {
     look: LookInput = NO_LOOK,
   ): void {
     const cam = this.camera;
-    // Right stick: the stick's direction is the view's direction (up = ahead, right = the right side,
-    // down = behind), the shortest way round; released, the view goes back behind the car.
+    // Right stick, seen from above with the car pointing up. Chase views: the stick's position is the camera's
+    // position around the car (down = behind, the default; down-right = behind on the right; up = in front,
+    // looking back). In-car views: the stick's direction is the way the head turns (right = right, down = behind).
+    // The view turns the shortest way round, and goes back to the default on release.
     const held = look.x !== 0 || look.y !== 0;
-    let d = held ? Math.atan2(look.x, -look.y) - this.lookYaw : -this.lookYaw;
+    const inCar = this.mode === 'hood' || this.mode === 'bumper';
+    const goal = inCar
+      ? Math.atan2(look.x, -look.y)
+      : Math.atan2(-look.x, look.y);
+    let d = held ? goal - this.lookYaw : -this.lookYaw;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     this.lookYaw +=
       d * (1 - Math.exp(-dt * (held ? LOOK_FOLLOW : LOOK_RETURN)));
