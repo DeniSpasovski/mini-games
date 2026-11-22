@@ -93,11 +93,12 @@ export const galichicaInfo: MapInfo = {
         vignette: 0.18,
       },
     },
-    // Golden autumn pasture on the karst top.
-    groundTint: { grass: '#a59a62', amount: 0.55 },
+    // Karst pasture: dry tawny grass in summer, fresh green in spring, ochre in autumn. Dark tints (a tint's brightness
+    // scales the grass) and little of the dry-straw wash (`moisture`): at full strength it bleaches the steep sunny slopes to beige.
+    groundTint: { grass: '#857838', amount: 0.75, moisture: 0.4 },
     groundTints: {
-      spring: { grass: '#7fa04a', amount: 0.65, variety: 1 },
-      autumn: { grass: '#876b3e', amount: 0.65 },
+      spring: { grass: '#6f8f3c', amount: 0.7, variety: 1, moisture: 0.5 },
+      autumn: { grass: '#80602c', amount: 0.75, moisture: 0.4 },
     },
   },
   route: data.route,
