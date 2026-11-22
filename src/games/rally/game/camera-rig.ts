@@ -14,6 +14,19 @@ export const CAMERA_MODES: CameraMode[] = [
   'bumper',
 ];
 
+/** Look-around (right stick): how fast the view follows the stick, and goes back to the default view on release (1/s). */
+const LOOK_FOLLOW = 12;
+const LOOK_RETURN = 8;
+
+/** Right stick, dead zone removed: (0, 0) = released. */
+export interface LookInput {
+  /** + = stick right. */
+  x: number;
+  /** + = stick down. */
+  y: number;
+}
+const NO_LOOK: LookInput = { x: 0, y: 0 };
+
 const _v = new Vector3();
 const _t = new Vector3();
 const _up = new Vector3(0, 1, 0);
@@ -28,6 +41,10 @@ export class CameraRig {
   private ground = 0;
   private initialized = false;
   private shake = 0;
+  /** Look-around: view yaw off the car's heading (rad, + = looking right). Eased back when the stick is released. */
+  private lookYaw = 0;
+  /** 0 = default aim (a little ahead of the car), 1 = aim at the car: 1 while the stick is held, at every stick angle. */
+  private lookAim = 0;
   /** Camera position before shake and body bounce: what the tree level choice measures from (trees/draw.ts). */
   readonly steady = new Vector3();
 
@@ -52,8 +69,28 @@ export class CameraRig {
     carPos: Vector3,
     forward: Vector3,
     up: Vector3,
+    look: LookInput = NO_LOOK,
   ): void {
     const cam = this.camera;
+    // Right stick, seen from above with the car pointing up. Chase views: the stick's position is the camera's
+    // position around the car (down = behind, the default; down-right = behind on the right; up = in front,
+    // looking back). In-car views: the stick's direction is the way the head turns (right = right, down = behind).
+    // The view turns the shortest way round, and goes back to the default on release.
+    const held = look.x !== 0 || look.y !== 0;
+    const inCar = this.mode === 'hood' || this.mode === 'bumper';
+    const goal = inCar
+      ? Math.atan2(look.x, -look.y)
+      : Math.atan2(-look.x, look.y);
+    let d = held ? goal - this.lookYaw : -this.lookYaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    this.lookYaw +=
+      d * (1 - Math.exp(-dt * (held ? LOOK_FOLLOW : LOOK_RETURN)));
+    this.lookYaw = Math.atan2(Math.sin(this.lookYaw), Math.cos(this.lookYaw));
+    if (!held && Math.abs(this.lookYaw) < 1e-3) this.lookYaw = 0;
+    this.lookAim +=
+      ((held ? 1 : 0) - this.lookAim) *
+      (1 - Math.exp(-dt * (held ? LOOK_FOLLOW : LOOK_RETURN)));
+    if (!held && this.lookAim < 1e-3) this.lookAim = 0;
     const speed = v.velocity.length();
     this.shake = Math.max(
       this.shake * Math.exp(-dt * 6),
@@ -67,12 +104,16 @@ export class CameraRig {
       // Steady: the same point without the body's pitch / roll.
       if (this.mode === 'hood') this.steady.set(0, 0.62, 0.15);
       else this.steady.set(0, 0.05, 2.05);
-      this.steady.applyAxisAngle(_up, Math.atan2(forward.x, forward.z)).add(carPos);
+      this.steady
+        .applyAxisAngle(_up, Math.atan2(forward.x, forward.z))
+        .add(carPos);
       cam.up.copy(up);
+      // Looking around from the seat: turn the view about the car's up axis.
+      _t.copy(forward).applyAxisAngle(up, -this.lookYaw);
       cam.lookAt(
         _t
-          .copy(cam.position)
-          .addScaledVector(forward, 10)
+          .multiplyScalar(10)
+          .add(cam.position)
           .addScaledVector(up, this.mode === 'hood' ? -0.3 : 0.1),
       );
       cam.fov = MathUtils.lerp(
@@ -94,6 +135,7 @@ export class CameraRig {
 
     const dist = (far ? 7.8 : 5.4) + Math.min(speed, 40) * 0.025;
     const height = (far ? 2.6 : 1.75) + Math.min(speed, 40) * 0.008;
+    const placeYaw = this.yaw - this.lookYaw;
     // Low-pass the car position the camera works from: on a rough road edge the
     // body bounces / sways every frame and a rigid follow turns that into jitter.
     // The filtered points are first carried along at the (smoothed) car velocity, so
@@ -116,9 +158,9 @@ export class CameraRig {
     this.focus.z += (target.z - this.focus.z) * kf;
     this.focus.y += (target.y - this.focus.y) * (1 - Math.exp(-dt * 7));
     const desired = _v.set(
-      this.focus.x - Math.sin(this.yaw) * dist,
+      this.focus.x - Math.sin(placeYaw) * dist,
       this.focus.y + height,
-      this.focus.z - Math.cos(this.yaw) * dist,
+      this.focus.z - Math.cos(placeYaw) * dist,
     );
     if (!this.initialized) {
       this.pos.copy(desired);
@@ -152,9 +194,9 @@ export class CameraRig {
     // Aim along the smoothed heading, not the body's raw pitch / roll.
     cam.lookAt(
       target.set(
-        this.focus.x + Math.sin(this.yaw) * 2.5,
+        this.focus.x + Math.sin(placeYaw) * 2.5 * (1 - this.lookAim),
         this.focus.y,
-        this.focus.z + Math.cos(this.yaw) * 2.5,
+        this.focus.z + Math.cos(placeYaw) * 2.5 * (1 - this.lookAim),
       ),
     );
     cam.fov = MathUtils.lerp(
