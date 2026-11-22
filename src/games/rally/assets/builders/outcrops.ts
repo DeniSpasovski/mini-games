@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry, Color } from 'three';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 import { OUTCROP_MODELS, OUTCROP_UNIT } from './outcrop-models.data';
+import { dataView } from '../../../../shared/data-bin';
 
 /** Decoded scans per (model, lod); the packed layout is in scripts/rocks/mesh-kit.mjs. */
 const decoded = new Map<string, BufferGeometry>();
@@ -10,10 +11,8 @@ function face(model: number, lod: number): BufferGeometry {
   let g = decoded.get(key);
   if (g) return g;
   const lods = OUTCROP_MODELS[model].lods;
-  const bin = Uint8Array.from(atob(lods[Math.min(lod, lods.length - 1)]), (c) =>
-    c.charCodeAt(0),
-  );
-  const dv = new DataView(bin.buffer);
+  const bin = lods[Math.min(lod, lods.length - 1)];
+  const dv = dataView(bin);
   const n = dv.getUint16(0, true);
   const pos = new Float32Array(n * 3);
   const nor = new Float32Array(n * 3);

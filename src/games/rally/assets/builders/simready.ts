@@ -13,6 +13,7 @@ import {
 import { getMaterial } from '../../engine/materials';
 import { merge } from '../../engine/geo';
 import { finish, solid } from './vehicles';
+import { dataView } from '../../../../shared/data-bin';
 
 /**
  * Service-park kit from NVIDIA SimReady Assets (CC BY 4.0; scripts/props/bake-simready.py): the tool chest, tyre rack
@@ -72,10 +73,8 @@ function model(name: string, lod: number): BufferGeometry {
   const hit = decoded.get(key);
   if (hit) return hit.clone();
   const lods = modelData(name).lods;
-  const bin = Uint8Array.from(atob(lods[Math.min(lod, lods.length - 1)]), (c) =>
-    c.charCodeAt(0),
-  );
-  const dv = new DataView(bin.buffer);
+  const bin = lods[Math.min(lod, lods.length - 1)];
+  const dv = dataView(bin);
   const n = dv.getUint16(0, true);
   const head = dv.getUint16(2, true);
   // Position unit: 1 / 8192 m, halved per shift step (models reaching past 4 m from the origin).

@@ -13,6 +13,7 @@ import atlasUrl from './street-car-atlas.jpg';
 import maskUrl from './street-car-mask.png';
 import { SERVICE_VEHICLE_DATA } from './service-vehicles.data';
 import { STREET_CAR_DATA, type StreetCarData } from './street-cars.data';
+import { dataView } from '../../../../shared/data-bin';
 import { roundWheels, type TriangleSoup } from './wheel-rounding';
 
 /**
@@ -49,11 +50,8 @@ interface Decoded {
   idx: Uint16Array;
 }
 
-function decode(b64: string): Decoded {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const dv = new DataView(bytes.buffer);
+function decode(bytes: Uint8Array): Decoded {
+  const dv = dataView(bytes);
   const n = dv.getUint16(0, true);
   const lo = [0, 1, 2].map((k) => dv.getFloat32(4 + k * 4, true));
   const size = [0, 1, 2].map((k) => dv.getFloat32(16 + k * 4, true));

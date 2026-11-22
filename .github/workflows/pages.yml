@@ -10,6 +10,7 @@ on:
         default: true
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -37,5 +38,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
+      # GitHub sometimes lists a fresh artifact only seconds after the upload: deploy-pages then finds none and fails.
+      - name: Wait until the artifact is listed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 30); do
+            n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts?name=github-pages" --jq .total_count || echo 0)
+            if [ "$n" -gt 0 ]; then exit 0; fi
+            sleep 4
+          done
+          echo "github-pages artifact still not listed after 2 minutes"
       - id: deployment
         uses: actions/deploy-pages@v5
