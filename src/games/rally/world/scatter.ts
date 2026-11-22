@@ -60,6 +60,8 @@ export interface ScatterContext {
    * and shrubs keep RAIL_CLEAR beyond it, so no crown grows through the beam.
    */
   railAt?: (along: number, side: number) => number;
+  /** Bank line height of a ditch (`terrain.ditches`) channel at `along` m; undefined for any other channel. */
+  ditchBank?: (channel: number, along: number) => number | undefined;
 }
 
 /** How far past a guard rail a tree or shrub stands (m): about a shrub's crown radius. */
@@ -759,6 +761,8 @@ export class ScatterField {
       // Rules limited to land cover classes that don't occur in this chunk: skip early.
       if (coverMask && lc && !this.chunkHasCover(lc, coverMask, x0, z0, cs))
         continue;
+      // Channel rules on a chunk no channel reaches: every candidate would miss (most chunks of a ditch map).
+      if (rule.channelDist && !this.ctx.channels?.touches(x0, z0, cs)) continue;
       const pts = rule.rows
         ? this.rowPoints(rule, coverMask!, x0, z0, cs, rng)
         : null;
@@ -854,7 +858,8 @@ export class ScatterField {
           )
         )
           continue;
-        if (minPath > -Infinity && this.nearPath(x, z, minPath)) continue;
+        if (minPath > -Infinity && this.nearPath(x, z, minPath, rule.inChannel))
+          continue;
         if (tree && q.found && rd < 6 && this.ctx.railAt) {
           const rail = this.ctx.railAt(q.along, q.lateral >= 0 ? 1 : -1);
           if (rail >= 0 && rd < rail + RAIL_CLEAR) continue;
@@ -892,11 +897,23 @@ export class ScatterField {
           const f = h / c.period - Math.floor(h / c.period);
           if (f < c.width === !!c.invert) continue;
         }
+        let ditchBank = NaN;
         if (rule.channelDist) {
           const cq = this.ctx.channels?.query(x, z, this.pq);
           if (!cq?.found) continue;
           const e = cq.distance - cq.halfWidth;
           if (e < rule.channelDist[0] || e > rule.channelDist[1]) continue;
+          if (
+            rule.channelSide &&
+            this.ctx.channels!.sideOf(cq.path, cq.along, x, z) !==
+              rule.channelSide
+          )
+            continue;
+          if (rule.ditchTop) {
+            const bank = this.ctx.ditchBank?.(cq.path, cq.along);
+            if (bank === undefined) continue;
+            ditchBank = bank;
+          }
         }
         const n = ground.normal(x, z, this.n);
         if (rule.maxSlope !== undefined && 1 - n.y > rule.maxSlope) continue;
@@ -919,7 +936,7 @@ export class ScatterField {
               return (
                 (!pq.found ||
                   pq.distance - pq.halfWidth >= (rule.minRoadDist ?? 0)) &&
-                !this.nearPath(px, pz, minPath)
+                !this.nearPath(px, pz, minPath, rule.inChannel)
               );
             },
             out,
@@ -932,14 +949,24 @@ export class ScatterField {
           tiltX += Math.atan2(n.z, n.y);
           tiltZ += -Math.atan2(n.x, n.y);
         }
+        // A ditch's reeds: sized so the top stands at one level above its bank line, from the slope or the bed.
+        let fit = scale;
+        if (rule.ditchTop && !Number.isNaN(ditchBank)) {
+          const [t0, t1] = rule.ditchTop.top;
+          const top = ditchBank + t0 + (t1 - t0) * rng.next();
+          fit = Math.max(
+            0.5,
+            Math.min(2, (top - ground.height(x, z)) / rule.ditchTop.height),
+          );
+        }
         const inst: ScatterInstance = {
           asset: rule.asset,
           variant,
           x,
-          y: ground.height(x, z) - (rule.sink ?? 0) * scale,
+          y: ground.height(x, z) - (rule.sink ?? 0) * fit,
           z,
           rotY,
-          scale,
+          scale: fit,
           tiltX,
           tiltZ,
         };
@@ -1082,14 +1109,23 @@ export class ScatterField {
   }
 
   private lq = newLakeQuery();
-  private nearPath(x: number, z: number, minDist: number): boolean {
+  private nearPath(
+    x: number,
+    z: number,
+    minDist: number,
+    inChannel = false,
+  ): boolean {
     // Lakes: nothing grows in the water (grass stops at the shore).
     if (
       this.ctx.lakes?.query(x, z, this.lq) &&
       this.lq.sd < Math.max(minDist, 0.5)
     )
       return true;
-    for (const net of [this.ctx.paths, this.ctx.channels]) {
+    // `inChannel`: reeds and cattails stand in the water of canals and drains (roads and paths still keep them off).
+    for (const net of [
+      this.ctx.paths,
+      inChannel ? undefined : this.ctx.channels,
+    ]) {
       if (!net) continue;
       const pq = net.query(x, z, this.pq);
       if (pq.found && pq.distance - pq.halfWidth < minDist) return true;

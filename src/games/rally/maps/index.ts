@@ -64,7 +64,8 @@ const ENTRIES: MapEntry[] = [
   {
     info: ajvatovciInfo,
     load: async () => (await import('./ajvatovci/map')).ajvatovciMap,
-    models: ['park', 'yard', 'village'],
+    // (forest: the dead branches thrown on the ditch banks)
+    models: ['park', 'yard', 'village', 'forest'],
   },
   {
     info: vodnoInfo,
