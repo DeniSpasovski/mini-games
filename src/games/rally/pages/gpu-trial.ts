@@ -140,6 +140,7 @@ function header(slice: TrialSlice | null, from: number, to: number) {
 
 let bench: {
   t0: number;
+  warmMs: number;
   frames: number[];
   cpu: number[];
   cull: number[];
@@ -330,7 +331,27 @@ async function main() {
   await say('Compiling shaders…');
   if (node) await (renderer as WebGPURenderer).compileAsync(scene, camera);
   else (renderer as WebGLRenderer).compile(scene, camera);
+  if (gpu) await gpu.compile(renderer as WebGPURenderer);
   status.textContent = summary;
+
+  // A render bundle is recorded again on every frame while one of its pipelines (the shadow pass's are not covered by
+  // compileAsync) is still compiling, so the warm-up lasts until no bundle was recorded for WARM frames in a row.
+  let recorded = 0;
+  const backend = node
+    ? ((renderer as WebGPURenderer).backend as unknown as {
+        beginBundle?: (ctx: unknown) => void;
+      })
+    : null;
+  if (backend?.beginBundle) {
+    const begin = backend.beginBundle.bind(backend);
+    backend.beginBundle = (ctx) => {
+      recorded++;
+      begin(ctx);
+    };
+  }
+  const WARM = 30;
+  const WARM_LIMIT = 30_000;
+  let warmSince = 0;
 
   let warm = 0;
   let last = performance.now();
@@ -340,9 +361,11 @@ async function main() {
   startRun = () => {
     results.style.display = 'none';
     runAt = 0;
-    warm = 30;
+    warm = WARM;
+    warmSince = performance.now();
     bench = {
       t0: 0,
+      warmMs: 0,
       frames: [],
       cpu: [],
       cull: [],
@@ -360,10 +383,14 @@ async function main() {
       if (warm > 0) {
         warm--;
         placeCamera(0);
+        if (recorded > 0 && now - warmSince < WARM_LIMIT) warm = WARM;
+        recorded = 0;
       } else {
         runAt += (SPEED * dt) / 1000;
         if (bench.t0 === 0) {
           bench.t0 = now;
+          bench.warmMs = now - warmSince;
+          recorded = 0;
           runAt = 0;
         } else bench.frames.push(dt);
         placeCamera(runAt);
@@ -463,6 +490,8 @@ async function main() {
       bundle: !!(gpu?.group as { isBundleGroup?: boolean } | undefined)
         ?.isBundleGroup,
       indirectDraws: gpu?.draws ?? 0,
+      warmMs: Math.round(b.warmMs),
+      bundleRecords: recorded,
       gpuMs: b.gpu.length ? +mean(b.gpu).toFixed(2) : null,
       draws: Math.round(mean(b.draws)),
       instances: slice.instances,

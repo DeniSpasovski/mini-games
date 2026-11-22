@@ -265,6 +265,11 @@ export class GpuDraw {
     });
   }
 
+  /** Builds the compute pipelines ahead, so the first cull of a run does not compile them. */
+  compile(renderer: WebGPURenderer): Promise<void> {
+    return renderer.compileComputeAsync([this.reset, this.cull, this.finish]);
+  }
+
   /** Runs the cull passes for this camera (before the frame's render). */
   update(renderer: WebGPURenderer, camera: Camera): void {
     this.camPos.value.set(
