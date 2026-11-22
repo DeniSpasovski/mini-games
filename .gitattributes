@@ -3,3 +3,6 @@
 
 # Baked mesh files (scripts/data/data-bin.mjs)
 *.data.bin binary
+
+# GPU-compressed textures (scripts/textures/bake-ktx2.mjs)
+*.ktx2 binary

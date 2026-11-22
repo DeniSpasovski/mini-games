@@ -479,6 +479,10 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
     `engine/road-surface.ts` loads them (the play page preloads the map's sets) and `getRoadMaterial` puts them on the road: colour + a normal map with the
     roughness packed in its alpha + a tone shader (blotches and streaks that never repeat; Vodno's tiles get pale repair patches, most on the old lower road, none on the fresh stretch). A
     new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN` (same `len` as `texLength`; a test checks) and a rebake.
+  - GPU-compressed copies: `engine/asphalt/<id>.<size>.{color,nr}.ktx2` (UASTC, mipmapped; `nr` = normal with the roughness in alpha, packed at
+    bake time) from `scripts/textures/bake-ktx2.mjs`, rerun after `bake.mjs`. They stay compressed in video memory (about a quarter of the RGBA
+    textures) and skip the image decode at load. `engine/ktx2.ts` loads them (KTX2Loader, three's transcoder copied as `basis/`); a set without
+    `.ktx2` files, or `?ktx2=0`, loads the webp set.
   - Rally-worn tarmac (`world/road-wear.ts`, the stage road's `WEAR_TEX` tarmacs): per-sample masks in the `rwA` / `rwB` vertex attributes,
     drawn by the asphalt shader - a light film of earth on the inside of some hairpins (under ~40 m radius, not on decks, kerbed
     streets or behind barriers), rubber on the braking line, mud out of dirt tracks, sealed cracks on `PATCHES` roads. Visual only.

@@ -4,7 +4,7 @@
  *
  *   node scripts/textures/bake-ktx2.mjs [id ...]        (default: every set, both sizes)
  *
- * Per set and size: `<id>.<size>.color.ktx2` (ETC1S, sRGB) and `<id>.<size>.nr.ktx2` (UASTC + Zstandard, linear:
+ * Per set and size: `<id>.<size>.color.ktx2` (UASTC + Zstandard, sRGB) and `<id>.<size>.nr.ktx2` (UASTC + Zstandard, linear:
  * normal xyz with the rough map's green in alpha, the packing engine/road-surface.ts did on the CPU at load).
  * Both carry mipmaps and are flipped (compressed textures never use flipY). The game loads them through
  * engine/ktx2.ts and falls back to the webp set when a file is missing. Rerun after scripts/asphalt/bake.mjs.
@@ -28,17 +28,14 @@ const { encodeToKTX2 } = await import(
 const pw = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
 const chromium = pw.chromium ?? pw.default.chromium;
 
-/** Colour: ETC1S (about 1/8 of the RGBA bytes on the GPU), top quality. */
-const COLOR = process.env.KTX2_COLOR === 'uastc' ? {
+/**
+ * Colour: UASTC too. ETC1S was a quarter of the size but lost about a fifth of the asphalt grain (PSNR 31 dB against
+ * 48 dB on road_tarmac); on the GPU both take the same memory.
+ */
+const COLOR = {
   isUASTC: true,
   uastcLDRQualityLevel: 2,
   needSupercompression: true,
-  isPerceptual: true,
-  isSetKTX2SRGBTransferFunc: true,
-} : {
-  isUASTC: false,
-  qualityLevel: 255,
-  compressionLevel: 4,
   isPerceptual: true,
   isSetKTX2SRGBTransferFunc: true,
 };

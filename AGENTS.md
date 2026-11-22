@@ -89,6 +89,7 @@ into `DETAILS.md`, never up.
   the GLB import steps (`glb-to-parts-stl.py`, `glb-orient.py`, `glb-src-parts.py` ...) are in the `rally-car-import` skill; the street-car
   and truck bakes (`street-pack-extract.py`, `bake-street-textures.py`, `bake-street-cars.mjs`, `bake-fire-trucks.mjs`, `bake-trucks.mjs`) are in rally `DETAILS.md`
 - `scripts/asphalt/`: `bake.mjs` + `gen.js` (the baked road asphalt tiles, `src/games/rally/engine/asphalt/`; `DETAILS.md` -> Road textures)
+- `scripts/textures/bake-ktx2.mjs` - GPU-compressed `.ktx2` copies of the road asphalt sets (Basis Universal via the `ktx2-encoder` npm package, not a repo dependency: `KTX2_ENCODER_MODULE`)
 - `scripts/portal/wordmarks.py`: a title in a font -> white outlined `wordmark.svg` (portal header and the game covers; usage in its header);
   `og-image.mjs`: retakes the portal's 1200x630 link preview `public/og-image.jpg` (dev server running)
 - `scripts/rally/screenshots.mjs` + `screenshots.json`: retakes every rally README / map / cover picture and the link preview from a stage, car, spot, season and hour (dev server running; table in rally `DETAILS.md` -> Screenshots)
