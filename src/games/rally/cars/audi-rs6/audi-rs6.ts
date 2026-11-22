@@ -196,11 +196,11 @@ export const audiRs6: CarDef = {
       style: 'road',
       front: 'wishbone',
       rear: 'wishbone',
-      // The model's wheel wells are shallow (inner wall 0.23 m inboard of the hub): the coil-over stands on the upright and its
-      // top mount sits just inside the wall, or most of it hides behind the wall.
+      // The model's wheel wells are shallow (inner wall 0.23 m inboard of the hub): the coil-over is clamped on top of the upright and
+      // its top mount sits just inside the wall, or most of it hides behind the wall.
       topY: { front: 0.52, rear: 0.5 },
       topIn: { front: 0.17, rear: 0.17 },
-      damperOnArm: 0,
+      damperOn: 'upright',
       driven: ['front', 'rear'],
     },
     // The model carries its own cockpit: see-through glass shows it.
