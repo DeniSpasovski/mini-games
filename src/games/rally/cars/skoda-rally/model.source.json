@@ -371,7 +371,7 @@
         "x": [-6.58, -6.51],
         "y": [0.58, 0.84],
         "z": [0.66, 1.34],
-        "material": "interior"
+        "material": "interior:2s"
       },
       {
         "mat": "mat_19",
@@ -379,7 +379,7 @@
         "x": [-6.89, -6.84],
         "y": [0.32, 0.84],
         "z": [0.48, 0.58],
-        "material": "interior"
+        "material": "interior:2s"
       },
       {
         "$comment": "cage gusset plates with lightening holes on the roof rails behind the main hoop (flat, so not tubes)",
@@ -403,15 +403,15 @@
       },
       {
         "mat": "mat_10",
-        "material": "interior"
+        "material": "interior:2s"
       },
       {
         "mat": "mat_13",
-        "material": "interior"
+        "material": "interior:2s"
       },
       {
         "mat": "mat_19",
-        "material": "interior"
+        "material": "interior:2s"
       }
     ],
     "default": "trim"
@@ -427,7 +427,7 @@
       "chrome",
       "amber",
       "mesh",
-      "interior",
+      "interior:2s",
       "logo",
       "carbon",
       "mirror",
@@ -439,7 +439,7 @@
     },
     "drop": ["logo"],
     "maxTriangles": {
-      "interior": 24000,
+      "interior:2s": 24000,
       "cage": 6000
     }
   }
