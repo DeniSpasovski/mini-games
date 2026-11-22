@@ -192,6 +192,9 @@ export class Showroom {
   private bakeCam = new OrthographicCamera();
   private maps = new Map<string, MapView>();
   private preloaded = false;
+  /** `warmMap` started; its map's view, until its programs are compiled. */
+  private warmStarted = false;
+  private warming?: MapView;
   /** Season of the map views (the stage screen's pick); undefined = each map's own. */
   private season?: Season;
   /** Displayed map (undefined = car mode). */
@@ -419,6 +422,33 @@ export class Showroom {
     return view;
   }
 
+  /**
+   * Start menu: get the stage screen ready while the player is still on it - every map's card starts loading (after
+   * the turntable car) and the programs of the outdoor env map and of `mapId`'s view compile in the background. Else
+   * the first stage view waited on all of it at once (seconds on a cold GPU shader cache); later ones were quick.
+   */
+  warmMap(mapId: string): void {
+    if (this.warmStarted) return;
+    this.warmStarted = true;
+    const start = () => {
+      if (!this.running) return;
+      this.preloadCards();
+      this.warming = this.getMap(mapId);
+      void this.env.warmOutdoor();
+    };
+    const later = () => setTimeout(start, 300);
+    if (this.model) void this.model.ready.then(later, later);
+    else later();
+  }
+
+  /** Compile a map view's programs without drawing it (compile() only takes the visible objects). */
+  private compileView(view: MapView): void {
+    const shown = view.group.visible;
+    view.group.visible = true;
+    void this.renderer.compileAsync(this.scene, this.camera);
+    view.group.visible = shown;
+  }
+
   /** Start loading every map's baked card (cheap: two small files each, no map build). */
   private preloadCards(): void {
     if (this.preloaded) return;
@@ -486,6 +516,10 @@ export class Showroom {
       if (r) this.finished(wanted, r === 2, true);
     }
     if (wanted?.ready()) this.display(wanted);
+    if (this.warming?.ready()) {
+      if (this.warming !== this.mapView) this.compileView(this.warming);
+      this.warming = undefined;
+    }
 
     this.loadCue.classList.toggle('map', !!this.mapView);
     if (this.mapView) {

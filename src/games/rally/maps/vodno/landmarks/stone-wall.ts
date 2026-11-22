@@ -34,8 +34,20 @@ export function wallRibbon(l: Local, run: WallRun, color = '#ddd7ca'): void {
     run.p[m - 1][0] - run.p[0][0],
     run.p[m - 1][1] - run.p[0][1],
   );
-  // UV u: along the wall on its faces, across it on the end faces (along would smear one texel column over them).
-  const face = (pts: V3[], want: V3, top = false, end = false): void =>
+  // Distance along the wall at each point: a curved run's faces map u by it (one direction for the whole run smeared the
+  // stretches that turn across it).
+  const s = [0];
+  for (let k = 1; k < m; k++)
+    s.push(
+      s[k - 1] +
+        Math.hypot(
+          run.p[k][0] - run.p[k - 1][0],
+          run.p[k][1] - run.p[k - 1][1],
+        ),
+    );
+  // UV u: along the wall on its faces (segment `k`: its corner nearer to point k or k + 1), across it on the end faces
+  // (along would smear one texel column over them).
+  const face = (pts: V3[], want: V3, top = false, end = false, k = 0): void =>
     l.fan(
       'drystone',
       pts,
@@ -45,7 +57,13 @@ export function wallRibbon(l: Local, run: WallRun, color = '#ddd7ca'): void {
         ? (q) => [q[0], q[2]]
         : end
           ? (q) => [q[0] * tan[1] - q[2] * tan[0], q[1]]
-          : (q) => [q[0] * tan[0] + q[2] * tan[1], q[1]],
+          : (q) => {
+              const [a, b] = [run.p[k], run.p[k + 1]];
+              const near =
+                Math.hypot(q[0] - a[0], q[2] - a[1]) <=
+                Math.hypot(q[0] - b[0], q[2] - b[1]);
+              return [near ? s[k] : s[k + 1], q[1]];
+            },
     );
   const v3 = (q: V2, y: number): V3 => [q[0], y, q[1]];
   const { hi, lo, inner, outer } = run;
@@ -63,10 +81,16 @@ export function wallRibbon(l: Local, run: WallRun, color = '#ddd7ca'): void {
     face(
       [v3(b0, lo[k]), v3(b1, lo[k + 1]), v3(b1, hi[k + 1]), v3(b0, hi[k])],
       [nx, 0, nz],
+      false,
+      false,
+      k,
     );
     face(
       [v3(a0, lo[k]), v3(a1, lo[k + 1]), v3(a1, hi[k + 1]), v3(a0, hi[k])],
       [-nx, 0, -nz],
+      false,
+      false,
+      k,
     );
     face(
       [v3(a0, hi[k]), v3(a1, hi[k + 1]), v3(b1, hi[k + 1]), v3(b0, hi[k])],

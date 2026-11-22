@@ -23,7 +23,8 @@ export interface BarrierRun {
   to: number;
   /**
    * Side-road rails: the stretch of the rail line next to `start` (path along) follows this polyline (rail points
-   * x, z, cumulative length; `len` m long) out of a stage-road rail end instead of the path.
+   * x, z, cumulative length; `len` m long) out of a stage-road rail end instead of the path. Stage-road rails: the
+   * bent end to `BarrierRule.endAt` (`endBend`).
    */
   bend?: { start: number; dir: 1 | -1; len: number; pts: number[][] };
   /** Set: the run follows this path of the network instead of the stage road. */
@@ -61,6 +62,33 @@ export function frameAt(
   run: BarrierRun,
   along: number,
 ): RunFrame {
+  const eb = run.path === undefined ? run.bend : undefined;
+  const es = eb ? (along - eb.start) / eb.len : -1;
+  if (eb && es >= 0 && es <= 1 + 1e-9) {
+    // A stage-road rail's bent end (`endBend`): the frame whose barrier point is the curve's point, stepped finely
+    // (curvature over barrier-mesh.ts's 1 m threshold).
+    const d = es * eb.len;
+    let i = 1;
+    while (i < eb.pts.length - 1 && eb.pts[i][2] < d) i++;
+    const [x0, z0, d0] = eb.pts[i - 1];
+    const [x1, z1, d1] = eb.pts[i];
+    const k = d1 > d0 ? (d - d0) / (d1 - d0) : 0;
+    const tl = Math.hypot(x1 - x0, z1 - z0) || 1;
+    const tx = (x1 - x0) / tl;
+    const tz = (z1 - z0) / tl;
+    const s = ctx.road.at(Math.min(along, ctx.road.length));
+    const lat = run.side * (s.halfWidth + run.rule.offset);
+    return {
+      x: x0 + (x1 - x0) * k - tz * lat,
+      z: z0 + (z1 - z0) * k + tx * lat,
+      tx,
+      tz,
+      halfWidth: s.halfWidth,
+      curvature: 0.05,
+      deck: false,
+      y: s.y,
+    };
+  }
   if (run.path === undefined) {
     const s = ctx.road.at(along);
     return {
@@ -171,13 +199,54 @@ export function barrierRuns(
         if ((!ok || a + STEP > hi + 1e-6) && start >= 0) {
           // A run ends AT the first sample it no longer holds: the next rule's run (bridge / open road) starts there.
           const end = ok ? Math.min(hi, a) : a;
-          if (end - start >= 3) out.push({ rule, side, from: start, to: end });
+          if (end - start >= 3) {
+            const run: BarrierRun = { rule, side, from: start, to: end };
+            if (rule.endAt && ok) endBend(road, run, rule.endAt);
+            out.push(run);
+          }
           start = -1;
         }
       }
     }
   }
   return out;
+}
+
+/** How far before its end a stage-road rail starts bending out to its `endAt` point (m along). */
+const END_BEND = 8;
+
+/**
+ * A rail run's end bent out to `e` (`BarrierRule.endAt`): from its line END_BEND m before the end, an S that leaves it
+ * along the road and comes into `e` parallel to the road again (an offset, no corner).
+ */
+function endBend(road: Road, run: BarrierRun, e: [number, number]): void {
+  const a0 = Math.max(run.from, run.to - END_BEND);
+  const L = run.to - a0;
+  const line = (a: number): [number, number] => {
+    const f = road.at(a);
+    const lat = run.side * (f.halfWidth + run.rule.offset);
+    return [f.x + f.tz * lat, f.z - f.tx * lat];
+  };
+  const p0 = line(a0);
+  const c1 = line(a0 + 0.45 * L);
+  const f1 = road.at(run.to);
+  const c2 = [e[0] - f1.tx * 0.45 * L, e[1] - f1.tz * 0.45 * L];
+  const pts: number[][] = [[p0[0], p0[1], 0]];
+  for (let i = 1; i <= 16; i++) {
+    const t = i / 16;
+    const w = 1 - t;
+    const b0 = w * w * w;
+    const b1 = 3 * w * w * t;
+    const b2 = 3 * w * t * t;
+    const b3 = t * t * t;
+    const x = b0 * p0[0] + b1 * c1[0] + b2 * c2[0] + b3 * e[0];
+    const z = b0 * p0[1] + b1 * c1[1] + b2 * c2[1] + b3 * e[1];
+    const [px, pz, pd] = pts[pts.length - 1];
+    pts.push([x, z, pd + Math.hypot(x - px, z - pz)]);
+  }
+  const len = pts[pts.length - 1][2];
+  run.bend = { start: a0, dir: 1, len, pts };
+  run.to = a0 + len;
 }
 
 /** Sample spacing of the path barrier analysis (m). */
@@ -435,6 +504,15 @@ export function barrierPoint(
   // under a portal slab it reads the slab top. A stage-road barrier stands on the road in both.
   let y = ground.height(x, z);
   if (run.path === undefined && (s.deck || y > s.y + 1)) y = s.y;
+  const b = run.path === undefined ? run.bend : undefined;
+  if (b && along > b.start) {
+    // A bent end's top runs straight from the bend's start to its end point (no hump over a kerb or a lot's edge).
+    const [ex, ez] = b.pts[b.pts.length - 1];
+    const k = Math.min(1, (along - b.start) / b.len);
+    y =
+      ground.height(b.pts[0][0], b.pts[0][1]) * (1 - k) +
+      ground.height(ex, ez) * k;
+  }
   return { x, z, y, tx: s.tx, tz: s.tz };
 }
 

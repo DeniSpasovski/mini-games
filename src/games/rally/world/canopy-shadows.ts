@@ -10,7 +10,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { canopyOf, isVegetation } from './aerial-trees';
-import type { ScatterChunk, ScatterInstance } from './scatter';
+import { ChunkFeed, type ScatterChunk, type ScatterInstance } from './scatter';
 import type { World } from './world';
 
 /** Metres per texel (coarsened for very large maps so a side stays <= MAX_SIDE). */
@@ -18,8 +18,6 @@ const RES = 3;
 const MAX_SIDE = 2048;
 /** Shadow density at the centre of one tree's shadow (several overlapping trees reach 1). */
 const DENSITY = 0.75;
-/** Scatter chunk keys looked at per `update()` (a cheap Map lookup each). */
-const SCAN = 1500;
 /** Time per `update()` for splatting new chunks (ms; at least one chunk). */
 const SPLAT_BUDGET = 1;
 /** Minimum time between texture uploads (ms). */
@@ -154,10 +152,8 @@ export class CanopyShadows {
   private nx: number;
   private nz: number;
   private res: number;
-  /** Scatter chunks not splatted yet, as [cx, cz] pairs (swap-removed when done). */
-  private todo: Int32Array;
-  private todoCount: number;
-  private cursor = 0;
+  /** Scatter chunks not splatted yet. */
+  private feed: ChunkFeed;
   /** Rows changed since the last upload (-1 = none). */
   private dirtyMin = -1;
   private dirtyMax = -1;
@@ -209,8 +205,7 @@ export class CanopyShadows {
     for (let cz = Math.floor(z0 / cs); cz * cs <= z0 + d; cz++)
       for (let cx = Math.floor(x0 / cs); cx * cs <= x0 + w; cx++)
         keys.push(cx, cz);
-    this.todo = Int32Array.from(keys);
-    this.todoCount = keys.length / 2;
+    this.feed = new ChunkFeed(world.scatter, keys);
 
     const t = new DataTexture(
       this.data,
@@ -250,7 +245,7 @@ export class CanopyShadows {
   }
 
   /**
-   * Splat newly generated scatter chunks; upload when due. Cheap (~0.1 ms) once everything near is in; splatting takes
+   * Splat newly generated scatter chunks (`ChunkFeed`); upload when due. Splatting takes
    * at most `budget` ms (at least one chunk; loading passes Infinity).
    */
   update(
@@ -259,25 +254,13 @@ export class CanopyShadows {
     budget = SPLAT_BUDGET,
     localBudget = LOCAL_BUDGET,
   ): void {
-    const scatter = this.world.scatter;
     const t0 = performance.now();
-    for (let n = 0; n < SCAN && this.todoCount > 0; n++) {
-      if (this.cursor >= this.todoCount) this.cursor = 0;
-      const i = this.cursor * 2;
-      const chunk = scatter.cachedChunk(this.todo[i], this.todo[i + 1]);
-      if (!chunk) {
-        this.cursor++;
-        continue;
-      }
+    for (let chunk; (chunk = this.feed.take());) {
       for (const inst of chunk.instances) {
         this.splat(inst);
         this.splatLitter(inst);
       }
       this.localStale = true;
-      // Swap-remove: the last pending key takes this slot (looked at next).
-      this.todoCount--;
-      this.todo[i] = this.todo[this.todoCount * 2];
-      this.todo[i + 1] = this.todo[this.todoCount * 2 + 1];
       // Many chunks can come in at once (a streamer rebuild): the rest wait for the next frames.
       if (performance.now() - t0 > budget) break;
     }
