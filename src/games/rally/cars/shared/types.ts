@@ -271,6 +271,8 @@ export interface Cockpit {
     cushion: number;
     /** Front face of the backrest on the seat's centre line, low and high: [z, y, z, y]. */
     back: [number, number, number, number];
+    /** How far both front seats are lowered in the car (m; a rally fit, for a crew in helmets under a low roof). */
+    drop?: number;
   };
   /**
    * Steering wheel: the centre of the rim, its radius (to the middle of the rim), how far it leans back (deg; 0 = upright).

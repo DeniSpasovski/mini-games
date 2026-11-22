@@ -37,6 +37,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
 import {
+  fitSeats,
   fitWheel,
   hasImportedModel,
   loadImportedCar,
@@ -750,6 +751,7 @@ export class CarModel {
             }
             // The steering wheel within the driver's reach, on its column (cockpit.wheel.pull / column).
             const cockpit = def.model.glass ? def.model.cockpit : undefined;
+            if (cockpit) fitSeats(obj, cockpit);
             const column = cockpit && fitWheel(obj, cockpit);
             if (column) {
               const len = column.from.distanceTo(column.to);

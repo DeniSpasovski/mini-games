@@ -15,7 +15,7 @@ import {
   type CrewMotif,
 } from '../../cars/shared/livery';
 import type { Cockpit } from '../../cars/shared/types';
-import { wheelAt } from '../../cars/shared/cockpit';
+import { fitted, wheelAt } from '../../cars/shared/cockpit';
 import {
   camLock,
   gripGlove,
@@ -622,7 +622,8 @@ interface Posed {
 }
 
 /** Sits the figure in its seat and finds the pose that brings its hands to the wheel / the notes. */
-function sitIn(cp: Cockpit, codriver: boolean): Posed {
+function sitIn(model: Cockpit, codriver: boolean): Posed {
+  const cp = fitted(model);
   const rig = bodyRig(MODEL);
   const side = (cp.rhd ? -1 : 1) * (codriver ? -1 : 1);
   const [z0, y0, z1, y1] = cp.seat.back;
@@ -1314,7 +1315,7 @@ export function crewSit(
   cockpit: Cockpit,
   codriver: boolean,
 ): { hip: Vector3; lean: number; scale: number; recline: number } {
-  const [z0, y0, z1, y1] = cockpit.seat.back;
+  const [z0, y0, z1, y1] = fitted(cockpit).seat.back;
   return {
     ...sitIn(cockpit, codriver).sit,
     recline: Math.atan2(z0 - z1, y1 - y0),

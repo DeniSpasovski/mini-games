@@ -219,3 +219,44 @@ export function fitWheel(
 /** How far a steering wheel reaches either side of its rim's plane (hub, spokes, rim), and past the rim (m). */
 const WHEEL_DEPTH = 0.05;
 const WHEEL_GRIP = 0.03;
+
+/**
+ * Both front seats of a cockpit model lowered by `seat.drop`: the triangles of the cushions and backrests (and head
+ * rests) are cut out of the model's parts and moved down. What is under a seat (frame, rails, floor) stays, below the
+ * lowered cushion. `obj`: the loaded model before it is added to the car (world space = cockpit model space).
+ */
+export function fitSeats(obj: Object3D, cp: Cockpit): void {
+  const drop = cp.seat.drop ?? 0;
+  if (!drop) return;
+  obj.updateMatrixWorld(true);
+  const { x, cushion, back } = cp.seat;
+  const [z0, y0, z1, y1] = back;
+  const backZ = (y: number): number => z0 + ((z1 - z0) * (y - y0)) / (y1 - y0);
+  const low = Math.max(cp.floor + 0.03, cushion - drop - 0.02);
+  const seated = (c: Vector3): boolean => {
+    if (Math.abs(Math.abs(c.x) - x) > SEAT_HALF || c.y < low) return false;
+    const b = backZ(Math.max(c.y, y0));
+    // The cushion, from behind the backrest's foot to its front edge; the backrest along its line, up to the head rest.
+    if (c.y < cushion + 0.1) return c.z > b - 0.13 && c.z < z0 + SEAT_LONG;
+    return c.y < y1 + 0.3 && c.z > b - 0.15 && c.z < b + 0.12;
+  };
+  const meshes: Mesh[] = [];
+  obj.traverse((o) => {
+    const m = o as Mesh;
+    if (m.isMesh && m.visible && m.userData.partName !== 'glass')
+      meshes.push(m);
+  });
+  for (const m of meshes) {
+    const piece = splitBy(m, m.matrixWorld, seated);
+    if (!piece) continue;
+    piece.userData.partName = m.userData.partName;
+    const p = piece.parent ?? obj;
+    const a = p.worldToLocal(new Vector3());
+    const b = p.worldToLocal(new Vector3(0, -drop, 0));
+    piece.position.add(b.sub(a));
+  }
+}
+
+/** Half the width of a front seat, and its cushion's length from the backrest (m). */
+const SEAT_HALF = 0.26;
+const SEAT_LONG = 0.56;

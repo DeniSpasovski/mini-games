@@ -214,7 +214,12 @@ export const merc190: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
     cockpit: {
-      seat: { x: 0.33, cushion: 0.44, back: [-0.32, 0.5, -0.42, 0.95] },
+      seat: {
+        x: 0.33,
+        cushion: 0.44,
+        back: [-0.32, 0.5, -0.42, 0.95],
+        drop: 0.06,
+      },
       wheel: { at: [0.331, 0.793, 0.223], r: 0.173, tilt: 28.7 },
       roof: 1.29,
       floor: 0.24,

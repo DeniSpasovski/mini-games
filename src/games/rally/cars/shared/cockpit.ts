@@ -14,3 +14,19 @@ export function wheelAt(cp: Cockpit): Vector3 {
     -(cp.wheel.pull ?? 0),
   );
 }
+
+/** The cockpit with its seats where they are fitted (`seat.drop` taken off their heights). */
+export function fitted(cp: Cockpit): Cockpit {
+  const d = cp.seat.drop ?? 0;
+  if (!d) return cp;
+  const [z0, y0, z1, y1] = cp.seat.back;
+  return {
+    ...cp,
+    seat: {
+      ...cp.seat,
+      cushion: cp.seat.cushion - d,
+      back: [z0, y0 - d, z1, y1 - d],
+      drop: 0,
+    },
+  };
+}
