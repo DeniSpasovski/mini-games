@@ -3,6 +3,7 @@ import { Rng } from '../../../../shared/rng';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 import { ROCK_MODELS } from './rock-models.data';
+import { dataView } from '../../../../shared/data-bin';
 
 /** Decoded stones per (model, lod); the packed layout is described in scripts/rocks/bake-rocks.mjs. */
 const decoded = new Map<string, BufferGeometry>();
@@ -11,10 +12,8 @@ function stone(model: number, lod: number): BufferGeometry {
   let g = decoded.get(key);
   if (g) return g;
   const lods = ROCK_MODELS[model].lods;
-  const bin = Uint8Array.from(atob(lods[Math.min(lod, lods.length - 1)]), (c) =>
-    c.charCodeAt(0),
-  );
-  const dv = new DataView(bin.buffer);
+  const bin = lods[Math.min(lod, lods.length - 1)];
+  const dv = dataView(bin);
   const n = dv.getUint16(0, true);
   const pos = new Float32Array(n * 3);
   const nor = new Float32Array(n * 3);

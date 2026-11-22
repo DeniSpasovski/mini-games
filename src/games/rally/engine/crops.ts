@@ -34,6 +34,7 @@ import {
   variantMaterial,
 } from './materials';
 import { groundLitCard } from './world-shading';
+import { dataView } from '../../../shared/data-bin';
 
 /**
  * Field crops from two CC BY models (`assets/builders/crop-models.data.ts`, credits: THIRD-PARTY.md): a wheat clump
@@ -94,10 +95,8 @@ const meshes = new Map<'wheat' | 'corn', BufferGeometry>();
 export function cropGeometry(model: 'wheat' | 'corn'): BufferGeometry {
   let g = meshes.get(model);
   if (g) return g;
-  const bytes = Uint8Array.from(atob(CROP_MODELS[model].mesh), (c) =>
-    c.charCodeAt(0),
-  );
-  const dv = new DataView(bytes.buffer);
+  const bytes = CROP_MODELS[model].mesh;
+  const dv = dataView(bytes);
   const n = dv.getUint16(0, true);
   const lo = [0, 1, 2].map((k) => dv.getFloat32(4 + k * 4, true));
   const size = [0, 1, 2].map((k) => dv.getFloat32(16 + k * 4, true));

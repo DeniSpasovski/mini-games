@@ -772,6 +772,9 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
 - Loading ends with a warm-up (`RallyGame.init`): compile, then one render with culling off, so shaders (shadow pass
   included) and uploads happen behind the loading screen. A material first used mid-stage compiles then (a hitch): it
   must be in the scene at load (`assetIds` adds the world-placed assets).
+- Baked meshes are binary: a `*.data.ts` holds the numbers and its `*.data.bin` the packed meshes (`shared/data-bin.ts`,
+  `scripts/data/data-bin.mjs`). The data module fetches its file at its top level, so an import of it waits for the bytes;
+  a decoder reads a mesh through `dataView` (a mesh is a view into the file, not its own buffer).
 - Background work runs in module workers (`shared/worker-pool.ts`): tree variants, leaf atlases, people, procedural
   textures; the tree workers read the IndexedDB cache. `play.ts` starts the tree workers (`warmTreeWorkers`) while the map
   data loads, so the Trees phase finds them running. `__rally.loadTimings` splits the load by phase.

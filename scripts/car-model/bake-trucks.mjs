@@ -17,6 +17,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { dataBin } from '../data/data-bin.mjs';
 
 const dir = process.argv[2];
 
@@ -482,7 +483,7 @@ export interface TruckPartData {
   /** Key in TRUCK_TEXTURES; none = flat, no uv. */
   tex?: string;
   /** Packed mesh (layout: see the baker). */
-  data: string;
+  data: Uint8Array;
 }
 
 export interface TruckTexture {
@@ -523,6 +524,7 @@ export const TRUCK_DATA: Record<'tractor' | 'trailer' | 'cab' | 'dump' | 'tyre',
 if (process.env.SHEET)
   fs.writeFileSync(process.env.SHEET, JSON.stringify({ data: out, textures }));
 fs.writeFileSync(file, ts);
+dataBin(file);
 console.log('wrote', (ts.length / 1024).toFixed(0), 'KB');
 for (const [k, v] of Object.entries(out))
   console.log(
