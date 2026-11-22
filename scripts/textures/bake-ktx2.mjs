@@ -25,12 +25,17 @@ const encoderPath = process.env.KTX2_ENCODER_MODULE;
 const { encodeToKTX2 } = await import(
   encoderPath ? pathToFileURL(path.resolve(encoderPath)).href : 'ktx2-encoder'
 );
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE ?? 'playwright'
-);
+const pw = await import(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
+const chromium = pw.chromium ?? pw.default.chromium;
 
 /** Colour: ETC1S (about 1/8 of the RGBA bytes on the GPU), top quality. */
-const COLOR = {
+const COLOR = process.env.KTX2_COLOR === 'uastc' ? {
+  isUASTC: true,
+  uastcLDRQualityLevel: 2,
+  needSupercompression: true,
+  isPerceptual: true,
+  isSetKTX2SRGBTransferFunc: true,
+} : {
   isUASTC: false,
   qualityLevel: 255,
   compressionLevel: 4,

@@ -9,7 +9,7 @@ import {
 } from '../world/road-wear';
 import { getTerrainMaterial } from '../world/terrain-material';
 import { GROUND_LAYER, GROUND_MEAN, GROUND_SCAN } from './ground-textures';
-import { loadKtx2 } from './ktx2';
+import { ktx2Off, loadKtx2 } from './ktx2';
 import {
   DataTexture,
   LinearFilter,
@@ -202,9 +202,10 @@ async function loadSurfaceKtx2(
 async function loadSurface(id: RoadSurfaceId): Promise<Surface | undefined> {
   const size = tileSize();
   try {
-    return await loadSurfaceKtx2(id, size);
-  } catch {
-    // No .ktx2 for this set (or no renderer yet): the webp set below.
+    if (!ktx2Off) return await loadSurfaceKtx2(id, size);
+  } catch (e) {
+    // No .ktx2 for this set: the webp set below (quietly). Anything else is worth a warning.
+    if ((e as { code?: string }).code !== 'MODULE_NOT_FOUND') console.warn(e);
   }
   try {
     const urls = await Promise.all(
