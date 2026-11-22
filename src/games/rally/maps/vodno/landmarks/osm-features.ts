@@ -285,6 +285,10 @@ export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
           out.push(turnedBoxCollider(site, 0, 0, -p.yaw, 1.15, 1.15, y, 2.8));
         else if (p.kind === 'concrete_block')
           out.push(turnedBoxCollider(site, 0, 0, -p.yaw, 0.7, 0.45, y, 1.3));
+        else if (p.kind === 'timber_bollard')
+          out.push(cylinderCollider(site, 0, 0, y, 0.1, 1.2));
+        else if (p.kind === 'border_stone')
+          out.push(turnedBoxCollider(site, 0, 0, -p.yaw, 0.25, 0.18, y, 0.85));
         else if (p.kind === 'picnic_table')
           out.push(cylinderCollider(site, 0, 0, y, 1.05, 1.3));
         else if (p.kind === 'bench' || p.kind === 'viewpoint')

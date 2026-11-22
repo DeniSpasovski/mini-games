@@ -571,22 +571,7 @@ function vidikovecLayout(): void {
       lift: 0,
     });
   }
-  // The binocular viewer on the red terrace's grass, in front of its flight's foot, looking out; solar lamps along the outer
-  // edge (the west one outside the kerb, behind its railing).
-  const foot = redRiser(RED_FLIGHT.count + 1);
-  const bp = push(
-    [(foot.w[0] + foot.s[0]) / 2, (foot.w[1] + foot.s[1]) / 2],
-    RED_FLIGHT.g,
-    2.5,
-  );
-  out.push({
-    kind: 'binocular',
-    x: bp[0],
-    z: bp[1],
-    yaw: yawFacing(RED_FLIGHT.g[0], RED_FLIGHT.g[1]),
-    onSlab: false,
-    lift: 0,
-  });
+  // Solar lamps along the outer edge (the west one outside the kerb, behind its railing).
   for (const [q, o] of [
     [0.16, 0.9],
     [0.96, -0.9],
@@ -602,19 +587,72 @@ function vidikovecLayout(): void {
       ...(o < 0 ? {} : { lift: 0 }),
     });
   }
-  // Rusty bollards across the lot beyond the bays' end.
-  const end = shape.centre.length - 1;
-  const bl = shape.left[Math.max(0, end - 6)];
-  const br = shape.right[Math.max(0, end - 6)];
-  const n = 6;
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n;
+  // Rusty bollards in an L in front of the red terrace's flight (Q1-G): a short row out from its G end into the lot, then
+  // one across to the lot's outer wall past Q1, the front row run over, all still solid (the lot's far end is
+  // open, no bollards). The binocular viewer stands inside the L, off the flight's head. (`s` m along G -> Q1, `d` m in.)
+  {
+    const { Q1, G } = VIDIKOVEC_RIM;
+    const o = edgeNormal(Q1, G, LOT_INSIDE);
+    const u = unitV(Q1[0] - G[0], Q1[1] - G[1]);
+    const at = (s: number, d: number): V2 => [
+      G[0] + u[0] * s - o[0] * d,
+      G[1] + u[1] * s - o[1] * d,
+    ];
+    const row = (
+      s0: number,
+      d0: number,
+      s1: number,
+      d1: number,
+      n: number,
+    ): V2[] =>
+      Array.from({ length: n }, (_, i) =>
+        at(lerp(s0, s1, i / (n - 1)), lerp(d0, d1, i / (n - 1))),
+      );
+    const posts = [
+      // (the short row 40 cm further out than the line to the corner, the corner 15 cm towards the flight: in line with both)
+      ...row(1.2, 1.2, 2.2, 5.7, 4).map((q, i) =>
+        i < 3
+          ? ([q[0] - u[0] * 0.4, q[1] - u[1] * 0.4] as V2)
+          : ([q[0] + o[0] * 0.15, q[1] + o[1] * 0.15] as V2),
+      ),
+      ...row(2.2, 5.7, 9, 5, 7).slice(1),
+    ];
+    // (the front row past the corner lies over like the fallen one in the short row, all one way: back towards the flight
+    // and its G end, as if a car ran it over; the corner one, i = 3, stands)
+    const runOver = Math.atan2(
+      -0.88 * u[1] + 0.46 * o[1],
+      -0.88 * u[0] + 0.46 * o[0],
+    );
+    posts.forEach((p, i) => {
+      const yaw =
+        i > 3
+          ? runOver + ((i * 0.13) % 0.2) - 0.1
+          : i === 1 || i === 2
+            ? 2.3 + (i - 1) * 0.25
+            : (i * 2.3) % (Math.PI * 2);
+      // (the short row: its 2nd and 3rd lie over like a run-over one, their middles on the row's line; the 1st stands)
+      const r =
+        i > 3
+          ? 1.0 + ((i * 7) % 3) * 0.04
+          : i === 1 || i === 2
+            ? 1.05 + (i - 1) * 0.05
+            : 0.04 + ((i * 7) % 5) * 0.03;
+      const back = i === 1 || i === 2 ? (Math.sin(r) * 0.95) / 2 : 0;
+      out.push({
+        kind: 'bollard',
+        x: p[0] - Math.cos(yaw) * back,
+        z: p[1] - Math.sin(yaw) * back,
+        yaw,
+        r,
+        onSlab: true,
+      });
+    });
+    const bp = at(6.4, 2.2);
     out.push({
-      kind: 'bollard',
-      x: lerp(bl[0], br[0], t),
-      z: lerp(bl[1], br[1], t),
-      yaw: (i * 2.3) % (Math.PI * 2),
-      r: 0.05 + ((i * 7) % 5) * 0.07,
+      kind: 'binocular',
+      x: bp[0],
+      z: bp[1],
+      yaw: yawFacing(o[0], o[1]),
       onSlab: true,
     });
   }
@@ -1103,7 +1141,7 @@ export interface GardenWall {
 /**
  * The garden's retaining walls (pure, shared by the drawing and the colliders), each on the upper level's edge reaching
  * out over the lower one: the grey strip's three sides (railed), the red terrace's far side over the green one (railed
- * beside the stairs), the low kerb along the green terrace's arc and the stone steps' east side.
+ * beside the stairs), the stone steps' east side and the low kerb along the green terrace's arc.
  */
 export function gardenWallRuns(): GardenWall[] {
   const { G, Q1, T, D, F, Eend } = VIDIKOVEC_RIM;
@@ -1157,7 +1195,9 @@ export function gardenWallRuns(): GardenWall[] {
       false,
       2,
     ),
-    run([D, F, ...GREEN_ARC.slice(ARC_FROM), T], [-40, -18], 0.35, true),
+    // (the stone steps' east side holds the land beside them, up to 1.6 m higher at the lot's end; a kerb on round the arc)
+    run([D, F], [-40, -18], STEP_WALL),
+    run([F, ...GREEN_ARC.slice(ARC_FROM), T], [-40, -18], 0.35, true),
   ];
 }
 
@@ -1541,6 +1581,34 @@ export function drawGarden(l: Local, gy: LocalGround): void {
       ) + 0.04;
     wallSeg(l, pa, pb, top - 0.7, top, tread, 'drystone', '#bdb6a8');
   }
+  // The slab's edge over the steps' head (M-D): a lip as at the flights, so no slot of ground shows under it.
+  const { M, D, F } = VIDIKOVEC_RIM;
+  const outMD = edgeNormal(M, D, LOT_INSIDE);
+  lip(M, D, [-outMD[0], -outMD[1]], gy(...push(mid(M, D), outMD, 1)) - 0.4);
+  // A lawn shelf along the inner side of the steps' east wall (D-F), just under the slope's ground: the 1 m terrain dips
+  // in notches along the wall's face where the land past it is lower; the shelf fills them and hides under it elsewhere.
+  const nDF = edgeNormal(D, F, [-40, -18]);
+  const cells = Math.ceil(Math.hypot(F[0] - D[0], F[1] - D[1]) / 0.5);
+  const onDF = (k: number, o: number): V3 => {
+    const q = push(
+      [D[0] + ((F[0] - D[0]) * k) / cells, D[1] + ((F[1] - D[1]) * k) / cells],
+      nDF,
+      o,
+    );
+    return [q[0], gy(...q) - 0.05, q[1]];
+  };
+  for (let k = 0; k < cells; k++)
+    for (const [o0, o1] of [
+      [-1.2, -0.6],
+      [-0.6, 0],
+    ])
+      l.fan(
+        'lawn',
+        [onDF(k, o0), onDF(k + 1, o0), onDF(k + 1, o1), onDF(k, o1)],
+        '#d2f560',
+        [0, 1, 0],
+        (q) => [q[0], q[2]],
+      );
 }
 
 const layout = (lot: Lot): void => {
@@ -1733,6 +1801,18 @@ export function pieceCollider(
       return cylinderCollider(site, lx, lz, yBase, 0.4, 1.5);
     case 'pole':
       return cylinderCollider(site, lx, lz, yBase, 0.16, 9);
+    case 'bollard': {
+      // (round the middle of its lean: `bollard` tips its 0.95 m post `r` rad towards `yaw`)
+      const off = Math.sin(p.r ?? 0.1) * 0.95;
+      return cylinderCollider(
+        site,
+        lx + (Math.cos(p.yaw) * off) / 2,
+        lz + (Math.sin(p.yaw) * off) / 2,
+        yBase,
+        0.06 + off / 2,
+        1,
+      );
+    }
     case 'woodBoard':
       return turnedBoxCollider(site, lx, lz, -p.yaw, 1.4, 0.2, yBase, 3);
     case 'containers': {
