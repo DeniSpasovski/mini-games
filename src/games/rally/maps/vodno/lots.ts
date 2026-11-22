@@ -166,7 +166,8 @@ export const LOT_PADS: PadDef[] = [
     return {
       name: 'vidikovec_garden_steps',
       polygon,
-      blend: 3,
+      // (walls or levels of its own all round: a blend dragged the land beside its east wall down into a trench)
+      blend: 0.1,
       // (at the lot's far end: all of its rise)
       level: VIDIKOVEC_LEVEL + VIDIKOVEC_RISE,
       hold: true,

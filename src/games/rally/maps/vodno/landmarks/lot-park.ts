@@ -1103,7 +1103,7 @@ export interface GardenWall {
 /**
  * The garden's retaining walls (pure, shared by the drawing and the colliders), each on the upper level's edge reaching
  * out over the lower one: the grey strip's three sides (railed), the red terrace's far side over the green one (railed
- * beside the stairs), the low kerb along the green terrace's arc and the stone steps' east side.
+ * beside the stairs), the stone steps' east side and the low kerb along the green terrace's arc.
  */
 export function gardenWallRuns(): GardenWall[] {
   const { G, Q1, T, D, F, Eend } = VIDIKOVEC_RIM;
@@ -1157,7 +1157,9 @@ export function gardenWallRuns(): GardenWall[] {
       false,
       2,
     ),
-    run([D, F, ...GREEN_ARC.slice(ARC_FROM), T], [-40, -18], 0.35, true),
+    // (the stone steps' east side holds the land beside them, up to 1.6 m higher at the lot's end; a kerb on round the arc)
+    run([D, F], [-40, -18], STEP_WALL),
+    run([F, ...GREEN_ARC.slice(ARC_FROM), T], [-40, -18], 0.35, true),
   ];
 }
 
@@ -1541,6 +1543,34 @@ export function drawGarden(l: Local, gy: LocalGround): void {
       ) + 0.04;
     wallSeg(l, pa, pb, top - 0.7, top, tread, 'drystone', '#bdb6a8');
   }
+  // The slab's edge over the steps' head (M-D): a lip as at the flights, so no slot of ground shows under it.
+  const { M, D, F } = VIDIKOVEC_RIM;
+  const outMD = edgeNormal(M, D, LOT_INSIDE);
+  lip(M, D, [-outMD[0], -outMD[1]], gy(...push(mid(M, D), outMD, 1)) - 0.4);
+  // A lawn shelf along the inner side of the steps' east wall (D-F), just under the slope's ground: the 1 m terrain dips
+  // in notches along the wall's face where the land past it is lower; the shelf fills them and hides under it elsewhere.
+  const nDF = edgeNormal(D, F, [-40, -18]);
+  const cells = Math.ceil(Math.hypot(F[0] - D[0], F[1] - D[1]) / 0.5);
+  const onDF = (k: number, o: number): V3 => {
+    const q = push(
+      [D[0] + ((F[0] - D[0]) * k) / cells, D[1] + ((F[1] - D[1]) * k) / cells],
+      nDF,
+      o,
+    );
+    return [q[0], gy(...q) - 0.05, q[1]];
+  };
+  for (let k = 0; k < cells; k++)
+    for (const [o0, o1] of [
+      [-1.2, -0.6],
+      [-0.6, 0],
+    ])
+      l.fan(
+        'lawn',
+        [onDF(k, o0), onDF(k + 1, o0), onDF(k + 1, o1), onDF(k, o1)],
+        '#d2f560',
+        [0, 1, 0],
+        (q) => [q[0], q[2]],
+      );
 }
 
 const layout = (lot: Lot): void => {

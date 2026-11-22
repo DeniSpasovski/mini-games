@@ -267,8 +267,11 @@ const ROAD_CLEAR = 3.6;
 const ROAD_SIDE = ROAD_CLEAR + 2;
 /** Stage road centre line -> the outer edge of a lot's mouth (m): at the road ribbon's edge (half width 2.9), so its edge line stays in view. */
 const MOUTH_EDGE = 2.95;
-/** Stage road centre line -> just past its edge line (m): where a lot's asphalt laid over the ribbon's gravel rim meets the road. */
-const EDGE_LINE = 2.85;
+/**
+ * Stage road centre line -> the outer side of its painted edge line (m): where a lot's asphalt laid over the ribbon meets the
+ * road (any further out, the ribbon's gravel rim shows between them).
+ */
+const EDGE_LINE = 2.7;
 
 /** Resample a polyline to points at most `step` apart. */
 function resample(pts: V2[], step: number): V2[] {
@@ -632,7 +635,7 @@ export function vergePolygon(lot: Lot, from: number, beyond = 6): number[] {
       ) as V2,
     );
   }
-  // Round the far cap: along it to 3/4 of its width, then out past it.
+  // Round the far cap: along it to its outer corner (short of it the lot's own pad left a hollow by the corner), then out past it.
   const a = centre[n - 2];
   const b = centre[n - 1];
   const ol = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
@@ -644,8 +647,8 @@ export function vergePolygon(lot: Lot, from: number, beyond = 6): number[] {
   const r = road[road.length - 1];
   const pts: V2[] = [
     ...inner,
-    capAt(0.75, 0.05),
-    capAt(0.75, beyond),
+    capAt(1, 0.05),
+    capAt(1, beyond),
     [r[0] + out[0] * beyond, r[1] + out[1] * beyond],
     ...road.slice().reverse(),
   ];
@@ -673,6 +676,8 @@ export interface CutWall {
 export function wallMeshCut(
   site: Site,
   walls: () => CutWall[],
+  /** Whether a local point lies under the slab in front of the banks (default: everywhere). */
+  under?: (lx: number, lz: number) => boolean,
 ): (x: number, z: number, height: (x: number, z: number) => number) => number {
   interface Seg {
     a: V2;
@@ -705,10 +710,15 @@ export function wallMeshCut(
           ];
           const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
           if (len < 0.01) continue;
+          const t: V2 = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+          // (distances square to the segment, on the normals' side: a cap's normals run along the lot, a few degrees
+          // off square to it, which put points in front of its face inside it)
+          const sq: V2 =
+            t[1] * n[0] - t[0] * n[1] >= 0 ? [t[1], -t[0]] : [-t[1], t[0]];
           segs.push({
             a,
-            n,
-            t: [(b[0] - a[0]) / len, (b[1] - a[1]) / len],
+            n: sq,
+            t,
             len,
             T: w.outer - w.inner,
             bank: !!w.bank,
@@ -728,6 +738,8 @@ export function wallMeshCut(
     let best: Seg | undefined;
     let bd = 0;
     let bAbs = Infinity;
+    /** The banks the point lies in front of, with its distance to each (a corner's two). */
+    const fronts: [Seg, number][] = [];
     for (const g of segs) {
       const dx = lx - g.a[0];
       const dz = lz - g.a[1];
@@ -736,6 +748,7 @@ export function wallMeshCut(
       const d = dx * g.n[0] + dz * g.n[1];
       // (a plain wall also takes the upper pad's overhang past its face: 0.05 + 0.1 blend)
       if (d < (g.bank ? -1.8 : 0) || d > g.T + (g.bank ? 0.05 : 0.3)) continue;
+      if (g.bank && d < 0) fronts.push([g, d]);
       const ad = Math.abs(d - g.T / 2);
       if (ad < bAbs) {
         bAbs = ad;
@@ -744,30 +757,34 @@ export function wallMeshCut(
       }
     }
     if (!best) return 0;
-    // (the land's level 1.6 m past the wall against the ground's at the point)
-    const back = 1.6 + best.T - bd;
-    const [bx, bz] = toWorld(
-      site,
-      lx + best.n[0] * back,
-      lz + best.n[1] * back,
-    );
     const h = height(x, z);
-    if (!best.bank) return h - height(bx, bz) > 0.05 ? h - height(bx, bz) : 0;
-    // A bank: the slab's level a metre in front of the wall against the verge's behind it.
-    const [fx, fz] = toWorld(
-      site,
-      lx + best.n[0] * (-1 - bd),
-      lz + best.n[1] * (-1 - bd),
-    );
-    const lot = height(fx, fz);
-    const step = height(bx, bz) - lot;
-    if (step < 0.05) return 0;
-    // Points from BANK_RISE into the wall rise to the verge; those before it drop to the slab's level and, in front of the
-    // wall, on down along the slope from that line through the foot: every triangle up to the verge then passes the
-    // inner face under the slab (rising from just inside the face, as from the face itself, it would stand in teeth on
-    // the slab). Its other end dips beside the wall's back; the bank's lawn shelf (`drawWall`) covers that.
-    if (bd >= BANK_RISE) return h - height(bx, bz);
-    return h - lot + (step * Math.max(0, -bd)) / BANK_RISE + 0.05;
+    const cut = (g: Seg, d: number): number => {
+      // (the land's level 1.6 m past the wall against the ground's at the point)
+      const back = 1.6 + g.T - d;
+      const [bx, bz] = toWorld(site, lx + g.n[0] * back, lz + g.n[1] * back);
+      if (!g.bank) return h - height(bx, bz) > 0.05 ? h - height(bx, bz) : 0;
+      // A bank: the slab's level a metre in front of the wall against the verge's behind it.
+      const [fx, fz] = toWorld(
+        site,
+        lx + g.n[0] * (-1 - d),
+        lz + g.n[1] * (-1 - d),
+      );
+      const lot = height(fx, fz);
+      const step = height(bx, bz) - lot;
+      if (step < 0.05) return 0;
+      // Points from BANK_RISE into the wall rise to the verge; those before it drop to the slab's level and, in front of the
+      // wall, on down along the slope from that line through the foot: every triangle up to the verge then passes the
+      // inner face under the slab (rising from just inside the face, as from the face itself, it would stand in teeth on
+      // the slab). Its other end dips beside the wall's back; the bank's lawn shelf (`drawWall`) covers that.
+      if (d >= BANK_RISE) return h - height(bx, bz);
+      // (only under the slab: past its corner, in front of a cap's end, the ground shows)
+      if (d < 0 && under && !under(lx, lz)) return 0;
+      return h - lot + (step * Math.max(0, -d)) / BANK_RISE + 0.05;
+    };
+    // (in front of a bank: as deep as the deepest of the banks it lies in front of - at a corner, both walls' triangles)
+    if (best.bank && bd < 0)
+      return Math.max(...fronts.map(([g, d]) => cut(g, d)));
+    return cut(best, bd);
   };
 }
 
@@ -775,8 +792,11 @@ export function wallMeshCut(
 const TAIL = 0.6;
 /** How far a tail's asphalt reaches past its line (m): out under the road rail along it, tapered to nothing at the strip's end. */
 const TAIL_REACH = 0.25;
-/** A road-side apron's lift over the ground at the road's edge (m): over the road ribbon's gravel shoulder, as a bevel's. */
-const ROAD_SIDE_LIFT = 0.04;
+/**
+ * A road-side apron's lift over the ground at the road's edge (m): 5 cm over the road ribbon (2 cm over the ground), whose
+ * polygon offset pulls its gravel rim through any asphalt laid closer over it.
+ */
+const ROAD_SIDE_LIFT = 0.07;
 /** How far the drawn terrain is cut under a tail (m). */
 const TAIL_SINK = 0.15;
 /** How far a bank's lawn shelf lies under the verge's ground (m): hidden where the drawn terrain holds the ground. */
@@ -873,16 +893,27 @@ export function lotMeshSink(
   lot: Lot,
 ): (x: number, z: number, height: (x: number, z: number) => number) => number {
   const T = lot.wallThick ?? 0.6;
-  return wallMeshCut(lot.site, () =>
-    wallRuns(lot)
-      .filter((r) => r.bank || (r.rail && !r.kerb))
-      .map((r) => ({
-        p: r.p,
-        n: r.n,
-        inner: 0.05,
-        outer: 0.05 + (r.bank ? 0.5 : T),
-        bank: r.bank,
-      })),
+  return wallMeshCut(
+    lot.site,
+    () =>
+      wallRuns(lot)
+        .filter((r) => r.bank || (r.rail && !r.kerb))
+        .map((r) => ({
+          p: r.p,
+          n: r.n,
+          inner: 0.05,
+          outer: 0.05 + (r.bank ? 0.5 : T),
+          bank: r.bank,
+        })),
+    // (on the slab or within 0.3 m of its edge: a corner's last points drop too, under the walls meeting there)
+    (lx, lz) => {
+      const { poly } = slabOutline(lot);
+      if (inPolygon(poly, lx, lz)) return true;
+      const p: V2 = [lx, lz];
+      return poly.some(
+        (a, i) => segDist(p, a, poly[(i + 1) % poly.length]) < 0.3,
+      );
+    },
   );
 }
 
@@ -1241,22 +1272,25 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       );
       // A bank's lawn shelf: 1.2 m of grass along its back, just under the verge's ground. The 1 m terrain cannot
       // step at a 0.5 m wall: a triangle from the slab's sunk ground to the verge dips into notches beside the wall
-      // (`wallMeshCut`); the shelf fills them and lies hidden under the terrain everywhere else.
+      // (`wallMeshCut`); the shelf fills them and lies hidden under the terrain everywhere else - not where the land falls
+      // away past the wall's end (a flat cell there stands out of the slope).
       if (run.bank)
         for (let k = 0; k + 1 < m; k++)
           for (const [o0, o1] of [
             [OUT, OUT + 0.6],
             [OUT + 0.6, OUT + 1.2],
-          ])
+          ]) {
+            const cell = [at(k, o0), at(k + 1, o0), at(k + 1, o1), at(k, o1)];
+            const ys = cell.map((q) => y(q));
+            if (Math.max(...ys) - Math.min(...ys) > 0.3) continue;
             l.fan(
               'lawn',
-              [at(k, o0), at(k + 1, o0), at(k + 1, o1), at(k, o1)].map(
-                (q): V3 => [q[0], y(q, -SHELF_SINK), q[1]],
-              ),
+              cell.map((q): V3 => [q[0], y(q, -SHELF_SINK), q[1]]),
               '#d2f560',
               up,
               (q) => [q[0], q[2]],
             );
+          }
       if (!run.rail) continue;
       // The railing: posts about every 2 m set into the top, rails sloping with it; on the outer edge of a thick wall, along
       // the middle of a thin one or a kerb (three rails on a kerb).
@@ -1727,7 +1761,8 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
 }
 
 /**
- * The solid wall of a walled lot: a box per 2 m of its runs (the whole thickness, from 3 m under the slab's level to 1.4 m over it), and
+ * The solid wall of a walled lot: a box per 2 m of its runs (the whole thickness, from 3 m under the slab's level to 1.4 m over it,
+ * a bank's up to the verge's grass), and
  * one across the opening of its stairs (the stairs are for walkers: a car is stopped there too). `ground` = the levelled terrain.
  */
 export function wallColliders(
@@ -1736,7 +1771,14 @@ export function wallColliders(
 ): StaticCollider[] {
   const lotT = lot.wallThick ?? 0.6;
   const out: StaticCollider[] = [];
-  const box = (a: V2, b: V2, nx: number, nz: number, T = lotT): void => {
+  const box = (
+    a: V2,
+    b: V2,
+    nx: number,
+    nz: number,
+    T = lotT,
+    bank = false,
+  ): void => {
     const mid = 0.05 + T / 2;
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (len < 0.05) return;
@@ -1749,6 +1791,13 @@ export function wallColliders(
       (a[1] + b[1]) / 2 - nz * 0.5,
     );
     const slab = ground(ix, iz) + SLAB;
+    // (a bank's top is the verge's grass behind it, as drawn: lower, a car on the verge sank through it)
+    const [vx, vz] = toWorld(
+      lot.site,
+      (a[0] + b[0]) / 2 + nx * (0.05 + T + 1.6),
+      (a[1] + b[1]) / 2 + nz * (0.05 + T + 1.6),
+    );
+    const top = bank ? Math.max(slab + 1.4, ground(vx, vz) + 0.05) : slab + 1.4;
     out.push(
       turnedBoxCollider(
         lot.site,
@@ -1758,7 +1807,7 @@ export function wallColliders(
         len / 2 + 0.05,
         T / 2,
         slab - 3,
-        3 + 1.4,
+        top - (slab - 3),
       ),
     );
   };
@@ -1770,6 +1819,7 @@ export function wallColliders(
         (run.n[k][0] + run.n[k + 1][0]) / 2,
         (run.n[k][1] + run.n[k + 1][1]) / 2,
         runThick(run, lotT),
+        run.bank,
       );
   const stairs = stairsAnchor(lot);
   if (stairs) {
