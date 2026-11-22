@@ -52,7 +52,12 @@ export class GpuDraw {
   private frustum = new Frustum();
   private vp = new Matrix4();
 
-  constructor(slice: TrialSlice) {
+  /**
+   * `firstInstance`: each draw's list offset rides in its indirect arguments (firstInstance, needs the
+   * `indirect-first-instance` feature), so the draws share one vertex program with no per-object uniform. Otherwise
+   * a per-object uniform carries it.
+   */
+  constructor(slice: TrialSlice, firstInstance: boolean) {
     const groups = slice.groups;
     const N = groups.reduce((s, g) => s + g.count, 0);
     this.instances = N;
@@ -146,6 +151,9 @@ export class GpuDraw {
     draws.forEach((d, i) => {
       const idx = d.geometry.index;
       args[i * 5] = idx ? idx.count : d.geometry.getAttribute('position').count;
+      // Indexed: [indexCount, instanceCount, firstIndex, baseVertex, firstInstance]; plain: [vertexCount,
+      // instanceCount, firstVertex, firstInstance].
+      if (firstInstance) args[i * 5 + (idx ? 4 : 3)] = slotBase[d.slot];
       drawSlot[i] = d.slot;
     });
     const argsAttr = new IndirectStorageBufferAttribute(args, 5);
@@ -213,7 +221,9 @@ export class GpuDraw {
       ({ object }) => (object?.userData.base as number) ?? 0,
     );
     const placed = Fn(() => {
-      const id = visibleIn.element(base.add(instanceIndex));
+      const id = visibleIn.element(
+        firstInstance ? instanceIndex : base.add(instanceIndex),
+      );
       const r = id.mul(4);
       const m = mat4(
         rowsBuf.element(r),

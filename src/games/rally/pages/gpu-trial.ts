@@ -276,7 +276,12 @@ async function main() {
   }
   const useGpu = mode === 'webgpu' && gpuCull;
   const cpu = useGpu ? null : new CpuDraw(slice, material);
-  const gpu = useGpu ? new GpuDraw(slice) : null;
+  // `base=uniform`: the per-object uniform path even where firstInstance works (to compare the two).
+  const firstInstance =
+    useGpu &&
+    params.get('base') !== 'uniform' &&
+    (renderer as WebGPURenderer).hasFeature('indirect-first-instance');
+  const gpu = useGpu ? new GpuDraw(slice, firstInstance) : null;
   scene.add((cpu ?? gpu)!.group);
   const parts = slice.groups.reduce(
     (s, g) => s + g.lods.reduce((t, l) => t + l.parts.length, 0),
@@ -452,6 +457,7 @@ async function main() {
       cullMs: +mean(b.cull).toFixed(2),
       shadows,
       timestamps,
+      firstInstance,
       gpuMs: b.gpu.length ? +mean(b.gpu).toFixed(2) : null,
       draws: Math.round(mean(b.draws)),
       instances: slice.instances,
