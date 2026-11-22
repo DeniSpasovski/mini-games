@@ -24,6 +24,7 @@ import {
   type PackKind,
   type PackModel,
 } from './tree-packs.data';
+import { dataView } from '../../../../shared/data-bin';
 
 export type { PackKind } from './tree-packs.data';
 
@@ -133,9 +134,8 @@ function models(kind: PackKind): PackModel[] {
 }
 
 /** The packed mesh (layout: scripts/trees/bake-tree-packs.py): position, normal and uv. */
-function decode(packed: string): BufferGeometry {
-  const bin = Uint8Array.from(atob(packed), (c) => c.charCodeAt(0));
-  const dv = new DataView(bin.buffer);
+function decode(bin: Uint8Array): BufferGeometry {
+  const dv = dataView(bin);
   const n = dv.getUint32(0, true);
   const f = (o: number) => dv.getFloat32(o, true);
   const lo = [f(4), f(8), f(12)];

@@ -33,6 +33,9 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'foliage_card_weeds'
   | 'foliage_card_reeds'
+  | 'foliage_card_reeds_dry'
+  | 'foliage_card_reeds_old'
+  | 'foliage_card_weeds_rust'
   | 'foliage_card_ferns'
   | 'foliage_card_ferns_autumn'
   | 'grass_blade'
@@ -144,6 +147,9 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card_spring',
   'foliage_card_weeds',
   'foliage_card_reeds',
+  'foliage_card_reeds_dry',
+  'foliage_card_reeds_old',
+  'foliage_card_weeds_rust',
   'foliage_card_ferns',
   'foliage_card_ferns_autumn',
 ];
@@ -237,6 +243,27 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 1,
       });
       break;
+    case 'foliage_card_reeds_dry':
+    case 'foliage_card_reeds_old':
+    case 'foliage_card_weeds_rust': {
+      // Season sheets recoloured per texel (scripts/plants/bake-seasons.py): the November reed stand (olive below,
+      // straw above, beige plumes), last year's bleached stand (spring), dead rust-red docks and knotweed (autumn).
+      const sheet =
+        id === 'foliage_card_reeds_dry'
+          ? 'reeds-autumn'
+          : id === 'foliage_card_reeds_old'
+            ? 'reeds-winter'
+            : 'weeds-rust';
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet(sheet),
+        color: new Color(...cardColor(sheet)),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    }
     case 'foliage_card_ferns':
     case 'foliage_card_ferns_autumn': {
       // Fern stands of the shaded woods, green / dead bracken (engine/plants/ferns*.webp).
@@ -456,6 +483,7 @@ const depthVertexOf = (base: Material): DepthVertex | undefined =>
   base.userData.depthVertex as DepthVertex | undefined;
 
 const variantMats = new Map<Material, Material>();
+const prepasses = new WeakMap<Material, Material>();
 const variantDepth = new Map<Material, MeshDepthMaterial>();
 
 /** `base` for variant-set meshes (cached; its own `onBeforeCompile`, or the world-shading default, runs first). */
@@ -475,7 +503,23 @@ export function variantMaterial(base: Material): Material {
   };
   m.customProgramCacheKey = () => `${baseKey}|variants`;
   variantMats.set(base, m);
+  // A variant set draws its prepass with the prepass' own variant copy (the same program again).
+  const pre = prepasses.get(base);
+  if (pre) prepasses.set(m, variantMaterial(pre));
   return m;
+}
+
+/**
+ * A depth prepass for `lit` (wheat cards, engine/crops.ts): the instance streamer draws every mesh of `lit` a second
+ * time before the opaque world with `pre` (world/instance-streamer.ts), sharing its instances.
+ */
+export function setPrepassMaterial(lit: Material, pre: Material): void {
+  prepasses.set(lit, pre);
+}
+
+/** The depth prepass material of `lit` (`setPrepassMaterial`), if it has one. */
+export function prepassMaterial(lit: Material): Material | undefined {
+  return prepasses.get(lit);
 }
 
 const fadeMats = new Map<Material, Material>();
@@ -561,5 +605,20 @@ export function shapedDepthMaterial(
   m.onBeforeCompile = (shader) => shape.apply(shader);
   m.customProgramCacheKey = () => `depth|${shape.key}`;
   shapedDepth.set(base, m);
+  return m;
+}
+
+const plainDepth = new Map<Material, MeshDepthMaterial>();
+
+/**
+ * Shadow-pass material of one `base` (`customDepthMaterial`), else three's own: three's single shared depth material
+ * takes each caster's `map` without a program change, so which program a caster gets depends on the draw order, and the
+ * load's warm frame can miss one (a mid-stage compile: 3-10 s on a fresh shader cache). One per base: always the same.
+ */
+export function plainDepthMaterial(base: Material): MeshDepthMaterial {
+  let m = plainDepth.get(base);
+  if (m) return m;
+  m = new MeshDepthMaterial();
+  plainDepth.set(base, m);
   return m;
 }

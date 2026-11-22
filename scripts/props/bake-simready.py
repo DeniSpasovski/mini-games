@@ -20,6 +20,7 @@ import base64
 import math
 import os
 import struct
+import subprocess
 import sys
 
 import bmesh
@@ -456,7 +457,7 @@ ts = [
     '  /** Bounding size (m): width (x), height (y), depth (z). */',
     '  size: [number, number, number];',
     '  /** Packed mesh per level of detail (layout: see the baker). */',
-    '  lods: string[];',
+    '  lods: Uint8Array[];',
     '}',
     '',
     f'export const SIMREADY_{group.upper()}: Record<string, SimreadyModelData> = {{',
@@ -469,5 +470,7 @@ out = os.path.join(root, "src", "games", "rally", "assets", "builders", f"simrea
 with open(out, "w", encoding="utf8", newline="\n") as f:
     f.write("\n".join(ts) + "\n")
 print("wrote", out)
+# The packed meshes move out of the script into simready-<group>.data.bin.
+subprocess.run(["node", os.path.join(root, "scripts", "data", "data-bin.mjs"), out], check=True)
 if group in TEXTURED:
     write_atlas()

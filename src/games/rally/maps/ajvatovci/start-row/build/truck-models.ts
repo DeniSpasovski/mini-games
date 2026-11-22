@@ -14,6 +14,7 @@ import {
   type TruckData,
   type TruckRole,
 } from './truck-models.data';
+import { dataView } from '../../../../../../shared/data-bin';
 
 /**
  * The baked truck models (`scripts/car-model/bake-trucks.mjs`, credits: THIRD-PARTY.md): a tractor unit, its trailer,
@@ -31,11 +32,8 @@ export interface TruckPiece {
   geometry: BufferGeometry;
 }
 
-function decode(b64: string, color?: string): BufferGeometry {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const dv = new DataView(bytes.buffer);
+function decode(bytes: Uint8Array, color?: string): BufferGeometry {
+  const dv = dataView(bytes);
   const n = dv.getUint16(0, true);
   const withUv = (bytes[2] & 1) !== 0;
   const lo = [0, 1, 2].map((k) => dv.getFloat32(4 + k * 4, true));

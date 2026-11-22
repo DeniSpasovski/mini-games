@@ -53,6 +53,8 @@ export const ajvatovciInfo: MapInfo = {
   // detail heights / land cover / roads / buildings cover this box (scripts/realmap/ajvatovci.json).
   bounds: { minX: -4300, maxX: 4600, minZ: -3450, maxZ: 3500 },
   environment: {
+    // The streams hold slow, silty, weedy water (the drains and the canal are dry ditches).
+    waterMurk: 1,
     sunElevation: 40,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
     sunAzimuth: 315,

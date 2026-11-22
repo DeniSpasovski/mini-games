@@ -582,6 +582,33 @@ export class PathNetwork {
     return out;
   }
 
+  /**
+   * Whether any path can be found (`query`) from a point of the square [x0, x0 + size) x [z0, z0 + size): false means
+   * every query there misses (the scatter skips a chunk's channel rules on it).
+   */
+  touches(x0: number, z0: number, size: number): boolean {
+    const c0 = Math.floor(x0 / PCELL);
+    const c1 = Math.floor((x0 + size - 1e-6) / PCELL);
+    const r0 = Math.floor(z0 / PCELL);
+    const r1 = Math.floor((z0 + size - 1e-6) / PCELL);
+    for (let cx = c0; cx <= c1; cx++)
+      for (let cz = r0; cz <= r1; cz++)
+        if (this.grid.has((cx + 32768) * 65536 + (cz + 32768))) return true;
+    return false;
+  }
+
+  private sideA = { x: 0, z: 0 };
+  private sideB = { x: 0, z: 0 };
+  /** Side of path `pi` that (x, z) lies on, near `along` m: 1 = right looking along the path, -1 = left. */
+  sideOf(pi: number, along: number, x: number, z: number): 1 | -1 {
+    const a = this.sideA;
+    const b = this.sideB;
+    this.pointAt(pi, along - 1, a);
+    this.pointAt(pi, along + 1, b);
+    // Right of the direction (tx, tz) is (-tz, tx).
+    return (x - a.x) * -(b.z - a.z) + (z - a.z) * (b.x - a.x) >= 0 ? 1 : -1;
+  }
+
   /** Point at `along` metres on path `pi` (clamped to its ends). */
   pointAt(pi: number, along: number, out: { x: number; z: number }): void {
     const pts = this.paths[pi].pts;
