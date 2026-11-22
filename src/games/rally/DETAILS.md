@@ -32,7 +32,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   (`beam`, `lamps`), wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` / `brakes` / `body`, axle camera `wcam`), debug (`wire`, `hull`, `fallback`),
   specs (numbers, torque / power chart, test-drive links, model credit) and sound (`debug/sound-debug.ts`). Console: `__carViewer`.
 - **Asset debugger** (`pages/asset-debug.ts`): the assets plus the options of the picked kind only (props seed / variant / LOD / instances / gap / wire /
-  bounds / colliders; trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
+  bounds / colliders; box buildings Width / Wall height / Depth (`size=width,wall height,depth` in metres; shown with their windows and door); trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
 
 **URL parameters** (any of the play ones skips the menu):
 
@@ -332,13 +332,16 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `crop` grow only there (`TerrainGenerator.cropAt`, not within 0.8 m of a parcel edge). Wheat is green and short in spring, ripe in summer and gone in autumn
   (stubble tint): 1 m card patches to 90 m, at least 2 m clear of the stage road. Corn (`corn`, `corn_row`; no stage grows it yet) grows in rows 0.75 m apart
   along the strips (`rows.fields`). Both are CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`;
-  `bakeCropCards` (`engine/crops.ts`) renders the cards once per page, 4 variants each with its own mix of plant heights so the field tops are uneven. Near
+  `bakeCropCards` (`engine/crops.ts`) renders the cards once per page, 4 variants each with its own mix of plant heights so the field tops are uneven. The cards
+  are vertex-lit (`groundLitCard` on a lambert material, `engine/world-shading.ts`): clouds, the hills' light, canopy and sky light at the vertices, only the
+  shadow maps and the fog per pixel (a field is card over card, and each covered pixel pays for the light model). Near
   detail is chosen by road distance, never camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road and is crossed cards at
   every distance, so nothing swaps or fills in as the car drives on.
 - **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from seven atlases (`engine/plants/*.webp`, coverage mips)
   that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models (green / dry / spring grass tufts, the weed margin, nettles `tall_weeds`) and
   CC BY Sketchfab models by Nicholas-3D (reed beds and cattails `reeds`; `--sheets reeds` rebakes only that sheet; credits in `THIRD-PARTY.md` and About), and the woods' ferns (`fern`,
   `fern_autumn` = dead bracken toned by `pack.py` `bracken()`) from the CC0 Poly Haven Fern 02.
+  Field ditches (`terrain.ditches`, opt-in per map and channel kind; Ajvatovci's drains and canal): a V ditch (`topWidth` across, a `bedWidth` bed `depth` down, `water` m of water, 0 = dry), its bank line following the land, earth in the bed and grass on the banks (no slope rock, no bare lip strip); on its `track` side a mown strip and a dirt track with two ruts (world/terrain-gen.ts `ditchProfile`). `reedBed`: the reed bed in the ditch (world/reed-bed.ts: crossed reed cards rooted bank to bank in bands of tall and short stems with open gaps, no solid fill, two rows of cards along its sides, ends sloping into the ditch but standing full height against a stage-road bridge, its top never above the ditch lips, gaps by `cover`, only within `reach` of the stage road, the cards faded out by 100 m, where a far bed of five card rows per ditch at twice the step takes over to 360 m); a ditch keeps its own V under a stage-road bridge (no street-clearance pit); scatter rules with `ditchTop` stand reed cards through it with level tops above the bank line, `channelSide` keeps a rule to one side. Ajvatovci `canalGrowth` (`maps/ajvatovci/map.ts`): reeds by season (`reeds` summer, `reeds_dry` the November stand, `reeds_old` + `reeds_young` spring; sheets `reeds-autumn` / `reeds-winter` recoloured per texel by `scripts/plants/bake-seasons.py`), a few cattails, the weedy bank (nettles, `rust_weeds` dead docks in autumn, saplings, bushes, bramble, cut branches), short grass on the track side and a row of `spoil_heap` dredging heaps and branch piles beyond the track. Murky water: `environment.waterMurk` (world/water-mesh.ts).
   `SHEET_GAIN` brings each sheet into the measured colour bands (cards and blade strips alike; a test checks) and `GRASS_CARD_ALPHA` sets the card cut. Keep
   grass at two variants (it draws as a variant set). A stage loads only the sheets its season's assets use (`plantSheetsReady`, `assetIds`); a sheet that
   fails to load is logged and drawn as plain blades.
@@ -514,7 +517,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   the bed is the `rail_track` canvas (sleepers, rust) with the gravel ground scan's stones between the sleepers.
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
   footprints (`world/building-mesh.ts`). Box houses take wall / roof scans from one texture array (`engine/house-walls.ts`, UVs from the
-  instance scale in the shader; tiles in `engine/facades/`, `scripts/facades/bake.py`); on Galichica / Petralica the share of rubble-stone houses
+  instance scale in the shader, which also keeps eaves, chimney and windows at their real size on any footprint; tiles in `engine/facades/`, `scripts/facades/bake.py`). A house is three instances (`world/buildings.ts` `buildingInstances`): the box, `house_windows` repeated along its walls and `house_door` on the ground at the front wall (downhill, else facing the nearest road). On Galichica / Petralica the share of rubble-stone houses
   grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace: `PadDef.level`); the
@@ -566,10 +569,11 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
 - The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are 10 cars of a CC BY pack with
   their own triangles and textures (`street-car-models.ts`, data `street-cars.data.ts`, atlas `street-car-atlas.jpg` + `street-car-mask.png`; baked by
-  `scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model, LOD 1 / 2
+  `scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model with its wheels
+  rounded at load (`wheel-rounding.ts`: the rings of the pack's 20-sided tyres and rims and 12-sided hubs get twice the sides on the half that faces out, on their own circles; spokes, body and uv untouched, no edge shared with the body is split; also the US fire engine), LOD 1 / 2
   meshopt reductions (budgets: `tests/rally/street-car.test.ts`). One shared material (`streetCarMaterial`): the atlas, with the paint (per-vertex `color`)
-  multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the taxi sign, light bar and lettering are a second `vehicle` part
-  up to LOD 1. Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick; 10-12 = the white hatch, dark sedan and white minivan a map places); the LODs
+  multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the light bar and lettering are a second `vehicle` part
+  up to LOD 1, the taxi's lit "TAXI" roof sign a third (`taxi_sign` material: unlit by day, its face glows at night with the lamps). Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick; 10-12 = the white hatch, dark sedan and white minivan a map places); the LODs
   set `separateVariants` (no merged variant set: every instance would run the vertex shader over all 10 models).
 - Pack 7's five vans and trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) are baked the same way into the same atlas
   and dress the service park (`builders/service.ts`: team paint through the tint mask, stripes and awnings a second `vehicle` part up to LOD 1,
@@ -733,6 +737,11 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   depth). One copy casts the shadow; when the fades end, a bucket without outgoing copies draws plain again (`endFades`), one
   with them keeps the fade material (the copies collapsed) until the next rebuild drops them. The far end of the last
   level fades too, and while driving an instance new to the stream fades in.
+- Wheat depth prepass (`engine/crops.ts` `setCropPrepass`, streamer `prepassChild`): every wheat mesh has a child drawing
+  the same instances first, depth only (the lit program itself, stopping after the alpha test), and the lit cards then test
+  LESS-OR-EQUAL without writing depth, so each pixel of a field is lit once instead of once per card layer. Instances are
+  committed nearest first. It follows the trees' sprite prepass and its load check (off on touch devices); `?cropprepass=0|1`
+  forces it, the perf panel switches it. Wheat stops swaying past 40 m (`RALLY_WIND_FAR`).
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**

@@ -24,6 +24,7 @@ import type { TerrainSampler } from './heightfield';
 import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
 import { newRoadQuery, type Road, type RoadQuery } from './road';
+import { PEOPLE_ASSETS } from './corner-fans';
 import { fanVariant } from './fan-variants';
 import { outcropRow } from './outcrops';
 import { splitRuns, tapeRun } from './tape';
@@ -59,6 +60,8 @@ export interface ScatterContext {
    * and shrubs keep RAIL_CLEAR beyond it, so no crown grows through the beam.
    */
   railAt?: (along: number, side: number) => number;
+  /** Bank line height of a ditch (`terrain.ditches`) channel at `along` m; undefined for any other channel. */
+  ditchBank?: (channel: number, along: number) => number | undefined;
 }
 
 /** How far past a guard rail a tree or shrub stands (m): about a shrub's crown radius. */
@@ -632,8 +635,13 @@ export class ScatterField {
     const k = key(cx, cz);
     let c = this.chunks.get(k);
     if (!c) {
-      const instances = this.generate(cx, cz, this.rules, 0);
-      instances.push(...(this.fixed.get(k) ?? []));
+      const fixed = this.fixed.get(k) ?? [];
+      const instances = clearTrunks(
+        this.generate(cx, cz, this.rules, 0),
+        fixed,
+        this.fixedColliders.get(k) ?? [],
+      );
+      instances.push(...fixed);
       c = {
         instances,
         colliders: [
@@ -753,6 +761,8 @@ export class ScatterField {
       // Rules limited to land cover classes that don't occur in this chunk: skip early.
       if (coverMask && lc && !this.chunkHasCover(lc, coverMask, x0, z0, cs))
         continue;
+      // Channel rules on a chunk no channel reaches: every candidate would miss (most chunks of a ditch map).
+      if (rule.channelDist && !this.ctx.channels?.touches(x0, z0, cs)) continue;
       const pts = rule.rows
         ? this.rowPoints(rule, coverMask!, x0, z0, cs, rng)
         : null;
@@ -848,7 +858,8 @@ export class ScatterField {
           )
         )
           continue;
-        if (minPath > -Infinity && this.nearPath(x, z, minPath)) continue;
+        if (minPath > -Infinity && this.nearPath(x, z, minPath, rule.inChannel))
+          continue;
         if (tree && q.found && rd < 6 && this.ctx.railAt) {
           const rail = this.ctx.railAt(q.along, q.lateral >= 0 ? 1 : -1);
           if (rail >= 0 && rd < rail + RAIL_CLEAR) continue;
@@ -886,11 +897,23 @@ export class ScatterField {
           const f = h / c.period - Math.floor(h / c.period);
           if (f < c.width === !!c.invert) continue;
         }
+        let ditchBank = NaN;
         if (rule.channelDist) {
           const cq = this.ctx.channels?.query(x, z, this.pq);
           if (!cq?.found) continue;
           const e = cq.distance - cq.halfWidth;
           if (e < rule.channelDist[0] || e > rule.channelDist[1]) continue;
+          if (
+            rule.channelSide &&
+            this.ctx.channels!.sideOf(cq.path, cq.along, x, z) !==
+              rule.channelSide
+          )
+            continue;
+          if (rule.ditchTop) {
+            const bank = this.ctx.ditchBank?.(cq.path, cq.along);
+            if (bank === undefined) continue;
+            ditchBank = bank;
+          }
         }
         const n = ground.normal(x, z, this.n);
         if (rule.maxSlope !== undefined && 1 - n.y > rule.maxSlope) continue;
@@ -913,7 +936,7 @@ export class ScatterField {
               return (
                 (!pq.found ||
                   pq.distance - pq.halfWidth >= (rule.minRoadDist ?? 0)) &&
-                !this.nearPath(px, pz, minPath)
+                !this.nearPath(px, pz, minPath, rule.inChannel)
               );
             },
             out,
@@ -926,14 +949,24 @@ export class ScatterField {
           tiltX += Math.atan2(n.z, n.y);
           tiltZ += -Math.atan2(n.x, n.y);
         }
+        // A ditch's reeds: sized so the top stands at one level above its bank line, from the slope or the bed.
+        let fit = scale;
+        if (rule.ditchTop && !Number.isNaN(ditchBank)) {
+          const [t0, t1] = rule.ditchTop.top;
+          const top = ditchBank + t0 + (t1 - t0) * rng.next();
+          fit = Math.max(
+            0.5,
+            Math.min(2, (top - ground.height(x, z)) / rule.ditchTop.height),
+          );
+        }
         const inst: ScatterInstance = {
           asset: rule.asset,
           variant,
           x,
-          y: ground.height(x, z) - (rule.sink ?? 0) * scale,
+          y: ground.height(x, z) - (rule.sink ?? 0) * fit,
           z,
           rotY,
-          scale,
+          scale: fit,
           tiltX,
           tiltZ,
         };
@@ -1076,14 +1109,23 @@ export class ScatterField {
   }
 
   private lq = newLakeQuery();
-  private nearPath(x: number, z: number, minDist: number): boolean {
+  private nearPath(
+    x: number,
+    z: number,
+    minDist: number,
+    inChannel = false,
+  ): boolean {
     // Lakes: nothing grows in the water (grass stops at the shore).
     if (
       this.ctx.lakes?.query(x, z, this.lq) &&
       this.lq.sd < Math.max(minDist, 0.5)
     )
       return true;
-    for (const net of [this.ctx.paths, this.ctx.channels]) {
+    // `inChannel`: reeds and cattails stand in the water of canals and drains (roads and paths still keep them off).
+    for (const net of [
+      this.ctx.paths,
+      inChannel ? undefined : this.ctx.channels,
+    ]) {
       if (!net) continue;
       const pq = net.query(x, z, this.pq);
       if (pq.found && pq.distance - pq.halfWidth < minDist) return true;
@@ -1305,6 +1347,51 @@ export function roadsideInstances(
 }
 
 /** World-space colliders for an instance from its asset's collider spec. */
+/**
+ * The generated instances without a trunk growing out of something: rules place them independently. A generated prop
+ * (a boulder, a fallen log) or person a trunk would stand in goes and the tree stays (the forest is never thinned for
+ * a prop); a generated tree or bush whose trunk would stand in a placed prop, a rail or fence, or a placed person goes.
+ */
+function clearTrunks(
+  generated: ScatterInstance[],
+  fixed: ScatterInstance[],
+  fixedColliders: StaticCollider[],
+): ScatterInstance[] {
+  const isTree = (i: ScatterInstance): boolean =>
+    !!i.tree || isTreeType(i.asset);
+  const isPerson = (i: ScatterInstance): boolean =>
+    PEOPLE_ASSETS.includes(i.asset);
+  const inBox = (c: StaticCollider, x: number, z: number): boolean => {
+    if (c.kind !== 'box') return false;
+    const cs = Math.cos(c.rot ?? 0);
+    const sn = Math.sin(c.rot ?? 0);
+    const dx = x - c.x;
+    const dz = z - c.z;
+    return (
+      Math.abs(dx * cs - dz * sn) <= (c.hx ?? 0) + 0.15 &&
+      Math.abs(dx * sn + dz * cs) <= (c.hz ?? 0) + 0.15
+    );
+  };
+  const near = (a: ScatterInstance, b: ScatterInstance): boolean =>
+    Math.hypot(a.x - b.x, a.z - b.z) < 0.6;
+  const trunks = [...generated, ...fixed].filter(isTree);
+  // What a generated tree must not grow through: a placed prop (a bench, a sign), a rail or fence, a placed person.
+  const blocks = [
+    ...fixed.filter((i) => !isTree(i)).flatMap(collidersOf),
+    ...fixedColliders,
+  ];
+  const people = fixed.filter(isPerson);
+  return generated.filter((i) => {
+    if (isTree(i))
+      return (
+        !blocks.some((c) => inBox(c, i.x, i.z)) &&
+        !people.some((p) => near(p, i))
+      );
+    if (isPerson(i) && trunks.some((t) => near(t, i))) return false;
+    return !collidersOf(i).some((c) => trunks.some((t) => inBox(c, t.x, t.z)));
+  });
+}
+
 export function collidersOf(inst: ScatterInstance): StaticCollider[] {
   if (inst.tree) return treeColliders(inst);
   const meta = getAssetMeta(inst.asset);

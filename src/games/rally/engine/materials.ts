@@ -12,7 +12,7 @@ import {
 import { getTexture } from './textures';
 import { plantSheet, cardColor } from './grass';
 import { addNightGlow } from './night-glow';
-import { houseMaterial } from './house-walls';
+import { houseMaterial, type DepthVertex } from './house-walls';
 import { groundLitCard, worldUniforms } from './world-shading';
 import { imageTexture } from './image-texture';
 import rockColorUrl from './props/rocks.color.webp';
@@ -33,6 +33,9 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'foliage_card_weeds'
   | 'foliage_card_reeds'
+  | 'foliage_card_reeds_dry'
+  | 'foliage_card_reeds_old'
+  | 'foliage_card_weeds_rust'
   | 'foliage_card_ferns'
   | 'foliage_card_ferns_autumn'
   | 'grass_blade'
@@ -49,6 +52,7 @@ export type MaterialId =
   | 'reflector'
   | 'lamp_lens'
   | 'vehicle'
+  | 'taxi_sign'
   | 'debris'
   | 'outcrop'
   | 'village_sign';
@@ -144,6 +148,9 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card_spring',
   'foliage_card_weeds',
   'foliage_card_reeds',
+  'foliage_card_reeds_dry',
+  'foliage_card_reeds_old',
+  'foliage_card_weeds_rust',
   'foliage_card_ferns',
   'foliage_card_ferns_autumn',
 ];
@@ -237,6 +244,27 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 1,
       });
       break;
+    case 'foliage_card_reeds_dry':
+    case 'foliage_card_reeds_old':
+    case 'foliage_card_weeds_rust': {
+      // Season sheets recoloured per texel (scripts/plants/bake-seasons.py): the November reed stand (olive below,
+      // straw above, beige plumes), last year's bleached stand (spring), dead rust-red docks and knotweed (autumn).
+      const sheet =
+        id === 'foliage_card_reeds_dry'
+          ? 'reeds-autumn'
+          : id === 'foliage_card_reeds_old'
+            ? 'reeds-winter'
+            : 'weeds-rust';
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet(sheet),
+        color: new Color(...cardColor(sheet)),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    }
     case 'foliage_card_ferns':
     case 'foliage_card_ferns_autumn': {
       // Fern stands of the shaded woods, green / dead bracken (engine/plants/ferns*.webp).
@@ -368,6 +396,14 @@ export function getMaterial(id: MaterialId): Material {
         metalness: 0.3,
       });
       break;
+    case 'taxi_sign':
+      // The roof sign of the taxi: its face texture, lit at night (engine/night-glow.ts `sign`).
+      m = new MeshStandardMaterial({
+        map: getTexture('taxi_sign'),
+        roughness: 0.35,
+      });
+      addNightGlow(m as MeshStandardMaterial, 'sign');
+      break;
     case 'debris': {
       // Forest-floor scans (stumps, logs, branches, roots: builders/simready.ts) in their own colour and normal maps,
       // one atlas tile each (scripts/props/bake-simready.py `forest`); lit like the ground they lie on (RALLY_GROUND).
@@ -451,7 +487,12 @@ function injectVariants(shader: WebGLProgramParametersWithUniforms): void {
     .replace('#include <project_vertex>', VARIANT_CLIP);
 }
 
+/** The vertex code a material's shadow passes share with it (engine/house-walls.ts `DepthVertex`). */
+const depthVertexOf = (base: Material): DepthVertex | undefined =>
+  base.userData.depthVertex as DepthVertex | undefined;
+
 const variantMats = new Map<Material, Material>();
+const prepasses = new WeakMap<Material, Material>();
 const variantDepth = new Map<Material, MeshDepthMaterial>();
 
 /** `base` for variant-set meshes (cached; its own `onBeforeCompile`, or the world-shading default, runs first). */
@@ -459,6 +500,8 @@ export function variantMaterial(base: Material): Material {
   let m = variantMats.get(base);
   if (m) return m;
   m = base.clone();
+  // (clone() copies userData as JSON: the depth hook is a function.)
+  m.userData.depthVertex = depthVertexOf(base);
   const baseHook = Object.prototype.hasOwnProperty.call(base, 'onBeforeCompile')
     ? base.onBeforeCompile
     : Material.prototype.onBeforeCompile;
@@ -469,7 +512,23 @@ export function variantMaterial(base: Material): Material {
   };
   m.customProgramCacheKey = () => `${baseKey}|variants`;
   variantMats.set(base, m);
+  // A variant set draws its prepass with the prepass' own variant copy (the same program again).
+  const pre = prepasses.get(base);
+  if (pre) prepasses.set(m, variantMaterial(pre));
   return m;
+}
+
+/**
+ * A depth prepass for `lit` (wheat cards, engine/crops.ts): the instance streamer draws every mesh of `lit` a second
+ * time before the opaque world with `pre` (world/instance-streamer.ts), sharing its instances.
+ */
+export function setPrepassMaterial(lit: Material, pre: Material): void {
+  prepasses.set(lit, pre);
+}
+
+/** The depth prepass material of `lit` (`setPrepassMaterial`), if it has one. */
+export function prepassMaterial(lit: Material): Material | undefined {
+  return prepasses.get(lit);
 }
 
 const fadeMats = new Map<Material, Material>();
@@ -486,6 +545,7 @@ export function lodFadeMaterial(base: Material): Material {
   m = base.clone();
   // (copy() resets a standard material's defines.)
   m.defines = { ...base.defines, RALLY_LOD_FADE: '' };
+  m.userData.depthVertex = depthVertexOf(base);
   const baseHook = Object.prototype.hasOwnProperty.call(base, 'onBeforeCompile')
     ? base.onBeforeCompile
     : Material.prototype.onBeforeCompile;
@@ -510,11 +570,14 @@ export function lodFadeDepthMaterial(
   if (m) return m;
   m = new MeshDepthMaterial();
   m.defines = { RALLY_LOD_FADE: '', RALLY_LOD_FADE_SHADOW: '' };
+  const shape = depthVertexOf(base);
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, worldUniforms);
+    shape?.apply(shader);
     if (variants) injectVariants(shader);
   };
-  m.customProgramCacheKey = () => `depth|fade${variants ? '|variants' : ''}`;
+  m.customProgramCacheKey = () =>
+    `depth|fade${variants ? '|variants' : ''}|${shape?.key ?? ''}`;
   fadeDepth.set(key, m);
   return m;
 }
@@ -524,8 +587,47 @@ export function variantDepthMaterial(base: Material): MeshDepthMaterial {
   let m = variantDepth.get(base);
   if (m) return m;
   m = new MeshDepthMaterial();
-  m.onBeforeCompile = (shader) => injectVariants(shader);
-  m.customProgramCacheKey = () => 'depth|variants';
+  const shape = depthVertexOf(base);
+  m.onBeforeCompile = (shader) => {
+    shape?.apply(shader);
+    injectVariants(shader);
+  };
+  m.customProgramCacheKey = () => `depth|variants|${shape?.key ?? ''}`;
   variantDepth.set(base, m);
+  return m;
+}
+
+const shapedDepth = new Map<Material, MeshDepthMaterial>();
+
+/**
+ * Shadow-pass material of a `base` that moves its vertices in the shader (`Material.userData.depthVertex`: the houses'
+ * metric details), so its shadow matches what is drawn; undefined for every other material (three's own depth material).
+ */
+export function shapedDepthMaterial(
+  base: Material,
+): MeshDepthMaterial | undefined {
+  const shape = depthVertexOf(base);
+  if (!shape) return undefined;
+  let m = shapedDepth.get(base);
+  if (m) return m;
+  m = new MeshDepthMaterial();
+  m.onBeforeCompile = (shader) => shape.apply(shader);
+  m.customProgramCacheKey = () => `depth|${shape.key}`;
+  shapedDepth.set(base, m);
+  return m;
+}
+
+const plainDepth = new Map<Material, MeshDepthMaterial>();
+
+/**
+ * Shadow-pass material of one `base` (`customDepthMaterial`), else three's own: three's single shared depth material
+ * takes each caster's `map` without a program change, so which program a caster gets depends on the draw order, and the
+ * load's warm frame can miss one (a mid-stage compile: 3-10 s on a fresh shader cache). One per base: always the same.
+ */
+export function plainDepthMaterial(base: Material): MeshDepthMaterial {
+  let m = plainDepth.get(base);
+  if (m) return m;
+  m = new MeshDepthMaterial();
+  plainDepth.set(base, m);
   return m;
 }
