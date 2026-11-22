@@ -35,6 +35,14 @@
       "label": "Assets",
       "dev": true,
       "hideInProd": true
+    },
+    {
+      "id": "gpu-trial",
+      "entry": "pages/gpu-trial.ts",
+      "title": "Rally · GPU trial",
+      "label": "GPU trial",
+      "dev": true,
+      "hideInProd": true
     }
   ]
 }

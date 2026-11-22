@@ -13,6 +13,7 @@ sim-lite physics that is still fun on a keyboard.
 | Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1`  | a map with one of its stages from above: layers, click to inspect, "Drive from here" (Tool pages below) |
 | Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`              | one car: livery, door plate, pose, wheels, lights, specs, sound, on grass or a road backdrop            |
 | Asset debug | `/games/rally/asset-debug.html?asset=tree:pine_tree&season=autumn` | every prop, car (`car:<id>`), tree type (`tree:<type>`) and texture (`tex:<id>`) as the game draws it   |
+| GPU trial   | `/games/rally/gpu-trial.html?stage=vodno&r=webgpu`                 | v2 render core trial: one stretch of a stage in WebGPU / WebGL 2 fallback / today's renderer, benchmark |
 
 ### Tool pages
 
@@ -33,6 +34,10 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   specs (numbers, torque / power chart, test-drive links, model credit) and sound (`debug/sound-debug.ts`). Console: `__carViewer`.
 - **Asset debugger** (`pages/asset-debug.ts`): the assets plus the options of the picked kind only (props seed / variant / LOD / instances / gap / wire /
   bounds / colliders; box buildings Width / Wall height / Depth (`size=width,wall height,depth` in metres; shown with their windows and door); trees seed / variant / instances / season / leaves and a Tree tuning section: leaf cover, sprite size, sparse share / cover, light / clump colour spread, bare - regrown live, in the URL; cars livery seed; textures repeat), info, camera and scene; `F6` tree debug views.
+- **GPU trial** (`pages/gpu-trial.ts`, `gpu-trial/`): a stretch of a stage (`stage`, `from` / `len` in m along the stage road) with plain shading,
+  drawn by `r=webgpu` (`cull=gpu`: compute-pass culling + indirect draws; `cull=cpu`), `r=webgl2` (WebGPURenderer's fallback) or `r=classic`
+  (WebGLRenderer); generated trees as pack trees of the same height (`trees=0` drops them). "Run benchmark" (`run=1`) drives the camera down the
+  road at 90 km/h and reports fps, frame / CPU / GPU ms and draws (`__trialResult`). Own shell, not `viewer-shell.ts`.
 
 **URL parameters** (any of the play ones skips the menu):
 
