@@ -1,5 +1,6 @@
 import {
   BufferGeometry,
+  BundleGroup,
   Frustum,
   Group,
   IndirectStorageBufferAttribute,
@@ -42,8 +43,10 @@ import type { TrialSlice } from './slice';
 const MAX_LODS = 4;
 
 export class GpuDraw {
-  readonly group = new Group();
+  readonly group: Group;
   readonly instances: number;
+  /** Indirect draws a pass issues (every level part, empty or not; the renderer's draw count leaves them out). */
+  readonly draws: number;
   private reset: ComputeNode;
   private cull: ComputeNode;
   private finish: ComputeNode;
@@ -57,7 +60,11 @@ export class GpuDraw {
    * `indirect-first-instance` feature), so the draws share one vertex program with no per-object uniform. Otherwise
    * a per-object uniform carries it.
    */
-  constructor(slice: TrialSlice, firstInstance: boolean) {
+  constructor(slice: TrialSlice, firstInstance: boolean, bundle: boolean) {
+    // Nothing about a draw changes after the build (the compute pass writes its instance count on the GPU), so with
+    // firstInstance (no per-object uniform) the draws can sit in a render bundle: recorded once per pass, replayed
+    // each frame without three's per-object work.
+    this.group = firstInstance && bundle ? new BundleGroup() : new Group();
     const groups = slice.groups;
     const N = groups.reduce((s, g) => s + g.count, 0);
     this.instances = N;
@@ -99,6 +106,7 @@ export class GpuDraw {
     });
     const S = slotBase.length;
     const D = draws.length;
+    this.draws = D;
 
     const rowsBuf = storage(
       new StorageBufferAttribute(rows, 4),

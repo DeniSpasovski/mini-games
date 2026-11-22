@@ -281,7 +281,9 @@ async function main() {
     useGpu &&
     params.get('base') !== 'uniform' &&
     (renderer as WebGPURenderer).hasFeature('indirect-first-instance');
-  const gpu = useGpu ? new GpuDraw(slice, firstInstance) : null;
+  // `bundle=0`: draw the GPU path's meshes one by one instead of from a render bundle.
+  const bundle = params.get('bundle') !== '0';
+  const gpu = useGpu ? new GpuDraw(slice, firstInstance, bundle) : null;
   scene.add((cpu ?? gpu)!.group);
   const parts = slice.groups.reduce(
     (s, g) => s + g.lods.reduce((t, l) => t + l.parts.length, 0),
@@ -458,6 +460,9 @@ async function main() {
       shadows,
       timestamps,
       firstInstance,
+      bundle: !!(gpu?.group as { isBundleGroup?: boolean } | undefined)
+        ?.isBundleGroup,
+      indirectDraws: gpu?.draws ?? 0,
       gpuMs: b.gpu.length ? +mean(b.gpu).toFixed(2) : null,
       draws: Math.round(mean(b.draws)),
       instances: slice.instances,
