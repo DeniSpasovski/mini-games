@@ -60,6 +60,9 @@ const askedMode = params.get('r') as Mode | null;
 let mode: Mode = askedMode && MODES.includes(askedMode) ? askedMode : 'webgpu';
 const gpuCull = params.get('cull') !== 'cpu';
 const stageId = params.get('stage') ?? 'vodno';
+/** Diagnostics: `shadows=0` drops the sun shadow pass, `ts=0` turns the GPU timestamp queries off. */
+const shadows = params.get('shadows') !== '0';
+const timestamps = params.get('ts') !== '0';
 /** Camera speed on the run (m/s). */
 const SPEED = 25;
 
@@ -139,6 +142,7 @@ let bench: {
   t0: number;
   frames: number[];
   cpu: number[];
+  cull: number[];
   gpu: number[];
   draws: number[];
   drawn: number[];
@@ -194,7 +198,7 @@ async function main() {
       antialias,
       powerPreference: 'high-performance',
       forceWebGL: mode === 'webgl2',
-      trackTimestamp: true,
+      trackTimestamp: timestamps,
     });
     await r.init();
     r.shadowMap.enabled = true;
@@ -241,7 +245,7 @@ async function main() {
     Math.cos(az) * Math.cos(el),
   );
   const sun = new DirectionalLight(0xfff2dd, 3);
-  sun.castShadow = true;
+  sun.castShadow = shadows;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
   sc.left = sc.bottom = -80;
@@ -290,7 +294,8 @@ async function main() {
   const points = path.length / 3;
   const ahead = new Vector3();
   placeCamera = (s: number) => {
-    const i = Math.min(points - 1, Math.max(0, Math.floor(s)));
+    // Stops 30 points before the end, so it never looks straight down at the last one.
+    const i = Math.min(Math.max(0, points - 31), Math.max(0, Math.floor(s)));
     const j = Math.min(points - 1, i + 30);
     camera.position.set(path[i * 3], path[i * 3 + 1] + 2.2, path[i * 3 + 2]);
     ahead.set(path[j * 3], path[j * 3 + 1] + 1.2, path[j * 3 + 2]);
@@ -329,7 +334,15 @@ async function main() {
     results.style.display = 'none';
     runAt = 0;
     warm = 30;
-    bench = { t0: 0, frames: [], cpu: [], gpu: [], draws: [], drawn: [] };
+    bench = {
+      t0: 0,
+      frames: [],
+      cpu: [],
+      cull: [],
+      gpu: [],
+      draws: [],
+      drawn: [],
+    };
   };
 
   const frame = (now: number) => {
@@ -352,6 +365,7 @@ async function main() {
     const t0 = performance.now();
     if (cpu) cpu.update(camera);
     if (gpu) gpu.update(renderer as WebGPURenderer, camera);
+    const cullMs = performance.now() - t0;
     let q: WebGLQuery | null = null;
     if (gl && timer && queries.length < 8) {
       q = gl.createQuery();
@@ -372,7 +386,7 @@ async function main() {
         queries.shift();
       }
     }
-    if (node) {
+    if (node && timestamps) {
       const r = renderer as WebGPURenderer;
       void Promise.all([
         r.resolveTimestampsAsync('render'),
@@ -391,10 +405,11 @@ async function main() {
     if (recent.length > 60) recent.shift();
     if (bench && bench.t0 && bench.frames.length) {
       bench.cpu.push(cpuMs);
+      bench.cull.push(cullMs);
       if (Number.isFinite(gpuMs)) bench.gpu.push(gpuMs);
       bench.draws.push(draws);
       bench.drawn.push(cpu?.drawn ?? NaN);
-      if (runAt >= points - 1) finishRun();
+      if (runAt >= points - 31) finishRun();
     }
     if (now - shown > 250) {
       shown = now;
@@ -434,6 +449,9 @@ async function main() {
       p99Ms: +pct(0.99).toFixed(2),
       worstMs: +sorted[sorted.length - 1].toFixed(2),
       cpuMs: +mean(b.cpu).toFixed(2),
+      cullMs: +mean(b.cull).toFixed(2),
+      shadows,
+      timestamps,
       gpuMs: b.gpu.length ? +mean(b.gpu).toFixed(2) : null,
       draws: Math.round(mean(b.draws)),
       instances: slice.instances,
@@ -442,7 +460,7 @@ async function main() {
     (window as { __trialResult?: unknown }).__trialResult = res;
     results.textContent =
       `${res.renderer}\n${res.avgFps} fps average, median frame ${res.medianMs} ms, 1 % slowest ${res.p99Ms} ms, worst ${res.worstMs} ms\n` +
-      `CPU ${res.cpuMs} ms a frame (culling + draw submit), GPU ${res.gpuMs ?? 'n/a'} ms, ${res.draws} draws\n` +
+      `CPU ${res.cpuMs} ms a frame (${res.cullMs} culling, the rest draw submit), GPU ${res.gpuMs ?? 'n/a'} ms, ${res.draws} draws\n` +
       `${res.pixels} px, ${res.frames} frames`;
     results.style.display = 'block';
     const copy = document.createElement('button');
