@@ -564,15 +564,19 @@ function stageRoadWear(world: World, line: Float32Array): Wear | null {
         out[i + k] = prev + ((next - prev) * k) / STEP;
       prev = next;
     }
-    // A barrier at the edge: no wheel goes off there.
+    // A barrier at the edge: no wheel goes off there. A kerb strip or lined gutter at the edge (kinds 'edge' / 'gutter')
+    // closes it: no crumbled edge on the asphalt, the loose ground lies beyond the strip.
     for (const b of world.barrierRuns)
-      if (b.path === undefined && b.side === side)
+      if (b.path === undefined && b.side === side) {
+        const k = b.rule.kind;
+        const closed = k === 'edge' || (k === 'gutter' && b.rule.offset < 1);
         for (
           let i = Math.max(0, Math.floor(b.from));
           i <= Math.min(n - 1, b.to);
           i++
         )
-          out[i] *= 0.15;
+          out[i] *= closed ? 0 : 0.15;
+      }
   }
   const mouths: WearMouth[] = [];
   for (const j of gen.junctions) {
