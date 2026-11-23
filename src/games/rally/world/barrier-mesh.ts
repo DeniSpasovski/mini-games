@@ -3,9 +3,11 @@ import {
   BufferGeometry,
   DoubleSide,
   Group,
+  Material,
   Mesh,
   MeshStandardMaterial,
 } from 'three';
+import { WEAR_DEFINES } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
 import {
   barrierPoint,
@@ -16,6 +18,8 @@ import {
 import type { TerrainSampler } from './heightfield';
 import type { World } from './world';
 import { bridgeMaterials } from './bridge-mesh';
+import { ROAD_BROKEN_EDGE, ROAD_NOISE } from './road-wear';
+import { getTerrainMaterial } from './terrain-material';
 
 /**
  * Continuous barriers: the cross section of a New Jersey wall / steel guard rail swept along the road
@@ -528,7 +532,71 @@ const edgeProfile = (width: number): [number, number][] => [
   [0, -0.06],
 ];
 
-/** Flat kerb slabs along the asphalt edge (kind 'edge'): weathered pale concrete, a tone per 1 m slab. */
+const edgeKerbMats = new Map<number, MeshStandardMaterial>();
+/**
+ * The edge kerbs' concrete (per strip width): the verge's earth and gravel crumbled onto its outer edge, the stage road's
+ * own broken edge (world/road-wear.ts `rwBrokenEdge`), over about half the strip, ragged. From the slab's uv (`edgeKerb`):
+ * u = metres along / KERB_TS, v = (dy - o) / KERB_TS, so v * KERB_TS - 0.03 is metres in from the outer top edge (< 0 down
+ * its outer face).
+ */
+function edgeKerbMaterial(width: number): MeshStandardMaterial {
+  let m = edgeKerbMats.get(width);
+  if (m) return m;
+  const base = bridgeMaterials().concrete;
+  const mat = base.clone();
+  mat.onBeforeCompile = (shader, renderer) => {
+    Material.prototype.onBeforeCompile.call(mat, shader, renderer);
+    shader.uniforms.tGround = (
+      getTerrainMaterial().userData.uniforms as Record<
+        string,
+        { value: unknown }
+      >
+    ).tGround;
+    shader.uniforms.ekCore = { value: 0.3 * width };
+    shader.uniforms.ekLoose = { value: 0.9 * width };
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec2 vEkUv;\nvarying vec2 vEkXZ;',
+      )
+      .replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\nvEkUv = uv;\nvEkXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;',
+      );
+    shader.fragmentShader = `${WEAR_DEFINES}\n${shader.fragmentShader}`
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform mediump sampler2DArray tGround;
+        uniform float ekCore;
+        uniform float ekLoose;
+        varying vec2 vEkUv;
+        varying vec2 vEkXZ;
+        ${ROAD_NOISE}
+        ${ROAD_BROKEN_EDGE}`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          float ekD = vEkUv.y * ${KERB_TS.toFixed(1)} - 0.03;
+          float along = vEkUv.x * ${KERB_TS.toFixed(1)};
+          vec2 wp = vEkXZ;
+          float pix = max( fwidth( ekD ), 1e-4 );
+          float band;
+          float br = rwBrokenEdge( ekD - ekCore, ekLoose, along, 2.0, pix, wp, band );
+          if ( br > 0.0 )
+            diffuseColor.rgb = mix( diffuseColor.rgb, rwBrokenColour( wp, dFdx( wp ), dFdy( wp ), diffuseColor.rgb ), br );
+        }`,
+      );
+  };
+  mat.customProgramCacheKey = () =>
+    Material.prototype.customProgramCacheKey.call(mat) + 'edge-kerb';
+  edgeKerbMats.set(width, (m = mat));
+  return m;
+}
+
+/** Flat kerb slabs along the asphalt edge (kind 'edge'): weathered pale concrete, a tone per 1 m slab (earth on its outer edge: `edgeKerbMaterial`). */
 function edgeKerb(
   acc: Acc,
   rows: Row[],
@@ -704,7 +772,11 @@ export function* barrierMeshJob(
         for (let d = from; d < to; d += step)
           fine.push(rowsOf(ctx, world.analytic, run, d, d + 0.01)[0]);
         fine.push(rows[rows.length - 1]);
-        const acc = tileAcc('kerb', rows[0].x, rows[0].z, kerbMat);
+        const w = run.rule.width ?? 0.5;
+        const acc =
+          run.rule.kind === 'edge'
+            ? tileAcc(`edge${w}`, rows[0].x, rows[0].z, edgeKerbMaterial(w))
+            : tileAcc('kerb', rows[0].x, rows[0].z, kerbMat);
         if (run.rule.kind === 'edge')
           edgeKerb(acc, fine, run, from === run.from, to === run.to);
         else gutter(acc, fine, run);

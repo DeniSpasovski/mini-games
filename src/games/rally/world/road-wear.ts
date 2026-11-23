@@ -243,9 +243,41 @@ vRwB = rwB;
 vRwC = rwC;
 vRwXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;`;
 
+/** The road shaders' value noise (`rsHash` / `rsNoise`, engine/road-surface.ts). */
+export const ROAD_NOISE = /* glsl */ `
+float rsHash( vec2 p ) { p = fract( p * vec2( 123.34, 456.21 ) ); p += dot( p, p + 45.32 ); return fract( p.x * p.y ); }
+float rsNoise( vec2 p ) {
+  vec2 i = floor( p ); vec2 f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
+  return mix( mix( rsHash( i ), rsHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( rsHash( i + vec2( 0.0, 1.0 ) ), rsHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
+}`;
+
+/**
+ * The broken edge where a loose verge meets a hard edge (the stage asphalt's edge, the outer edge of a kerb strip):
+ * a ragged band 0.03 - 0.27 m wide (times the verge's looseness `v`) with bites out of it, the verge's own earth and
+ * gravel in it. `d` = metres in from the edge, `fs` = a seed per side. Needs `RW_*` defines, `rsNoise` and `tGround`.
+ */
+export const ROAD_BROKEN_EDGE = /* glsl */ `
+// How much of the band covers this point (0..1); band = its width here (for the crack behind it).
+float rwBrokenEdge( float d, float v, float along, float fs, float pix, vec2 wp, out float band ) {
+  band = v * ( 0.03 + 0.12 * rsNoise( vec2( along / 2.3, fs * 5.0 + 1.0 ) ) );
+  band += v * 0.12 * smoothstep( 0.68, 0.9, rsNoise( vec2( along / 1.1, fs * 3.0 + 7.0 ) ) );
+  float jag = 0.07 * ( rsNoise( vec2( along / 0.23, fs * 7.0 ) ) - 0.5 ) + 0.03 * ( rsNoise( wp / 0.06 + fs ) - 0.5 );
+  return 1.0 - smoothstep( -0.5 * pix, 0.5 * pix, d - band + jag );
+}
+// The verge's own dry earth and its stones in the band, lumps of the hard surface (base) left in it.
+vec3 rwBrokenColour( vec2 wp, vec2 dpx, vec2 dpy, vec3 base ) {
+  vec3 bSoil = textureGrad( tGround, vec3( wp * RW_SOIL_SCALE, RW_SOIL_LAYER ), dpx * RW_SOIL_SCALE, dpy * RW_SOIL_SCALE ).rgb / RW_SOIL_MEAN * RW_DUST;
+  vec3 bGrav = textureGrad( tGround, vec3( wp * RW_GR_SCALE, RW_GR_LAYER ), dpx * RW_GR_SCALE, dpy * RW_GR_SCALE ).rgb;
+  float bStone = smoothstep( 0.95, 1.25, dot( bGrav, vec3( 0.2126, 0.7152, 0.0722 ) ) / RW_GR_MEAN );
+  float lump = smoothstep( 0.62, 0.68, rsNoise( wp / 0.11 + 3.0 ) );
+  vec3 broken = mix( bSoil * ( 0.85 + 0.3 * rsNoise( wp / 0.7 ) ), bGrav, 0.3 + 0.5 * bStone );
+  return mix( broken, base * 0.85, lump * 0.6 );
+}`;
+
 /** Needs `RW_*` defines (road-surface.ts) and `rsHash` / `rsNoise`. */
 export const ROAD_WEAR_FRAGMENT_PARS = /* glsl */ `
 uniform mediump sampler2DArray tGround;
+${ROAD_BROKEN_EDGE}
 varying vec3 vRwA;
 varying vec4 vRwB;
 varying vec2 vRwC;
@@ -287,24 +319,14 @@ export const ROAD_WEAR_FRAGMENT = /* glsl */ `
       if ( v < 0.02 ) continue;
       float d = hw - ( s == 0 ? lat : - lat );
       if ( d > 0.9 ) continue;
-      float band = v * ( 0.03 + 0.12 * rsNoise( vec2( along / 2.3, fs * 5.0 + 1.0 ) ) );
-      band += v * 0.12 * smoothstep( 0.68, 0.9, rsNoise( vec2( along / 1.1, fs * 3.0 + 7.0 ) ) );
-      float jag = 0.07 * ( rsNoise( vec2( along / 0.23, fs * 7.0 ) ) - 0.5 ) + 0.03 * ( rsNoise( wp / 0.06 + fs ) - 0.5 );
-      rwBroken = max( rwBroken, 1.0 - smoothstep( -0.5 * pix, 0.5 * pix, d - band + jag ) );
+      float band;
+      rwBroken = max( rwBroken, rwBrokenEdge( d, v, along, fs, pix, wp, band ) );
       float cy = band + 0.12 + 0.12 * rsNoise( vec2( along / 3.7, fs * 9.0 + 2.0 ) );
       float on = smoothstep( 0.4, 0.55, rsNoise( vec2( along / 5.0, fs * 4.0 + 3.0 ) ) );
       rwEdgeCrack = max( rwEdgeCrack, v * on * rwLine( abs( d - cy + 0.03 * ( rsNoise( vec2( along / 0.4, fs ) ) - 0.5 ) ), 0.01, pxL ) );
     }
-    if ( rwBroken > 0.0 ) {
-      // The verge's own dry earth and its stones (as the edge dirt below), lumps of the old asphalt left in it.
-      vec3 bSoil = textureGrad( tGround, vec3( wp * RW_SOIL_SCALE, RW_SOIL_LAYER ), dpx * RW_SOIL_SCALE, dpy * RW_SOIL_SCALE ).rgb / RW_SOIL_MEAN * RW_DUST;
-      vec3 bGrav = textureGrad( tGround, vec3( wp * RW_GR_SCALE, RW_GR_LAYER ), dpx * RW_GR_SCALE, dpy * RW_GR_SCALE ).rgb;
-      float bStone = smoothstep( 0.95, 1.25, dot( bGrav, vec3( 0.2126, 0.7152, 0.0722 ) ) / RW_GR_MEAN );
-      float lump = smoothstep( 0.62, 0.68, rsNoise( wp / 0.11 + 3.0 ) );
-      vec3 broken = mix( bSoil * ( 0.85 + 0.3 * rsNoise( wp / 0.7 ) ), bGrav, 0.3 + 0.5 * bStone );
-      broken = mix( broken, diffuseColor.rgb * 0.85, lump * 0.6 );
-      diffuseColor.rgb = mix( diffuseColor.rgb, broken, rwBroken );
-    }
+    if ( rwBroken > 0.0 )
+      diffuseColor.rgb = mix( diffuseColor.rgb, rwBrokenColour( wp, dpx, dpy, diffuseColor.rgb ), rwBroken );
     diffuseColor.rgb *= 1.0 - 0.45 * rwEdgeCrack * ( 1.0 - rwBroken );
   }
   // Old asphalt (roads with repair patches, rsPatch): potholes filled with darker new asphalt, cut square, mostly in the
