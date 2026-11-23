@@ -92,6 +92,7 @@ import {
   worldUniforms,
 } from '../engine/world-shading';
 import { World } from '../world/world';
+import { GenCache, globalGenCache } from '../world/gen-cache';
 import { CarAudio } from './audio';
 import { Autopilot, finishStopControls } from './autopilot';
 import { ContactShadow } from './contact-shadow';
@@ -342,6 +343,12 @@ export class RallyGame {
   paused = false;
   /** Load phase durations (ms), filled by init(). */
   loadTimings: Record<string, number> = {};
+  /** What this load read from / wrote to the disk cache of generated data (world/gen-cache.ts). */
+  readonly genCache: GenCache;
+  /** Both disk caches' numbers (console: `__rally.genCacheStats`). */
+  get genCacheStats(): Record<string, unknown> {
+    return { stage: this.genCache.stats, global: globalGenCache().stats };
+  }
   /** F8: road-following AI drives (soak tests, screenshots). */
   autopilot?: Autopilot;
   /** Debug: the perf panel (` key / `?perf=1`, game/perf-panel.ts) while it exists. */
@@ -429,6 +436,12 @@ export class RallyGame {
       stageSeason({ season: stage.season, environment: opts.map.environment }),
     );
     this.world = new World(mapInSeason(opts.map, this.season), stage);
+    // The stage's generated chunks from an earlier visit of this build: read while the load's first phases run.
+    this.genCache = new GenCache(
+      `${opts.map.id}|${this.world.stageDef.id}|${this.season}`,
+    );
+    this.world.heightfield.cache = this.genCache;
+    this.world.scatter.cache = this.genCache;
     this.car = getCar(opts.carId);
     const look = weatherLook(weatherParam(urlParam('weather')), stage.weather);
     this.soundWeather = { rain: look.rain, wet: look.wet };
@@ -516,6 +529,7 @@ export class RallyGame {
       // Hills shade the valleys (both shadow maps): the low morning / evening sun on the passes.
       castShadow: true,
     });
+    this.terrain.cache = this.genCache;
     this.scene.add(this.terrain.group);
     // Far land beyond the streamed terrain (real maps): a backdrop drawn behind everything, ~2 draws.
     if (map.horizon) {
@@ -530,6 +544,7 @@ export class RallyGame {
     // Second ground-scan taps + relief: a 45 m ring on high, 20 m on medium, none on low.
     setTerrainDetail(q.name === 'high' ? 45 : q.name === 'medium' ? 20 : 0);
     progress(0.3, 'Terrain');
+    await this.genCache.wait();
     // Load everything near the start synchronously-ish (time sliced).
     for (let i = 0; i < 400; i++) {
       const done = this.terrain.update(spawn.position, 40);
@@ -554,7 +569,7 @@ export class RallyGame {
       fade: true,
     });
     this.scene.add(this.streamer.group);
-    this.streamer.updateNow(spawn.position);
+    await this.streamer.updateSliced(spawn.position, frame);
     this.trees = new TreeRenderer(this.world, this.treeLibrary, {
       lodScale:
         q.treeLodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
@@ -859,7 +874,7 @@ export class RallyGame {
     await people;
     await this.streamer.whenBuilt();
     progress(0.95, 'Batching');
-    this.streamer.updateNow(spawn.position);
+    await this.streamer.updateSliced(spawn.position, frame);
     this.streamer.prewarm();
     this.trees.updateNow(this.camera, this.rig.steady);
     this.trees.prewarm(this.camera);
@@ -885,6 +900,9 @@ export class RallyGame {
     // first frame of the stage, and the canvas shows the real scene (not the warm-up render) when the screen goes.
     this.frame(0);
     rememberTextures(map.id);
+    // What this load generated goes to the disk cache in idle time (nothing more is recorded while driving).
+    void this.genCache.flush();
+    void globalGenCache().flush();
     this.loadMs = performance.now() - loadStart;
     progress(1, 'Ready');
   }

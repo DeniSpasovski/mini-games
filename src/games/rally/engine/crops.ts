@@ -26,7 +26,8 @@ import {
 } from 'three';
 import { Rng } from '../../../shared/rng';
 import { CROP_MODELS } from '../assets/builders/crop-models.data';
-import { coverageMips } from '../trees/materials';
+import { coverageMips, type MipLevel } from '../trees/materials';
+import { globalGenCache } from '../world/gen-cache';
 import {
   lodFadeMaterial,
   setAlphaToCoverage,
@@ -454,10 +455,24 @@ export function bakeCropCards(renderer: WebGLRenderer): Promise<void> {
   (Object.keys(MODEL_OF) as CropLook[]).forEach((l) => cropTexture(l));
   // Card by card, yielding in between: one long task (~1 s) would hold up the stage load's workers, which only
   // start once this thread is free.
-  baking = Promise.all(loaded).then(async () => {
-    for (const card of Object.keys(CROP_CARD_SIZE) as CropCard[]) {
-      const [w, h] = CROP_CARD_SIZE[card];
+  // A card baked on an earlier visit of this build comes from the disk cache (world/gen-cache.ts).
+  const cache = globalGenCache();
+  baking = cache.wait().then(async () => {
+    const all = Object.keys(CROP_CARD_SIZE) as CropCard[];
+    const hit = new Map<CropCard, CachedCard>();
+    for (const card of all) {
+      const c = cache.take<CachedCard>(`crop:${card}`);
+      if (c) hit.set(card, c);
+    }
+    if (hit.size < all.length) await Promise.all(loaded);
+    for (const card of all) {
       const { px, py, slot, rows } = cardLayout(card);
+      const was = hit.get(card);
+      if (was) {
+        setCard(card, was.data, px, rows, was.mips);
+        continue;
+      }
+      const [w, h] = CROP_CARD_SIZE[card];
       const data = new Uint8Array(px * rows * 4);
       const rt = new WebGLRenderTarget(px, py, { colorSpace: SRGBColorSpace });
       const rn = new WebGLRenderTarget(px, py);
@@ -500,22 +515,39 @@ export function bakeCropCards(renderer: WebGLRenderer): Promise<void> {
       await yieldTask();
       bleed(data, px, rows);
       await yieldTask();
-      const t = cards.get(card) ?? emptyCard();
-      const mips = coverageMips(data, px, rows, false);
-      t.image = { data, width: px, height: rows };
-      t.mipmaps = mips.main;
-      t.generateMipmaps = false;
-      // Repeats across (`cropBlock` strips run several cards long); the variants are stacked the other way.
-      t.wrapS = RepeatWrapping;
-      t.magFilter = LinearFilter;
-      t.minFilter = LinearMipmapLinearFilter;
-      t.colorSpace = SRGBColorSpace;
-      t.needsUpdate = true;
-      cards.set(card, t);
+      const mips = coverageMips(data, px, rows, false).main;
+      setCard(card, data, px, rows, mips);
+      cache.put(`crop:${card}`, { data, mips } satisfies CachedCard);
       await yieldTask();
     }
   });
   return baking;
+}
+
+/** A baked card as the disk cache keeps it: the pixels (after `bleed`) and their coverage mips. */
+interface CachedCard {
+  data: Uint8Array;
+  mips: MipLevel[];
+}
+
+function setCard(
+  card: CropCard,
+  data: Uint8Array,
+  px: number,
+  rows: number,
+  mips: MipLevel[],
+): void {
+  const t = cards.get(card) ?? emptyCard();
+  t.image = { data, width: px, height: rows };
+  t.mipmaps = mips;
+  t.generateMipmaps = false;
+  // Repeats across (`cropBlock` strips run several cards long); the variants are stacked the other way.
+  t.wrapS = RepeatWrapping;
+  t.magFilter = LinearFilter;
+  t.minFilter = LinearMipmapLinearFilter;
+  t.colorSpace = SRGBColorSpace;
+  t.needsUpdate = true;
+  cards.set(card, t);
 }
 
 /** A new task (not a microtask): the browser runs what waits on this thread first. */

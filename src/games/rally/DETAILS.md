@@ -778,6 +778,19 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
 - Loading ends with a warm-up (`RallyGame.init`): compile, then one render with culling off, so shaders (shadow pass
   included) and uploads happen behind the loading screen. A material first used mid-stage compiles then (a hitch): it
   must be in the scene at load (`assetIds` adds the world-placed assets).
+  Compile only there, not after each load phase: on a cold driver cache the D3D driver then stalls the first frames
+  after the screen goes.
+- **Disk cache of generated data** (`world/gen-cache.ts`, IndexedDB `rally-gen` via `gen-cache-worker.ts`): what a load
+  generates (scatter chunks packed by `packObjects`, heightfield chunks, coarse terrain tiles, crop cards; the tree
+  impostors are in the tree cache) is written
+  after the load in idle time; the next load of that stage reads it back in the worker (buffers handed over, no decoding
+  here) and takes it instead of generating. Keys start with the build id (`__BUILD_ID__`, new on every production build:
+  no stale entry after any code or map change) and the scope `<map>|<stage>|<season>` (what `new World` is built from);
+  other builds' entries are deleted on the next write, 4 stages kept. A failed or slow read (> 3 s) generates as before.
+  Off on a dev server unless `?gencache=1`, keyed by the server's start there (restart it after a generator change);
+  `?gencache=0` off. Stats: `__rally.genCacheStats`.
+- The streamer's first fill (`InstanceStreamer.updateSliced`) and scatter chunk generation (`ScatterField.chunkSteps`)
+  run in slices, so no load step freezes the page for seconds.
 - Baked meshes are binary: a `*.data.ts` holds the numbers and its `*.data.bin` the packed meshes (`shared/data-bin.ts`,
   `scripts/data/data-bin.mjs`). The data module fetches its file at its top level, so an import of it waits for the bytes;
   a decoder reads a mesh through `dataView` (a mesh is a view into the file, not its own buffer).
@@ -860,5 +873,6 @@ own season and hour unless the row says otherwise (night = 01:00). The same link
 
 - Generation runs on the main thread, time-sliced: the load builds the road mesh in ~25 ms slices (`buildRoadMeshSliced`);
   terrain and scatter stream within per-frame budgets. On city maps the load cost is the road mesh and `new World` (one task).
+  The road mesh is not in the disk cache (meshes with materials, ~70 MB a stage).
 - Real-world map data is not lazy-loaded; a bare-earth DEM would help where the elevation model includes trees.
 - Not done: tyre relaxation length, co-driver pace notes, car damage.
