@@ -210,6 +210,11 @@ export function* rockCutMeshJob(
         ls.push(l);
         ys.push(at(l));
       }
+      // Texture v by the distance up the face from its foot (not by height: on the gentle foot the rows lie metres
+      // apart at nearly one height, and a height v stretched the stone across them into streaks).
+      const arc = [ys[0]];
+      for (let k = 1; k < ROWS; k++)
+        arc.push(arc[k - 1] + Math.hypot(ls[k] - ls[k - 1], ys[k] - ys[k - 1]));
       for (let k = 0; k < ROWS; k++) {
         // Outward normal of the face in the cross-section (towards the road and up).
         const k0 = Math.max(0, k - 1);
@@ -262,7 +267,7 @@ export function* rockCutMeshJob(
           const ground = r.look === 'schist' ? GROUND_ROCK[c] : base[c] * 0.9;
           col.push(ground + (face - ground) * end);
         }
-        uv.push(r.d / TILE, (y0 + r.d * 0.05) / TILE);
+        uv.push(r.d / TILE, (arc[k] + r.d * 0.05) / TILE);
       }
       if (i > 0) {
         const a = (i - 1) * ROWS;
