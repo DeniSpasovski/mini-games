@@ -222,8 +222,8 @@ const WHEEL_GRIP = 0.03;
 
 /**
  * Both front seats of a cockpit model lowered by `seat.drop`: the triangles of the cushions and backrests (and head
- * rests) are cut out of the model's parts and moved down. What is under a seat (frame, rails, floor) stays, below the
- * lowered cushion. `obj`: the loaded model before it is added to the car (world space = cockpit model space).
+ * rests, frame and rails, down to the floor) are cut out of the model's parts and moved down as one: what goes below
+ * the floor is hidden under it. `obj`: the loaded model before it is added to the car (world space = cockpit model space).
  */
 export function fitSeats(obj: Object3D, cp: Cockpit): void {
   const drop = cp.seat.drop ?? 0;
@@ -232,7 +232,7 @@ export function fitSeats(obj: Object3D, cp: Cockpit): void {
   const { x, cushion, back } = cp.seat;
   const [z0, y0, z1, y1] = back;
   const backZ = (y: number): number => z0 + ((z1 - z0) * (y - y0)) / (y1 - y0);
-  const low = Math.max(cp.floor + 0.03, cushion - drop - 0.02);
+  const low = cp.floor + 0.012;
   const seated = (c: Vector3): boolean => {
     if (Math.abs(Math.abs(c.x) - x) > SEAT_HALF || c.y < low) return false;
     const b = backZ(Math.max(c.y, y0));

@@ -2,7 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
-import { buildZastavaBody } from './body';
+import { buildZastavaBody, SEAT_DROP } from './body';
 import { zastavaAtlas } from './paint';
 import { buildZastavaWheel } from './wheels';
 
@@ -197,7 +197,7 @@ export const zastava101: CarDef = {
         x: 0.34,
         cushion: 0.57,
         back: [-0.335, 0.6, -0.42, 1.0],
-        drop: 0.15,
+        drop: SEAT_DROP,
       },
       wheel: { at: [0.34, 0.9, 0.2], r: 0.19, tilt: 25.8 },
       roof: 1.33,
