@@ -217,6 +217,13 @@ export const fiesta: CarDef = {
     suspensionStyle: 'wrc',
     // The model carries its own cockpit: see-through glass shows it.
     glass: { color: 0x141c24, opacity: 0.6 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      seat: { x: 0.32, cushion: 0.26, back: [-0.49, 0.5, -0.58, 0.9] },
+      wheel: { at: [0.328, 0.805, 0.196], r: 0.144, tilt: 12.6, pull: 0.1 },
+      roof: 1.21,
+      floor: 0.17,
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py), two parts by hand: the mirror sits mid-window on a

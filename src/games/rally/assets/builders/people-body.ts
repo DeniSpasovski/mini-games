@@ -368,6 +368,8 @@ export interface BodyPose {
   headScale: number;
   /** Shoulder / hip width factor. */
   broad: number;
+  /** Length factor of the upper arms (default 1): a longer reach for a figure that has to get to something. */
+  armLong?: number;
   arm: [{ up: Vector3; low: Vector3 }, { up: Vector3; low: Vector3 }];
   leg: [
     { up: Vector3; low: Vector3; foot: number },
@@ -393,6 +395,40 @@ function pivot(q: Quaternion, at: Vector3, rest: Vector3): Matrix4 {
     q,
     ONE,
   );
+}
+
+/** `pivot`, with the bone stretched by `k` along `along` (its rest direction) from `rest`. */
+function stretched(
+  q: Quaternion,
+  at: Vector3,
+  rest: Vector3,
+  along: Vector3,
+  k: number,
+): Matrix4 {
+  const d = along.clone().normalize();
+  const s = new Matrix4().set(
+    1 + (k - 1) * d.x * d.x,
+    (k - 1) * d.x * d.y,
+    (k - 1) * d.x * d.z,
+    0,
+    (k - 1) * d.y * d.x,
+    1 + (k - 1) * d.y * d.y,
+    (k - 1) * d.y * d.z,
+    0,
+    (k - 1) * d.z * d.x,
+    (k - 1) * d.z * d.y,
+    1 + (k - 1) * d.z * d.z,
+    0,
+    0,
+    0,
+    0,
+    1,
+  );
+  return new Matrix4()
+    .makeTranslation(at.x, at.y, at.z)
+    .multiply(new Matrix4().makeRotationFromQuaternion(q))
+    .multiply(s)
+    .multiply(new Matrix4().makeTranslation(-rest.x, -rest.y, -rest.z));
 }
 
 const aim = (from: Vector3, to: Vector3): Quaternion =>
@@ -447,8 +483,13 @@ export function pose(m: BodyModel, p: BodyPose): PosedBody {
     const arm = p.arm[i];
     const J = j.shoulder.clone().applyMatrix4(p.lean);
     const qu = aim(j.elbow.clone().sub(j.shoulder), arm.up);
-    bones[BONE.upL + i].copy(pivot(qu, J, j.shoulder));
-    const lu = j.elbow.distanceTo(j.shoulder);
+    const k = p.armLong ?? 1;
+    bones[BONE.upL + i].copy(
+      k === 1
+        ? pivot(qu, J, j.shoulder)
+        : stretched(qu, J, j.shoulder, j.elbow.clone().sub(j.shoulder), k),
+    );
+    const lu = j.elbow.distanceTo(j.shoulder) * k;
     const E = J.clone().add(arm.up.clone().normalize().multiplyScalar(lu));
     const qf = aim(j.wrist.clone().sub(j.elbow), arm.low);
     bones[BONE.foreL + i].copy(pivot(qf, E, j.elbow));

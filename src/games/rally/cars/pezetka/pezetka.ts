@@ -221,6 +221,18 @@ export const pezetka: CarDef = {
     },
     // The cockpit (from a second model, see model.source.json) shows through the glass.
     glass: { color: 0x141c24, opacity: 0.6 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      seat: {
+        x: 0.31,
+        cushion: 0.44,
+        back: [-0.13, 0.5, -0.19, 0.95],
+        drop: 0.13,
+      },
+      wheel: { at: [0.27, 0.747, 0.537], r: 0.151, tilt: 20.7, pull: 0.08 },
+      roof: 1.22,
+      floor: 0.18,
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).

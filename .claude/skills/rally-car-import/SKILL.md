@@ -436,6 +436,9 @@ whenever the GLB is regenerated.
    after real FIA door panels: tilt = mean of the window line and the sill line, centre at 64 % of the door's height (top
    ~10 cm under the window), front edge 5 cm behind the mirror's front; `--front <z>` when the mirror is not on the door's front corner, `over: ['trim']` when a side moulding crosses the
    plate). Check both sides in the car viewer (`&num=7`) before calling it done.
+   A car with a see-through cockpit (`model.glass` + an interior) also gets `model.cockpit`, so the crew sits in its seats with
+   their hands on its wheel: `python scripts/car-model/cockpit.py public/models/cars/<file>.glb seat <x>` and `... wheel <x> <y> <z>`
+   (usage in its header; `rhd: true` for a right-hand-drive model). Check in the car viewer from the front and both sides.
 3. `<car>/livery.ts`: `layout: A` (the `model.source.json` atlas block) on the `CarAtlas`, so the box wears the livery.
 4. Append the profile to `SHAPES` in `assets/builders/vehicles.ts` (append: `FIXED_CARS` and placed props use the
    indices) and name it in the `street_car` description in `assets/catalog.ts`, so the car also parks on the city maps

@@ -118,14 +118,22 @@ const range = (ridge: Pt[]): Pt[] => [
   ...ridge.slice().reverse(),
 ];
 
+/** White, and the two blues of the mountains (seed 0 = the car's own). */
+const colors = (
+  info: LiveryInfo,
+  seed: number,
+): { white: string; navy: string; sky: string } => ({
+  white: '#f3f4f6',
+  navy: seed === 0 ? '#0c2a6e' : info.accent,
+  sky: seed === 0 ? '#3fb6ea' : info.accent2,
+});
+
 function paint(
   ctx: CanvasRenderingContext2D,
   info: LiveryInfo,
   seed: number,
 ): void {
-  const white = '#f3f4f6';
-  const navy = seed === 0 ? '#0c2a6e' : info.accent;
-  const sky = seed === 0 ? '#3fb6ea' : info.accent2;
+  const { white, navy, sky } = colors(info, seed);
 
   ctx.fillStyle = white;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -219,4 +227,8 @@ export const fiestaLivery: CarAtlas = {
   height: Math.ceil(A.height * K),
   layout: A,
   paint,
+  crew(info, seed) {
+    const { white, navy, sky } = colors(info, seed);
+    return { main: white, second: navy, third: sky, motif: 'peaks' };
+  },
 };

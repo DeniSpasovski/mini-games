@@ -198,6 +198,14 @@ export const subie22b: CarDef = {
     wheelModel: 'subie_22b_wheel.glb',
     // The model's cockpit shows through the windows.
     glass: { color: 0x141c24, opacity: 0.4 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      rhd: true,
+      seat: { x: 0.36, cushion: 0.39, back: [-0.45, 0.5, -0.57, 1.0] },
+      wheel: { at: [-0.356, 0.81, 0.179], r: 0.174, tilt: 24.1, pull: 0.08 },
+      roof: 1.32,
+      floor: 0.22,
+    },
     suspensionStyle: 'sti',
     cornerSuspension: {
       style: 'sti',

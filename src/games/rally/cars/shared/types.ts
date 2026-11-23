@@ -3,7 +3,7 @@ import type { SuspensionStyle } from './suspension-mesh';
 import type { CarPhysicsDef } from '../../physics/types';
 import type { SourceLink } from '../../maps/shared/types';
 import type { AtlasLayout } from './atlas-painter';
-import type { LiveryInfo } from './livery';
+import type { CrewLivery, LiveryInfo } from './livery';
 import type { BufferGeometry } from 'three';
 import type { TyreFamily } from '../../physics/tyres';
 import type { CarPartGeometry } from './car-parts';
@@ -108,6 +108,8 @@ export interface CarModelDef {
    * part, so set it only when the model has a cockpit to see through the windows.
    */
   glass?: { color: number; opacity: number };
+  /** The cockpit as modelled: with it (and see-through glass) the car gets its crew (game/car-crew.ts). */
+  cockpit?: Cockpit;
   /** Paint finish: 'satin' = old weathered paint (rough, thin clearcoat). Default 'gloss'. */
   paintFinish?: 'gloss' | 'satin';
   /**
@@ -248,8 +250,45 @@ export interface CarAtlas {
   height: number;
   /** Paint the whole atlas (seeded; info.base = chosen paint colour). */
   paint(ctx: CanvasRenderingContext2D, info: LiveryInfo, seed: number): void;
+  /** What the crew wears with this livery: its colours and motif (default: a plain suit in the paint colour). */
+  crew?(info: LiveryInfo, seed: number): CrewLivery;
   /** Atlas px rect [x, y, w, h] painted black that renders matte (no clearcoat) - wheel arches. */
   matteRect?: [number, number, number, number];
   /** Box-projection layout of an STL car's atlas (model.source.json): lets the `profile` fallback wear the livery. */
   layout?: AtlasLayout;
+}
+
+/**
+ * Where a crew sits in a car's own cockpit model, measured on it (scripts/car-model/cockpit.py prints the profiles):
+ * model space, metres, y = 0 the ground, +Z the nose, +X the car's left. The two seats mirror each other.
+ */
+export interface Cockpit {
+  /** Right-hand drive: the wheel (`wheel.at` x < 0) and the driver are on the car's right. */
+  rhd?: boolean;
+  seat: {
+    /** Centre line of a seat from the car's (|x|), top of the cushion where one sits. */
+    x: number;
+    cushion: number;
+    /** Front face of the backrest on the seat's centre line, low and high: [z, y, z, y]. */
+    back: [number, number, number, number];
+    /** How far both front seats are lowered in the car (m; a rally fit, for a crew in helmets under a low roof). */
+    drop?: number;
+  };
+  /**
+   * Steering wheel: the centre of the rim, its radius (to the middle of the rim), how far it leans back (deg; 0 = upright).
+   * `pull`: how far the wheel is brought back toward the driver on an extended boss (m, along its column), so that a
+   * driver with their back in the seat reaches it; `column`: the model has no column behind the wheel, so one is added.
+   */
+  wheel: {
+    at: [number, number, number];
+    r: number;
+    tilt: number;
+    pull?: number;
+    column?: boolean;
+  };
+  /** One seat only (a single-seater cockpit): no co-driver. */
+  solo?: boolean;
+  /** Lowest thing over the heads (headliner, roll cage), and the floor of the footwell. */
+  roof: number;
+  floor: number;
 }

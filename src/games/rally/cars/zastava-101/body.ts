@@ -250,6 +250,12 @@ const addV = (p: V3, d: V3, k: number): V3 => [
   p[2] + d[2] * k,
 ];
 
+/**
+ * How far the front seats sit below the road car's (m): a rally fit, so that a crew in helmets fits under the roof.
+ * The cockpit's `seat.drop` (zastava-101.ts), where the crew sits.
+ */
+export const SEAT_DROP = 0.15;
+
 export function buildZastavaBody(): {
   paint: BufferGeometry;
   parts: CarPartGeometry;
@@ -694,11 +700,12 @@ export function buildZastavaBody(): {
     wheelAt(rbox(0.17, 0.034, 0.02, 0.012, 0, -0.008, 0.024)),
     wheelAt(cyl(0.028, 0.03, 14, 0, 0, 0.012, 'z')),
   );
+  // Front seats: cushion, backrest, head rest, lowered as a whole (`SEAT_DROP`) into the floor.
   for (const x of [0.34, -0.34])
     cabinParts.push(
-      rbox(0.48, 0.14, 0.5, 0.05, x, 0.5, -0.16),
-      rbox(0.46, 0.56, 0.12, 0.05, x, 0.8, -0.44, -0.2),
-      rbox(0.24, 0.15, 0.09, 0.035, x, 1.16, -0.515, -0.2),
+      rbox(0.48, 0.14, 0.5, 0.05, x, 0.5 - SEAT_DROP, -0.16),
+      rbox(0.46, 0.56, 0.12, 0.05, x, 0.8 - SEAT_DROP, -0.44, -0.2),
+      rbox(0.24, 0.15, 0.09, 0.035, x, 1.16 - SEAT_DROP, -0.515, -0.2),
     );
   cabinParts.push(
     rbox(1.26, 0.14, 0.46, 0.05, 0, 0.52, -1.0),

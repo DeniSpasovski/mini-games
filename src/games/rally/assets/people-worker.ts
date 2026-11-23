@@ -8,6 +8,8 @@ export interface PersonRequest {
   seed: number;
   variant: number;
   lod: number;
+  /** A builder's own extra input (plain data). */
+  params?: unknown;
 }
 
 export interface PersonResult {
@@ -31,11 +33,11 @@ const modules = Promise.all([
 ]);
 
 scope.onmessage = async (e) => {
-  const { id, asset, seed, variant, lod } = e.data;
+  const { id, asset, seed, variant, lod, params } = e.data;
   try {
     const [{ withLooks }, { PEOPLE_BUILDERS }, { toWire }] = await modules;
     const built = withLooks(() =>
-      PEOPLE_BUILDERS[asset]({ seed, variant, lod }),
+      PEOPLE_BUILDERS[asset]({ seed, variant, lod, params }),
     );
     const buffers: ArrayBuffer[] = [];
     const parts = built.parts.map((p) =>

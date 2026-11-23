@@ -205,6 +205,13 @@ export const audiRs6: CarDef = {
     },
     // The model carries its own cockpit: see-through glass shows it.
     glass: { color: 0x141c24, opacity: 0.6 },
+    // Seats, steering wheel and roof as modelled (scripts/car-model/cockpit.py): where the crew sits.
+    cockpit: {
+      seat: { x: 0.37, cushion: 0.43, back: [-0.27, 0.6, -0.51, 1.0] },
+      wheel: { at: [0.38, 0.911, 0.177], r: 0.168, tilt: 24.2, pull: 0.04 },
+      roof: 1.33,
+      floor: 0.29,
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py), 5 cm forward by eye.

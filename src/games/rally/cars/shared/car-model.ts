@@ -36,8 +36,19 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
-import { hasImportedModel, loadImportedCar, splitRecolor } from './car-gltf';
-import { liveryInfo, type LiveryInfo } from './livery';
+import {
+  fitSeats,
+  fitWheel,
+  hasImportedModel,
+  loadImportedCar,
+  splitRecolor,
+} from './car-gltf';
+import {
+  crewLivery,
+  liveryInfo,
+  type CrewLivery,
+  type LiveryInfo,
+} from './livery';
 import { paintParams, type PaintFinish } from './paint-finish';
 import { buildProfileParts } from './profile-body';
 import { axleRadius, tyreSizeFor, type Axle } from '../../physics/car-tyres';
@@ -466,6 +477,8 @@ export class CarModel {
   readonly root = new Group();
   readonly body = new Group();
   readonly livery: LiveryInfo;
+  /** What the crew in the seats wears with that livery (game/car-crew.ts). */
+  readonly crewLivery: CrewLivery;
   readonly debug = new Group();
   /** Resolves true when an imported glTF body replaced the procedural one. */
   readonly imported: Promise<boolean>;
@@ -560,6 +573,7 @@ export class CarModel {
 
     const info = liveryInfo(def, opts.seed ?? 0, opts.paint);
     this.livery = info;
+    this.crewLivery = crewLivery(def, info, opts.seed ?? 0);
     const satin = def.model.paintFinish === 'satin';
     const plainMat = new MeshPhysicalMaterial({
       color: new Color(info.base),
@@ -734,6 +748,25 @@ export class CarModel {
                 const piece = splitRecolor(m, r);
                 if (piece) piece.material = paintMat;
               }
+            }
+            // The steering wheel within the driver's reach, on its column (cockpit.wheel.pull / column).
+            const cockpit = def.model.glass ? def.model.cockpit : undefined;
+            if (cockpit) fitSeats(obj, cockpit);
+            const column = cockpit && fitWheel(obj, cockpit);
+            if (column) {
+              const len = column.from.distanceTo(column.to);
+              const tube = new CylinderGeometry(0.021, 0.026, len, 14, 1);
+              this.owned.push(tube);
+              const m = new Mesh(tube, interiorMat);
+              m.name = 'steering column';
+              m.castShadow = false;
+              m.position.lerpVectors(column.from, column.to, 0.5);
+              m.quaternion.setFromUnitVectors(
+                new Vector3(0, 1, 0),
+                column.to.clone().sub(column.from).normalize(),
+              );
+              m.updateMatrixWorld();
+              obj.attach(m);
             }
             // Plate targets in body space (obj has no parent yet, so matrixWorld = obj -> body).
             obj.updateMatrixWorld(true);
@@ -1161,8 +1194,14 @@ export class CarModel {
 
   triangleCount(): number {
     let n = 0;
+    // What is drawn: nothing under a hidden group (a tyre level, the crew's other level of detail).
+    const shown = (o: Object3D): boolean => {
+      for (let p: Object3D | null = o; p && p !== this.root; p = p.parent)
+        if (!p.visible) return false;
+      return true;
+    };
     this.root.traverse((o) => {
-      if (o instanceof Mesh && o.visible && o.parent?.visible !== false) {
+      if (o instanceof Mesh && shown(o)) {
         const g = o.geometry as BufferGeometry;
         const tris =
           (g.index ? g.index.count : g.getAttribute('position').count) / 3;

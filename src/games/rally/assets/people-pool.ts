@@ -7,9 +7,10 @@ import type { PersonRequest, PersonResult } from './people-worker';
 import type { BuiltAsset } from './types';
 import { WorkerPool } from '../../../shared/worker-pool';
 
-/** The material a look stands for (people.ts `withLooks`). */
-function materialOf(look: string): Material {
+/** The material a look stands for (people.ts `withLooks`, builders/crew.ts `CrewLook`). */
+export function materialOf(look: string): Material {
   if (look === 'atlas') return getMaterial('people');
+  if (look === 'crew_gloss') return getMaterial('crew_gloss');
   if (look === 'flag') return getMaterial('people_flag');
   const [, model, ...tone] = look.split('|');
   return bodySkinMaterial(model as 'male' | 'female', tone.join('|'));
@@ -39,8 +40,9 @@ export function requestPerson(
   variant: number,
   lod: number,
   done: (a: BuiltAsset | null) => void,
+  params?: unknown,
 ): void {
-  const req: Omit<PersonRequest, 'id'> = { asset, seed, variant, lod };
+  const req: Omit<PersonRequest, 'id'> = { asset, seed, variant, lod, params };
   const sent = pool.post(req, [], (r) =>
     done(
       r?.parts
