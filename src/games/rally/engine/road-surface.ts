@@ -1,6 +1,7 @@
 import { JUNCTION_ASPHALT } from '../world/junctions';
 import {
   ROAD_WEAR_FRAGMENT,
+  ROAD_NOISE,
   ROAD_WEAR_FRAGMENT_PARS,
   ROAD_WEAR_NORMAL,
   ROAD_WEAR_ROUGHNESS,
@@ -123,7 +124,7 @@ export function mapRoadTone(): number {
 }
 
 /** Constants of the wear shader (world/road-wear.ts): the terrain's soil and gravel layers, dust / mud / rubber tones. */
-const WEAR_DEFINES = [
+export const WEAR_DEFINES = [
   `#define RW_SOIL_LAYER ${GROUND_LAYER.soil.toFixed(1)}`,
   `#define RW_SOIL_SCALE ${(1 / GROUND_SCAN.soil).toFixed(4)}`,
   `#define RW_SOIL_MEAN ${GROUND_MEAN.soil.toFixed(4)}`,
@@ -358,11 +359,7 @@ export function applyRoadSurface(
           uniform float rsPatchDark;
           uniform float rsTone;
           ${j ? 'uniform sampler2D jMap; uniform sampler2D jNormal; uniform float jLen; varying float vJw; varying vec2 vJXZ;' : ''}
-          float rsHash( vec2 p ) { p = fract( p * vec2( 123.34, 456.21 ) ); p += dot( p, p + 45.32 ); return fract( p.x * p.y ); }
-          float rsNoise( vec2 p ) {
-            vec2 i = floor( p ); vec2 f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
-            return mix( mix( rsHash( i ), rsHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( rsHash( i + vec2( 0.0, 1.0 ) ), rsHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
-          }
+          ${ROAD_NOISE}
           ${wear ? ROAD_WEAR_FRAGMENT_PARS : ''}`,
         )
         .replace(

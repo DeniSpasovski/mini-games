@@ -3,9 +3,11 @@ import {
   BufferGeometry,
   DoubleSide,
   Group,
+  Material,
   Mesh,
   MeshStandardMaterial,
 } from 'three';
+import { WEAR_DEFINES } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
 import {
   barrierPoint,
@@ -16,6 +18,8 @@ import {
 import type { TerrainSampler } from './heightfield';
 import type { World } from './world';
 import { bridgeMaterials } from './bridge-mesh';
+import { ROAD_BROKEN_EDGE, ROAD_NOISE } from './road-wear';
+import { getTerrainMaterial } from './terrain-material';
 
 /**
  * Continuous barriers: the cross section of a New Jersey wall / steel guard rail swept along the road
@@ -125,8 +129,8 @@ function rowsOf(
 function strip(
   acc: Acc,
   rows: Row[],
-  a: [number, number] | ((row: Row) => [number, number]),
-  b: [number, number] | ((row: Row) => [number, number]),
+  a: [number, number],
+  b: [number, number],
   n: [number, number],
   color: [number, number, number],
   uvOf: (row: Row, dy: number, o: number) => [number, number],
@@ -134,8 +138,7 @@ function strip(
   if (rows.length < 2) return;
   const v0 = acc.pos.length / 3;
   for (const r of rows) {
-    for (const p of [a, b]) {
-      const [o, dy] = typeof p === 'function' ? p(r) : p;
+    for (const [o, dy] of [a, b]) {
       acc.pos.push(r.x + r.ox * o, r.y + dy, r.z + r.oz * o);
       const nx = r.ox * n[0];
       const nz = r.oz * n[0];
@@ -529,12 +532,71 @@ const edgeProfile = (width: number): [number, number][] => [
   [0, -0.06],
 ];
 
-/** Width of the earth along an edge kerb's outer edge (m, min / max per row). */
-const EDGE_DIRT: [number, number] = [0.03, 0.08];
-/** Its colour (linear, times the concrete scan): dry earth and grit. */
-const DIRT: [number, number, number] = [0.52, 0.38, 0.24];
+const edgeKerbMats = new Map<number, MeshStandardMaterial>();
+/**
+ * The edge kerbs' concrete (per strip width): the verge's earth and gravel crumbled onto its outer edge, the stage road's
+ * own broken edge (world/road-wear.ts `rwBrokenEdge`), over about half the strip, ragged. From the slab's uv (`edgeKerb`):
+ * u = metres along / KERB_TS, v = (dy - o) / KERB_TS, so v * KERB_TS - 0.03 is metres in from the outer top edge (< 0 down
+ * its outer face).
+ */
+function edgeKerbMaterial(width: number): MeshStandardMaterial {
+  let m = edgeKerbMats.get(width);
+  if (m) return m;
+  const base = bridgeMaterials().concrete;
+  const mat = base.clone();
+  mat.onBeforeCompile = (shader, renderer) => {
+    Material.prototype.onBeforeCompile.call(mat, shader, renderer);
+    shader.uniforms.tGround = (
+      getTerrainMaterial().userData.uniforms as Record<
+        string,
+        { value: unknown }
+      >
+    ).tGround;
+    shader.uniforms.ekCore = { value: 0.3 * width };
+    shader.uniforms.ekLoose = { value: 0.9 * width };
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec2 vEkUv;\nvarying vec2 vEkXZ;',
+      )
+      .replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\nvEkUv = uv;\nvEkXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;',
+      );
+    shader.fragmentShader = `${WEAR_DEFINES}\n${shader.fragmentShader}`
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform mediump sampler2DArray tGround;
+        uniform float ekCore;
+        uniform float ekLoose;
+        varying vec2 vEkUv;
+        varying vec2 vEkXZ;
+        ${ROAD_NOISE}
+        ${ROAD_BROKEN_EDGE}`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          float ekD = vEkUv.y * ${KERB_TS.toFixed(1)} - 0.03;
+          float along = vEkUv.x * ${KERB_TS.toFixed(1)};
+          vec2 wp = vEkXZ;
+          float pix = max( fwidth( ekD ), 1e-4 );
+          float band;
+          float br = rwBrokenEdge( ekD - ekCore, ekLoose, along, 2.0, pix, wp, band );
+          if ( br > 0.0 )
+            diffuseColor.rgb = mix( diffuseColor.rgb, rwBrokenColour( wp, dFdx( wp ), dFdy( wp ), diffuseColor.rgb ), br );
+        }`,
+      );
+  };
+  mat.customProgramCacheKey = () =>
+    Material.prototype.customProgramCacheKey.call(mat) + 'edge-kerb';
+  edgeKerbMats.set(width, (m = mat));
+  return m;
+}
 
-/** Flat kerb slabs along the asphalt edge (kind 'edge'): weathered pale concrete, a tone per 1 m slab, earth along its outer edge. */
+/** Flat kerb slabs along the asphalt edge (kind 'edge'): weathered pale concrete, a tone per 1 m slab (earth on its outer edge: `edgeKerbMaterial`). */
 function edgeKerb(
   acc: Acc,
   rows: Row[],
@@ -548,28 +610,14 @@ function edgeKerb(
     (dy - o) / KERB_TS,
   ];
   const edge = edgeProfile(run.rule.width ?? 0.5);
-  // The top's outer edge (profile points 2 -> 3): earth and grit washed onto it from the verge, a ragged band
-  // EDGE_DIRT wide (per row), down the outer face too.
-  const TOP = 2;
-  const dirtAt = (r: Row): [number, number] => [
-    -EDGE_DIRT[0] -
-      (EDGE_DIRT[1] - EDGE_DIRT[0]) * hash1(r.d * 3.1 + run.side * 17),
-    0.03,
-  ];
   for (let i = 0; i < rows.length - 1; i++) {
     const seg = [rows[i], rows[i + 1]];
     // the slab this row pair lies on: its own tone (the change of tone reads as the joint)
     const slab = Math.floor(rows[i].d + 0.01);
     const t = 0.68 + 0.14 * hash1(slab * 1.7 + run.side * 31);
     const col: [number, number, number] = [t, t * 0.98, t * 0.94];
-    for (let k = 0; k < edge.length - 1; k++) {
-      const n = convexNormal(edge, k);
-      if (k === TOP) {
-        strip(acc, seg, edge[k], dirtAt, n, col, uvOf);
-        strip(acc, seg, dirtAt, edge[k + 1], n, DIRT, uvOf);
-      } else
-        strip(acc, seg, edge[k], edge[k + 1], n, k > TOP ? DIRT : col, uvOf);
-    }
+    for (let k = 0; k < edge.length - 1; k++)
+      strip(acc, seg, edge[k], edge[k + 1], convexNormal(edge, k), col, uvOf);
   }
   const end: [number, number, number] = [0.7, 0.69, 0.66];
   if (first) cap(acc, rows[0], edge, -1, end);
@@ -724,7 +772,11 @@ export function* barrierMeshJob(
         for (let d = from; d < to; d += step)
           fine.push(rowsOf(ctx, world.analytic, run, d, d + 0.01)[0]);
         fine.push(rows[rows.length - 1]);
-        const acc = tileAcc('kerb', rows[0].x, rows[0].z, kerbMat);
+        const w = run.rule.width ?? 0.5;
+        const acc =
+          run.rule.kind === 'edge'
+            ? tileAcc(`edge${w}`, rows[0].x, rows[0].z, edgeKerbMaterial(w))
+            : tileAcc('kerb', rows[0].x, rows[0].z, kerbMat);
         if (run.rule.kind === 'edge')
           edgeKerb(acc, fine, run, from === run.from, to === run.to);
         else gutter(acc, fine, run);
