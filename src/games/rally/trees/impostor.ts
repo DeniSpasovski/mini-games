@@ -34,7 +34,10 @@ import { TREE_SPRITE_AXES } from './sprite-attr';
  * by the blended coverage and lights the result like the geometry (trees/materials.ts).
  */
 
-/** Pixels per frame (a tree is ~100 px tall where the impostor takes over; 72 px keeps the 6 x 6 atlas at 432 px). */
+/**
+ * Pixels per frame (a tree is 75-100 px tall where the impostor takes over, on a 1080p-1440p screen; 72 px keeps the
+ * 6 x 6 atlas at 432 px, and 128 px views looked no different in paired stills).
+ */
 export const IMPOSTOR_FRAME_PX = 72;
 
 export interface ImpostorPixels {

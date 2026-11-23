@@ -30,6 +30,7 @@ import {
 import { seasonal } from '../../src/games/rally/trees/seasons';
 import { buildSkeleton } from '../../src/games/rally/trees/skeleton';
 import {
+  DEFAULT_LOD,
   FOREST_REACH,
   NEAR_SPRITES,
   ROAD_REACH,
@@ -349,10 +350,11 @@ describe('tree LOD transitions', () => {
     expect(selectLevel(0.02, 2, T, 0.15, 85)).toBe(2);
   });
 
-  test('default thresholds: a 15 m tree at 60 deg is LOD1 past 40 m and an impostor at ~370 m', () => {
+  test('default thresholds: a 15 m tree at 60 deg is LOD1 past 40 m and an impostor at ~185 m', () => {
     const px = 1 / (2 * Math.tan(Math.PI / 6));
-    const at = (d: number) => selectLevel((15 * px) / d, 0, T, 0, d);
-    expect([at(39), at(41), at(365), at(375)]).toEqual([0, 1, 1, 2]);
+    const D = [DEFAULT_LOD.thresholds[1], DEFAULT_LOD.thresholds[2]];
+    const at = (d: number) => selectLevel((15 * px) / d, 0, D, 0, d);
+    expect([at(39), at(41), at(180), at(190)]).toEqual([0, 1, 1, 2]);
   });
 
   test('within 40 m always LOD0, whatever the projected height', () => {

@@ -43,7 +43,7 @@ Foliage is drawn as lit leaf-cluster sprites placed on the skeleton's leaf point
 
 - Atlas textures use coverage-preserving mipmaps. Each mip level's alpha is scaled so the share of texels passing the alpha test matches the full-size texture, so crowns do not thin out or fade away with distance.
 - The alpha-test threshold is one fixed value shared by every pass, the shadow pass included.
-- Where the renderer has MSAA, foliage uses alpha-to-coverage, so sprite edges do not shimmer.
+- Where the renderer has MSAA, the far sprites use alpha-to-coverage, so their edges do not shimmer. The near sprites are tight outlines whose edges MSAA already smooths; alpha-to-coverage on them cost GPU time in the depth prepass for no visible difference, so it is off there (perf panel switch).
 
 ## Wind
 

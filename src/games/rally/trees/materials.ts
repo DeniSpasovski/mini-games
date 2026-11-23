@@ -1033,15 +1033,38 @@ const materials = new Map<
   | MeshDepthMaterial
 >();
 let foliageA2C = false;
+let nearA2C = false;
+
+/**
+ * Alpha-to-coverage of a sprite material: the far quads only, unless `setNearSpriteSmoothing`. The near sprites are
+ * tight outlines, so MSAA already smooths most of their edges: on them it cost GPU time (in the depth prepass) for no
+ * difference visible in paired stills (trees/Foliage.md#alpha).
+ */
+function spriteA2C(key: string): boolean {
+  return foliageA2C && (nearA2C || key.startsWith('sprite:far:'));
+}
+
+function applySpriteA2C(): void {
+  for (const [k, m] of materials) {
+    if (!k.startsWith('sprite:')) continue;
+    const on = spriteA2C(k);
+    if (m.alphaToCoverage !== on) {
+      m.alphaToCoverage = on;
+      m.needsUpdate = true;
+    }
+  }
+}
 
 /** Alpha-to-coverage on the sprites when the renderer has MSAA (engine/materials.ts `setFoliageAntialias`). */
 export function setTreeFoliageAntialias(on: boolean): void {
   foliageA2C = on;
-  for (const [k, m] of materials)
-    if (k.startsWith('sprite:') && m.alphaToCoverage !== on) {
-      m.alphaToCoverage = on;
-      m.needsUpdate = true;
-    }
+  applySpriteA2C();
+}
+
+/** Alpha-to-coverage on the near crowns' sprites too (perf panel): the prepass and the lit pass alike. */
+export function setNearSpriteSmoothing(on: boolean): void {
+  nearA2C = on;
+  applySpriteA2C();
 }
 
 export function barkMaterial(
@@ -1102,6 +1125,7 @@ export function spriteMaterial(style: LeafStyle): MeshLambertMaterial {
   if (m) return m;
   m = spriteLit(style, false);
   m.name = `tree ${key}`;
+  m.alphaToCoverage = spriteA2C(key);
   litSpriteDepth(m);
   materials.set(key, m);
   return m;
@@ -1117,6 +1141,7 @@ export function spriteFarMaterial(style: LeafStyle): MeshLambertMaterial {
   if (m) return m;
   m = spriteLit(style, false);
   m.name = `tree ${key}`;
+  m.alphaToCoverage = spriteA2C(key);
   materials.set(key, m);
   return m;
 }
@@ -1150,7 +1175,6 @@ function spriteLit(style: LeafStyle, depthOnly: boolean): MeshLambertMaterial {
     alphaTest: ALPHA_TEST,
     side: DoubleSide,
   });
-  m.alphaToCoverage = foliageA2C;
   m.defines = {
     TREE_SPRITE: 1,
     TREE_SKY: 1,
@@ -1188,6 +1212,7 @@ export function spritePrepassMaterial(style: LeafStyle): MeshLambertMaterial {
   if (m) return m;
   m = spriteLit(style, true);
   m.name = `tree ${key}`;
+  m.alphaToCoverage = spriteA2C(key);
   m.colorWrite = false;
   materials.set(key, m);
   return m;

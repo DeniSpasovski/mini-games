@@ -31,9 +31,13 @@ export interface LodSettings {
   fadeTime: number;
 }
 
-/** 14 %, 7 %, 3.5 % of the screen height: for a 15 m tree at a 60 deg field of view ~90, 185 and 370 m. */
+/**
+ * 14 %, 7 %, 7 % of the screen height: for a 15 m tree at a 60 deg field of view ~90 and 185 m. LOD1 runs from the
+ * full-detail reach to 185 m, then the impostor (never inside IMPOSTOR_FROM): further out, LOD1 + far sprites looked the
+ * same as the impostor in paired stills and cost GPU time (trees/Lod.md#selection).
+ */
 export const DEFAULT_LOD: LodSettings = {
-  thresholds: [0.14, 0.07, 0.035],
+  thresholds: [0.14, 0.07, 0.07],
   hysteresis: 0.15,
   fadeTime: 0.3,
 };

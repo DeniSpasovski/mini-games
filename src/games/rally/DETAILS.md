@@ -58,7 +58,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
 queries; "Wait for GPU" measures it by a readback where they are missing), draw calls, triangles; switches for every
 costly feature (world layers, each tree part, shadows, clouds, fog, IBL, effects) and sliders (resolution, object /
-tree distance, shadow map). Remembered in localStorage, applied only while the panel exists.
+tree distance, shadow map, tree impostor threshold, near leaf edge smoothing). Remembered in localStorage, applied only while the panel exists.
 
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.

@@ -289,6 +289,8 @@ export interface TreeRendererOptions {
   rebuildDistance?: number;
   /** Max ms per frame for a job. */
   budgetMs?: number;
+  /** Impostor threshold for every species (share of the screen height; unset = the species', perf panel). */
+  impostorAt?: number;
 }
 
 interface Budget {
@@ -945,8 +947,12 @@ export class TreeRenderer {
   private makeBudget(lv: LoadedVariant): Budget {
     const l = lodOf(lv.def);
     const k = 1 / this.opts.lodScale;
+    const impostor = Math.min(
+      l.thresholds[1],
+      this.opts.impostorAt ?? l.thresholds[2],
+    );
     return {
-      t: [l.thresholds[1] * k, l.thresholds[2] * k],
+      t: [l.thresholds[1] * k, impostor * k],
       thin: l.thresholds[0] * k,
       hysteresis: l.hysteresis,
       fadeTime: l.fadeTime,

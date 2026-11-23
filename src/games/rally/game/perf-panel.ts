@@ -6,8 +6,13 @@ import { setCropPrepass } from '../engine/crops';
 import { worldUniforms } from '../engine/world-shading';
 import { OBJECT_DISTANCE } from './settings';
 import type { TreePart } from '../trees/draw';
-import { treeUniforms } from '../trees/materials';
-import { FAR_SPRITES, FOREST_REACH, ROAD_REACH } from '../trees/species';
+import { setNearSpriteSmoothing, treeUniforms } from '../trees/materials';
+import {
+  DEFAULT_LOD,
+  FAR_SPRITES,
+  FOREST_REACH,
+  ROAD_REACH,
+} from '../trees/species';
 import type { RallyGame } from './rally-game';
 
 /**
@@ -221,6 +226,26 @@ const SLIDERS: Slider[] = [
     step: 0.01,
     value: () => FAR_SPRITES[1],
     set: (g, v) => g.trees.setFarSprites(Math.max(v, far().x), v),
+  },
+  {
+    id: 'impostorAt',
+    label: 'Impostor below (% of screen height)',
+    section: 'Trees',
+    min: 2,
+    max: DEFAULT_LOD.thresholds[1] * 100,
+    step: 0.5,
+    value: () => DEFAULT_LOD.thresholds[2] * 100,
+    set: (g, v) => g.trees.setOptions({ impostorAt: v / 100 }),
+  },
+  {
+    id: 'nearSmoothing',
+    label: 'Near leaf edge smoothing (1 = on)',
+    section: 'Trees',
+    min: 0,
+    max: 1,
+    step: 1,
+    value: () => 0,
+    set: (_g, v) => setNearSpriteSmoothing(v > 0.5),
   },
   {
     id: 'resolution',
