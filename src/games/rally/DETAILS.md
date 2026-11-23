@@ -50,6 +50,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
 | `mute=1`                   | play  | silent (bots and tests)                                                                                                                                                                                                                                                      |
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                                                                                                                                           |
 | `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                                                                                                                                                   |
+| `light=v2`                 | all   | physical sun, sky, haze and exposure by day (Look -> Physical light); dev comparison                                                                                                                                                                                         |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the stage's `temps` for the season and hour)                                                                                                                                                                             |
 | `season=`                  | play  | `spring / summer / autumn`: tree leaf colours, ground colour and the stage's `temps` for it (default: `StageDef.season`, else `environment.season`, summer); the map viewer takes it too                                                                                     |
 | `weather=`                 | all   | `dry / overcast / pre_rain / rain_light / rain_heavy / post_rain / fog` (`weather.ts`; the stage menu sets it; dev / test only): sky, temperatures, wet surfaces and grip, puddles, rain, spray, lens drops, valley fog with a top (`StageDef.weather` retunes it per stage) |
@@ -212,6 +213,17 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   light, so cast shadows are dark; faces turned from the sun get the ground's bounce (the hemisphere light's ground
   colour). Only the env map's diffuse share is cut (`envDiffuse`, `wsEnvCut`); reflections keep `envIntensity`. Under a
   cloud deck it eases back to the full sky. The studio uses `CLASSIC_LIGHT` (sky at three quarters of the sun); `?look=classic` shows it in game.
+- **Physical light (`?light=v2`, dev comparison, default off):** by day the sun, the sky dome, the sky light, the ground's
+  bounce, the haze and the exposure come from one atmosphere model (`engine/atmosphere.ts`: Rayleigh, Mie aerosols from the
+  map's `turbidity`, ozone, multiple scattering; integrated on the CPU once per apply, ~15 ms, + ~60 ms for its tables once per map) instead of `DAY_LIGHT`,
+  `exposure`, `skyBrightness`, `fogColor` and `goldenHour`. The sky-view table is a 64 x 48 half-float texture the dome and
+  the env map draw (no sun disc in the env map: the sun is the directional light only; the old env map's disc lights the
+  shade from every side). The env scene's diffuse light reaches every material as a `LightProbe` (SH9; Lambert trees,
+  crops, far forest and horizon take no IBL), the env map gives reflections only. The haze is lit by the sky's own horizon
+  round the view (`setSkyHaze`), so far land fades into the sky behind it; exposure is metered on illuminance (`V2` in
+  `engine/environment.ts`: half flat ground, half an upright face, partial adaptation); AgX tone mapping (ACES' toe
+  crushes the shade at the physical sun / sky ratio). A cloud deck passes a share of the clear day's light. Night and
+  the studio keep their own light. Switch on a running page: change the URL, then `__rally.env.relight()`.
 - **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
   (`SUN_TERMS`, `SUN_SHADOW`):
   - the sun's shadow map ahead of the camera (`quality.shadowExtent`, snapped to texels), every frame. Trees cast into

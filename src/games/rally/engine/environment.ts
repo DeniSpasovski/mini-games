@@ -4,13 +4,17 @@ import {
   BackSide,
   CircleGeometry,
   Color,
+  ClampToEdgeWrapping,
   CubeCamera,
+  DataTexture,
   DataUtils,
   DoubleSide,
   DirectionalLight,
   FogExp2,
   HalfFloatType,
   HemisphereLight,
+  LightProbe,
+  LinearFilter,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
@@ -19,6 +23,7 @@ import {
   PerspectiveCamera,
   PlaneGeometry,
   PMREMGenerator,
+  RGBAFormat,
   Scene,
   SphereGeometry,
   type ToneMapping,
@@ -29,6 +34,14 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { urlParam } from './url-param';
+import {
+  daylight,
+  luminance,
+  mieFromTurbidity,
+  SKY_LUT_H,
+  SKY_LUT_W,
+  type Daylight,
+} from './atmosphere';
 import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import { ownValue, paramNumber } from '../../../shared/url-params';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
@@ -50,6 +63,7 @@ import {
   setEnvDiffuse,
   setFogBase,
   setHaze,
+  setSkyHaze,
   setFogLayer,
   setShadowBox,
   setWet,
@@ -207,6 +221,35 @@ const HAZE_OFF = urlString('haze') === 'off';
 const HAZE_TAIL = 1.2;
 setAerial(HAZE_TAIL);
 
+/**
+ * `?light=v2` (dev comparison; default off): sun, sky dome, sky light, haze and exposure from one physical atmosphere
+ * (engine/atmosphere.ts) instead of the per-map numbers. By day outside the studio only; night keeps its own look.
+ * Read at each `apply`: change the URL and call `Environment.relight()` to switch on the same page.
+ */
+export function lightV2(): boolean {
+  return urlString('light') === 'v2';
+}
+/**
+ * `light=v2` numbers. Exposure is metered on illuminance (metered on the light, not on the frame: no feedback from
+ * dark or pale ground): half the light on flat ground, half on an upright face (mean round the compass). `meterRef` (a 10:00 sun on
+ * Vodno) gets exposure 1; the eye adapts only part way (`adapt`), so an evening or a rain deck reads dimmer than noon.
+ */
+const V2 = {
+  meterRef: 2.55,
+  adapt: 0.6,
+  /** Camera height for the sky (m): the maps lie 300-1500 m up; the sky barely changes over that. */
+  altitude: 600,
+  /** Share of the sky's diffuse light used (`setEnvDiffuse`): the sky the world round a point hides (no AO here). */
+  envDiffuse: 0.85,
+  /** A cloud deck lets this share of the clear day's light through, more as the sun breaks through (`WeatherLook.sun`). */
+  deckMin: 0.15,
+  deckSun: 0.8,
+  /** Ground albedo (the ground disc of the env map, the bounce): its colour comes from the map's grass. */
+  albedo: 0.15,
+  /** AgX: its softer toe keeps the forest shade readable at the physical sun / sky ratio (ACES crushed it to black). */
+  toneMapping: 'agx',
+};
+
 export const DAY_LIGHT = {
   sun: 4.5,
   sunLow: 1.6,
@@ -335,13 +378,21 @@ function patchSky(sky: Sky): Sky {
   mat.uniforms.skyOvercast = { value: new Vector4(0, 0, 0, 0) };
   mat.uniforms.skyFog = { value: new Vector4(0, 0, 0.05, 0) };
   mat.uniforms.skyFogColor = { value: new Color() };
+  mat.uniforms.skyLut = { value: null };
+  mat.uniforms.skySunE = { value: new Color() };
+  mat.uniforms.skyAmb = { value: new Color() };
   const out = 'gl_FragColor = vec4( texColor, 1.0 );';
-  if (!mat.fragmentShader.includes(out))
-    throw new Error('environment: Sky shader changed (three upgrade?)');
+  for (const s of [out, ...Object.keys(SKY_V2)])
+    if (!mat.fragmentShader.includes(s))
+      throw new Error('environment: Sky shader changed (three upgrade?)');
+  for (const [from, to] of Object.entries(SKY_V2))
+    mat.fragmentShader = mat.fragmentShader.replace(from, to);
   mat.fragmentShader = mat.fragmentShader
     .replace(
       'void main() {',
-      'uniform float skyGain;\nuniform vec4 skyOvercast;\nuniform vec4 skyFog;\nuniform vec3 skyFogColor;\nvoid main() {',
+      'uniform float skyGain;\nuniform vec4 skyOvercast;\nuniform vec4 skyFog;\nuniform vec3 skyFogColor;\n' +
+        SKY_V2_PARS +
+        '\nvoid main() {',
     )
     .replace(
       out,
@@ -349,6 +400,53 @@ function patchSky(sky: Sky): Sky {
         SKY_FOG_LAYER,
     );
   return sky;
+}
+
+/**
+ * `?light=v2`: the sky dome drawn from the physical atmosphere's sky-view table (engine/atmosphere.ts, scene light),
+ * its clouds lit by the same sun and sky, the sun disc in the sun's own colour (`SKY_V2`, `setSkyV2`).
+ */
+const SKY_V2_PARS = /* glsl */ `
+uniform sampler2D skyLut;
+uniform vec3 skySunE;
+uniform vec3 skyAmb;
+vec3 skyView( vec3 dir, vec3 sunDir ) {
+	float az = acos( clamp( dot( normalize( dir.xz + vec2( 1e-5 ) ), normalize( sunDir.xz + vec2( 1e-5 ) ) ), -1.0, 1.0 ) ) / 3.14159265;
+	float v = sqrt( clamp( asin( clamp( dir.y, 0.0, 1.0 ) ) / 1.5707963, 0.0, 1.0 ) );
+	vec2 uv = ( vec2( az, v ) * vec2( ${SKY_LUT_W - 1}.0, ${SKY_LUT_H - 1}.0 ) + 0.5 ) / vec2( ${SKY_LUT_W}.0, ${SKY_LUT_H}.0 );
+	return texture2D( skyLut, uv ).rgb;
+}`;
+/** Either / or (`SKY_V2` defined = light=v2): a define, so the compiler drops the Preetham terms the v2 sky leaves unused. */
+const v2Or = (v2: string, old: string) =>
+  `\n#ifdef SKY_V2\n${v2}\n#else\n${old}\n#endif\n`;
+const SKY_V2: Record<string, string> = {
+  'vec3 texColor = ( Lin + L0 ) * 0.04 + sundiscColor + vec3( 0.0, 0.0003, 0.00075 );':
+    v2Or(
+      'vec3 texColor = skyView( direction, vSunDirection ) + sundisc * skySunE * 1.4e4;',
+      'vec3 texColor = ( Lin + L0 ) * 0.04 + sundiscColor + vec3( 0.0, 0.0003, 0.00075 );',
+    ),
+  'vec3 sunColor = vSunE * Fex * 0.22 * 0.04;': v2Or(
+    'vec3 sunColor = skySunE * 0.22;',
+    'vec3 sunColor = vSunE * Fex * 0.22 * 0.04;',
+  ),
+  'vec3 skyAmbient = Lin * 0.04 + vec3( 0.0, 0.0003, 0.00075 );': v2Or(
+    'vec3 skyAmbient = skyAmb;',
+    'vec3 skyAmbient = Lin * 0.04 + vec3( 0.0, 0.0003, 0.00075 );',
+  ),
+  // Preetham's extinction tints far clouds pink against the table's sky: fade them into the sky near the horizon instead.
+  'vec3 cloudAerial = mix( texColor, cloudColor, Fex );': v2Or(
+    'vec3 cloudAerial = mix( texColor, cloudColor, smoothstep( 0.0, 0.3, direction.y ) );',
+    'vec3 cloudAerial = mix( texColor, cloudColor, Fex );',
+  ),
+};
+
+/** The light=v2 sky program on / off (a define: recompiles on change). */
+function setSkyV2(sky: Sky, on: boolean): void {
+  const d = sky.material.defines as Record<string, string>;
+  if (on === 'SKY_V2' in d) return;
+  if (on) d.SKY_V2 = '';
+  else delete d.SKY_V2;
+  sky.material.needsUpdate = true;
 }
 
 /** `?tod=<hours>` (try a time of day on any map with `timeOfDay`), `?tonemap=aces|agx|neutral` and `?grade=off`. */
@@ -369,6 +467,12 @@ export class Environment {
   readonly sky = new Sky();
   readonly sun = new DirectionalLight(0xfff1dc, 3);
   readonly hemi = new HemisphereLight(0xbcd2ee, 0x4a4630, 0.18);
+  /**
+   * `light=v2`: the env scene's diffuse light (sky + ground disc) as SH9 for EVERY material (Lambert ones - trees,
+   * crops, far forest, the horizon backdrop - take no IBL), while the env map gives reflections only (`setEnvDiffuse(0)`).
+   * Added to the scene only then (it changes every program).
+   */
+  readonly probe = new LightProbe(undefined, 0);
   /** Direction of the main light: the sun, or the moon at night. */
   readonly sunDir = new Vector3();
   /** Effective sun angles (deg) after `timeOfDay` / `?tod=` (below the horizon at night). */
@@ -391,6 +495,15 @@ export class Environment {
   private envDiffuse = 1;
   /** The sun's intensity before a fog layer dims it (`update`). */
   private sunBase = 0;
+  /** `?light=v2` daylight of this apply (null: the per-map light, at night and in the studio). */
+  daylight: Daylight | null = null;
+  /** `light=v2`: exposure from the metered light, before the display's factor. */
+  private v2Exposure = 1;
+  /** `light=v2`: the env map's ground disc radiance (scene units). */
+  private v2Ground = new Color();
+  /** `light=v2`: the haze's light round the view (the sky's horizon). */
+  private v2Horizon: Daylight['horizon'] | null = null;
+  private skyLut?: DataTexture;
   private nightSky: NightSky;
   private quality: QualitySettings;
   private target = new Object3D();
@@ -473,14 +586,29 @@ export class Environment {
     this.apply(def);
   }
 
+  /** The settings as last passed to `apply` (before golden hour, look and weather). */
+  private source?: EnvironmentDef;
+
+  /** Apply the last settings again (after a URL change: `light`, `look`, `tonemap`). */
+  relight(): void {
+    if (this.source) this.apply(this.source);
+  }
+
   /** Re-apply settings (sun angle, fog, exposure) and rebuild the env map; `studio` = with softboxes (or keep). */
   apply(def: EnvironmentDef, studio = this.studio): void {
+    this.source = def;
     // Evening golden hour (~17:00 till night): the map's `goldenHour` look over its day look.
     const at =
       def.timeOfDay !== undefined
         ? (urlNumber('tod') ?? def.timeOfDay)
         : undefined;
-    if (def.goldenHour && !studio && at !== undefined && isGoldenHour(at))
+    if (
+      def.goldenHour &&
+      !studio &&
+      !lightV2() &&
+      at !== undefined &&
+      isGoldenHour(at)
+    )
       def = { ...def, ...def.goldenHour };
     const look = ownValue(LOOKS, urlString('look') ?? '');
     if (look) def = { ...def, ...look };
@@ -551,7 +679,12 @@ export class Environment {
     this.lightUp.copy(this.sunDir).cross(this.lightRight).normalize();
 
     let envDiffuse = 1;
-    if (this.night) {
+    this.daylight = null;
+    setSkyV2(this.sky, false);
+    setAerial(HAZE_TAIL);
+    if (lightV2() && !this.night && !this.studio) {
+      envDiffuse = this.applyDaylight(def, elevation);
+    } else if (this.night) {
       // Moon: dim and blue; the headlights' own shadow map (game/headlights.ts) carries the scene, so the moon casts
       // shadows on high quality only. Cool sky fill, almost no ground bounce.
       this.sun.color.set(NIGHT.moonColor);
@@ -599,13 +732,24 @@ export class Environment {
       }
     }
     this.envDiffuse = envDiffuse;
-    setEnvDiffuse(envDiffuse);
+    // light=v2: the sky's diffuse light comes from the probe (`rebuildEnvMap`), the env map gives reflections only.
+    setEnvDiffuse(this.daylight ? 0 : envDiffuse);
+    // In the scene only under light=v2: a light probe turns on USE_LIGHT_PROBES in every program.
+    if (this.daylight) this.scene.add(this.probe);
+    else {
+      this.probe.removeFromParent();
+      this.probe.intensity = 0;
+    }
 
     this.renderer.toneMapping =
       ownValue(
         TONE_MAPPINGS,
         urlString('tonemap') ??
-          (this.night ? 'agx' : (def.toneMapping ?? 'aces')),
+          (this.night
+            ? 'agx'
+            : this.daylight
+              ? V2.toneMapping
+              : (def.toneMapping ?? 'aces')),
       ) ?? ACESFilmicToneMapping;
     // Colour grade on top (engine/grade.ts): day only, never in the studio.
     setGrade(
@@ -683,7 +827,116 @@ export class Environment {
   /** Map exposure, scaled for the display (engine/display.ts: HDR monitors get less). */
   refreshExposure(): void {
     this.renderer.toneMappingExposure =
-      (this.night ? NIGHT.exposure : this.def.exposure) * displayExposure();
+      (this.night
+        ? NIGHT.exposure
+        : this.daylight
+          ? this.v2Exposure
+          : this.def.exposure) * displayExposure();
+  }
+
+  /**
+   * `?light=v2` by day: the sun, the sky dome and its light, the ground's bounce, the haze and the exposure from the
+   * physical atmosphere at this sun height (engine/atmosphere.ts); a weather's cloud deck passes a share of the clear
+   * day's light. Returns the share of the env map's diffuse light to use.
+   */
+  private applyDaylight(def: EnvironmentDef, elevation: number): number {
+    const day = daylight(elevation, {
+      mie: mieFromTurbidity(def.turbidity),
+      altitude: V2.altitude,
+      albedo: V2.albedo,
+    });
+    this.daylight = day;
+    const w = this.weatherLook;
+    const sinE = Math.sin(MathUtils.degToRad(elevation));
+    const sunL = luminance(day.sun);
+    this.sun.color.setRGB(
+      day.sun[0] / sunL,
+      day.sun[1] / sunL,
+      day.sun[2] / sunL,
+    );
+    this.sun.intensity = sunL * w.sun;
+    this.sun.castShadow = this.sun.intensity > 0;
+    // The sky: the table in scene light; a cloud deck (rain, overcast) passes a share of the clear day's light,
+    // spread as a sky twice as bright overhead as at the horizon (`patchSky`: E = 0.83 pi Lz).
+    const sky = [...day.sky];
+    const u = this.sky.material.uniforms;
+    setSkyV2(this.sky, true);
+    u.skyLut.value = this.skyTexture(day.lut);
+    u.skyGain.value = 1;
+    (u.skySunE.value as Color)
+      .setRGB(day.sun[0], day.sun[1], day.sun[2])
+      .multiplyScalar(w.sun);
+    (u.skyAmb.value as Color)
+      .setRGB(sky[0], sky[1], sky[2])
+      .multiplyScalar(1 / Math.PI);
+    let horizon = day.horizon;
+    if (w.deck > 0) {
+      const clear = sunL * sinE + luminance(day.sky);
+      const through = clear * (V2.deckMin + V2.deckSun * w.sun);
+      // All of it from the deck (the dimmed sun the game keeps under it is for shape, not taken out of the deck:
+      // subtracting it left the deck darker than the ground).
+      const deckE = through;
+      const lz = deckE / (0.833 * Math.PI);
+      u.skyOvercast.value.set(lz, lz, lz * 1.04, 1);
+      sky[0] = deckE;
+      sky[1] = deckE;
+      sky[2] = deckE * 1.04;
+      (u.skyAmb.value as Color).setRGB(lz, lz, lz * 1.04);
+      // The deck's horizon: half its zenith, the same all round.
+      const h = lz * 0.5;
+      horizon = { a: [h, h, h * 1.04], b: [0, 0, 0], d: [0, 0, 0] };
+    }
+    this.v2Horizon = horizon;
+    // Bounce: the env map's ground disc at the radiance of the map's ground under this light (`rebuildEnvMap`).
+    const onGround = this.sun.intensity * sinE + luminance(sky);
+    const g = new Color(def.groundTint?.grass ?? '#7a6a48').lerp(
+      new Color('#6b5a3e'),
+      0.5,
+    );
+    const grey = luminance([g.r, g.g, g.b]);
+    g.lerp(new Color(grey, grey, grey), 0.65).multiplyScalar(
+      (V2.albedo * onGround) / Math.PI / Math.max(1e-3, grey),
+    );
+    this.v2Ground.copy(g);
+    // The hemisphere light carries the sky only until the probe is ready (`rebuildEnvMap`); its colour stays the sky's,
+    // for the dust (rally-game.ts `lightParticles`).
+    this.hemi.color.setRGB(sky[0], sky[1], sky[2]);
+    this.hemi.groundColor.copy(g).multiplyScalar(Math.PI);
+    this.hemi.intensity = this.probe.intensity > 0 ? 0 : V2.envDiffuse;
+    // Meter: half flat ground, half an upright face (the sun's mean round the compass, half the sky, the ground's bounce).
+    const upright =
+      (this.sun.intensity * Math.cos(MathUtils.degToRad(elevation))) / Math.PI +
+      0.5 * luminance(sky) +
+      0.5 * V2.albedo * onGround;
+    const meter = 0.5 * onGround + 0.5 * upright;
+    this.v2Exposure = (V2.meterRef / Math.max(1e-3, meter)) ** V2.adapt;
+    setAerial(HAZE_TAIL, undefined, day.extinction);
+    return V2.envDiffuse;
+  }
+
+  /** The sky-view table as a half-float texture (made once, refilled per apply). */
+  private skyTexture(lut: Float32Array): DataTexture {
+    const n = SKY_LUT_W * SKY_LUT_H;
+    if (!this.skyLut) {
+      this.skyLut = new DataTexture(
+        new Uint16Array(n * 4),
+        SKY_LUT_W,
+        SKY_LUT_H,
+        RGBAFormat,
+        HalfFloatType,
+      );
+      this.skyLut.magFilter = this.skyLut.minFilter = LinearFilter;
+      this.skyLut.wrapS = this.skyLut.wrapT = ClampToEdgeWrapping;
+      this.skyLut.generateMipmaps = false;
+    }
+    const data = this.skyLut.image.data as Uint16Array;
+    for (let i = 0; i < n; i++) {
+      for (let c = 0; c < 3; c++)
+        data[i * 4 + c] = DataUtils.toHalfFloat(Math.min(6e4, lut[i * 3 + c]));
+      data[i * 4 + 3] = DataUtils.toHalfFloat(1);
+    }
+    this.skyLut.needsUpdate = true;
+    return this.skyLut;
   }
 
   private rebuildEnvMap(): void {
@@ -706,6 +959,12 @@ export class Environment {
       dst[k].value = src[k].value;
     dst.sunPosition.value.copy(src.sunPosition.value);
     dst.skyOvercast.value.copy(src.skyOvercast.value);
+    setSkyV2(sky, !!this.daylight);
+    dst.skyLut.value = src.skyLut.value;
+    (dst.skySunE.value as Color).copy(src.skySunE.value);
+    (dst.skyAmb.value as Color).copy(src.skyAmb.value);
+    // light=v2: no sun disc in the env map (the sun is the directional light; its disc in the PMREM lit everything twice).
+    if (this.daylight) dst.showSunDisc.value = 0;
     // Studio: a dim grey room instead of the sky, so the strip lights below dominate the reflections.
     if (nightDome) {
       nightDome.renderOrder = -2;
@@ -727,6 +986,7 @@ export class Environment {
           ? 0.012
           : 0.25 + 0.55 * Math.sin(MathUtils.degToRad(this.sunElevation)),
       );
+    if (this.daylight) groundCol.copy(this.v2Ground);
     this.groundRadiance.copy(groundCol);
     const ground = new Mesh(
       new CircleGeometry(900, 48).rotateX(-Math.PI / 2),
@@ -782,9 +1042,12 @@ export class Environment {
     this.envMap = this.pmrem.fromScene(envScene, 0, 0.1, 2000).texture;
     this.scene.environment = this.envMap;
     // Key/fill balance: keep IBL + hemi low enough that sun shadows read clearly.
+    // light=v2: the sky is in scene light already.
     this.scene.environmentIntensity = this.night
       ? NIGHT.envIntensity
-      : (this.def.envIntensity ?? 0.3);
+      : this.daylight
+        ? 1
+        : (this.def.envIntensity ?? 0.3);
     // The same sky's diffuse light as spherical harmonics, for the tree foliage (it does not sample the env map:
     // trees/materials.ts `setTreeSky`). A tiny cube of the environment scene, read back once.
     const cube = new WebGLCubeRenderTarget(32);
@@ -793,8 +1056,18 @@ export class Environment {
     const diffuse = this.envDiffuse;
     if (!this.night && this.def.fogColor === 'sky' && this.scene.fog)
       this.scene.fog.color.copy(this.horizonColor(envScene));
+    const v2 = !!this.daylight;
     void LightProbeGenerator.fromCubeRenderTarget(this.renderer, cube)
-      .then((probe) => setTreeSky(probe.sh.coefficients, intensity * diffuse))
+      .then((probe) => {
+        // light=v2: the probe lights everything, trees included (their own SH term off); the hemisphere light
+        // carried the sky until it was ready.
+        setTreeSky(probe.sh.coefficients, v2 ? 0 : intensity * diffuse);
+        if (v2 && this.daylight) {
+          this.probe.sh.copy(probe.sh);
+          this.probe.intensity = intensity * diffuse;
+          this.hemi.intensity = 0;
+        }
+      })
       .finally(() => cube.dispose());
     sky.material.dispose();
     sky.geometry.dispose();
@@ -852,10 +1125,13 @@ export class Environment {
     setFogBase(focus.y);
     // Aerial perspective before tone mapping by day (`?haze=off`: the display-space fog of before).
     const fog = this.scene.fog;
-    setHaze(
-      this.night || !fog || HAZE_OFF ? null : fog.color,
-      this.renderer.toneMappingExposure,
-    );
+    const hz = this.daylight && this.v2Horizon;
+    if (hz && fog && !HAZE_OFF) setSkyHaze(hz.a, hz.b, hz.d);
+    else
+      setHaze(
+        this.night || !fog || HAZE_OFF ? null : fog.color,
+        this.renderer.toneMappingExposure,
+      );
     // In a fog layer the sun comes through dimmed (the climb out of it brings the sun and hard shadows back).
     const layer = worldUniforms.wsFogLayer.value;
     if (layer.w > 0 && !this.night) {
@@ -932,6 +1208,7 @@ export class Environment {
     }
     this.nightSky.dispose();
     this.envMap?.dispose();
+    this.skyLut?.dispose();
     this.pmrem.dispose();
   }
 }

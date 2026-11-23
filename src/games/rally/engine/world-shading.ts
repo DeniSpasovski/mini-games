@@ -126,6 +126,12 @@ export const worldUniforms = {
    * w = 1 on (the fog then works before tone mapping, `HAZE_FRAGMENT`), 0 = the plain display-space fog.
    */
   wsHaze: { value: new Vector4(0, 0, 0, 0) },
+  /**
+   * `?light=v2` (`setSkyHaze`): the haze's light varies round the view like the sky's horizon, rgb x cos(azimuth from
+   * the sun) added to `wsHaze.rgb`, w = 1 on; `wsHazeLobe` x cos^12 is the glow round a low sun.
+   */
+  wsHazeSun: { value: new Vector4(0, 0, 0, 0) },
+  wsHazeLobe: { value: new Color(0, 0, 0) },
   /** xyz how much more each channel is dimmed than the mean (blue most: far land turns blue), w the haze's tail (see `HAZE_FRAGMENT`). */
   wsAerial: { value: new Vector4(0.87, 1.0, 1.2, 1.2) },
   /** Dirt on the player's car (`setCarDirt`): rgb the dust's colour (linear), w how dirty (0 = clean). */
@@ -437,16 +443,38 @@ export function setHaze(display: Color | null, exposure = 1): void {
   }
   inverseAces(display, exposure, _haze);
   h.set(_haze.r, _haze.g, _haze.b, 1);
+  worldUniforms.wsHazeSun.value.w = 0;
+}
+
+/**
+ * `?light=v2`: the haze lit by the physical sky (engine/atmosphere.ts `horizonFit`, scene light, no tone-mapping
+ * inverse): a + b cos(azimuth from the sun) + d cos^12, so far land fades into the horizon of the sky behind it.
+ */
+export function setSkyHaze(
+  a: readonly number[],
+  b: readonly number[],
+  d: readonly number[],
+): void {
+  worldUniforms.wsHaze.value.set(a[0], a[1], a[2], 1);
+  worldUniforms.wsHazeSun.value.set(b[0], b[1], b[2], 1);
+  worldUniforms.wsHazeLobe.value.setRGB(d[0], d[1], d[2]);
 }
 const _haze = new Color();
 
-/** Tail of the haze's optical depth (see `HAZE_FRAGMENT`) and how much more blue is dimmed than red. */
-export function setAerial(tail: number, blue = 1.2): void {
+/**
+ * Tail of the haze's optical depth (see `HAZE_FRAGMENT`) and how much more blue is dimmed than red; `weights` (`?light=v2`:
+ * the atmosphere's extinction per channel, engine/atmosphere.ts) replaces the fixed red / blue ones.
+ */
+export function setAerial(
+  tail: number,
+  blue = 1.2,
+  weights?: readonly number[],
+): void {
   const a = worldUniforms.wsAerial.value;
   // Weights that keep the mean (luminance) dimming as the plain fog's.
-  const r = 0.87;
-  const l = 0.2126 * r + 0.7152 + 0.0722 * blue;
-  a.set(r / l, 1 / l, blue / l, tail);
+  const w = weights ?? [0.87, 1, blue];
+  const l = 0.2126 * w[0] + 0.7152 * w[1] + 0.0722 * w[2];
+  a.set(w[0] / l, w[1] / l, w[2] / l, tail);
 }
 
 const ACES_IN = new Matrix3().set(
@@ -563,6 +591,8 @@ uniform float wsFogBase;
 uniform vec4 wsFogLayer;
 uniform vec3 wsFogLayerColor;
 uniform vec4 wsHaze;
+uniform vec4 wsHazeSun;
+uniform vec3 wsHazeLobe;
 uniform vec4 wsAerial;
 #ifdef RALLY_CAR_DIRT
 uniform vec4 wsCarDirt;
@@ -669,7 +699,14 @@ const HAZE_FRAGMENT = /* glsl */ `
 			gl_FragColor.rgb *= wsT;
 		#else
 			vec3 wsHz = wsHaze.rgb;
-			if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
+			if ( wsHazeSun.w > 0.5 ) {
+				// The sky's horizon round the view (\`setSkyHaze\`).
+				float wsC = dot( normalize( wsFogRay.xz + vec2( 1e-4 ) ), normalize( wsSunDir.xz + vec2( 1e-4 ) ) );
+				float wsL = max( wsC, 0.0 );
+				wsL *= wsL;
+				wsL *= wsL;
+				wsHz = max( wsHz + wsHazeSun.rgb * wsC + wsHazeLobe * ( wsL * wsL * wsL ), vec3( 0.0 ) );
+			} else if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
 				float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
 				wsSunAmt *= wsSunAmt;
 				wsSunAmt *= wsSunAmt;
