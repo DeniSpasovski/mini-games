@@ -125,8 +125,8 @@ function rowsOf(
 function strip(
   acc: Acc,
   rows: Row[],
-  a: [number, number],
-  b: [number, number],
+  a: [number, number] | ((row: Row) => [number, number]),
+  b: [number, number] | ((row: Row) => [number, number]),
   n: [number, number],
   color: [number, number, number],
   uvOf: (row: Row, dy: number, o: number) => [number, number],
@@ -134,7 +134,8 @@ function strip(
   if (rows.length < 2) return;
   const v0 = acc.pos.length / 3;
   for (const r of rows) {
-    for (const [o, dy] of [a, b]) {
+    for (const p of [a, b]) {
+      const [o, dy] = typeof p === 'function' ? p(r) : p;
       acc.pos.push(r.x + r.ox * o, r.y + dy, r.z + r.oz * o);
       const nx = r.ox * n[0];
       const nz = r.oz * n[0];
@@ -528,7 +529,12 @@ const edgeProfile = (width: number): [number, number][] => [
   [0, -0.06],
 ];
 
-/** Flat kerb slabs along the asphalt edge (kind 'edge'): weathered pale concrete, a tone per 1 m slab. */
+/** Width of the earth along an edge kerb's outer edge (m, min / max per row). */
+const EDGE_DIRT: [number, number] = [0.03, 0.08];
+/** Its colour (linear, times the concrete scan): dry earth and grit. */
+const DIRT: [number, number, number] = [0.52, 0.38, 0.24];
+
+/** Flat kerb slabs along the asphalt edge (kind 'edge'): weathered pale concrete, a tone per 1 m slab, earth along its outer edge. */
 function edgeKerb(
   acc: Acc,
   rows: Row[],
@@ -542,14 +548,28 @@ function edgeKerb(
     (dy - o) / KERB_TS,
   ];
   const edge = edgeProfile(run.rule.width ?? 0.5);
+  // The top's outer edge (profile points 2 -> 3): earth and grit washed onto it from the verge, a ragged band
+  // EDGE_DIRT wide (per row), down the outer face too.
+  const TOP = 2;
+  const dirtAt = (r: Row): [number, number] => [
+    -EDGE_DIRT[0] -
+      (EDGE_DIRT[1] - EDGE_DIRT[0]) * hash1(r.d * 3.1 + run.side * 17),
+    0.03,
+  ];
   for (let i = 0; i < rows.length - 1; i++) {
     const seg = [rows[i], rows[i + 1]];
     // the slab this row pair lies on: its own tone (the change of tone reads as the joint)
     const slab = Math.floor(rows[i].d + 0.01);
     const t = 0.68 + 0.14 * hash1(slab * 1.7 + run.side * 31);
     const col: [number, number, number] = [t, t * 0.98, t * 0.94];
-    for (let k = 0; k < edge.length - 1; k++)
-      strip(acc, seg, edge[k], edge[k + 1], convexNormal(edge, k), col, uvOf);
+    for (let k = 0; k < edge.length - 1; k++) {
+      const n = convexNormal(edge, k);
+      if (k === TOP) {
+        strip(acc, seg, edge[k], dirtAt, n, col, uvOf);
+        strip(acc, seg, dirtAt, edge[k + 1], n, DIRT, uvOf);
+      } else
+        strip(acc, seg, edge[k], edge[k + 1], n, k > TOP ? DIRT : col, uvOf);
+    }
   }
   const end: [number, number, number] = [0.7, 0.69, 0.66];
   if (first) cap(acc, rows[0], edge, -1, end);
