@@ -352,15 +352,11 @@ export function skyIrradiance(lut: Float32Array): RGB {
 }
 
 /**
- * The horizon's radiance round the view as a + b c + d max(c, 0)^12, c = cos(azimuth from the sun) (horizontal: a
- * high sun keeps its lobe off the haze) for a view 1 deg up: least squares over the table's azimuths. The aerial perspective lights its haze with it
- * (`HAZE_FRAGMENT`), so far land fades into the sky's own horizon.
+ * The horizon's radiance round the view as a + b c + d max(c, 0)^12, c = cos(azimuth from the sun) (horizontal: a high
+ * sun keeps its lobe off the haze), for a view 1 deg up: least squares over the table's azimuths. The aerial perspective
+ * lights its haze with it (`HAZE_FRAGMENT`), so far land fades into the sky's own horizon.
  */
-export function horizonFit(
-  lut: Float32Array,
-  sunElevation: number,
-): { a: RGB; b: RGB; d: RGB } {
-  void sunElevation;
+export function horizonFit(lut: Float32Array): { a: RGB; b: RGB; d: RGB } {
   const el = Math.PI / 180;
   const n = 48;
   const A = [
@@ -478,7 +474,7 @@ export function daylight(
   const lut = atm.skyView(sunElevation);
   for (let i = 0; i < lut.length; i++) lut[i] *= wb[i % 3];
   const sky = skyIrradiance(lut);
-  const horizon = horizonFit(lut, sunElevation);
+  const horizon = horizonFit(lut);
   const h = opts.altitude;
   const m = Math.exp(-h / H_MIE) * opts.mie * (MIE_S + MIE_A);
   const ext = RAY.map((r) => r * Math.exp(-h / H_RAY) + m);
