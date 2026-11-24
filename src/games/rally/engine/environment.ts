@@ -37,8 +37,8 @@ import { urlParam } from './url-param';
 import {
   daylight,
   luminance,
-  meteredExposure,
   mieFromTurbidity,
+  noonGroundLight,
   SKY_LUT_H,
   SKY_LUT_W,
   type Daylight,
@@ -232,10 +232,9 @@ export function lightV2(): boolean {
   return urlString('light') === 'v2';
 }
 /**
- * `light=v2` numbers. Exposure is metered on the light on sunlit flat ground (on the light, not on the frame: no
- * feedback from dark or pale ground, and the shade does not pull it up): at the map's noon it is `lit` / that light x
- * the map's own exposure (a weather's included), so a sunlit surface lands where it does in the default look; away from
- * noon the eye adapts only a little (`adapt`; the default look keeps one exposure all day), so a low sun reads dimmer.
+ * `light=v2` numbers. One exposure all day, like the default look: the map's own exposure (a weather's included) x
+ * `lit` / the light on sunlit flat ground at this map's noon, so a sunlit surface lands where it does in the default look
+ * and a low sun or a cloud deck reads dimmer.
  */
 const V2 = {
   /**
@@ -243,7 +242,6 @@ const V2 = {
    * over every face (matched on paired stills of sunlit road, gravel and walls).
    */
   lit: 6.9,
-  adapt: 0.1,
   /** Camera height for the sky (m): the maps lie 300-1500 m up; the sky barely changes over that. */
   altitude: 600,
   /** Share of the sky's diffuse light used (`setEnvDiffuse`): all of it, so the noon sky / sun ratio stays ~0.17. */
@@ -922,15 +920,7 @@ export class Environment {
     this.hemi.color.setRGB(sky[0], sky[1], sky[2]).multiply(V2_WHITE);
     this.hemi.groundColor.copy(g).multiplyScalar(Math.PI);
     this.hemi.intensity = this.probe.intensity > 0 ? 0 : V2.envDiffuse;
-    // Meter: the light on sunlit flat ground, against the same at this map's noon (`V2`).
-    const noon = this.noonLight(def);
-    this.v2Exposure = meteredExposure(
-      def.exposure,
-      V2.lit,
-      noon,
-      onGround,
-      V2.adapt,
-    );
+    this.v2Exposure = (def.exposure * V2.lit) / this.noonLight(def);
     setAerial(HAZE_TAIL, undefined, day.extinction);
     return V2.envDiffuse;
   }
@@ -940,14 +930,7 @@ export class Environment {
     const mie = mieFromTurbidity(def.turbidity);
     let e = this.noonCache.get(mie);
     if (e === undefined) {
-      const day = daylight(NOON_ELEVATION, {
-        mie,
-        altitude: V2.altitude,
-        albedo: V2.albedo,
-      });
-      e =
-        luminance(day.sun) * Math.sin(MathUtils.degToRad(NOON_ELEVATION)) +
-        luminance(day.sky);
+      e = noonGroundLight({ mie, altitude: V2.altitude, albedo: V2.albedo });
       this.noonCache.set(mie, e);
     }
     return e;

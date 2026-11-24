@@ -215,7 +215,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   cloud deck it eases back to the full sky. The studio uses `CLASSIC_LIGHT` (sky at three quarters of the sun); `?look=classic` shows it in game.
 - **Physical light (`?light=v2`, dev comparison, default off; by day, not in the studio):** one atmosphere model
   (`engine/atmosphere.ts`: Rayleigh, Mie from the map's `turbidity`, ozone, multiple scattering; CPU, once per apply)
-  replaces `DAY_LIGHT`, `exposure`, `skyBrightness`, `fogColor` and `goldenHour`. Switch live: change the URL, `__rally.env.relight()`.
+  replaces `DAY_LIGHT`, `skyBrightness`, `fogColor` and `goldenHour`. Switch live: change the URL, `__rally.env.relight()`.
   - Sun and sky: the sun's colour and strength by hour; a 64 x 48 sky-view table drawn by the dome and the env map (no sun
     disc in the env map: the old one lights the shade from every side). A cloud deck passes a share of the clear day's light.
   - Sky light: the env scene as a `LightProbe` (SH9) for every material (Lambert trees, crops, far forest and horizon take
@@ -224,9 +224,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
     (`SKY_VIS`, `setSkyVis`: canopy cover from a coarse mip, more off flanks and trunks than off crown tops); leaves
     (tree sprites, impostors, far forest) see only part of it past their own crown (`V2.leaves`).
   - Haze: lit by the sky's horizon round the view (`setSkyHaze`), so far land fades into the sky behind it.
-  - Exposure metered on the light on sunlit flat ground (`V2`, `meteredExposure`): at noon a sunlit surface lands where it
-    does in the default look; little adaptation away from noon. A camera white balance on the scene light (`V2.white`),
-    the map's own tone curve (ACES) and grade.
+  - Exposure: one for the whole day like the default look's, scaled by the map's noon light on sunlit ground
+    (`noonGroundLight`, `V2.lit`) so a sunlit surface lands where it does in the default look. A camera white balance on
+    the scene light (`V2.white`), the map's own tone curve (ACES) and grade.
 - **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
   (`SUN_TERMS`, `SUN_SHADOW`):
   - the sun's shadow map ahead of the camera (`quality.shadowExtent`, snapped to texels), every frame. Trees cast into

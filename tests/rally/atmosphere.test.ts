@@ -2,8 +2,8 @@ import { describe, expect, test } from '@rstest/core';
 import {
   daylight,
   luminance,
-  meteredExposure,
   mieFromTurbidity,
+  noonGroundLight,
   sampleSkyView,
 } from '../../src/games/rally/engine/atmosphere';
 
@@ -62,13 +62,18 @@ describe('light=v2 atmosphere', () => {
   });
 });
 
-describe('light=v2 exposure meter', () => {
-  test('noon exposes like the default look; a dimmer light opens up only part way', () => {
-    expect(meteredExposure(0.95, 4.3, 4.3, 4.3, 0.6)).toBeCloseTo(0.95, 6);
-    // a hazier map's dimmer noon still lands on the default look's sunlit brightness
-    expect(meteredExposure(1, 4.3, 3.9, 3.9, 0.6) * 3.9).toBeCloseTo(4.3, 6);
-    const evening = meteredExposure(1, 4.3, 4.3, 1.2, 0.6);
-    expect(evening).toBeGreaterThan(1);
-    expect(evening * 1.2).toBeLessThan(4.3);
+describe('light=v2 exposure reference', () => {
+  test('the noon light on sunlit ground: mostly sun, more sky through hazier air', () => {
+    const opts = { mie: mieFromTurbidity(2), altitude: 600, albedo: 0.15 };
+    const day = daylight(58, opts);
+    const e = noonGroundLight(opts);
+    // mostly the sun: the sky gives a sixth or so of it
+    expect(luminance(day.sky) / e).toBeGreaterThan(0.08);
+    expect(luminance(day.sky) / e).toBeLessThan(0.3);
+    // hazier air moves light from the sun into the sky
+    const hazy = { ...opts, mie: mieFromTurbidity(6) };
+    expect(
+      luminance(daylight(58, hazy).sky) / noonGroundLight(hazy),
+    ).toBeGreaterThan(luminance(day.sky) / e);
   });
 });
