@@ -8,8 +8,10 @@
  * Stale entries are impossible by key: every key starts with the build id (`__BUILD_ID__`, new on every production
  * build, so any change to a generator or to the map data is a new key) and the scope (map, stage, season: what
  * `new World` is built from; or `global`). Other builds' entries are deleted on the next write; at most MAX_SCOPES
- * stages are kept (the least recently loaded go). No IndexedDB / worker, a failed or slow read, `?gencache=0`, a dev
- * server (its id is `dev-` + its start: on only with `?gencache=1`): no cache, everything is generated as before.
+ * stages are kept (the least recently loaded go). Off unless the player turns on the Stage cache option
+ * (`setGenCacheEnabled`; turning it off deletes the database, `clearGenCache`) or the URL has `?gencache=1`. No
+ * IndexedDB / worker, a failed or slow read, `?gencache=0`, a dev server (its id is `dev-` + its start: on only with
+ * `?gencache=1`): no cache, everything is generated as before.
  */
 
 /** Stages kept on disk (each ~10-60 MB). */
@@ -19,15 +21,42 @@ const READ_WAIT_MS = 3000;
 /** Bytes copied for the worker per idle slice, and the size of one stored bundle. */
 const SLICE_BYTES = 4 << 20;
 
-/** Build id of this bundle; '' = no cache (`?gencache=0`, tests, a dev server's `dev-<start>` without `?gencache=1`). */
+const DB_NAME = 'rally-gen';
+
+/** The player's Stage cache option (game/settings.ts `stageCache`); off until set. */
+let enabled = false;
+
+export function setGenCacheEnabled(on: boolean): void {
+  enabled = on;
+}
+
+/**
+ * Build id of this bundle; '' = no cache (option off, `?gencache=0`, tests, a dev server's `dev-<start>`).
+ * `?gencache=1` turns it on whatever the option.
+ */
 export function genCacheBuild(): string {
   const flag =
     typeof location === 'undefined'
       ? null
       : new URLSearchParams(location.search).get('gencache');
   const id = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : '';
-  if (flag === '0' || (id.startsWith('dev-') && flag !== '1')) return '';
+  if (flag === '1') return id;
+  if (flag === '0' || !enabled || id.startsWith('dev-')) return '';
   return id;
+}
+
+/** Turns the cache off and deletes everything it stored on this device (the option switched off). */
+export function clearGenCache(): void {
+  enabled = false;
+  worker?.terminate();
+  worker = undefined;
+  for (const f of waiting.values()) f({ ok: false });
+  waiting.clear();
+  try {
+    indexedDB.deleteDatabase(DB_NAME);
+  } catch {
+    // no IndexedDB: nothing stored
+  }
 }
 
 /** One stored bundle: entries `kind:id` and their values. */
@@ -56,6 +85,9 @@ function ask(
   m: GenCacheMessage,
   transfer: Transferable[] = [],
 ): Promise<GenCacheAnswer> {
+  // A write after the option was switched off (a load's idle-time flush) stores nothing.
+  if (m.op === 'write' && !genCacheBuild())
+    return Promise.resolve({ ok: false });
   if (worker === undefined) {
     worker = null;
     try {

@@ -92,7 +92,11 @@ import {
   worldUniforms,
 } from '../engine/world-shading';
 import { World } from '../world/world';
-import { GenCache, globalGenCache } from '../world/gen-cache';
+import {
+  GenCache,
+  globalGenCache,
+  setGenCacheEnabled,
+} from '../world/gen-cache';
 import { CarAudio } from './audio';
 import { Autopilot, finishStopControls } from './autopilot';
 import { ContactShadow } from './contact-shadow';
@@ -437,6 +441,7 @@ export class RallyGame {
     );
     this.world = new World(mapInSeason(opts.map, this.season), stage);
     // The stage's generated chunks from an earlier visit of this build: read while the load's first phases run.
+    setGenCacheEnabled(opts.settings.stageCache);
     this.genCache = new GenCache(
       `${opts.map.id}|${this.world.stageDef.id}|${this.season}`,
     );

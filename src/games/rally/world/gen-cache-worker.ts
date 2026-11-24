@@ -6,7 +6,7 @@
  */
 import type { GenCacheRequest, GenCacheAnswer } from './gen-cache';
 
-const DB = 'rally-gen';
+const DB = 'rally-gen'; // = DB_NAME in gen-cache.ts
 const BUNDLES = 'bundles';
 const SCOPES = 'scopes';
 

@@ -111,6 +111,7 @@ import {
 import { Showroom } from './showroom';
 import { replayUrl } from './replay/debug-export';
 import { confirmButton, nameForm, storageLine } from './replay/manage-ui';
+import { clearGenCache, setGenCacheEnabled } from '../world/gen-cache';
 import {
   deleteReplay,
   isNamed,
@@ -1829,6 +1830,22 @@ export function buildOptions(opts: {
       (v) => set({ ambientOcclusion: v }),
     ),
     'soft shadows in corners and under cars · High graphics only · costs GPU',
+  );
+  row(
+    'Stage cache',
+    choice(
+      [
+        [false, 'Off'],
+        [true, 'On'],
+      ],
+      s.stageCache,
+      (v) => {
+        set({ stageCache: v });
+        if (v) setGenCacheEnabled(true);
+        else clearGenCache();
+      },
+    ),
+    'a stage played before loads faster · keeps up to ~300 MB on this device · Off deletes it',
   );
   const vol = document.createElement('input');
   vol.type = 'range';

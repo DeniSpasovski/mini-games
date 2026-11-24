@@ -104,7 +104,7 @@ From the pause menu (**Photo mode**) or a replay (**Photo**, `P`; the replay pau
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
 - **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist and ABS (each hidden for
-  cars with `physics.noTractionControl` / `noAbs`), car number (door plates), start camera. Saved in localStorage (`game/settings.ts`).
+  cars with `physics.noTractionControl` / `noAbs`), car number (door plates), start camera, stage cache. Saved in localStorage (`game/settings.ts`).
 - **Auto quality**: with no `?quality`, saved choice or earlier measurement, the first Select car / stage screen measures the menu's median
   frame time for 2.5 s (`Showroom.measureFrameTime`) and saves a preset under its own key (`engine/quality.ts`); a manual choice always wins. High (picked or measured) also sets object distance Far and Display HDR.
 - **Menu music** (main menu only): `game/menu-music.ts` loops `sources/music/*.mp3` (git-ignored, copied on build; only files present at
@@ -787,8 +787,9 @@ On a forest stage the CPU side of a frame is mostly draw submission (three.js + 
   here) and takes it instead of generating. Keys start with the build id (`__BUILD_ID__`, new on every production build:
   no stale entry after any code or map change) and the scope `<map>|<stage>|<season>` (what `new World` is built from);
   other builds' entries are deleted on the next write, 4 stages kept. A failed or slow read (> 3 s) generates as before.
-  Off on a dev server unless `?gencache=1`, keyed by the server's start there (restart it after a generator change);
-  `?gencache=0` off. Stats: `__rally.genCacheStats`.
+  Off unless Options -> Stage cache is on (`settings.stageCache`, default off: it takes disk space; switching it off
+  deletes the database) or `?gencache=1`; always off on a dev server without `?gencache=1`, keyed by the server's start
+  there (restart it after a generator change); `?gencache=0` off. Stats: `__rally.genCacheStats`.
 - The streamer's first fill (`InstanceStreamer.updateSliced`) and scatter chunk generation (`ScatterField.chunkSteps`)
   run in slices, so no load step freezes the page for seconds.
 - Baked meshes are binary: a `*.data.ts` holds the numbers and its `*.data.bin` the packed meshes (`shared/data-bin.ts`,
