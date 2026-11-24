@@ -67,6 +67,16 @@ NEUTRAL_MOISTURE.needsUpdate = true;
  */
 const SCAN_RELIEF = 1;
 /**
+ * Where the relief (and the scans' roughness) starts to fade, as a share of the detail distance: an early, long fade
+ * (`GROUND_PBR`) instead of the last 45 % of it, so the near detail does not end in a band.
+ */
+export const RELIEF_FADE = GROUND_PBR ? 0.2 : 0.55;
+/**
+ * Specular left on dry gravel (`GROUND_PBR`; wet, all of it). The full GGX sheen at grazing angles was half the light of
+ * the gravel road 50 m out and a quarter of it at the car: the far road read grey and light, the near brown and dark.
+ */
+export const GRAVEL_SPEC = 0.5;
+/**
  * `far`: the coarse tiles (no second taps, relief or specular). `holes`: the near tiles a culvert end stands on
  * (`setCulvertHoles`); only they carry the `discard`, which costs every other near tile its early depth test.
  */
@@ -121,6 +131,8 @@ export function getTerrainMaterial(
     ...(far ? { TERRAIN_FAR: 1 } : {}),
     ...(holes && !far ? { TERRAIN_HOLES: 1 } : {}),
     ...(GROUND_PBR ? { GROUND_PBR: 1 } : {}),
+    RELIEF_FADE: RELIEF_FADE.toFixed(2),
+    GRAVEL_SPEC: GRAVEL_SPEC.toFixed(2),
     HB_K: '0.15',
     MEADOW_HUE: 'vec3(1.11, 1.03, 0.38)',
     HB_D: '0.25',
@@ -258,10 +270,15 @@ export function getTerrainMaterial(
         `#include <normal_fragment_maps>
         #ifndef TERRAIN_FAR
         // No branch: screen-space derivatives are undefined in non-uniform control flow (0 relief = same normal).
-        float reliefFade = uDetail > 0.0 ? uRelief * ( 1.0 - smoothstep( uDetail * 0.55, uDetail, length( vWPos - cameraPosition ) ) ) : 0.0;
+        float reliefFade = uDetail > 0.0 ? uRelief * ( 1.0 - smoothstep( uDetail * RELIEF_FADE, uDetail, length( vWPos - cameraPosition ) ) ) : 0.0;
         // + the scans' own relief: their slope (world) taken along this pixel's screen steps.
         vec2 scanH = vec2( dot( terrainSlope, dpx ), dot( terrainSlope, dpy ) ) * uScanRelief;
         normal = terrainPerturb( - vViewPosition, normal, ( vec2( dFdx( terrainH ), dFdy( terrainH ) ) + scanH ) * reliefFade, faceDirection );
+        #ifdef GROUND_PBR
+        // Relief only adds light and shade by its slope: a facet tilted by t gets cos(t) of the overhead light, so the
+        // bumped ground averaged darker than the flat ground past the fade (a dark band near the car). The albedo makes it up.
+        diffuseColor.rgb /= max( dot( normal, nonPerturbedNormal ), 0.6 );
+        #endif
         #endif`,
       )
       .replace(
@@ -269,7 +286,17 @@ export function getTerrainMaterial(
         `#include <roughnessmap_fragment>
         #if defined( GROUND_PBR ) && !defined( TERRAIN_FAR )
         // The scans' roughness, faded with the relief: beyond it the stones are sub-pixel and the flat value stands in.
-        roughnessFactor = mix( roughnessFactor, terrainRough, uDetail > 0.0 ? 1.0 - smoothstep( uDetail * 0.55, uDetail, length( vWPos - cameraPosition ) ) : 0.0 );
+        roughnessFactor = mix( roughnessFactor, terrainRough, uDetail > 0.0 ? 1.0 - smoothstep( uDetail * RELIEF_FADE, uDetail, length( vWPos - cameraPosition ) ) : 0.0 );
+        #endif`,
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        #ifdef GROUND_PBR
+        // Dry gravel's sheen (GRAVEL_SPEC), by the gravel's share of the blend: the verge as the gravel road beside it.
+        float gSpec = mix( 1.0, mix( GRAVEL_SPEC, 1.0, clamp( wsWet.x, 0.0, 1.0 ) ), wb.w );
+        reflectedLight.directSpecular *= gSpec;
+        reflectedLight.indirectSpecular *= gSpec;
         #endif`,
       )
       .replace(
@@ -466,10 +493,10 @@ export function getTerrainMaterial(
   };
   mat.customProgramCacheKey = () =>
     far
-      ? 'rally-terrain-far-v11'
+      ? 'rally-terrain-far-v12'
       : holes
-        ? 'rally-terrain-holes-v17'
-        : 'rally-terrain-v17';
+        ? 'rally-terrain-holes-v18'
+        : 'rally-terrain-v18';
   if (far) sharedFar = mat;
   else if (holes) sharedHoles = mat;
   else shared = mat;

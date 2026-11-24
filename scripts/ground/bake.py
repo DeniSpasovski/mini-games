@@ -10,8 +10,8 @@ tint scales it, it does not repaint it); soil, gravel, rock and leaves keep thei
 
 With the scan's roughness map (`<id>_rough_1k.jpg`) the colour tile carries the roughness in its alpha (WebP alpha
 quality 50: ~0.01 off, a quarter smaller than lossless): the scan's own pattern (stone tops smoother than the dust
-between them) moved to a dry-ground mean (`ROUGH`), since the scans' raw values (dry soil 0.5) read as wet plastic
-under a low sun.
+between them) moved to the flat terrain's mean (`ROUGH`): the scans' raw values (dry soil 0.5) read as wet plastic
+under a low sun, and any lower mean makes the near ground darker than the far.
 
 With the scan's OpenGL normal map (`<id>_nor_gl_1k.jpg`), each tile also gets `<name>_n.webp`: its normals at the same
 512 px as two grey halves side by side (x left, y right; z is rebuilt by the shader). Grey, because lossy WebP keeps
@@ -54,19 +54,21 @@ TILES = {
 # stones are 1 - 3 px from the chase camera and mip away; the gravel road (world/gravel-road.ts) is this layer too.
 DETAIL = {'gravel': (0.4, 0.03, 2.0)}
 
-# Roughness: tile -> (mean, spread p5..p95). Dry ground is near fully rough; stones (gravel, rock) and waxy needles /
-# straw / leaves a little less, so their tops catch a low sun. The terrain shader fades it to its flat 0.96 by ~45 m.
+# Roughness: tile -> (mean, spread p5..p95). Every mean stays at the flat terrain's (0.96, the shader's value past the
+# relief distance; clipped at 1 the means land at ~0.94): a lower mean (stones 0.84) lost the broad sheen a low sun puts
+# on rough ground and darkened the near ground against the far (a band). Only the scan's pattern varies it: stone tops
+# smoother than the dust between them.
 ROUGH = {
-    'grass_spring': (0.93, 0.08),
-    'grass_summer': (0.93, 0.08),
-    'grass_autumn': (0.92, 0.08),
-    'soil': (0.93, 0.1),
-    'gravel': (0.86, 0.2),
-    'rock': (0.84, 0.2),
-    'litter': (0.88, 0.14),
-    'leaves': (0.84, 0.14),
-    'stubble': (0.86, 0.12),
-    'needles': (0.86, 0.12),
+    'grass_spring': (0.95, 0.08),
+    'grass_summer': (0.95, 0.08),
+    'grass_autumn': (0.95, 0.08),
+    'soil': (0.95, 0.1),
+    'gravel': (0.95, 0.2),
+    'rock': (0.95, 0.2),
+    'litter': (0.95, 0.14),
+    'leaves': (0.95, 0.14),
+    'stubble': (0.95, 0.12),
+    'needles': (0.95, 0.12),
 }
 NORMAL_Q = 90
 

@@ -13,7 +13,12 @@ import {
 } from '../engine/ground-textures';
 import { getTexture } from '../engine/textures';
 import { addWorldUniforms } from '../engine/world-shading';
-import { GRAVEL_SHARP, getTerrainMaterial } from './terrain-material';
+import {
+  GRAVEL_SHARP,
+  GRAVEL_SPEC,
+  RELIEF_FADE,
+  getTerrainMaterial,
+} from './terrain-material';
 
 /**
  * The gravel road is the terrain's own gravel (`engine/ground-textures.ts`, the layer the verge beside it is made of),
@@ -54,6 +59,8 @@ export const GRAVEL_DEFINES = {
   /** Packed wheel tracks: fines pressed flat over the stones, this much darker than the loose gravel. */
   GR_TRACK_TONE: '0.8',
   ...(GROUND_PBR ? { GR_PBR: 1 } : {}),
+  RELIEF_FADE: RELIEF_FADE.toFixed(2),
+  GRAVEL_SPEC: GRAVEL_SPEC.toFixed(2),
 };
 
 /**
@@ -94,6 +101,7 @@ export function gravelShader(
     tMacro: { value: getTexture('macro') },
     uRelief: terrain.uRelief,
     uDetail: terrain.uDetail,
+    uScanRelief: terrain.uScanRelief,
   });
   shader.vertexShader = shader.vertexShader
     .replace(
@@ -122,6 +130,7 @@ export function gravelShader(
       uniform sampler2D tMacro;
       uniform float uRelief;
       uniform float uDetail;
+      uniform float uScanRelief;
       varying vec2 vGWP;
       #ifdef GR_TRACKS
       varying vec3 vGrX;
@@ -171,7 +180,7 @@ export function gravelShader(
         if ( uDetail > 0.0 && length( vViewPosition ) < uDetail ) {
           vec2 n = textureGrad( tGroundN, vec3( wp * GR_SCALE, GR_LAYER ), dpx * GR_SCALE, dpy * GR_SCALE ).rg * 2.0 - 1.0;
           vec2 sl = - n / max( sqrt( max( 1.0 - dot( n, n ), 0.0 ) ), 0.35 );
-          grScanH = vec2( dot( sl, dpx ), dot( sl, dpy ) );
+          grScanH = vec2( dot( sl, dpx ), dot( sl, dpy ) ) * uScanRelief;
         }
         #endif
         mat2 R = mat2( 0.8, -0.6, 0.6, 0.8 );
@@ -334,7 +343,7 @@ export function gravelShader(
       `#include <roughnessmap_fragment>
       #ifdef GR_PBR
       // The loose stones' own roughness near the camera (the terrain's fade): beyond it the flat value.
-      roughnessFactor = mix( roughnessFactor, grRgh, uDetail > 0.0 ? 1.0 - smoothstep( uDetail * 0.55, uDetail, length( vViewPosition ) ) : 0.0 );
+      roughnessFactor = mix( roughnessFactor, grRgh, uDetail > 0.0 ? 1.0 - smoothstep( uDetail * RELIEF_FADE, uDetail, length( vViewPosition ) ) : 0.0 );
       #endif
       // Dry, the packed fines are as matte as the loose stones (fully rough, no sheen against a low sun); wet, glossier.
       roughnessFactor = mix( roughnessFactor, 1.0, grRut ) - 0.6 * wsWet.x * grRut;`,
@@ -344,9 +353,22 @@ export function gravelShader(
       `#include <normal_fragment_maps>
       {
         // No branch: screen-space derivatives are undefined in non-uniform control flow (0 relief = same normal).
-        float grFade = uDetail > 0.0 ? uRelief * ( 1.0 - smoothstep( uDetail * 0.55, uDetail, length( vViewPosition ) ) ) : 0.0;
+        float grFade = uDetail > 0.0 ? uRelief * ( 1.0 - smoothstep( uDetail * RELIEF_FADE, uDetail, length( vViewPosition ) ) ) : 0.0;
         normal = grPerturb( - vViewPosition, normal, ( vec2( dFdx( grH ), dFdy( grH ) ) + grScanH ) * grFade, faceDirection );
+        #ifdef GR_PBR
+        // Mean kept: the relief shades by its slope, not darker on average than the flat road past the fade (the terrain's rule).
+        diffuseColor.rgb /= max( dot( normal, nonPerturbedNormal ), 0.6 );
+        #endif
       }`,
+    )
+    .replace(
+      '#include <lights_fragment_end>',
+      `#include <lights_fragment_end>
+      #ifdef GR_PBR
+      // Dry gravel's sheen (see GRAVEL_SPEC); wet, the full reflection.
+      reflectedLight.directSpecular *= mix( GRAVEL_SPEC, 1.0, clamp( wsWet.x, 0.0, 1.0 ) );
+      reflectedLight.indirectSpecular *= mix( GRAVEL_SPEC, 1.0, clamp( wsWet.x, 0.0, 1.0 ) );
+      #endif`,
     );
 }
 

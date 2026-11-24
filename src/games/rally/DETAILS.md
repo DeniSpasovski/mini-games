@@ -286,10 +286,12 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   `world/ground-moisture.ts`). `groundTint.shade` darkens the floor under crowns and shuts that share of the sky light out (`CANOPY_FLOOR`,
   `engine/world-shading.ts`). The meadow scans carry the old tile's olive hue so each map's `groundTint` keeps its look. Chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material
   (`world/terrain-material.ts`): no relief, one tap per layer, no specular environment lookup.
-  - Ground PBR (`GROUND_PBR`; `?groundpbr=0` turns it off to compare): each colour tile's alpha is the scan's roughness, moved to a dry-ground mean (`ROUGH`
-    in the bake: the scans' raw values read as wet plastic); the normal tiles (`<layer>_n.webp`) are x | y as two grey halves (lossy WebP halves red /
-    green, which bent the normals ~10 degrees). Terrain and gravel road use both within the relief distance (`setTerrainDetail`, 45 m on High) and
-    fade to a flat 0.96 roughness beyond it. Rebake: `python3 -I scripts/ground/bake.py sources/rally/polyhaven` (scans in `<id>/`, see its `DETAILS.md`).
+  - Ground PBR (`GROUND_PBR`; `?groundpbr=0` turns it off to compare): each colour tile's alpha is the scan's roughness pattern around the flat
+    terrain's mean (`ROUGH` in the bake); the normal tiles (`<layer>_n.webp`) are x | y as two grey halves (lossy WebP halves red / green, which bent
+    the normals ~10 degrees). Terrain and gravel road use both within the relief distance (`setTerrainDetail`, 45 m on High) and fade to a flat 0.96
+    roughness beyond it. Rule: the near detail must not shift the mean, or a band shows where it fades - the roughness mean stays the flat one, the
+    albedo makes up the light a tilted relief facet loses (`/ dot( normal, nonPerturbedNormal )`) and the fade starts early (`RELIEF_FADE`). Dry
+    gravel keeps half its specular (`GRAVEL_SPEC`, road and verge): the full grazing sheen turned the far road grey against the brown near road. Rebake: `python3 -I scripts/ground/bake.py sources/rally/polyhaven` (scans in `<id>/`, see its `DETAILS.md`).
 - **Effects:** dust, haze and water splash (`game/dust.ts`; sprites fade into the ground or water under them, `floor`), gravel spray as tumbling stones
   (`game/gravel-stones.ts`), splash off wheels in water (`rally-game.ts` `emitSplash`), tyre marks (`game/tyre-marks.ts`) and a contact shadow under the car.
 - **Car lamps** (`CarModel.setBrake(level, reversing)`, `part-materials.ts` `lamp()`, `cars/shared/lamp-halo.ts`): with the lights off a lamp is dark (by day
