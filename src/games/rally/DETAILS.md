@@ -221,8 +221,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   - Sky light: the env scene as a `LightProbe` (SH9) for every material (Lambert trees, crops, far forest and horizon take
     no IBL); the env map gives reflections only.
   - Haze: lit by the sky's horizon round the view (`setSkyHaze`), so far land fades into the sky behind it.
-  - Exposure metered on illuminance (`V2` in `engine/environment.ts`, partial adaptation); AgX (ACES' toe crushes the shade
-    at the physical sun / sky ratio).
+  - Exposure metered on illuminance (`V2` in `engine/environment.ts`, partial adaptation); its `key` matches noon to the
+    default look's brightness. AgX (ACES' toe crushes the shade at the physical sun / sky ratio) with a contrast /
+    saturation lift on the map's grade (`V2.grade`; AgX alone reads greyed).
 - **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
   (`SUN_TERMS`, `SUN_SHADOW`):
   - the sun's shadow map ahead of the camera (`quality.shadowExtent`, snapped to texels), every frame. Trees cast into

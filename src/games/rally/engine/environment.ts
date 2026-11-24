@@ -55,7 +55,7 @@ import {
   NIGHT_SUN_ELEVATION,
   NightSky,
 } from './night';
-import type { EnvironmentDef } from '../maps/shared/types';
+import type { ColorGrade, EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
 import {
   setCarEnvSun,
@@ -232,15 +232,19 @@ export function lightV2(): boolean {
 /**
  * `light=v2` numbers. Exposure is metered on illuminance (metered on the light, not on the frame: no feedback from
  * dark or pale ground): half the light on flat ground, half on an upright face (mean round the compass). `meterRef` (a 10:00 sun on
- * Vodno) gets exposure 1; the eye adapts only part way (`adapt`), so an evening or a rain deck reads dimmer than noon.
+ * Vodno) gets exposure `key`; the eye adapts only part way (`adapt`), so an evening or a rain deck reads dimmer than noon.
  */
 const V2 = {
   meterRef: 2.55,
+  /** Brings noon to the default look's mean brightness: without its unshadowed fill the frame sat a stop darker. */
+  key: 2.1,
   adapt: 0.6,
   /** Camera height for the sky (m): the maps lie 300-1500 m up; the sky barely changes over that. */
   altitude: 600,
-  /** Share of the sky's diffuse light used (`setEnvDiffuse`): the sky the world round a point hides (no AO here). */
-  envDiffuse: 0.85,
+  /** Share of the sky's diffuse light used (`setEnvDiffuse`): all of it, so the noon sky / sun ratio stays ~0.17. */
+  envDiffuse: 1,
+  /** On top of the map's grade (contrast and saturation multiply): AgX's flat shoulder otherwise reads as a grey veil. */
+  grade: { contrast: 1.15, saturation: 1.2, vibrance: 0.1 },
   /** A cloud deck lets this share of the clear day's light through, more as the sun breaks through (`WeatherLook.sun`). */
   deckMin: 0.15,
   deckSun: 0.8,
@@ -249,6 +253,16 @@ const V2 = {
   /** AgX: its softer toe keeps the forest shade readable at the physical sun / sky ratio (ACES crushed it to black). */
   toneMapping: 'agx',
 };
+
+/** The map's grade with the `light=v2` lift on top. */
+function v2Grade(g: ColorGrade | undefined): ColorGrade {
+  return {
+    ...g,
+    contrast: (g?.contrast ?? 1) * V2.grade.contrast,
+    saturation: (g?.saturation ?? 1) * V2.grade.saturation,
+    vibrance: (g?.vibrance ?? 0) + V2.grade.vibrance,
+  };
+}
 
 export const DAY_LIGHT = {
   sun: 4.5,
@@ -755,7 +769,9 @@ export class Environment {
     setGrade(
       this.night || this.studio || urlString('grade') === 'off'
         ? null
-        : def.grade,
+        : this.daylight
+          ? v2Grade(def.grade)
+          : def.grade,
     );
 
     this.scene.fog = this.night
@@ -909,7 +925,8 @@ export class Environment {
       0.5 * luminance(sky) +
       0.5 * V2.albedo * onGround;
     const meter = 0.5 * onGround + 0.5 * upright;
-    this.v2Exposure = (V2.meterRef / Math.max(1e-3, meter)) ** V2.adapt;
+    this.v2Exposure =
+      V2.key * (V2.meterRef / Math.max(1e-3, meter)) ** V2.adapt;
     setAerial(HAZE_TAIL, undefined, day.extinction);
     return V2.envDiffuse;
   }
