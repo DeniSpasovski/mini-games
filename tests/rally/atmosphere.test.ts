@@ -2,6 +2,7 @@ import { describe, expect, test } from '@rstest/core';
 import {
   daylight,
   luminance,
+  meteredExposure,
   mieFromTurbidity,
   sampleSkyView,
 } from '../../src/games/rally/engine/atmosphere';
@@ -58,5 +59,16 @@ describe('light=v2 atmosphere', () => {
   test('far land turns blue: blue is dimmed most', () => {
     expect(noon.extinction[2]).toBeGreaterThan(noon.extinction[1]);
     expect(noon.extinction[1]).toBeGreaterThan(noon.extinction[0]);
+  });
+});
+
+describe('light=v2 exposure meter', () => {
+  test('noon exposes like the default look; a dimmer light opens up only part way', () => {
+    expect(meteredExposure(0.95, 4.3, 4.3, 4.3, 0.6)).toBeCloseTo(0.95, 6);
+    // a hazier map's dimmer noon still lands on the default look's sunlit brightness
+    expect(meteredExposure(1, 4.3, 3.9, 3.9, 0.6) * 3.9).toBeCloseTo(4.3, 6);
+    const evening = meteredExposure(1, 4.3, 4.3, 1.2, 0.6);
+    expect(evening).toBeGreaterThan(1);
+    expect(evening * 1.2).toBeLessThan(4.3);
   });
 });

@@ -78,6 +78,11 @@ export const worldUniforms = {
   wsCanopyLocalMap: { value: new Vector4(0, 0, 0, 0) },
   /** Forest floor (`GroundTint.shade`, 0 = off): the share of the sky light the crowns shut out over the ground under them. */
   wsCanopyAO: { value: 0 },
+  /**
+   * `?light=v2` (`setSkyVis`, `SKY_VIS`): the sky light a stand of trees shuts out round a point. x on (0 = off), y the
+   * share it cuts off a face turned sideways / down, z off a face turned up, w the share of the sky a crown's leaves get.
+   */
+  wsSkyVis: { value: new Vector4(0, 0, 0, 0) },
   /** Baked terrain light (world/terrain-light.ts: R the shadow line, G sky in view, B its penumbra), its ground mapping and strengths. */
   wsTerrain: { value: null as Texture | null },
   wsTerrainMap: { value: new Vector4(0, 0, 0, 0) },
@@ -363,6 +368,19 @@ export function setShadowBox(x: number, z: number, halfExtent: number): void {
 /** How much of the env map's diffuse light the world takes (1 = all; the sky against the sun, `DAY_LIGHT` in engine/environment.ts). */
 export function setEnvDiffuse(share: number): void {
   worldUniforms.wsEnvCut.value = 1 - share;
+}
+
+/**
+ * `?light=v2`: the sky's light on everything but the ground (which has its own terms) dimmed by the stand of trees
+ * round it (`SKY_VIS`); `cut` = [sideways / down, up] at a closed stand, `leaves` the share a crown's foliage gets.
+ */
+export function setSkyVis(
+  cut: readonly [number, number] | null,
+  leaves = 1,
+): void {
+  const v = worldUniforms.wsSkyVis.value;
+  if (cut) v.set(1, cut[0], cut[1], leaves);
+  else v.x = 0;
 }
 
 /** Height where the fog has its nominal density (the ground at the focus point; call every frame). */
@@ -845,6 +863,7 @@ uniform vec4 wsCanopyMap;
 uniform sampler2D wsCanopyLocal;
 uniform vec4 wsCanopyLocalMap;
 uniform float wsCanopyAO;
+uniform vec4 wsSkyVis;
 uniform vec4 wsShadowBox;
 uniform vec4 wsForest;
 uniform sampler2D wsTerrain;
@@ -1462,12 +1481,41 @@ const TERRAIN_SKY = /* glsl */ `
 #endif
 `;
 
+/**
+ * `?light=v2` (the only look with a light probe, so the default look never compiles it): everything but the ground
+ * (`TERRAIN_SKY`, `CANOPY_FLOOR`) takes the sky the terrain leaves in view and loses the share a stand of trees round it
+ * shuts out: the canopy cover averaged over ~24 m (one fetch of mip 3 of the 3 m canopy texture), more off a face turned
+ * sideways or down (a crown's flank, a trunk) than off one turned up. A lone tree stays in the open sky. Leaves (tree
+ * sprites, impostors, the far forest: \`RALLY_LEAVES\`) see the sky past the other leaves of their crown: \`wsSkyVis.w\` of it.
+ */
+const SKY_VIS = /* glsl */ `
+#if defined( USE_LIGHT_PROBES ) && ! defined( RALLY_GROUND )
+	if ( wsSkyVis.x > 0.0 ) {
+		vec3 wsVp = wsWorldPos( geometryPosition );
+		float wsVis = wsTerrainLight( wsVp ).y;
+		if ( wsCanopyMap.z > 0.0 ) {
+			vec2 wsVu = ( wsVp.xz - wsCanopyMap.xy ) * wsCanopyMap.zw;
+			if ( wsVu.x > 0.0 && wsVu.y > 0.0 && wsVu.x < 1.0 && wsVu.y < 1.0 ) {
+				float wsStand = smoothstep( 0.15, 0.85, textureLod( wsCanopy, wsVu, 3.0 ).g );
+				float wsUp = saturate( inverseTransformDirection( geometryNormal, viewMatrix ).y );
+				wsVis *= 1.0 - wsStand * mix( wsSkyVis.y, wsSkyVis.z, wsUp );
+			}
+		}
+		#if defined( TREE_SPRITE ) || defined( TREE_IMPOSTOR ) || defined( RALLY_LEAVES )
+			wsVis *= wsSkyVis.w;
+		#endif
+		reflectedLight.indirectDiffuse *= wsVis;
+	}
+#endif
+`;
+
 /** three's own `lights_fragment_end` + the ground's sky terms (terrain, then the forest floor) + the wet puddles' sky. */
 function lightsEnd(wet: boolean): string {
   return (
     baseLightsEnd +
     TERRAIN_SKY +
     CANOPY_FLOOR +
+    SKY_VIS +
     CAR_SURROUND_DIFFUSE +
     (wet ? PUDDLE_SKY : '')
   );

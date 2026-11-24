@@ -37,6 +37,7 @@ import { urlParam } from './url-param';
 import {
   daylight,
   luminance,
+  meteredExposure,
   mieFromTurbidity,
   SKY_LUT_H,
   SKY_LUT_W,
@@ -55,7 +56,7 @@ import {
   NIGHT_SUN_ELEVATION,
   NightSky,
 } from './night';
-import type { ColorGrade, EnvironmentDef } from '../maps/shared/types';
+import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
 import {
   setCarEnvSun,
@@ -66,6 +67,7 @@ import {
   setSkyHaze,
   setFogLayer,
   setShadowBox,
+  setSkyVis,
   setWet,
   worldUniforms,
   setWorldShading,
@@ -230,39 +232,44 @@ export function lightV2(): boolean {
   return urlString('light') === 'v2';
 }
 /**
- * `light=v2` numbers. Exposure is metered on illuminance (metered on the light, not on the frame: no feedback from
- * dark or pale ground): half the light on flat ground, half on an upright face (mean round the compass). `meterRef` (a 10:00 sun on
- * Vodno) gets exposure `key`; the eye adapts only part way (`adapt`), so an evening or a rain deck reads dimmer than noon.
+ * `light=v2` numbers. Exposure is metered on the light on sunlit flat ground (on the light, not on the frame: no
+ * feedback from dark or pale ground, and the shade does not pull it up): at the map's noon it is `lit` / that light x
+ * the map's own exposure (a weather's included), so a sunlit surface lands where it does in the default look; away from
+ * noon the eye adapts only a little (`adapt`; the default look keeps one exposure all day), so a low sun reads dimmer.
  */
 const V2 = {
-  meterRef: 2.55,
-  /** Brings noon to the default look's mean brightness: without its unshadowed fill the frame sat a stop darker. */
-  key: 2.1,
-  adapt: 0.6,
+  /**
+   * The default look's light on a sunlit surface at noon: its sun, sky and fill plus the sun disc its env map spreads
+   * over every face (matched on paired stills of sunlit road, gravel and walls).
+   */
+  lit: 6.9,
+  adapt: 0.1,
   /** Camera height for the sky (m): the maps lie 300-1500 m up; the sky barely changes over that. */
   altitude: 600,
   /** Share of the sky's diffuse light used (`setEnvDiffuse`): all of it, so the noon sky / sun ratio stays ~0.17. */
   envDiffuse: 1,
-  /** On top of the map's grade (contrast and saturation multiply): AgX's flat shoulder otherwise reads as a grey veil. */
-  grade: { contrast: 1.15, saturation: 1.2, vibrance: 0.1 },
   /** A cloud deck lets this share of the clear day's light through, more as the sun breaks through (`WeatherLook.sun`). */
   deckMin: 0.15,
   deckSun: 0.8,
   /** Ground albedo (the ground disc of the env map, the bounce): its colour comes from the map's grass. */
   albedo: 0.15,
-  /** AgX: its softer toe keeps the forest shade readable at the physical sun / sky ratio (ACES crushed it to black). */
-  toneMapping: 'agx',
+  /** The sky light a closed stand of trees shuts out (`setSkyVis`): off a face turned sideways or down, off one turned up. */
+  standCut: [0.8, 0.45] as const,
+  /**
+   * The share of the sky a crown's leaves see past the rest of the crown (`setSkyVis`), on top of their baked AO: the
+   * default look's foliage takes about this much less sky than the ground (it never sampled the env map).
+   */
+  leaves: 0.4,
+  /**
+   * Camera white balance on the scene's light (sun, sky light; not the dome or the haze), r g b at unit luminance: a
+   * little cooler than the atmosphere's neutral noon, so a sunlit grey road has the default look's colour (without it
+   * the frame reads yellow).
+   */
+  white: [0.9 / 0.9947, 1 / 0.9947, 1.22 / 0.9947] as const,
 };
 
-/** The map's grade with the `light=v2` lift on top. */
-function v2Grade(g: ColorGrade | undefined): ColorGrade {
-  return {
-    ...g,
-    contrast: (g?.contrast ?? 1) * V2.grade.contrast,
-    saturation: (g?.saturation ?? 1) * V2.grade.saturation,
-    vibrance: (g?.vibrance ?? 0) + V2.grade.vibrance,
-  };
-}
+const V2_WHITE = new Color(...V2.white);
+const V2_WHITE_V = new Vector3(...V2.white);
 
 export const DAY_LIGHT = {
   sun: 4.5,
@@ -748,6 +755,7 @@ export class Environment {
     this.envDiffuse = envDiffuse;
     // light=v2: the sky's diffuse light comes from the probe (`rebuildEnvMap`), the env map gives reflections only.
     setEnvDiffuse(this.daylight ? 0 : envDiffuse);
+    setSkyVis(this.daylight ? V2.standCut : null, V2.leaves);
     // In the scene only under light=v2: a light probe turns on USE_LIGHT_PROBES in every program.
     if (this.daylight) this.scene.add(this.probe);
     else {
@@ -759,19 +767,13 @@ export class Environment {
       ownValue(
         TONE_MAPPINGS,
         urlString('tonemap') ??
-          (this.night
-            ? 'agx'
-            : this.daylight
-              ? V2.toneMapping
-              : (def.toneMapping ?? 'aces')),
+          (this.night ? 'agx' : (def.toneMapping ?? 'aces')),
       ) ?? ACESFilmicToneMapping;
     // Colour grade on top (engine/grade.ts): day only, never in the studio.
     setGrade(
       this.night || this.studio || urlString('grade') === 'off'
         ? null
-        : this.daylight
-          ? v2Grade(def.grade)
-          : def.grade,
+        : def.grade,
     );
 
     this.scene.fog = this.night
@@ -870,6 +872,7 @@ export class Environment {
       day.sun[1] / sunL,
       day.sun[2] / sunL,
     );
+    this.sun.color.multiply(V2_WHITE);
     this.sun.intensity = sunL * w.sun;
     this.sun.castShadow = this.sun.intensity > 0;
     // The sky: the table in scene light; a cloud deck (rain, overcast) passes a share of the clear day's light,
@@ -916,20 +919,40 @@ export class Environment {
     this.v2Ground.copy(g);
     // The hemisphere light carries the sky only until the probe is ready (`rebuildEnvMap`); its colour stays the sky's,
     // for the dust (rally-game.ts `lightParticles`).
-    this.hemi.color.setRGB(sky[0], sky[1], sky[2]);
+    this.hemi.color.setRGB(sky[0], sky[1], sky[2]).multiply(V2_WHITE);
     this.hemi.groundColor.copy(g).multiplyScalar(Math.PI);
     this.hemi.intensity = this.probe.intensity > 0 ? 0 : V2.envDiffuse;
-    // Meter: half flat ground, half an upright face (the sun's mean round the compass, half the sky, the ground's bounce).
-    const upright =
-      (this.sun.intensity * Math.cos(MathUtils.degToRad(elevation))) / Math.PI +
-      0.5 * luminance(sky) +
-      0.5 * V2.albedo * onGround;
-    const meter = 0.5 * onGround + 0.5 * upright;
-    this.v2Exposure =
-      V2.key * (V2.meterRef / Math.max(1e-3, meter)) ** V2.adapt;
+    // Meter: the light on sunlit flat ground, against the same at this map's noon (`V2`).
+    const noon = this.noonLight(def);
+    this.v2Exposure = meteredExposure(
+      def.exposure,
+      V2.lit,
+      noon,
+      onGround,
+      V2.adapt,
+    );
     setAerial(HAZE_TAIL, undefined, day.extinction);
     return V2.envDiffuse;
   }
+
+  /** `light=v2`: the light on sunlit flat ground under a clear noon sun through this map's air (cached per air). */
+  private noonLight(def: EnvironmentDef): number {
+    const mie = mieFromTurbidity(def.turbidity);
+    let e = this.noonCache.get(mie);
+    if (e === undefined) {
+      const day = daylight(NOON_ELEVATION, {
+        mie,
+        altitude: V2.altitude,
+        albedo: V2.albedo,
+      });
+      e =
+        luminance(day.sun) * Math.sin(MathUtils.degToRad(NOON_ELEVATION)) +
+        luminance(day.sky);
+      this.noonCache.set(mie, e);
+    }
+    return e;
+  }
+  private noonCache = new Map<number, number>();
 
   /** The sky-view table as a half-float texture (made once, refilled per apply). */
   private skyTexture(lut: Float32Array): DataTexture {
@@ -1081,6 +1104,7 @@ export class Environment {
         setTreeSky(probe.sh.coefficients, v2 ? 0 : intensity * diffuse);
         if (v2 && this.daylight) {
           this.probe.sh.copy(probe.sh);
+          for (const c of this.probe.sh.coefficients) c.multiply(V2_WHITE_V);
           this.probe.intensity = intensity * diffuse;
           this.hemi.intensity = 0;
         }

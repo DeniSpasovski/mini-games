@@ -487,3 +487,17 @@ export function daylight(
     extinction: ext.map((e) => e / le) as RGB,
   };
 }
+
+/**
+ * `light=v2` exposure metered on the light on sunlit flat ground (`light`): the map's `base` exposure scaled so the
+ * map's noon light (`noon`) exposes like the default look's (`ref`); away from noon the eye adapts by `adapt` (0..1).
+ */
+export function meteredExposure(
+  base: number,
+  ref: number,
+  noon: number,
+  light: number,
+  adapt: number,
+): number {
+  return base * (ref / noon) * (noon / Math.max(1e-3, light)) ** adapt;
+}

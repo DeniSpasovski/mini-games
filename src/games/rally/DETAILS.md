@@ -219,11 +219,14 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   - Sun and sky: the sun's colour and strength by hour; a 64 x 48 sky-view table drawn by the dome and the env map (no sun
     disc in the env map: the old one lights the shade from every side). A cloud deck passes a share of the clear day's light.
   - Sky light: the env scene as a `LightProbe` (SH9) for every material (Lambert trees, crops, far forest and horizon take
-    no IBL); the env map gives reflections only.
+    no IBL); the env map gives reflections only. Occluded like the default look's fill: the ground keeps its terrain / forest-floor
+    terms, everything else takes the terrain's sky in view and loses the share the stand of trees round it shuts out
+    (`SKY_VIS`, `setSkyVis`: canopy cover from a coarse mip, more off flanks and trunks than off crown tops); leaves
+    (tree sprites, impostors, far forest) see only part of it past their own crown (`V2.leaves`).
   - Haze: lit by the sky's horizon round the view (`setSkyHaze`), so far land fades into the sky behind it.
-  - Exposure metered on illuminance (`V2` in `engine/environment.ts`, partial adaptation); its `key` matches noon to the
-    default look's brightness. AgX (ACES' toe crushes the shade at the physical sun / sky ratio) with a contrast /
-    saturation lift on the map's grade (`V2.grade`; AgX alone reads greyed).
+  - Exposure metered on the light on sunlit flat ground (`V2`, `meteredExposure`): at noon a sunlit surface lands where it
+    does in the default look; little adaptation away from noon. A camera white balance on the scene light (`V2.white`),
+    the map's own tone curve (ACES) and grade.
 - **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
   (`SUN_TERMS`, `SUN_SHADOW`):
   - the sun's shadow map ahead of the camera (`quality.shadowExtent`, snapped to texels), every frame. Trees cast into
