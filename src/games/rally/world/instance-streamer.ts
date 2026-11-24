@@ -422,23 +422,45 @@ export class InstanceStreamer {
     if (!sent) this.pending--;
   }
 
-  /** Resolves when the worker has built every level asked of it (loading screens: then `updateNow` stages them). */
+  /** Resolves when the worker has built every level asked of it (loading screens: then `updateSliced` stages them). */
   whenBuilt(): Promise<void> {
     return this.pending
       ? new Promise((resolve) => this.idle.push(resolve))
       : Promise.resolve();
   }
 
-  /** Rebuild synchronously (loading screens, tools). */
+  /** Rebuild synchronously (tools). */
   updateNow(focus: Vector3): void {
+    const run = this.fill(focus);
+    while (!run.next().done);
+  }
+
+  /**
+   * `updateNow` for loading screens: the same rebuild, run in slices of at most `sliceMs` with `pause` (a yield to
+   * the browser) in between, so the page never freezes while the first fill generates its scatter chunks.
+   */
+  async updateSliced(
+    focus: Vector3,
+    pause: () => Promise<void>,
+    sliceMs = 40,
+  ): Promise<void> {
+    const run = this.fill(focus);
+    let t0 = performance.now();
+    while (!run.next().done)
+      if (performance.now() - t0 > sliceMs) {
+        await pause();
+        t0 = performance.now();
+      }
+  }
+
+  private *fill(focus: Vector3): Generator<void> {
     this.parkCars?.update(focus, this.filter('team_car'));
     this.lastFocus.copy(focus);
     // With `prefetch`: the levels the view needs (wanted at slack 0) are requested from the worker (`whenBuilt`, then
     // stage again) or, without one, built here and staged again.
     for (let pass = 0; pass < 3; pass++) {
-      const job = this.rebuildJob(focus.clone(), false);
-      while (!job.next().done);
       this.job = null;
+      yield* this.rebuildJob(focus.clone(), false);
       if (!this.opts.prefetch) break;
       let inline = false;
       for (let w = this.queue.next(0); w; w = this.queue.next(0)) {
@@ -447,6 +469,7 @@ export class InstanceStreamer {
         else {
           getAsset(w.asset, w.variant, w.lod);
           inline = true;
+          yield;
         }
       }
       if (!inline) break;
@@ -594,7 +617,8 @@ export class InstanceStreamer {
           Math.hypot((cx + 0.5) * cs - focus.x, (cz + 0.5) * cs - focus.z) -
           cs * 0.71;
         if (near > range + ring) continue;
-        const list = scatter.chunk(cx, cz).instances;
+        // (generated a slice at a time: one dense chunk takes up to ~60 ms)
+        const list = (yield* scatter.chunkSteps(cx, cz)).instances;
         // A far chunk of short-range assets (bushes, orchards, rocks) has nothing to draw: skip its instances. The
         // fade ring too: an instance must be tracked before it reaches its last level, or it pops in.
         if (near <= this.reachOf(list) * lodScale + ring) visit(list, false);

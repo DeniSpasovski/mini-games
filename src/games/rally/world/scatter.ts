@@ -20,6 +20,12 @@ import {
 import { speciesOfType, variantCount } from '../trees/species';
 import { mix32 } from '../trees/math';
 import { variantFoliage, variantInfo } from '../trees/variants';
+import {
+  packObjects,
+  unpackObjects,
+  type GenCache,
+  type PackedObjects,
+} from './gen-cache';
 import type { TerrainSampler } from './heightfield';
 import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
@@ -243,6 +249,8 @@ const reachOf = (asset: string) => {
 
 export class ScatterField {
   private chunks = new Map<number, ScatterChunk>();
+  /** The load's disk cache of generated chunks (world/gen-cache.ts); unset: always generated. */
+  cache?: GenCache;
   /**
    * Chunks generated so far (`chunk`) and the last RECENT of them as [cx, cz] pairs in a ring (slot = count % RECENT):
    * a consumer reads what is new since its own count instead of polling `cachedChunk` over every key it waits for.
@@ -673,31 +681,51 @@ export class ScatterField {
   }
 
   chunk(cx: number, cz: number): ScatterChunk {
+    return drain(this.chunkSteps(cx, cz));
+  }
+
+  /**
+   * `chunk` a slice at a time (the streamer's jobs, the load's first fill); yields only while the chunk is not generated
+   * yet, the result is the same. Its generated part comes from the disk cache when the load read it (`cache`).
+   */
+  *chunkSteps(cx: number, cz: number): Generator<void, ScatterChunk> {
     const k = key(cx, cz);
     let c = this.chunks.get(k);
-    if (!c) {
-      const fixed = this.fixed.get(k) ?? [];
-      const instances = clearTrunks(
-        this.generate(cx, cz, this.rules, 0),
-        fixed,
-        this.fixedColliders.get(k) ?? [],
-      );
-      instances.push(...fixed);
-      c = {
-        instances,
-        colliders: [
-          ...instances.flatMap(collidersOf),
-          ...(this.fixedColliders.get(k) ?? []),
-        ],
-        breakables: instances.filter(
-          (i) => !i.tree && getAssetMeta(i.asset).breakable,
-        ),
-      };
-      this.chunks.set(k, c);
-      const r = (this.generated++ % RECENT) * 2;
-      this.recent[r] = cx;
-      this.recent[r + 1] = cz;
+    if (c) return c;
+    const id = `s:${cx},${cz}`;
+    const packed = this.cache?.take<PackedObjects>(id);
+    let generated = packed ? unpackObjects<ScatterInstance>(packed) : undefined;
+    if (!generated) {
+      generated = yield* this.generateSteps(cx, cz, this.rules, 0);
+      if (this.cache?.recording) {
+        const p = packObjects(generated);
+        if (p) this.cache.put(id, p);
+      }
     }
+    // Made meanwhile by a plain `chunk` call: keep that one (callers may hold it).
+    c = this.chunks.get(k);
+    if (c) return c;
+    const fixed = this.fixed.get(k) ?? [];
+    const instances = clearTrunks(
+      generated,
+      fixed,
+      this.fixedColliders.get(k) ?? [],
+    );
+    instances.push(...fixed);
+    c = {
+      instances,
+      colliders: [
+        ...instances.flatMap(collidersOf),
+        ...(this.fixedColliders.get(k) ?? []),
+      ],
+      breakables: instances.filter(
+        (i) => !i.tree && getAssetMeta(i.asset).breakable,
+      ),
+    };
+    this.chunks.set(k, c);
+    const r = (this.generated++ % RECENT) * 2;
+    this.recent[r] = cx;
+    this.recent[r + 1] = cz;
     return c;
   }
 
@@ -766,16 +794,7 @@ export class ScatterField {
       }
   }
 
-  private generate(
-    cx: number,
-    cz: number,
-    rules: ScatterRule[],
-    salt: number,
-  ): ScatterInstance[] {
-    return drain(this.generateSteps(cx, cz, rules, salt));
-  }
-
-  /** `generate`, yielding every `SLICE` candidate points. */
+  /** A chunk's instances of `rules`, yielding every `SLICE` candidate points. */
   private *generateSteps(
     cx: number,
     cz: number,

@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import type { TerrainGenerator } from './terrain-gen';
+import type { GenCache } from './gen-cache';
 
 /**
  * Chunked, lazily generated, LRU-cached height grid (1 m cells by default).
@@ -68,6 +69,13 @@ export class GroundTerrain implements TerrainSampler {
   }
 }
 
+/** A chunk's numbers as the disk cache keeps them (world/gen-cache.ts). */
+export interface HeightArrays {
+  heights: Float32Array;
+  normals: Float32Array;
+  splat: Uint8Array;
+}
+
 export class HeightChunk {
   /** (N+3)^2 heights, includes a 1-sample border for normals. */
   readonly heights: Float32Array;
@@ -81,11 +89,13 @@ export class HeightChunk {
     readonly cx: number,
     readonly cz: number,
     readonly cell: number,
+    /** The arrays of an earlier build of this chunk (the disk cache), or new ones to fill. */
+    from?: HeightArrays,
   ) {
     const n = CHUNK_CELLS;
-    this.heights = new Float32Array((n + 3) * (n + 3));
-    this.normals = new Float32Array((n + 1) * (n + 1) * 3);
-    this.splat = new Uint8Array((n + 1) * (n + 1) * 4);
+    this.heights = from?.heights ?? new Float32Array((n + 3) * (n + 3));
+    this.normals = from?.normals ?? new Float32Array((n + 1) * (n + 1) * 3);
+    this.splat = from?.splat ?? new Uint8Array((n + 1) * (n + 1) * 4);
   }
 
   /** Height at grid vertex (i, j), i/j in [-1, N+1]. */
@@ -101,6 +111,8 @@ export class Heightfield implements TerrainSampler {
   private tmpSplat = new Float32Array(4);
   /** Number of chunks generated so far (for stats). */
   generated = 0;
+  /** The load's disk cache of chunks (world/gen-cache.ts); unset: always generated. */
+  cache?: GenCache;
 
   constructor(
     readonly gen: TerrainGenerator,
@@ -128,6 +140,7 @@ export class Heightfield implements TerrainSampler {
   chunk(cx: number, cz: number): HeightChunk {
     const k = key(cx, cz);
     let c = this.chunks.get(k);
+    if (!c) c = this.cached(cx, cz);
     if (!c) {
       const job = this.pending.get(k) ?? this.steps(cx, cz);
       let r = job.next();
@@ -148,6 +161,7 @@ export class Heightfield implements TerrainSampler {
   prepare(cx: number, cz: number, deadline: number): boolean {
     const k = key(cx, cz);
     if (this.chunks.has(k)) return true;
+    if (this.cached(cx, cz)) return true;
     let job = this.pending.get(k);
     if (!job) this.pending.set(k, (job = this.steps(cx, cz)));
     while (performance.now() < deadline) {
@@ -163,6 +177,17 @@ export class Heightfield implements TerrainSampler {
   }
 
   private pending = new Map<number, Generator<void, HeightChunk>>();
+
+  /** The chunk from the disk cache (now in `chunks`), if the load read it. */
+  private cached(cx: number, cz: number): HeightChunk | undefined {
+    const a = this.cache?.take<HeightArrays>(`h:${cx},${cz}`);
+    if (!a) return undefined;
+    const c = new HeightChunk(cx, cz, this.cell, a);
+    c.lastUsed = this.frame;
+    this.pending.delete(key(cx, cz));
+    this.chunks.set(key(cx, cz), c);
+    return c;
+  }
 
   /** Chunk generation as a generator: yields after every row. */
   private *steps(cx: number, cz: number): Generator<void, HeightChunk> {
@@ -211,6 +236,12 @@ export class Heightfield implements TerrainSampler {
       yield;
     }
     this.generated++;
+    if (this.cache?.recording)
+      this.cache.put(`h:${cx},${cz}`, {
+        heights: c.heights,
+        normals: c.normals,
+        splat: c.splat,
+      } satisfies HeightArrays);
     return c;
   }
 

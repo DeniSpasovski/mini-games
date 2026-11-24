@@ -8,6 +8,7 @@ import {
 import { mapSeason } from '../maps/shared/climate';
 import { farShadowCaster } from './far-shadow';
 import { CHUNK_CELLS } from './heightfield';
+import type { GenCache } from './gen-cache';
 import type { TerrainGenerator } from './terrain-gen';
 import {
   getTerrainMaterial,
@@ -98,6 +99,8 @@ export class TerrainRenderer {
   /** Released geometries by tile key + LOD (insertion order = least recently released first). */
   private spare = new Map<string, BufferGeometry>();
   private indexCache = new Map<number, BufferAttribute>();
+  /** The load's disk cache of coarse tiles (world/gen-cache.ts); unset: always sampled. */
+  cache?: GenCache;
   private lodDistances: [number, number, number];
   private cs: number;
   /** Chunks inside the map (+ margin): nothing is drawn outside (a merged tile is cut to it, `grid`). */
@@ -222,12 +225,19 @@ export class TerrainRenderer {
         break;
       // Tiles that only split / merge at the same LOD copy their vertices from the tiles they replace.
       let job: Vertices | undefined = w.lod > 0 ? this.reuse(w) : undefined;
+      // A coarse tile the load generated last time (the disk cache, world/gen-cache.ts).
+      const id = `t:${w.cx},${w.cz},${w.span},${w.lod}`;
+      if (!job && w.lod > 0) job = this.cache?.take<Vertices>(id);
       // Generator tiles are sampled a few rows at a time (a 33 x 33 grid takes 1-9 ms on Jackie / Ajvatovci).
+      let sampled = false;
       if (!job && w.lod > 0) {
         job = this.sample(w, deadline);
         if (!job) break;
+        sampled = true;
       }
       this.buildTile(w, job);
+      if (sampled && this.cache?.recording)
+        this.cache.put(id, { pos: job!.pos, nor: job!.nor, spl: job!.spl });
       this.job = null;
       built++;
     }

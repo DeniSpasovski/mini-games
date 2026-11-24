@@ -28,6 +28,12 @@ test('invalid fields fall back to defaults, valid ones are kept', () => {
   expect(s.car).toBe('skoda-rally');
 });
 
+test('the stage cache (disk space) is off unless picked', () => {
+  expect(DEFAULT_SETTINGS.stageCache).toBe(false);
+  expect(sanitizeSettings({ stageCache: 'yes' }).stageCache).toBe(false);
+  expect(sanitizeSettings({ stageCache: true }).stageCache).toBe(true);
+});
+
 test('non-objects give defaults', () => {
   expect(sanitizeSettings(null)).toEqual(DEFAULT_SETTINGS);
   expect(sanitizeSettings('x')).toEqual(DEFAULT_SETTINGS);

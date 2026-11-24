@@ -35,6 +35,9 @@ export interface RallySettings {
   /** Screen-space ambient occlusion (High graphics only): contact darkening in corners, under cars and plants. */
   /** Stored under its own key: an old `ao` was often just the old default, so only a pick made here counts. */
   ambientOcclusion: boolean;
+  /** Keep the data a stage load generates on this device (world/gen-cache.ts): a stage played before loads faster,
+   * at up to a few hundred MB of disk, so off unless picked. */
+  stageCache: boolean;
   /** Last selection in the menu, preselected next time. */
   map: string;
   car: string;
@@ -55,6 +58,7 @@ export const DEFAULT_SETTINGS: RallySettings = {
   renderScale: '100',
   bloom: 'off',
   ambientOcclusion: false,
+  stageCache: false,
   map: '',
   car: '',
   livery: 0,
@@ -136,6 +140,7 @@ export function sanitizeSettings(raw: unknown): RallySettings {
     renderScale: oneOf(o.renderScale, SCALES, d.renderScale),
     bloom: oneOf(o.bloom, BLOOMS, d.bloom),
     ambientOcclusion: bool(o.ambientOcclusion, d.ambientOcclusion),
+    stageCache: bool(o.stageCache, d.stageCache),
     map: typeof o.map === 'string' ? o.map : d.map,
     car: typeof o.car === 'string' ? o.car : d.car,
     livery:

@@ -207,7 +207,7 @@ function gameEnvironment(m: GameManifest): EnvironmentConfig {
  * benchmarked or baking stage cards is never reloaded by file edits (other sessions, tools writing into src/).
  * Reload by hand to pick up changes.
  */
-export default defineConfig(({ envMode }) => ({
+export default defineConfig(({ envMode, command }) => ({
   environments: {
     portal: portalEnvironment,
     ...Object.fromEntries(
@@ -223,6 +223,11 @@ export default defineConfig(({ envMode }) => ({
       __MUSIC_FILES__: JSON.stringify(musicFiles),
       // `npm run build:test` (`--env-mode test`): the published build also offers the TEST cars / maps (release.ts).
       __TEST_BUILD__: JSON.stringify(envMode === 'test'),
+      // New on every production build: the key of the rally's disk cache of generated data (world/gen-cache.ts), so a
+      // changed generator or map never reads an old entry. A dev server's (`dev-` + its start) is off unless asked for.
+      __BUILD_ID__: JSON.stringify(
+        `${command === 'build' ? '' : 'dev-'}${Date.now().toString(36)}`,
+      ),
     },
   },
   output: {
