@@ -1,14 +1,22 @@
 """Bake the terrain tiles of the rally ground (engine/ground/*.webp) from Poly Haven (CC0) scans.
 
-usage: python3 scripts/ground/bake.py <dir with <id>_diff_1k.jpg or <id>.jpg (+ <id>_nor_gl_1k.jpg)> [out dir [tile names]]
+usage: python3 -I scripts/ground/bake.py <dir with <id>/<id>_diff_1k.jpg (+ _nor_gl_1k.jpg, _rough_1k.jpg)> [out dir [tile names]]
+(the scans live in sources/rally/polyhaven/<id>/; a flat dir with <id>_diff_1k.jpg or <id>.jpg works too)
 
 One 512 px tile per layer, the whole scan (its size in metres is `SCAN` in engine/ground-textures.ts). The meadow tiles
 are only a luminance / structure source: the terrain shader tints them to the season's grass colour, so they are
 normalised to one mean brightness and keep a good part of their own colour (straw, green and soil specks: the shader's
 tint scales it, it does not repaint it); soil, gravel, rock and leaves keep their own colour.
 
-With the scan's OpenGL normal map next to it (`<id>_nor_gl_1k.jpg`), each tile also gets `<name>_n.webp`: its normals
-at the same 512 px (x, y in red / green, z in blue), the stones', clumps' and ruts' relief in the near terrain.
+With the scan's roughness map (`<id>_rough_1k.jpg`) the colour tile carries the roughness in its alpha (WebP alpha
+quality 50: ~0.01 off, a quarter smaller than lossless): the scan's own pattern (stone tops smoother than the dust
+between them) moved to the flat terrain's mean (`ROUGH`): the scans' raw values (dry soil 0.5) read as wet plastic
+under a low sun, and any lower mean makes the near ground darker than the far.
+
+With the scan's OpenGL normal map (`<id>_nor_gl_1k.jpg`), each tile also gets `<name>_n.webp`: its normals at the same
+512 px as two grey halves side by side (x left, y right; z is rebuilt by the shader). Grey, because lossy WebP keeps
+luma at full resolution but halves red / green (4:2:0): an RGB normal tile at q85 was ~8-12 degrees off on gravel and
+soil (p99 30-40), the grey pair at q90 ~1.2 (p99 3), at a third of a lossless tile's size.
 """
 import os
 import sys
@@ -46,6 +54,24 @@ TILES = {
 # stones are 1 - 3 px from the chase camera and mip away; the gravel road (world/gravel-road.ts) is this layer too.
 DETAIL = {'gravel': (0.4, 0.03, 2.0)}
 
+# Roughness: tile -> (mean, spread p5..p95). Every mean stays at the flat terrain's (0.96, the shader's value past the
+# relief distance; clipped at 1 the means land at ~0.94): a lower mean (stones 0.84) lost the broad sheen a low sun puts
+# on rough ground and darkened the near ground against the far (a band). Only the scan's pattern varies it: stone tops
+# smoother than the dust between them.
+ROUGH = {
+    'grass_spring': (0.95, 0.08),
+    'grass_summer': (0.95, 0.08),
+    'grass_autumn': (0.95, 0.08),
+    'soil': (0.95, 0.1),
+    'gravel': (0.95, 0.2),
+    'rock': (0.95, 0.2),
+    'litter': (0.95, 0.14),
+    'leaves': (0.95, 0.14),
+    'stubble': (0.95, 0.12),
+    'needles': (0.95, 0.12),
+}
+NORMAL_Q = 90
+
 
 def blur(a, sigma):
     """Gaussian blur of an (h, w, c) array, wrapping round the tile edges."""
@@ -57,12 +83,24 @@ def blur(a, sigma):
     return a
 
 
-def find(src, pid):
-    for name in (f'{pid}_diff_1k.jpg', f'{pid}.jpg'):
-        p = os.path.join(src, name)
-        if os.path.exists(p):
-            return p
-    raise SystemExit(f'missing scan {pid} in {src}')
+def find(src, pid, kind='diff', required=True):
+    names = [f'{pid}_{kind}_1k.jpg'] + ([f'{pid}.jpg'] if kind == 'diff' else [])
+    for d in (os.path.join(src, pid), src):
+        for name in names:
+            p = os.path.join(d, name)
+            if os.path.exists(p):
+                return p
+    if required:
+        raise SystemExit(f'missing scan {pid} in {src}')
+    return None
+
+
+def roughness(path, mean, spread):
+    """The scan's roughness at SZ, its p5..p95 spread scaled to `spread` around `mean` (8 bit)."""
+    r = np.asarray(Image.open(path).convert('L').resize((SZ, SZ), Image.LANCZOS)).astype(np.float32) / 255
+    lo, hi = np.percentile(r, [5, 95])
+    r = mean + (r - r.mean()) * spread / max(hi - lo, 1e-3)
+    return (np.clip(r, 0.5, 1.0) * 255 + 0.5).astype(np.uint8)
 
 
 def srgb_to_lin(a):
@@ -100,14 +138,22 @@ def main():
         if lum is not None:
             a = a * (lum / (a * LUMA).sum(2).mean())
         a = lin_to_srgb(np.clip(a, 0, 1))
-        Image.fromarray((a * 255 + 0.5).astype(np.uint8)).save(os.path.join(out, f'{name}.webp'), quality=80, method=6)
-        print(name, pid, round(float((srgb_to_lin(a) * LUMA).sum(2).mean()), 3))
-        nor = os.path.join(src, f'{pid}_nor_gl_1k.jpg')
-        if os.path.exists(nor):
+        rgb = (a * 255 + 0.5).astype(np.uint8)
+        rough = find(src, pid, 'rough', False)
+        if rough:
+            rgba = np.dstack([rgb, roughness(rough, *ROUGH[name])])
+            Image.fromarray(rgba, 'RGBA').save(os.path.join(out, f'{name}.webp'), quality=80, alpha_quality=50, method=6)
+        else:
+            Image.fromarray(rgb).save(os.path.join(out, f'{name}.webp'), quality=80, method=6)
+        print(name, pid, round(float((srgb_to_lin(a) * LUMA).sum(2).mean()), 3), 'rough' if rough else 'no rough')
+        nor = find(src, pid, 'nor_gl', False)
+        if nor:
             n = np.asarray(Image.open(nor).convert('RGB').resize((SZ, SZ), Image.LANCZOS)).astype(np.float32) / 255 * 2 - 1
             n /= np.maximum(np.linalg.norm(n, axis=2, keepdims=True), 1e-6)
-            n = np.clip(n * 0.5 + 0.5, 0, 1)
-            Image.fromarray((n * 255 + 0.5).astype(np.uint8)).save(os.path.join(out, f'{name}_n.webp'), quality=85, method=6)
+            n = (np.clip(n * 0.5 + 0.5, 0, 1) * 255 + 0.5).astype(np.uint8)
+            Image.fromarray(np.concatenate([n[..., 0], n[..., 1]], axis=1), 'L').save(
+                os.path.join(out, f'{name}_n.webp'), quality=NORMAL_Q, method=6
+            )
 
 
 if __name__ == '__main__':

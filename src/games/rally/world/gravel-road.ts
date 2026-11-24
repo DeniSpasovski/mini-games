@@ -8,11 +8,17 @@ import {
 import {
   GROUND_LAYER,
   GROUND_MEAN,
+  GROUND_PBR,
   GROUND_SCAN,
 } from '../engine/ground-textures';
 import { getTexture } from '../engine/textures';
 import { addWorldUniforms } from '../engine/world-shading';
-import { GRAVEL_SHARP, getTerrainMaterial } from './terrain-material';
+import {
+  GRAVEL_SHARP,
+  GRAVEL_SPEC,
+  RELIEF_FADE,
+  getTerrainMaterial,
+} from './terrain-material';
 
 /**
  * The gravel road is the terrain's own gravel (`engine/ground-textures.ts`, the layer the verge beside it is made of),
@@ -20,7 +26,9 @@ import { GRAVEL_SHARP, getTerrainMaterial } from './terrain-material';
  * (`world/terrain-material.ts`), so road and verge are one surface and no seam shows where they meet. What makes it a
  * road, on the road ribbon: two wheel tracks along the line cars drive (packed: the same stones pressed flat, lower
  * contrast, a little lower), the loose gravel the tyres push aside (a ridge between the tracks and a berm along each edge,
- * coarser), and an edge that thins out into the verge (dithered) instead of ending on a line.
+ * coarser), and an edge that thins out into the verge (dithered) instead of ending on a line. Near the camera the
+ * scan's own normals and roughness (`GROUND_PBR`) as on the verge: the loose stones' tops catch a low sun, the packed
+ * tracks are flatter and fully rough.
  * Texture u runs across the road (0 = right edge, 1 = left edge), v along it (`texLength` metres).
  */
 /** A foot way's trodden tread: about half its width (half-width in u). */
@@ -50,6 +58,9 @@ export const GRAVEL_DEFINES = {
   GR_SOIL_MEAN: GROUND_MEAN.soil.toFixed(4),
   /** Packed wheel tracks: fines pressed flat over the stones, this much darker than the loose gravel. */
   GR_TRACK_TONE: '0.8',
+  ...(GROUND_PBR ? { GR_PBR: 1 } : {}),
+  RELIEF_FADE: RELIEF_FADE.toFixed(2),
+  GRAVEL_SPEC: GRAVEL_SPEC.toFixed(2),
 };
 
 /**
@@ -86,9 +97,11 @@ export function gravelShader(
   addWorldUniforms(shader);
   Object.assign(shader.uniforms, {
     tGround: terrain.tGround,
+    tGroundN: terrain.tGroundN,
     tMacro: { value: getTexture('macro') },
     uRelief: terrain.uRelief,
     uDetail: terrain.uDetail,
+    uScanRelief: terrain.uScanRelief,
   });
   shader.vertexShader = shader.vertexShader
     .replace(
@@ -113,9 +126,11 @@ export function gravelShader(
       '#include <common>',
       `#include <common>
       uniform mediump sampler2DArray tGround;
+      uniform mediump sampler2DArray tGroundN;
       uniform sampler2D tMacro;
       uniform float uRelief;
       uniform float uDetail;
+      uniform float uScanRelief;
       varying vec2 vGWP;
       #ifdef GR_TRACKS
       varying vec3 vGrX;
@@ -128,9 +143,10 @@ export function gravelShader(
         return mix( mix( grHash( i ), grHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( grHash( i + vec2( 0.0, 1.0 ) ), grHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
       }
       // One scan tap by explicit gradients: p world metres, s = 1 / scan size (as the terrain's gTap).
-      vec3 grTap( vec2 p, float s, vec2 dx, vec2 dy ) {
-        return textureGrad( tGround, vec3( p * s, GR_LAYER ), dx * s * GR_SHARP, dy * s * GR_SHARP ).rgb;
+      vec4 grTap4( vec2 p, float s, vec2 dx, vec2 dy ) {
+        return textureGrad( tGround, vec3( p * s, GR_LAYER ), dx * s * GR_SHARP, dy * s * GR_SHARP );
       }
+      vec3 grTap( vec2 p, float s, vec2 dx, vec2 dy ) { return grTap4( p, s, dx, dy ).rgb; }
       // Bump from a screen-space height gradient (the terrain's terrainPerturb).
       vec3 grPerturb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection ) {
         vec3 vSigmaX = normalize( dFdx( surf_pos.xyz ) + vec3( 1e-9 ) );
@@ -147,13 +163,26 @@ export function gravelShader(
       `#include <map_fragment>
       float grH = 0.0;
       float grRut = 0.0;
+      // The scan's roughness (colour alpha) and its normals' height steps along this pixel's screen x / y (GR_PBR).
+      float grRgh = 0.96;
+      vec2 grScanH = vec2( 0.0 );
       {
         vec2 wp = vGWP;
         vec2 dpx = dFdx( wp );
         vec2 dpy = dFdy( wp );
         // The terrain's gravel: the fine tap, and the blurred rotated one at about a third of the scale that breaks up
         // the tiling and is the relief height (the fine tap's derivatives are 2 x 2 pixel noise).
-        vec3 a = grTap( wp, GR_SCALE, dpx, dpy );
+        vec4 a4 = grTap4( wp, GR_SCALE, dpx, dpy );
+        vec3 a = a4.rgb;
+        grRgh = a4.a;
+        #ifdef GR_PBR
+        // The scan's slope (dH/dx, dH/dz) from its normal map, within the relief distance only (the terrain's gSlope).
+        if ( uDetail > 0.0 && length( vViewPosition ) < uDetail ) {
+          vec2 n = textureGrad( tGroundN, vec3( wp * GR_SCALE, GR_LAYER ), dpx * GR_SCALE, dpy * GR_SCALE ).rg * 2.0 - 1.0;
+          vec2 sl = - n / max( sqrt( max( 1.0 - dot( n, n ), 0.0 ) ), 0.35 );
+          grScanH = vec2( dot( sl, dpx ), dot( sl, dpy ) ) * uScanRelief;
+        }
+        #endif
         mat2 R = mat2( 0.8, -0.6, 0.6, 0.8 );
         vec3 b = grTap( R * wp + 31.7, GR_SCALE * 0.31, R * dpx * 6.0, R * dpy * 6.0 );
         float hy = clamp( dot( b, vec3( 0.2126, 0.7152, 0.0722 ) ) / GR_MEAN, 0.0, 3.0 );
@@ -182,6 +211,9 @@ export function gravelShader(
           vec3 earth = mix( soil, mix( soil, packed, 0.6 ) * vec3( 0.86, 0.8, 0.74 ), t ) * vec3( 1.0, 0.92, 0.8 ) * ( GR_MEAN / GR_SOIL_MEAN ) * mix( 0.68, 0.52, t );
           float stones = smoothstep( 0.66, 0.84, 0.7 * grNoise( wp / 0.4 + 9.0 ) + 0.3 * grNoise( wp / 0.12 + 2.0 ) ) * ( 1.0 - 0.8 * t );
           a = mix( earth, a, stones );
+          // Worn earth: soil's matte and flat, the stones keep their own.
+          grRgh = mix( 0.93, grRgh, stones );
+          grScanH *= stones;
           float s = vMapUv.y * 7.0;
           float cell = floor( s / 1.7 );
           float h1 = grHash( vec2( cell, 5.1 ) );
@@ -265,6 +297,8 @@ export function gravelShader(
           float bl = max( dot( b, vec3( 0.2126, 0.7152, 0.0722 ) ), 1e-4 );
           vec3 packed = b * GR_TRACK_TONE * mix( 1.0, clamp( hs * GR_MEAN / bl, 0.5, 1.6 ), 0.35 );
           a = mix( a, packed, rut ) * ( 1.0 + 0.1 * streak * rut );
+          // Pressed flat: the stones' own relief mostly gone in the tracks.
+          grScanH *= 1.0 - 0.7 * rut;
           // Loose gravel the tyres push aside: a low ridge between the tracks and a berm along each edge (vGrX.y = metres
           // to the edge), coarser and a touch lighter (drier) than the road, broken up along it.
           float ridge = 1.0 - smoothstep( 0.18, 0.5, abs( x ) );
@@ -307,6 +341,10 @@ export function gravelShader(
     .replace(
       '#include <roughnessmap_fragment>',
       `#include <roughnessmap_fragment>
+      #ifdef GR_PBR
+      // The loose stones' own roughness near the camera (the terrain's fade): beyond it the flat value.
+      roughnessFactor = mix( roughnessFactor, grRgh, uDetail > 0.0 ? 1.0 - smoothstep( uDetail * RELIEF_FADE, uDetail, length( vViewPosition ) ) : 0.0 );
+      #endif
       // Dry, the packed fines are as matte as the loose stones (fully rough, no sheen against a low sun); wet, glossier.
       roughnessFactor = mix( roughnessFactor, 1.0, grRut ) - 0.6 * wsWet.x * grRut;`,
     )
@@ -315,9 +353,22 @@ export function gravelShader(
       `#include <normal_fragment_maps>
       {
         // No branch: screen-space derivatives are undefined in non-uniform control flow (0 relief = same normal).
-        float grFade = uDetail > 0.0 ? uRelief * ( 1.0 - smoothstep( uDetail * 0.55, uDetail, length( vViewPosition ) ) ) : 0.0;
-        normal = grPerturb( - vViewPosition, normal, vec2( dFdx( grH ), dFdy( grH ) ) * grFade, faceDirection );
+        float grFade = uDetail > 0.0 ? uRelief * ( 1.0 - smoothstep( uDetail * RELIEF_FADE, uDetail, length( vViewPosition ) ) ) : 0.0;
+        normal = grPerturb( - vViewPosition, normal, ( vec2( dFdx( grH ), dFdy( grH ) ) + grScanH ) * grFade, faceDirection );
+        #ifdef GR_PBR
+        // Mean kept: the relief shades by its slope, not darker on average than the flat road past the fade (the terrain's rule).
+        diffuseColor.rgb /= max( dot( normal, nonPerturbedNormal ), 0.6 );
+        #endif
       }`,
+    )
+    .replace(
+      '#include <lights_fragment_end>',
+      `#include <lights_fragment_end>
+      #ifdef GR_PBR
+      // Dry gravel's sheen (see GRAVEL_SPEC); wet, the full reflection.
+      reflectedLight.directSpecular *= mix( GRAVEL_SPEC, 1.0, clamp( wsWet.x, 0.0, 1.0 ) );
+      reflectedLight.indirectSpecular *= mix( GRAVEL_SPEC, 1.0, clamp( wsWet.x, 0.0, 1.0 ) );
+      #endif`,
     );
 }
 

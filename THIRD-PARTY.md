@@ -116,7 +116,7 @@ files are not in the repository).
 
 ### Ground textures (baked into `src/games/rally/engine/ground/`)
 
-CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni), Forest Ground 03 (Rob Tuytel; the pine-needle floor). No credit is required.
+CC0 scans from Poly Haven (colour, normal and roughness maps), resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni), Forest Ground 03 (Rob Tuytel; the pine-needle floor). No credit is required.
 
 ### Rocks (baked into `src/games/rally/assets/builders/rock-models.data.ts` and `src/games/rally/engine/props/`)
 

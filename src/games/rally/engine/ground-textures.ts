@@ -9,6 +9,7 @@ import {
   type Texture,
 } from 'three';
 import { imageTexture } from './image-texture';
+import { urlParam } from './url-param';
 import grassSpringUrl from './ground/grass_spring.webp';
 import grassSummerUrl from './ground/grass_summer.webp';
 import grassAutumnUrl from './ground/grass_autumn.webp';
@@ -89,7 +90,10 @@ const URLS = [
   stubbleUrl,
   needlesUrl,
 ];
-/** The scans' own normal maps (OpenGL: green up the image), same layers: the relief of the near terrain. */
+/**
+ * The scans' own normal maps (OpenGL: +y up the image), same layers: the relief of the near terrain. Each file is x and
+ * y as two grey halves side by side (scripts/ground/bake.py: lossy WebP keeps grey at full resolution, red / green at half).
+ */
 const NORMAL_URLS = [
   grassSpringN,
   grassSummerN,
@@ -104,9 +108,18 @@ const NORMAL_URLS = [
 ];
 const SIZE = 512;
 
+/**
+ * Ground roughness (the colour tiles' alpha) and the gravel road's scan normals: on unless the URL says `groundpbr=0`
+ * (the flat 0.96 roughness and colour-only gravel road relief, for comparison).
+ */
+export const GROUND_PBR = urlParam('groundpbr') !== '0';
+
 let array: DataArrayTexture | undefined;
 let normals: DataArrayTexture | undefined;
-/** The array; layers fill in as their images decode (mid grey until then, and in headless tests). */
+/**
+ * The array; layers fill in as their images decode (mid grey until then, and in headless tests). Alpha = the scan's
+ * roughness (scripts/ground/bake.py `ROUGH`), 0.96 until it decodes.
+ */
 export function groundArray(): DataArrayTexture {
   return (array ??= loadArray(URLS, 110, SRGBColorSpace));
 }
@@ -119,6 +132,9 @@ export function groundNormalArray(): DataArrayTexture {
   return (normals ??= loadArray(NORMAL_URLS, 128, NoColorSpace, 2, 4));
 }
 
+/** Placeholder alpha of the colour array: roughness 0.96, the terrain's flat value. */
+const ROUGH_FILL = 245;
+
 function loadArray(
   urls: string[],
   fill: number,
@@ -127,6 +143,8 @@ function loadArray(
   anisotropy = 8,
 ): DataArrayTexture {
   const data = new Uint8Array(SIZE * SIZE * channels * urls.length).fill(fill);
+  if (channels === 4)
+    for (let i = 3; i < data.length; i += 4) data[i] = ROUGH_FILL;
   const tex = new DataArrayTexture(data, SIZE, SIZE, urls.length);
   if (channels === 2) tex.format = RGFormat;
   tex.colorSpace = colorSpace;
@@ -136,8 +154,10 @@ function loadArray(
   tex.generateMipmaps = true;
   tex.anisotropy = anisotropy;
   tex.needsUpdate = true;
+  // Normal tiles are two grey halves (x | y): twice as wide.
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = SIZE;
+  canvas.width = SIZE * (channels === 2 ? 2 : 1);
+  canvas.height = SIZE;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx || typeof Image === 'undefined') return tex;
   // One upload once every layer has decoded.
@@ -150,19 +170,24 @@ function loadArray(
   ).then(
     (imgs) => {
       const row = SIZE * 4;
+      const w = canvas.width;
       imgs.forEach((img, layer) => {
-        ctx.clearRect(0, 0, SIZE, SIZE);
-        ctx.drawImage(img, 0, 0, SIZE, SIZE);
-        const px = ctx.getImageData(0, 0, SIZE, SIZE).data;
+        ctx.clearRect(0, 0, w, SIZE);
+        ctx.drawImage(img, 0, 0, w, SIZE);
+        const px = ctx.getImageData(0, 0, w, SIZE).data;
         // Array layers are not flipped like canvas textures: v = 0 is the first row.
         for (let y = 0; y < SIZE; y++) {
           const src = (SIZE - 1 - y) * row;
           if (channels === 4)
             data.set(px.subarray(src, src + row), (layer * SIZE + y) * row);
           else
-            for (let x = 0, d = (layer * SIZE + y) * SIZE * 2; x < SIZE; x++) {
-              data[d + x * 2] = px[src + x * 4];
-              data[d + x * 2 + 1] = px[src + x * 4 + 1];
+            for (
+              let x = 0, d = (layer * SIZE + y) * SIZE * 2, s = src * 2;
+              x < SIZE;
+              x++
+            ) {
+              data[d + x * 2] = px[s + x * 4];
+              data[d + x * 2 + 1] = px[s + row + x * 4];
             }
         }
       });

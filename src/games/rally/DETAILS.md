@@ -286,6 +286,12 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   `world/ground-moisture.ts`). `groundTint.shade` darkens the floor under crowns and shuts that share of the sky light out (`CANOPY_FLOOR`,
   `engine/world-shading.ts`). The meadow scans carry the old tile's olive hue so each map's `groundTint` keeps its look. Chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material
   (`world/terrain-material.ts`): no relief, one tap per layer, no specular environment lookup.
+  - Ground PBR (`GROUND_PBR`; `?groundpbr=0` turns it off to compare): each colour tile's alpha is the scan's roughness pattern around the flat
+    terrain's mean (`ROUGH` in the bake); the normal tiles (`<layer>_n.webp`) are x | y as two grey halves (lossy WebP halves red / green, which bent
+    the normals ~10 degrees). Terrain and gravel road use both within the relief distance (`setTerrainDetail`, 45 m on High) and fade to a flat 0.96
+    roughness beyond it. Rule: the near detail must not shift the mean, or a band shows where it fades - the roughness mean stays the flat one, the
+    albedo makes up the light a tilted relief facet loses (`/ dot( normal, nonPerturbedNormal )`) and the fade starts early (`RELIEF_FADE`). Dry
+    gravel keeps half its specular (`GRAVEL_SPEC`, road and verge): the full grazing sheen turned the far road grey against the brown near road. Rebake: `python3 -I scripts/ground/bake.py sources/rally/polyhaven` (scans in `<id>/`, see its `DETAILS.md`).
 - **Effects:** dust, haze and water splash (`game/dust.ts`; sprites fade into the ground or water under them, `floor`), gravel spray as tumbling stones
   (`game/gravel-stones.ts`), splash off wheels in water (`rally-game.ts` `emitSplash`), tyre marks (`game/tyre-marks.ts`) and a contact shadow under the car.
 - **Car lamps** (`CarModel.setBrake(level, reversing)`, `part-materials.ts` `lamp()`, `cars/shared/lamp-halo.ts`): with the lights off a lamp is dark (by day
@@ -492,7 +498,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
     `world/road-mesh.ts`), the loose gravel pushed aside (a ridge between the tracks, a berm along each edge), water standing in the tracks when wet, and an
     edge that thins out into the verge (dithered; the ribbon is opaque and drawn before the terrain, so the terrain under it is not shaded twice). The gravel
     tile is darker and browner than the scan (`GRAVEL_LUM` / `GRAVEL_TINT` in `scripts/ground/bake.py`; `GROUND_MEAN.gravel` follows): compare it with the
-    verge in the map viewer (`along=300&zoom=0.2`) after changing the tile or either shader. The road bed has lumps and dips in the same order as the car's
+    verge in the map viewer (`along=300&zoom=0.2`) after changing the tile or either shader. Near the camera it takes the scan's normals and roughness
+    as the verge does (the packed tracks flatter and fully rough). The road bed has lumps and dips in the same order as the car's
     own bumps (`surfaceBump`, gravel 15 mm).
 - **Road paint** (`RoadDef.markings`): lane lines (solid or dashed) and left / straight arrows as thin meshes over the road
   (`world/road-markings.ts`: `roadPaint` is the pure geometry, `roadMarkingsMesh` the meshes; textures `road_paint`,

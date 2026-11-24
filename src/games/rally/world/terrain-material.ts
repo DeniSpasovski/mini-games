@@ -10,6 +10,7 @@ import { getTexture } from '../engine/textures';
 import {
   GROUND_LAYER,
   GROUND_MEAN,
+  GROUND_PBR,
   GROUND_SCAN,
   groundArray,
   groundNormalArray,
@@ -30,8 +31,10 @@ import type { GroundMoisture } from './ground-moisture';
  * - Grass takes the season's scan (spring / summer / autumn) and the map's tint (`setGroundTint`); fallen leaves and
  *   forest-floor litter lie where the baked canopy texture says there are tree crowns (`wsCanopyCover`); where the
  *   map's pine covers are (`landcover.needles`, the moisture texture's G) that litter is a pine-needle carpet instead.
- * Relief: the blended scans' brightness doubles as a height map (bump from screen-space derivatives, faded out by
- * ~90 m) so a low sun picks out stones and leaves.
+ * Relief: the blended scans' brightness doubles as a height map (bump from screen-space derivatives, faded out within
+ * the relief distance `uDetail`) so a low sun picks out stones and leaves, plus the scans' own normal maps; roughness
+ * is the scans' own (the colour array's alpha: stone tops smoother than the dust), blended like the colour and faded to
+ * a flat 0.96 with the relief (`GROUND_PBR`, off with `?groundpbr=0`).
  * Weight the four channels leave unused (sum < 1) is drawn as ripe crop (wheat fields, stubble scan).
  * Grass moisture: lusher green in hollows / by water, straw on ridges and steep slopes (`setGroundMoisture`, a
  * baked map texture + the vertex normal + slow macro noise so flat land is not one colour either).
@@ -63,6 +66,16 @@ NEUTRAL_MOISTURE.needsUpdate = true;
  * stones, clumps and ruts throw their small shadows instead of the ground reading as a printed photo.
  */
 const SCAN_RELIEF = 1;
+/**
+ * Where the relief (and the scans' roughness) starts to fade, as a share of the detail distance: an early, long fade
+ * (`GROUND_PBR`) instead of the last 45 % of it, so the near detail does not end in a band.
+ */
+export const RELIEF_FADE = GROUND_PBR ? 0.2 : 0.55;
+/**
+ * Specular left on dry gravel (`GROUND_PBR`; wet, all of it). The full GGX sheen at grazing angles was half the light of
+ * the gravel road 50 m out and a quarter of it at the car: the far road read grey and light, the near brown and dark.
+ */
+export const GRAVEL_SPEC = 0.5;
 /**
  * `far`: the coarse tiles (no second taps, relief or specular). `holes`: the near tiles a culvert end stands on
  * (`setCulvertHoles`); only they carry the `discard`, which costs every other near tile its early depth test.
@@ -117,6 +130,9 @@ export function getTerrainMaterial(
     RALLY_GROUND: 1,
     ...(far ? { TERRAIN_FAR: 1 } : {}),
     ...(holes && !far ? { TERRAIN_HOLES: 1 } : {}),
+    ...(GROUND_PBR ? { GROUND_PBR: 1 } : {}),
+    RELIEF_FADE: RELIEF_FADE.toFixed(2),
+    GRAVEL_SPEC: GRAVEL_SPEC.toFixed(2),
     HB_K: '0.15',
     MEADOW_HUE: 'vec3(1.11, 1.03, 0.38)',
     HB_D: '0.25',
@@ -199,10 +215,14 @@ export function getTerrainMaterial(
           return normalize( abs( fDet ) * surf_norm - vGrad + surf_norm * 1e-6 );
         }
         // One scan tap by explicit gradients (so layers can be skipped in a branch): p world metres, s = 1 / scan size.
-        vec3 gTap( float layer, vec2 p, float s, vec2 dx, vec2 dy ) {
+        // rgb colour, a roughness.
+        vec4 gTap4( float layer, vec2 p, float s, vec2 dx, vec2 dy ) {
           float sharp = layer == GY_GRAVEL ? GS_SHARP : 1.0;
-          return textureGrad( tGround, vec3( p * s, layer ), dx * s * sharp, dy * s * sharp ).rgb;
+          return textureGrad( tGround, vec3( p * s, layer ), dx * s * sharp, dy * s * sharp );
         }
+        vec3 gTap( float layer, vec2 p, float s, vec2 dx, vec2 dy ) { return gTap4( layer, p, s, dx, dy ).rgb; }
+        // Roughness of the last \`gVar\` (its near tap's alpha).
+        float gRgh = 0.96;
         // Slope (dH/dx, dH/dz, world) of a scan's surface from its normal map (OpenGL: green = +v = +z here).
         vec2 gSlope( float layer, vec2 p, float s, vec2 dx, vec2 dy ) {
           vec2 n = textureGrad( tGroundN, vec3( p * s, layer ), dx * s, dy * s ).rg * 2.0 - 1.0;
@@ -213,7 +233,9 @@ export function getTerrainMaterial(
         // height in the blend), y the blurred tap (the relief: derivatives of the fine one are 2 x 2 pixel noise).
         // near: 1 within the detail distance (uDetail), 0 beyond it: the second tap is only taken where near > 0.
         vec3 gVar( float layer, vec2 p, float s, float ml, vec2 dx, vec2 dy, float near, out vec2 hh ) {
-          vec3 a = gTap( layer, p, s, dx, dy );
+          vec4 a4 = gTap4( layer, p, s, dx, dy );
+          gRgh = a4.a;
+          vec3 a = a4.rgb;
           hh = vec2( clamp( dot( a, vec3( 0.2126, 0.7152, 0.0722 ) ) / ml, 0.5, 1.5 ), 1.0 );
           #ifndef TERRAIN_FAR
           if ( near > 0.0 ) {
@@ -248,10 +270,33 @@ export function getTerrainMaterial(
         `#include <normal_fragment_maps>
         #ifndef TERRAIN_FAR
         // No branch: screen-space derivatives are undefined in non-uniform control flow (0 relief = same normal).
-        float reliefFade = uDetail > 0.0 ? uRelief * ( 1.0 - smoothstep( uDetail * 0.55, uDetail, length( vWPos - cameraPosition ) ) ) : 0.0;
+        float reliefFade = uDetail > 0.0 ? uRelief * ( 1.0 - smoothstep( uDetail * RELIEF_FADE, uDetail, length( vWPos - cameraPosition ) ) ) : 0.0;
         // + the scans' own relief: their slope (world) taken along this pixel's screen steps.
         vec2 scanH = vec2( dot( terrainSlope, dpx ), dot( terrainSlope, dpy ) ) * uScanRelief;
         normal = terrainPerturb( - vViewPosition, normal, ( vec2( dFdx( terrainH ), dFdy( terrainH ) ) + scanH ) * reliefFade, faceDirection );
+        #ifdef GROUND_PBR
+        // Relief only adds light and shade by its slope: a facet tilted by t gets cos(t) of the overhead light, so the
+        // bumped ground averaged darker than the flat ground past the fade (a dark band near the car). The albedo makes it up.
+        diffuseColor.rgb /= max( dot( normal, nonPerturbedNormal ), 0.6 );
+        #endif
+        #endif`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+        #if defined( GROUND_PBR ) && !defined( TERRAIN_FAR )
+        // The scans' roughness, faded with the relief: beyond it the stones are sub-pixel and the flat value stands in.
+        roughnessFactor = mix( roughnessFactor, terrainRough, uDetail > 0.0 ? 1.0 - smoothstep( uDetail * RELIEF_FADE, uDetail, length( vWPos - cameraPosition ) ) : 0.0 );
+        #endif`,
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        #ifdef GROUND_PBR
+        // Dry gravel's sheen (GRAVEL_SPEC), by the gravel's share of the blend: the verge as the gravel road beside it.
+        float gSpec = mix( 1.0, mix( GRAVEL_SPEC, 1.0, clamp( wsWet.x, 0.0, 1.0 ) ), wb.w );
+        reflectedLight.directSpecular *= gSpec;
+        reflectedLight.indirectSpecular *= gSpec;
         #endif`,
       )
       .replace(
@@ -310,6 +355,8 @@ export function getTerrainMaterial(
         float rG = 0.12, rD = 0.35, rR = 0.5, rV = 0.5, rL = 0.4, rC = 0.1;
         // The scans' own surface slopes (normal maps), near the camera only.
         vec2 sG = vec2(0.0), sD = vec2(0.0), sR = vec2(0.0), sV = vec2(0.0), sL = vec2(0.0), sC = vec2(0.0);
+        // The scans' roughness per layer (\`gRgh\` after its \`gVar\`).
+        float kG = 0.96, kD = 0.96, kR = 0.96, kV = 0.96, kL = 0.96, kC = 0.96;
         vec2 h = vec2(1.0);
         // Second taps (tiling breakup, relief, fresh leaves) only within uDetail m (0 = never: medium / low quality).
         #ifdef TERRAIN_FAR
@@ -322,6 +369,7 @@ export function getTerrainMaterial(
         float wCut = max(0.02, max(max(max(w.x, w.y), max(w.z, w.w)), max(lit, crop)) - 0.5);
         if (w.x > wCut) {
           cGrass = gVar(uGroundLook.x, wp, 1.0 / uGroundLook.y, GM_GRASS, dpx, dpy, near, h);
+          kG = gRgh;
           #ifndef TERRAIN_FAR
           if (near > 0.0) sG = gSlope(uGroundLook.x, wp, 1.0 / uGroundLook.y, dpx, dpy);
           #endif
@@ -350,6 +398,7 @@ export function getTerrainMaterial(
         }
         if (w.y > wCut) {
           cDirt = gVar(GY_SOIL, wp, GS_SOIL, GM_SOIL, dpx, dpy, near, h);
+          kD = gRgh;
           #ifndef TERRAIN_FAR
           if (near > 0.0) sD = gSlope(GY_SOIL, wp, GS_SOIL, dpx, dpy);
           #endif
@@ -359,6 +408,7 @@ export function getTerrainMaterial(
         }
         if (w.z > wCut) {
           cRock = gVar(GY_ROCK, wp, GS_ROCK, GM_ROCK, dpx, dpy, near, h);
+          kR = gRgh;
           #ifndef TERRAIN_FAR
           if (near > 0.0) sR = gSlope(GY_ROCK, wp, GS_ROCK, dpx, dpy);
           #endif
@@ -367,6 +417,7 @@ export function getTerrainMaterial(
         }
         if (w.w > wCut) {
           cGravel = gVar(GY_GRAVEL, wp, GS_GRAVEL, GM_GRAVEL, dpx, dpy, near, h);
+          kV = gRgh;
           #ifndef TERRAIN_FAR
           if (near > 0.0) sV = gSlope(GY_GRAVEL, wp, GS_GRAVEL, dpx, dpy);
           #endif
@@ -386,6 +437,7 @@ export function getTerrainMaterial(
           // fine noise where they mix, so a patch edge reads as needles strewn over the leaves.
           bool isN = needle > texture2D(tMacro, wp * 0.71 + 0.37).r;
           cLit = gVar(isN ? GY_NEEDLES : GY_LITTER, wp, isN ? GS_NEEDLES : GS_LITTER, isN ? GM_NEEDLES : GM_LITTER, dpx, dpy, near, h);
+          kL = gRgh;
           #ifndef TERRAIN_FAR
           if (near > 0.0) sL = gSlope(isN ? GY_NEEDLES : GY_LITTER, wp, isN ? GS_NEEDLES : GS_LITTER, dpx, dpy);
           #endif
@@ -401,6 +453,7 @@ export function getTerrainMaterial(
         }
         if (crop > wCut) {
           float sl = dot(gVar(GY_STUBBLE, wp, GS_STUBBLE, GM_STUBBLE, dpx, dpy, near, h), LUMA) / 0.09;
+          kC = gRgh;
           #ifndef TERRAIN_FAR
           if (near > 0.0) sC = gSlope(GY_STUBBLE, wp, GS_STUBBLE, dpx, dpy);
           #endif
@@ -432,6 +485,7 @@ export function getTerrainMaterial(
         // Centred on each layer's scale (rX - its default): the scales differ per layer, so their vertex-weighted sum is a slope
         // across every splat transition that changes with each triangle: a one-pixel line along the triangle edges (at the road side).
         vec2 terrainSlope = (sG * wb.x + sD * wb.y + sR * wb.z + sV * wb.w + sL * wbL + sC * wbC) * near;
+        float terrainRough = kG * wb.x + kD * wb.y + kR * wb.z + kV * wb.w + kL * wbL + kC * wbC;
         float terrainH = ((rG - 0.12) * w.x + (rD - 0.35) * w.y + (rR - 0.5) * w.z + (rV - 0.5) * w.w + (rL - 0.4) * lit + (rC - 0.1) * crop) * 4.0;
         #endif
         `,
@@ -439,10 +493,10 @@ export function getTerrainMaterial(
   };
   mat.customProgramCacheKey = () =>
     far
-      ? 'rally-terrain-far-v10'
+      ? 'rally-terrain-far-v12'
       : holes
-        ? 'rally-terrain-holes-v16'
-        : 'rally-terrain-v16';
+        ? 'rally-terrain-holes-v18'
+        : 'rally-terrain-v18';
   if (far) sharedFar = mat;
   else if (holes) sharedHoles = mat;
   else shared = mat;
