@@ -538,6 +538,29 @@ describe('vodno car park surroundings', () => {
     }
   });
 
+  test('the Vidikovec bays are one even row on its asphalt, square to the north kerb (the aerial photos)', () => {
+    const bays = VIDIKOVEC.bays!;
+    const { a, b } = bays.row!;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const [ux, uz] = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+    const { x: sx, z: sz } = VIDIKOVEC.site;
+    const count = Math.floor(len / bays.pitch + 1e-6);
+    expect(count).toBeGreaterThanOrEqual(10);
+    for (let k = 0; k <= count; k++) {
+      const [px, pz] = [a[0] + ux * k * bays.pitch, a[1] + uz * k * bays.pitch];
+      // the back end 0.3-0.5 m inside the kerb, the front end on the asphalt (south of the row)
+      expect(onLot(VIDIKOVEC, sx + px - uz * 0.3, sz + pz + ux * 0.3)).toBe(
+        true,
+      );
+      expect(onLot(VIDIKOVEC, sx + px + uz * 0.5, sz + pz - ux * 0.5)).toBe(
+        false,
+      );
+      expect(
+        onLot(VIDIKOVEC, sx + px - uz * bays.depth, sz + pz + ux * bays.depth),
+      ).toBe(true);
+    }
+  });
+
   test("the hikers' lot asphalt runs out to the stage road through its mouth (the aerial photos)", () => {
     expect(TRAIL.mouth).toBe(true);
     const [x, z] = toWorld(TRAIL.site, ...TRAIL.centre[0]);
