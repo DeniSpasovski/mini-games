@@ -70,6 +70,9 @@ interface UnderField {
 
 /** City street space further than this (m) from a drawn surface lies on the land (nearer, it blends to the roads). */
 const UNDER_BLEND = 8;
+/** Over the land (a street's grass verge the survey paves, the land past UNDER_BLEND) the paving lies this far up (m):
+ * level with it, the two would flicker. */
+const UNDER_LAND_LIFT = 0.04;
 /** City street space under a drawn road / sidewalk / junction / plaza: this far below its top (m). */
 export const ROAD_UNDER = 0.1;
 
@@ -99,6 +102,10 @@ const UNDER_DROP = 1.5;
 const UNDER_PLAZA = 3.5;
 /** A survey plaza under a street end overlapping it: this far below the street's pavement (m). */
 export const PLAZA_UNDER = 0.03;
+/** A survey plaza under a street running onto it: this far below the street's pavement (m; any less and the two fight). */
+const PLAZA_UNDER_STREET = 0.06;
+/** ... from this far in from the street's pavement edge (m). */
+const STREET_EDGE = 0.5;
 /** A trench road within this of a plaza's level runs at grade through it (m; `plazaField`'s state 3 test). */
 const PLAZA_GRADE = 1;
 /** At grade, the plaza paving runs this far in under a road's pavement edge (m). */
@@ -353,9 +360,11 @@ export class NetField {
         }
         const pd = this.plazaPaving(x, z);
         let t = this.top(x, z);
+        // (down to a street under a deck - never into a bore under its roof slab: the street space is on the slab)
+        const slab = this.slabAt(x, z);
         for (let n = 0; t && n < 4; n++) {
           const lower = this.top(x, z, t.h - 1.5);
-          if (!lower) break;
+          if (!lower || (slab !== undefined && lower.h < slab - 1.5)) break;
           t = lower;
         }
         const y = pd ?? t?.h;
@@ -458,7 +467,12 @@ export class NetField {
       const k = (j + dj) * f.nx + i + di;
       const st = f.state[k];
       if (st === 0 || st === 3) continue;
-      a += (st === 4 ? f.h[k] - ROAD_UNDER : f.h[k]) * wt;
+      a +=
+        (st === 4
+          ? f.h[k] - ROAD_UNDER
+          : st === 2
+            ? f.h[k] + UNDER_LAND_LIFT
+            : f.h[k]) * wt;
       wsum += wt;
     }
     return wsum < 0.3 ? undefined : a / wsum;
@@ -758,7 +772,7 @@ export class NetField {
   }
 
   /** The pavement height of a street (not in the trench) at (x, z) where it runs onto a survey plaza, else undefined. */
-  streetOnPlaza(x: number, z: number): number | undefined {
+  streetOnPlaza(x: number, z: number, inset = 0): number | undefined {
     let best: number | undefined;
     for (const [wi, p] of this.nearestFoot(x, z)) {
       const w = this.net.ways[wi];
@@ -766,7 +780,8 @@ export class NetField {
         continue;
       // (only its paved length: a street wholly inside the plaza is the plaza's)
       if (p.s < w.cut0 || p.s > w.al.length - w.cut1) continue;
-      if (Math.abs(p.t) > (p.t >= 0 ? w.sec.paveL : w.sec.paveR)) continue;
+      if (Math.abs(p.t) > (p.t >= 0 ? w.sec.paveL : w.sec.paveR) - inset)
+        continue;
       const h = this.net.surfaceAt(w, p.i, p.f, p.t);
       if (best === undefined || h < best) best = h;
     }
@@ -934,6 +949,16 @@ export class NetField {
   plazaPaving(x: number, z: number): number | undefined {
     const h = this.plazaDrawn(x, z, PLAZA_UNDER);
     if (h === undefined) return undefined;
+    return this.underStreet(x, z, h);
+  }
+
+  /**
+   * Plaza paving height h at (x, z) kept under a street running onto the plaza: PLAZA_UNDER_STREET under its pavement,
+   * only PLAZA_UNDER along its edge (the plaza paving beside the street dips no lower than that).
+   */
+  underStreet(x: number, z: number, h: number): number {
+    const inner = this.streetOnPlaza(x, z, STREET_EDGE);
+    if (inner !== undefined) return Math.min(h, inner - PLAZA_UNDER_STREET);
     const st = this.streetOnPlaza(x, z);
     return st === undefined ? h : Math.min(h, st - PLAZA_UNDER);
   }

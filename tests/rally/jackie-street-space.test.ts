@@ -64,6 +64,12 @@ const top = new Map<string, number>();
 const byMat = new Map<string, Set<string>>();
 /** Paint on 0.25 m cells. */
 const fine = new Set<string>();
+/** Every drawn paving level per cell (a road under a deck too), and the paint's triangles (x, y, z x 3). */
+const levels = new Map<string, number[]>();
+const levelIds = new Map<string, string[]>();
+const paintTris: number[][] = [];
+/** Plaza / street space paving triangles standing up over 1 m (a sheet hanging into the trench like a wall). */
+const standUp: string[] = [];
 group.updateMatrixWorld(true);
 const meshes: Mesh[] = [];
 group.traverse((o) => {
@@ -90,6 +96,56 @@ for (const o of meshes) {
     const cx = pos.getX(c);
     const cz = pos.getZ(c);
     const det = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+    if (
+      id === 'paint' &&
+      Math.max(ax, bx, cx) >= sb[0] &&
+      Math.min(ax, bx, cx) <= sb[1] &&
+      Math.max(az, bz, cz) >= sb[2] &&
+      Math.min(az, bz, cz) <= sb[3]
+    )
+      paintTris.push([
+        ax,
+        pos.getY(a),
+        az,
+        bx,
+        pos.getY(b),
+        bz,
+        cx,
+        pos.getY(c),
+        cz,
+      ]);
+    // (the paving, not its kerb or skirt faces nor a sliver along a slope: no area seen from above)
+    if (
+      id !== 'paint' &&
+      id !== 'kerb' &&
+      id !== 'part' &&
+      Math.abs(det) > 0.2 &&
+      Math.max(ax, bx, cx) >= sb[0] &&
+      Math.min(ax, bx, cx) <= sb[1] &&
+      Math.max(az, bz, cz) >= sb[2] &&
+      Math.min(az, bz, cz) <= sb[3]
+    ) {
+      const ya = pos.getY(a);
+      const yb = pos.getY(b);
+      const yc = pos.getY(c);
+      // (more than 1 m tall and steeper than 60 degrees: a ramp's long triangle is neither)
+      const ux = bx - ax;
+      const uy = yb - ya;
+      const uz = bz - az;
+      const vx = cx - ax;
+      const vy = yc - ya;
+      const vz = cz - az;
+      const ny = uz * vx - ux * vz;
+      const nl = Math.hypot(uy * vz - uz * vy, ny, ux * vy - uy * vx);
+      if (
+        Math.max(ya, yb, yc) - Math.min(ya, yb, yc) > 1 &&
+        Math.abs(ny) < 0.45 * nl
+      )
+        standUp.push(
+          `${id} ${((ax + bx + cx) / 3).toFixed(0)},${((az + bz + cz) / 3).toFixed(0)}` +
+            ` [${[ax, ya, az, bx, yb, bz, cx, yc, cz].map((v) => v.toFixed(2)).join(',')}]`,
+        );
+    }
     if (Math.abs(det) < 1e-6) continue; // (a wall or kerb face)
     if (Math.max(ax, bx, cx) < sb[0] || Math.min(ax, bx, cx) > sb[1]) continue;
     if (Math.max(az, bz, cz) < sb[2] || Math.min(az, bz, cz) > sb[3]) continue;
@@ -133,6 +189,12 @@ for (const o of meshes) {
         if (id === 'paint' || id === 'kerb' || id === 'part') continue;
         const y = l1 * pos.getY(a) + l2 * pos.getY(b) + l3 * pos.getY(c);
         if (y > (top.get(k) ?? -Infinity)) top.set(k, y);
+        const lv = levels.get(k);
+        if (lv) lv.push(y);
+        else levels.set(k, [y]);
+        const li = levelIds.get(k);
+        if (li) li.push(id);
+        else levelIds.set(k, [id]);
       }
   }
 }
@@ -238,13 +300,17 @@ describe('jackie 2: street space self-checks', () => {
 
   test('b. no land above the paving, nothing raised on real roadbed', () => {
     let above = 0;
+    const aboveAt: string[] = [];
     let n = 0;
     for (const [k, c] of space) {
       const y = top.get(k);
       if (y === undefined || overCut(c)) continue;
       n++;
       // (within the terrain mesh's own sampling of it: 0.1 m)
-      if (world.gen.height(c.x, c.z) > y + 0.1) above++;
+      if (world.gen.height(c.x, c.z) > y + 0.1) {
+        above++;
+        if (aboveAt.length < 12) aboveAt.push(k);
+      }
     }
     const island = mat('island');
     const walk = mat('sidewalk');
@@ -256,7 +322,7 @@ describe('jackie 2: street space self-checks', () => {
       if (walk.has(k)) walkOnRoad++;
     }
     report(
-      `[jackie2 street] land above paving: ${above} of ${n} cells; raised island on real roadbed ${raised} m2,` +
+      `[jackie2 street] land above paving: ${above} of ${n} cells (${aboveAt.join(' ')}); raised island on real roadbed ${raised} m2,` +
         ` sidewalk paving on real roadbed ${walkOnRoad} m2`,
     );
     // (two cells by the stage's cut edge west of the Kew end, 0.3 m: the paving's clip line)
@@ -345,5 +411,116 @@ describe('jackie 2: street space self-checks', () => {
       `[jackie2 street] stage barriers 6600-7570: ${out.join('; ')}; ${unexpected} gaps away from a junction`,
     );
     expect(unexpected).toBe(0);
+  });
+
+  test('j. no two paving surfaces fighting at one height (speckled, torn-looking paving)', () => {
+    let fight = 0;
+    const at: string[] = [];
+    for (const [k, lv] of levels) {
+      if (lv.length < 2 || !space.has(k)) continue;
+      const s = [...lv].sort((a, b) => a - b);
+      // (the same surface from two triangles of one mesh meets itself: 0; a surface laid under another: >= 0.05)
+      if (
+        s.some((h, i) => i > 0 && h - s[i - 1] > 0.002 && h - s[i - 1] < 0.04)
+      ) {
+        fight++;
+        if (at.length < 10) at.push(k);
+      }
+    }
+    report(
+      `[jackie2 street] surfaces within 4 cm of each other: ${fight} m2 (${at.join(' ')})`,
+    );
+    if (process.env.JACKIE_CELLS)
+      writeFileSync(
+        `${process.env.JACKIE_CELLS}.fight`,
+        JSON.stringify(
+          [...levels]
+            .filter(([k, lv]) => {
+              if (lv.length < 2 || !space.has(k)) return false;
+              const s = [...lv].sort((a, b) => a - b);
+              return s.some(
+                (h, i) => i > 0 && h - s[i - 1] > 0.002 && h - s[i - 1] < 0.04,
+              );
+            })
+            .map(([k, lv]) => [
+              ...k.split(',').map(Number),
+              ...lv.map((h, i) => `${levelIds.get(k)?.[i]}:${h.toFixed(3)}`),
+            ]),
+        ),
+      );
+  });
+
+  test('l. no paving stands up (a sheet from the rim down to the trench floor)', () => {
+    // (the plaza and street space paving; a road's own ribbon reported beside it)
+    const street = standUp.filter((t) =>
+      /^(junction|sidewalk|island) /.test(t),
+    );
+    const roads = standUp.length - street.length;
+    report(
+      `[jackie2 street] plaza / street space paving standing up: ${street.length} (${street.slice(0, 4).join('; ')});` +
+        ` road ribbons ${roads} (${standUp
+          .filter((t) => !street.includes(t))
+          .map((t) => t.split(' [')[0])
+          .slice(0, 3)
+          .join('; ')})`,
+    );
+    if (process.env.JACKIE_CELLS)
+      writeFileSync(`${process.env.JACKIE_CELLS}.stand`, standUp.join('\n'));
+    expect(street.length).toBe(0);
+  });
+
+  test('i. the paint lies on the paving: flat, within reach of a drawn surface under it', () => {
+    let steep = 0;
+    let off = 0;
+    const offAt: number[][] = [];
+    const steepAt: number[][] = [];
+    const where: string[] = [];
+    for (const t of paintTris) {
+      const ux = t[3] - t[0];
+      const uy = t[4] - t[1];
+      const uz = t[5] - t[2];
+      const vx = t[6] - t[0];
+      const vy = t[7] - t[1];
+      const vz = t[8] - t[2];
+      const nx = uy * vz - uz * vy;
+      const ny = uz * vx - ux * vz;
+      const nz = ux * vy - uy * vx;
+      const len = Math.hypot(nx, ny, nz);
+      if (len < 1e-9) continue;
+      // (a line up a ramp is fine; a strip standing up over a kerb or a slab edge is not)
+      if (
+        Math.abs(ny) / len < 0.8 &&
+        Math.max(t[1], t[4], t[7]) - Math.min(t[1], t[4], t[7]) > 0.1
+      ) {
+        steep++;
+        if (where.length < 8)
+          where.push(`${t[0].toFixed(0)},${t[2].toFixed(0)}`);
+        if (process.env.JACKIE_CELLS) steepAt.push(t.map((v) => +v.toFixed(2)));
+        continue;
+      }
+      const cx = (t[0] + t[3] + t[6]) / 3;
+      const cy = (t[1] + t[4] + t[7]) / 3;
+      const cz = (t[2] + t[5] + t[8]) / 3;
+      const lv = levels.get(`${Math.floor(cx)},${Math.floor(cz)}`);
+      if (lv && !lv.some((h) => cy - h > -0.15 && cy - h < 0.2)) {
+        off++;
+        offAt.push([
+          Math.round(cx),
+          Math.round(cz),
+          +cy.toFixed(2),
+          ...lv.map((h) => +h.toFixed(2)),
+        ]);
+      }
+    }
+    report(
+      `[jackie2 street] paint: ${paintTris.length} triangles, ${steep} standing up (${where.join(' ')}), ${off} not on a` +
+        ` drawn surface`,
+    );
+    if (process.env.JACKIE_CELLS)
+      writeFileSync(
+        `${process.env.JACKIE_CELLS}.paint`,
+        JSON.stringify({ offAt, steepAt }),
+      );
+    expect(steep).toBe(0);
   });
 });
