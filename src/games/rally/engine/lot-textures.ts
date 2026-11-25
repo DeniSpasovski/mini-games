@@ -30,6 +30,7 @@ export type LotTextureId =
   | 'lot_rubble'
   | 'lot_roof_tiles'
   | 'lot_brick'
+  | 'lot_brick_pale'
   | 'lot_rust_post';
 
 export interface LotTexDef {
@@ -983,6 +984,48 @@ export const LOT_DEFS: Record<LotTextureId, LotTexDef> = {
       grain(ctx, w, h, 844, 0.16);
       streaks(ctx, w, h, 845, 22, 0.05);
       grit(ctx, w, h, 846, 5000, 0.08);
+    },
+  },
+  lot_brick_pale: {
+    // 2 m x 2 m. Modular face brick in running bond, as on New York apartment blocks: 10 bricks (20 cm pitch) x 30
+    // courses (6.7 cm), each brick its own tone (a few darker fired ones), recessed mortar joints a little paler, light
+    // grime. Near white: the vertex colour gives each building its brick (red-brown, liver, buff, tan).
+    name: 'Lot: pale face brick (tinted per building, 2 m)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      const courses = 30;
+      const across = 10;
+      const ch = h / courses;
+      const bw = w / across;
+      ctx.fillStyle = 'rgb(226,224,218)';
+      ctx.fillRect(0, 0, w, h);
+      for (let row = 0; row < courses; row++) {
+        const y = row * ch;
+        const shift = (row % 2) * bw * 0.5;
+        for (let col = -1; col < across; col++) {
+          const x = col * bw + shift;
+          const r = hash3(col + across * 4, row, 3, 851) / 4294967296;
+          const dark = hash3(col + across * 4, row, 7, 852) % 9 === 0;
+          const tone = (dark ? 0.74 : 0.86) + 0.16 * r;
+          const warm = 0.97 + 0.05 * (hash3(col, row, 11, 853) / 4294967296);
+          const rgb = [218 * tone * warm, 208 * tone, (200 * tone) / warm];
+          for (const ox of [0, -w, w]) {
+            const bx = x + ox;
+            if (bx + bw < 0 || bx > w) continue;
+            ctx.fillStyle = `rgb(${rgb.map((v) => Math.min(255, v)).join(',')})`;
+            ctx.fillRect(bx + 2, y + 1.6, bw - 3.5, ch - 3.2);
+            // Lit top edge, shaded bottom edge: the joints read recessed.
+            ctx.fillStyle = 'rgba(255,250,240,0.14)';
+            ctx.fillRect(bx + 2, y + 1.6, bw - 3.5, 1.2);
+            ctx.fillStyle = 'rgba(30,20,10,0.22)';
+            ctx.fillRect(bx + 2, y + ch - 3.2, bw - 3.5, 1.6);
+          }
+        }
+      }
+      grain(ctx, w, h, 854, 0.14);
+      streaks(ctx, w, h, 855, 26, 0.06);
+      grit(ctx, w, h, 856, 5000, 0.08);
     },
   },
 };

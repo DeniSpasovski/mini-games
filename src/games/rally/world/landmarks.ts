@@ -1,5 +1,6 @@
 import type { Group } from 'three';
 import { hilltopLandmark } from '../maps/ajvatovci/hilltop';
+import { kewBuildingsLandmark } from '../maps/jackie-2/landmarks/kew-blocks';
 import { startRowLandmark } from '../maps/ajvatovci/start-row';
 import { stationLandmark } from '../maps/ajvatovci/station';
 import { propertiesLandmark } from '../maps/petralica/properties';
@@ -53,6 +54,7 @@ const REGISTRY: Record<string, Landmark> = {
   [hilltopLandmark.id]: hilltopLandmark,
   [stationLandmark.id]: stationLandmark,
   [propertiesLandmark.id]: propertiesLandmark,
+  [kewBuildingsLandmark.id]: kewBuildingsLandmark,
   ...Object.fromEntries(VODNO_LANDMARKS.map((l) => [l.id, l])),
 };
 
