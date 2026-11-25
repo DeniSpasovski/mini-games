@@ -6,6 +6,7 @@ import type { NetField } from './field';
 import {
   BARRIER_OFF,
   barrierPlan,
+  hallLane,
   JERSEY_END,
   JERSEY_H,
   PARAPET_H,
@@ -24,6 +25,7 @@ import {
   WALL_FILL,
   WALL_NONE,
   type Way,
+  wallOff,
   worldT,
 } from './network';
 
@@ -272,11 +274,15 @@ export function netColliders(net: Network, field: NetField): StaticCollider[] {
     w: Way,
     s0: number,
     s1: number,
-    t: number,
+    tAt: number | ((i: number) => number),
     h: number,
     thick: number,
     base: (fr: Fr) => number,
   ) => {
+    const lt = (fr: Fr) => {
+      const t = typeof tAt === 'number' ? tAt : tAt(fr.i);
+      return worldT(w, fr.i, fr.f, t);
+    };
     for (let s = s0; s < s1 - 0.01; s += 3) {
       const e = Math.min(s1, s + 3);
       const a = frameAt(w, s);
@@ -284,16 +290,16 @@ export function netColliders(net: Network, field: NetField): StaticCollider[] {
       const y = Math.min(base(a), base(b)) - 0.1;
       // never solid through another road's pavement (a bore wall's end under the parkway above it): any pavement of
       // another way from the piece's foot up to its top
-      const tm = worldT(w, a.i, a.f, t);
+      const tm = lt(a);
       const mx = (a.x + b.x) / 2 + ((a.tz + b.tz) / 2) * tm;
       const mz = (a.z + b.z) / 2 - ((a.tx + b.tx) / 2) * tm;
       if (field.pavedByOther(mx, mz, y + h / 2, w, 0.3, h / 2 + 0.6)) continue;
       push(
         boxAlong(
-          a.x + a.tz * worldT(w, a.i, a.f, t),
-          a.z - a.tx * worldT(w, a.i, a.f, t),
-          b.x + b.tz * worldT(w, b.i, b.f, t),
-          b.z - b.tx * worldT(w, b.i, b.f, t),
+          a.x + a.tz * lt(a),
+          a.z - a.tx * lt(a),
+          b.x + b.tz * lt(b),
+          b.z - b.tx * lt(b),
           y,
           h + 0.1,
           thick,
@@ -340,9 +346,12 @@ export function netColliders(net: Network, field: NetField): StaticCollider[] {
     for (const side of [0, 1] as const) {
       const sg = side === 0 ? 1 : -1;
       const foot = side === 0 ? w.sec.footL : w.sec.footR;
-      const t = sg * (foot + w.tpl.daylight.wallOffset + 0.3);
+      // (out on the surveyed line past a verge, `wallOut`)
+      const t = (i: number) => sg * (foot + wallOff(w, i, side) + 0.3);
+      // (no lane wall in a hall: the carriageway's barrier there, `hallLane`)
+      const built = w.wall[side].map((k, i) => (hallLane(w, side, i) ? 0 : k));
       for (const kind of [WALL_CUT, WALL_FILL])
-        for (const [i0, i1] of runsOf(w.wall[side], kind)) {
+        for (const [i0, i1] of runsOf(built, kind)) {
           const s0 = w.al.s[i0];
           const s1 = w.al.s[i1];
           const lane = w.wallLane[side][i0] === 1;
@@ -350,7 +359,13 @@ export function netColliders(net: Network, field: NetField): StaticCollider[] {
             w,
             s0,
             s1,
-            lane ? t - sg * 0.17 : t,
+            (i: number) => {
+              const tt =
+                kind === WALL_CUT
+                  ? t(i)
+                  : sg * (foot + w.tpl.daylight.wallOffset + 0.3);
+              return lane ? tt - sg * 0.17 : tt;
+            },
             kind === WALL_CUT ? 3 : PARAPET_H,
             lane ? 0.26 : 0.6,
             (fr) => net.surfaceAt(w, fr.i, fr.f, sg * foot),

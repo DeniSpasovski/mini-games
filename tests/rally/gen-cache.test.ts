@@ -15,6 +15,9 @@ rs.mock('../../src/games/rally/world/terrain-material', () => ({
   setGroundTint: () => {},
   setGroundMoisture: () => {},
   setCulvertHoles: () => {},
+  GRAVEL_SHARP: 0.5,
+  GRAVEL_SPEC: 0.5,
+  RELIEF_FADE: 0.55,
 }));
 
 /** The disk cache as the generators see it: what one load records, the next one takes (a structured clone between). */

@@ -61,22 +61,49 @@ export const jackie2Map: MapDef = {
       // the decks over Vermont Pl: a concrete Jersey parapet on the outer edge of both carriageways, the guard rail
       // ending against it (video 1:11-1:13, opposite lane 6:38-6:42)
       { from: 1228, to: 1290, barrier: 'jersey' },
-      { from: 7200, to: 7800, barrier: 'jersey' },
+      // concrete on both outer sides from where the stone cut opens up to the hall (opposite lane 1:03-1:11, lidar)
+      { from: 6940, to: 7800, barrier: 'jersey' },
       // tall tan / grey ashlar on both sides out of the Queens Blvd tunnel to the interchange (5:33-5:36)
       { from: 7300, to: 7470, wall: 'stone', fence: 'railing' },
+      // new poured concrete walls and parapets through the interchange past the ashlar (opposite lane 0:27-0:39)
+      {
+        from: 7470,
+        to: 8000,
+        wall: 'concrete',
+        deck: 'concrete',
+        fence: 'none',
+      },
     ],
+    // a chain-link fence on the median barrier where the parkway leaves the stone cut west of the Queens Blvd tunnel
+    // to past Park Lane's approach (opposite lane 1:05-1:20)
+    medianFences: [{ from: 6915, to: 7185 }],
     // pale cement-concrete pavement with sealed joints east of the Queens Blvd tunnel (drive video 5:30-5:49, opposite
     // lane 0:36-0:38); asphalt through the tunnel and at both portals (opposite lane 0:41-0:44 and 0:55-0:59)
     pavement: [{ from: 7474, to: 8000, surface: 'concrete' }],
     // the Queens Blvd tunnel's built-up steel girders: 12'-8" / 12'-10" under them on its plates (lidar deck top less
     // the floor less the slab)
-    tunnels: [{ from: 7280, to: 7460, girder: 1.1, headwall: 'stone' }],
+    // (the hall is daylit from its portals and the open lanes beside it: girders and walls read grey, drive video s05)
+    tunnels: [
+      { from: 7280, to: 7460, girder: 1.1, headwall: 'stone', shade: 0.6 },
+    ],
+    // the roads beside the parkway at its level are open to it, a barrier between (USGS lidar points: nothing over 0.9 m
+    // between them at 290-342, 6 969-7 011 and 7 165-7 523 - the Union Tpke lanes at Kew)
+    openBeside: [
+      { from: 250, to: 400 },
+      { from: 6900, to: 7620 },
+    ],
     deckStyles: [
       // Myrtle Ave over the parkway: a painted plate-girder bridge on masonry abutments (drive video 3:34-3:36)
-      { way: '126080187', facing: 'steel' },
+      { way: '126080187', facing: 'steel', edges: [16, 12.7] },
       // Union Tpke over the parkway: dark steel girders under the slab, mesh fence, poured concrete abutments (video
       // our 4:55-4:56, opposite 1:33-1:35)
       { way: '126077113', facing: 'steel', abutment: 'concrete' },
+      // the overpasses' structures wider than their streets (USGS lidar, the deck seen over the stage road): sidewalks
+      // out to the parapets; Cypress Hills St's two carriageways on one deck, the median between them closed
+      { way: '126109614', edges: [6.5, 8.4] },
+      { way: '631895243', edges: [4, 9.8] },
+      { way: '631895241', edges: [4, 7.7] },
+      { way: '5706853', edges: [13, 13] },
     ],
     // Queens Blvd x Union Tpke over the Queens Blvd tunnel (the end zone): one paved plaza from the survey, the OSM
     // carriageways end on its rim (one source per junction)

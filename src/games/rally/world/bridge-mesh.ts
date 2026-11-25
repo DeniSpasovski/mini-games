@@ -138,8 +138,11 @@ export class Builder {
 
   constructor(private readonly ts: number) {}
 
-  /** Sweep the segment a -> b of a cross section along `rows`. `wall`: uv = (along, height), else (across, along). */
-  strip(rows: Row[], a: SP, b: SP, color: RGB, wall = true): void {
+  /**
+   * Sweep the segment a -> b of a cross section along `rows`. `wall`: uv = (along, height), else (across, along).
+   * `rel`: the height is the profile's own (over each row), so the texture's bands follow the rows up a grade.
+   */
+  strip(rows: Row[], a: SP, b: SP, color: RGB, wall = true, rel = false): void {
     const v0 = this.pos.length / 3;
     for (const r of rows) {
       for (const [off, dy, frac] of [a, b]) {
@@ -147,7 +150,7 @@ export class Builder {
         const y = r.y + dy;
         this.pos.push(r.x + r.tz * l, y, r.z - r.tx * l);
         this.col.push(...color);
-        if (wall) this.uv.push(r.d / this.ts, y / this.ts);
+        if (wall) this.uv.push(r.d / this.ts, (rel ? dy : y) / this.ts);
         else this.uv.push(l / this.ts, r.d / this.ts);
       }
     }

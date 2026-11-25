@@ -19,7 +19,9 @@ heights, so a map follows the city's survey instead of OSM defaults.
 - Lidar (`lidar`, see the section below): 1 m ground tiles and the road's spot heights from the public point cloud near
   the stage.
 - Retaining walls: the surveyed wall lines (`survey.walls`) and the stage metres they cover (`survey.wallsUntil`): there
-  the parkway's cut / fill walls stand only beside a surveyed one (`network.ts surveyedWall`), elsewhere a bank.
+  the parkway's cut / fill walls stand only beside a surveyed one (`network.ts surveyedWall`), elsewhere a bank, and on
+  the line the survey has (`network.ts verges`). `lidarWalls` (a stage metre): from `wallsUntil` to there the lines come
+  from the lidar ground's steps, on the city's line where it agrees (`lidar_walls`); the survey then covers the stage.
 
 `sources/` is git-ignored and lives only in the main checkout: a worktree finds it there (git common dir).
 """
@@ -557,6 +559,11 @@ def apply(cfg, root, proj, network, stage_line):
         network.setdefault('survey', {})['walls'] = [[round(v, 2) for v in w] for w in rw['walls']]
         network['survey']['wallsUntil'] = sv.get('wallsUntil', network['stage']['length'])
         print(f'  survey: {len(rw["walls"])} retaining walls (stage to {network["survey"]["wallsUntil"]} m)')
+        if sv.get('lidarWalls') and sv.get('lidar') and folder:
+            lw = lidar_walls(sv['lidar'], root, proj, stage_line, folder, sv['wallsUntil'], sv['lidarWalls'])
+            network['survey']['walls'] += lw
+            network['survey']['wallsUntil'] = network['stage']['length']
+            print(f'  survey: {len(lw)} wall lines from the city survey and the lidar past {sv["wallsUntil"]} m')
 
 
 # --- lidar ground (config survey.lidar) ----------------------------------------------------------------------------------
@@ -583,6 +590,14 @@ LIDAR_SPOT = 5.0  # m between lidar spot heights on the roadbed
 LIDAR_CHUNK = 400.0  # m of stage line per fetched piece of the corridor (`route`)
 LIDAR_DECK_ALONG = 15.0  # m along the stage: the neighbours a deck spot is checked against (trees)
 LIDAR_DECK_TOL = 0.4  # m over their lower quarter a deck spot may stand
+WALLS_STEP = 2.0  # m between the stations a wall is looked for at (lidar_walls)
+WALLS_FROM = 3.0  # m out from the stage line the search starts (inside its own pavement)
+WALLS_OUT = 30.0  # m out it ends
+WALLS_RUN = 2.0  # m over which ...
+WALLS_RISE = 1.4  # ... the ground steps this much: a wall (a bank is gentler)
+WALLS_AGREE = 2.0  # m a city wall line may lie off the lidar's step and stand for it
+WALLS_JUMP = 2.0  # m the wall may move out or in between two stations and stay one line
+WALLS_MIN = 10.0  # m a wall line runs at least
 LIDAR_DECK_DISC = 6.0  # m around a deck spot: the cells its level is the commonest of
 LIDAR_DECK_BIN = 0.5  # m levels the cells are counted in
 LIDAR_DECK_PAD = 3.0  # m around a planimetric deck outline that is deck, not ground (the outlines sit a few m off the lidar)
@@ -916,6 +931,84 @@ def deck_level(low, x0, z0, decks, xs, zs):
         k = u[int(np.argmax(pair))]
         out.append(float(np.median(v[(b == k) | (b == k + 1)])))
     return out
+
+
+def lidar_walls(lc, root, proj, stage_line, folder, s0, until):
+    """Retaining wall lines along the stage from `s0` to `until` m, [[x, z, ...]]: every WALLS_STEP m, both sides, the
+    first step of the lidar ground (WALLS_RISE m over WALLS_RUN m) out from the road; where a city retaining wall line
+    (planimetrics *-retaining-wall) runs within WALLS_AGREE m of it, the city's line - the lidar's elsewhere."""
+    from shapely.geometry import LineString
+    from shapely.strtree import STRtree
+
+    p = np.asarray(stage_line, float)
+    seg = np.linalg.norm(np.diff(p, axis=0), axis=1)
+    acc = np.concatenate([[0], np.cumsum(seg)])
+    grids = []
+    for box in lidar_regions(lc, stage_line):
+        x0, _, z0, _ = box
+        grids.append((x0, z0, np.load(lidar_cache(lc, root, proj, box))['grid'].astype(float)))
+
+    def ground(xs, zs):
+        out = np.full(len(xs), np.nan)
+        for x0, z0, g in grids:
+            i = np.round(xs - x0).astype(int)
+            j = np.round(zs - z0).astype(int)
+            ok = np.isnan(out) & (i >= 0) & (j >= 0) & (i < g.shape[1]) & (j < g.shape[0])
+            out[ok] = g[j[ok], i[ok]]
+        return out
+
+    city = []
+    for fn in sorted(glob.glob(os.path.join(folder, '*-retaining-wall.geojson'))):
+        for f in json.load(open(fn, encoding='utf-8'))['features']:
+            if f.get('geometry'):
+                city.append(transform(lambda lon, lat, z=None: proj.fwd(lat, lon), shape(f['geometry'])))
+    ctree = STRtree(city) if city else None
+    T = np.arange(WALLS_FROM, WALLS_OUT, 0.5)
+    k = round(WALLS_RUN / 0.5)
+    sides = {1: [], -1: []}
+    for s in np.arange(s0, min(until, acc[-1]), WALLS_STEP):
+        q = min(len(seg) - 1, int(np.searchsorted(acc, s, 'right')) - 1)
+        f = (s - acc[q]) / seg[q]
+        c = p[q] + (p[q + 1] - p[q]) * f
+        tx, tz = (p[q + 1] - p[q]) / seg[q]
+        for sg in (1, -1):
+            n = np.array([tz, -tx]) * sg
+            g = ground(c[0] + n[0] * T, c[1] + n[1] * T)
+            t = None
+            for m in range(len(T) - k):
+                if np.isfinite(g[m]) and np.isfinite(g[m + k]) and abs(g[m + k] - g[m]) > WALLS_RISE:
+                    t = T[m] + WALLS_RUN / 2
+                    break
+            if t is None:
+                sides[sg].append(None)
+                continue
+            w = c + n * t
+            if ctree is not None:
+                # (the city's line where it agrees: its crossing of this perpendicular)
+                ray = LineString([c + n * (t - WALLS_AGREE), c + n * (t + WALLS_AGREE)])
+                best = None
+                for i in ctree.query(ray):
+                    x = ray.intersection(city[i])
+                    for pt in getattr(x, 'geoms', [x]):
+                        if pt.is_empty:
+                            continue
+                        d = ray.project(pt if pt.geom_type == 'Point' else pt.centroid) - WALLS_AGREE
+                        if best is None or abs(d) < abs(best):
+                            best = d
+                if best is not None:
+                    w = c + n * (t + best)
+            sides[sg].append((float(w[0]), float(w[1]), t))
+    lines = []
+    for pts in sides.values():
+        run = []
+        for v in [*pts, None]:
+            if v is None or (run and abs(v[2] - run[-1][2]) > WALLS_JUMP):
+                if len(run) * WALLS_STEP >= WALLS_MIN:
+                    lines.append(run)
+                run = [] if v is None else [v]
+            else:
+                run.append(v)
+    return [[round(c, 2) for x, z, _ in r for c in (x, z)] for r in lines]
 
 
 def ndimage_max(mask, r):

@@ -148,10 +148,20 @@ export interface NetworkDef {
     deck?: 'stone' | 'concrete';
   }[];
   /**
+   * Stretches of the stage road (m along) where a chain-link fence stands on the median barrier (drive videos: opposite
+   * lane 1:05-1:20, west of the Queens Blvd tunnel).
+   */
+  medianFences?: { from: number; to: number }[];
+  /**
    * Pavement per stretch of the stage road (m along; both carriageways and the highway ramps there by stage station):
    * 'concrete' = pale cement-concrete slabs with sealed joints (drive videos: from the Queens Blvd tunnel portal on).
    */
   pavement?: { from: number; to: number; surface: 'concrete' }[];
+  /**
+   * Stretches of the stage road (m along) where an unrelated road beside its carriageways at their level is open to
+   * them - a barrier between, no dividing wall (`Network.dividingWalls`; the lidar sees none there).
+   */
+  openBeside?: { from: number; to: number }[];
   /**
    * One tunnel's soffit per stretch of the stage road (m along; every bore there by its nearest stage station): the depth
    * of its ceiling girders (m), so the clearance under them is the one on its plates, and its headwalls. Elsewhere the
@@ -163,6 +173,8 @@ export interface NetworkDef {
     girder: number;
     /** One straight headwall across all its bores at each end, on the stage road's portal line, in this material. */
     headwall?: 'stone' | 'concrete';
+    /** Share of the sky light its roof takes off (default TUNNEL_SHADE): less in a hall lit from its open sides. */
+    shade?: number;
   }[];
   /**
    * One street deck's look by its OSM way id, over the template's `deck` (drive videos): 'steel' = a painted plate-girder
@@ -170,8 +182,13 @@ export interface NetworkDef {
    */
   deckStyles?: {
     way: string;
-    facing: 'steel';
+    facing?: 'steel';
     abutment?: 'stone' | 'concrete';
+    /**
+     * The structure's edges, left / right of the way's line (m, USGS lidar): wider than the street there, a sidewalk on
+     * the deck out to the parapet (a deck is never narrower than its street).
+     */
+    edges?: [number, number];
   }[];
   /**
    * Junction plazas from a survey (v1's `junction.json` / `junction-cores.json`, scripts/realmap/plaza_islands.py): one

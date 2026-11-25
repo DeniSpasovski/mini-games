@@ -535,6 +535,14 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
       }
       // the stage's entry plates: the street over it and the clearance under its girders (12'-10", map `tunnels`)
       const [i0, i1] = runsOf(net.stage.st, ST_TUNNEL)[0];
+      // the median: a barrier the whole way through, between the stage and the opposite carriageway (drive videos)
+      const h0 = net.stage.al.s[i0];
+      const h1 = net.stage.al.s[i1];
+      let median = 0;
+      for (const p of barrierPlan(net, field, net.stage, 0))
+        for (const [a, b] of p.runs)
+          median += Math.max(0, Math.min(b, h1) - Math.max(a, h0));
+      expect(median / (h1 - h0)).toBeGreaterThan(0.95);
       const text = portalPlateText(net, net.stage, i0, i0, i1);
       expect(text?.clearance).toBe(`12'-10"`);
       expect(text?.name).toMatch(/Queens/);
