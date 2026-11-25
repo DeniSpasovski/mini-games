@@ -42,7 +42,7 @@ import {
   type Projection,
   sampleAt,
 } from './alignment';
-import { type NetField, SLAB_REACH } from './field';
+import { isLimited, type NetField, SLAB_REACH } from './field';
 import {
   DECK_DEPTH,
   goreAt,
@@ -165,6 +165,10 @@ const HALL_COLUMN_BACK = 0.55;
 const HALL_COLUMN_EVERY = 3 * GIRDER_EVERY;
 /** A bore's end this far along from the stage road's portal shares its headwall line (`portalLine`, m). */
 const PORTAL_LINE_REACH = 8;
+/** A plaza's clip to the open cut (`cutMargin`): margin far from any cut, and the band outside its edge (m) where a
+ * vertex without a paving height of its own takes the nearest. */
+const CUT_FAR = 100;
+const CUT_EDGE_FILL = 2;
 /**
  * A steel deck (`deckStyles` 'steel'): the fascia girders' dull grey-green paint (drive video 3:34-3:36, Myrtle Ave),
  * the slab's underside above its girders (m under the deck top) and the girder spacing across the deck (m).
@@ -368,6 +372,7 @@ class Parts {
       paint: Builder;
       light: Builder;
       fence: Builder;
+      mfence: Builder;
     }
   >();
   /** Name / clearance plates on portal headwalls (one mesh per texture). */
@@ -387,6 +392,7 @@ class Parts {
           paint: new Builder(4),
           light: new Builder(4),
           fence: new Builder(FENCE_TS),
+          mfence: new Builder(FENCE_TS),
         }),
       );
     return p;
@@ -413,9 +419,26 @@ class Parts {
         f.castShadow = false;
         group.add(f);
       }
+      if (!p.mfence.empty()) {
+        const f = p.mfence.build(medianFenceMaterial());
+        f.castShadow = false;
+        group.add(f);
+      }
     }
     this.plates.flush(group);
   }
+}
+
+/** The median fence's chain-link: v1's mesh (cut-wall-mesh.ts) in weathered galvanised grey, not new bright steel. */
+let medianFenceMat: MeshStandardMaterial | undefined;
+function medianFenceMaterial(): MeshStandardMaterial {
+  if (!medianFenceMat) {
+    medianFenceMat = chainLinkMaterial().clone();
+    medianFenceMat.color.setRGB(...MEDIAN_FENCE_TONE);
+    medianFenceMat.metalness = 0.25;
+    medianFenceMat.roughness = 0.75;
+  }
+  return medianFenceMat;
 }
 
 interface Frame {
@@ -515,7 +538,7 @@ export function* netMeshJob(world: World): Generator<void, Group | undefined> {
     crossings(net, field, j, tiles);
     if (++n % 20 === 0) yield;
   }
-  for (const pl of net.plazas) plazaSurface(field, pl, tiles);
+  for (const pl of net.plazas) plazaSurface(net, field, pl, tiles);
   for (const pk of net.parks) parkMesh(field, pk, tiles, parts);
   bikeLanes(net, tiles);
   paintedMedians(net, field, tiles);
@@ -1431,7 +1454,84 @@ function raisedIslands(pl: Plaza): Plaza['islands'] {
   return kept;
 }
 
-function plazaSurface(field: NetField, pl: Plaza, tiles: Tiles): void {
+/** How far (x, z) lies inside the open cut below a plaza (m, < 0 on the paving side): wall lines and portal line. */
+function cutMargin(
+  net: Network,
+  field: NetField,
+  x: number,
+  z: number,
+): number {
+  const lat = field.cutLateral(x, z);
+  if (lat === -Infinity) return -CUT_FAR;
+  const line = portalLine(net, x, z);
+  const along = line
+    ? -((x - line.x) * line.tx + (z - line.z) * line.tz) * line.inward
+    : field.openCut(x, z)
+      ? CUT_FAR
+      : -CUT_FAR;
+  return Math.min(lat, along);
+}
+
+/**
+ * The paving side (margin < 0) of triangle t, cut along margin 0 by linear interpolation: one triangle or two. A new
+ * vertex takes the height between its edge's two ends (the inside one's own, or the outside one's where it has none).
+ */
+function clipToCut(
+  acc: Acc,
+  pts: [number, number][],
+  hs: (number | undefined)[],
+  cm: number[],
+  t: number[],
+  ids: number[],
+  rise: number,
+  tex: number,
+  up: boolean,
+): void {
+  const poly: number[] = [];
+  for (let e = 0; e < 3; e++) {
+    const a = t[e];
+    const b = t[(e + 1) % 3];
+    if (cm[a] <= 0) {
+      if (ids[a] < 0) return;
+      poly.push(ids[a]);
+    }
+    if (cm[a] <= 0 !== cm[b] <= 0) {
+      const f = cm[a] / (cm[a] - cm[b]);
+      const x = pts[a][0] + (pts[b][0] - pts[a][0]) * f;
+      const z = pts[a][1] + (pts[b][1] - pts[a][1]) * f;
+      const ha = hs[a];
+      const hb = hs[b];
+      const h =
+        ha !== undefined && hb !== undefined
+          ? ha + (hb - ha) * f
+          : cm[a] <= 0
+            ? ha
+            : hb;
+      if (h === undefined) return;
+      const id = acc.v(x, h + rise, z, x / tex, z / tex);
+      if (up) acc.up.push(id);
+      poly.push(id);
+    }
+  }
+  if (poly.length < 3) return;
+  // (the outline keeps the triangle's own winding: the same test as the caller's on its first three corners)
+  const X = (v: number) => acc.pos[v * 3];
+  const Z = (v: number) => acc.pos[v * 3 + 2];
+  const order = (p: number, q: number, r: number) => {
+    const cross = (X(q) - X(p)) * (Z(r) - Z(p)) - (Z(q) - Z(p)) * (X(r) - X(p));
+    if (cross < 0) acc.tri(p, q, r);
+    else acc.tri(p, r, q);
+  };
+  order(poly[0], poly[1], poly[2]);
+  if (poly.length === 4) order(poly[0], poly[2], poly[3]);
+}
+
+function plazaSurface(
+  net: Network,
+  field: NetField,
+  pl: Plaza,
+  tiles: Tiles,
+): void {
   const cx = (pl.minX + pl.maxX) / 2;
   const cz = (pl.minZ + pl.maxZ) / 2;
   // an island also stands where the plaza leaves the land to the roads (a median strip in a verge beside them), on
@@ -1464,6 +1564,7 @@ function plazaSurface(field: NetField, pl: Plaza, tiles: Tiles): void {
     holes: number[][] = [],
     up = false,
     under: number[][] = [],
+    cut?: (x: number, z: number) => number,
   ) => {
     const acc = tiles.at(mat, cx, cz);
     const { pts, tris } = triangulate(poly, 1.5, holes);
@@ -1475,6 +1576,12 @@ function plazaSurface(field: NetField, pl: Plaza, tiles: Tiles): void {
         ? h
         : Math.min(h, st - PLAZA_UNDER);
     });
+    // (clipped to the open cut's edge: a vertex just outside it without a height of its own takes the plaza's nearest)
+    const cm = cut ? pts.map(([x, z]) => cut(x, z)) : undefined;
+    if (cm)
+      for (let k = 0; k < pts.length; k++)
+        if (hs[k] === undefined && cm[k] < 0 && cm[k] > -CUT_EDGE_FILL)
+          hs[k] = field.plazaNear(pts[k][0], pts[k][1]);
     const ids = pts.map(([x, z], k) =>
       hs[k] === undefined
         ? -1
@@ -1482,6 +1589,10 @@ function plazaSurface(field: NetField, pl: Plaza, tiles: Tiles): void {
     );
     if (up) for (const i of ids) if (i >= 0) acc.up.push(i);
     for (const [a, b, c] of tris) {
+      if (cm && (cm[a] > 0 || cm[b] > 0 || cm[c] > 0)) {
+        clipToCut(acc, pts, hs, cm, [a, b, c], ids, rise, tex, up);
+        continue;
+      }
       if (ids[a] < 0 || ids[b] < 0 || ids[c] < 0) continue;
       const [ax, az] = pts[a];
       const [bx, bz] = pts[b];
@@ -1525,6 +1636,8 @@ function plazaSurface(field: NetField, pl: Plaza, tiles: Tiles): void {
     true,
     // (and none under an island that could not be a hole - one on the plaza's edge)
     raised.filter((il) => !holes.includes(il.pts)).map((il) => il.pts),
+    // (its edge over the trench: straight along the portal line and the wall lines, not the field's 1 m cells)
+    (x, z) => cutMargin(net, field, x, z),
   );
   const kerb = tiles.at('kerb', cx, cz);
   for (const il of raised) {
@@ -1879,7 +1992,10 @@ function plazaPaint(field: NetField, pl: Plaza, tiles: Tiles): void {
   const surf = (x: number, z: number): number | undefined => {
     if (!inPolygon(pl.area, x, z)) return undefined;
     if (raised.some((il) => inPolygon(il.pts, x, z))) return undefined;
-    return field.plazaHeight(x, z) ?? field.top(x, z)?.h;
+    const h = field.plazaHeight(x, z) ?? field.top(x, z)?.h;
+    // (no street paint on a parkway lane the survey area reaches over)
+    if (h !== undefined && field.limitedAt(x, z, h)) return undefined;
+    return h;
   };
   markings(
     tiles,
@@ -2200,15 +2316,17 @@ function junctionSurface(
 
 // --- walls ------------------------------------------------------------------------------------------------------------------
 
-/** Chain-link on a cut wall: height, post spacing (m), mesh texture scale (v1's cut-wall-mesh values). */
+/** Chain-link on a cut wall: height, post spacing (m), mesh texture scale (half v1's: ~10 cm diamonds, frames s07). */
 const FENCE_H = 2.2;
 const FENCE_POST = 3;
-const FENCE_TS = 1.6;
+const FENCE_TS = 0.8;
 const STEEL: RGB = [0.52, 0.54, 0.55];
 /** Chain-link on the parapets of a bridge over the parkway (m over the parapet cap). */
 const PARAPET_FENCE_H = 1.8;
 /** Chain-link on the median barrier (m over the barrier's top). */
 const MEDIAN_FENCE_H = 1.8;
+/** Its mesh darker than a new fence: weathered galvanised steel (opposite-lane frames s07 1:05-1:11). */
+const MEDIAN_FENCE_TONE: [number, number, number] = [0.5, 0.52, 0.53];
 
 /** Chain-link mesh on posts along `rows` at lateral `off`, from `base` m over the rows' height, `h` m tall. */
 function chainLink(
@@ -2217,8 +2335,9 @@ function chainLink(
   off: number,
   base: number,
   h: number,
+  mesh: Builder = p.fence,
 ): void {
-  p.fence.strip(rows, [off, base, 0], [off, base + h, 0], [1, 1, 1]);
+  mesh.strip(rows, [off, base, 0], [off, base + h, 0], [1, 1, 1]);
   p.metal.strip(rows, [off, base + h, 0], [off, base + h + 0.05, 0], STEEL);
   let next = rows[0].d;
   for (const r of rows) {
@@ -3491,8 +3610,11 @@ export function barrierRuns(
       // never across another road's pavement (a street crossing it at grade, a ramp's end under it): it would block
       // the lanes - a street running alongside whose edge only grazes the line keeps it (Union Tpke beside the
       // parkway west of Queens Blvd: one barrier between the two)
+      // (and a street's pavement reaching over a limited-access road's barrier line is a junction beside or under it,
+      // never an opening: the 2024 aerial photo at Union Tpke, 7 080-7 095, the barrier unbroken past the junction)
       const on = field.pavedByOther(x, z, h, w, 0, 3, false);
-      if (on && !alongside(net, w, i, on, x, z)) good = false;
+      if (on && !alongside(net, w, i, on, x, z) && !streetBeside(w, on))
+        good = false;
       else if (o) {
         const merging = o.into.includes(w) || w.into.includes(o);
         const outranked = o.tpl.rank > w.tpl.rank;
@@ -3514,6 +3636,17 @@ export function barrierRuns(
     }
   }
   return out;
+}
+
+/** Street o's pavement next to limited-access road w is never an at-grade crossing of it (only ramps meet it). */
+function streetBeside(w: Way, o: Way): boolean {
+  return (
+    isLimited(w) &&
+    !isLimited(o) &&
+    !/_link$/.test(o.kind) &&
+    !o.into.includes(w) &&
+    !w.into.includes(o)
+  );
 }
 
 /** Way o runs alongside w at w's sample i (near (x, z)): parallel to it and not merging into or out of it. */
@@ -3653,7 +3786,7 @@ function barriers(net: Network, field: NetField, w: Way, parts: Parts): void {
             let run: Row[] = [];
             const flush = () => {
               if (run.length >= 2)
-                chainLink(p, run, t, JERSEY_H, MEDIAN_FENCE_H);
+                chainLink(p, run, t, JERSEY_H, MEDIAN_FENCE_H, p.mfence);
               run = [];
             };
             for (const r of rows) {

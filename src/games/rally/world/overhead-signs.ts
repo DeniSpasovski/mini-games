@@ -206,7 +206,7 @@ export function overheadSigns(
       const k = p.boards.length;
       const lateral =
         p.span === 'portal'
-          ? ((k - 1) / 2 - i) * (s.halfWidth * 1.1)
+          ? ((k - 1) / 2 - i) * Math.max(s.halfWidth * 1.1, BOARD_PITCH)
           : -s.halfWidth * 0.5 - i * 3.9;
       return { lateral, def: def2 };
     });
@@ -236,6 +236,9 @@ export function overheadSigns(
 }
 
 const CARRIAGEWAY = /^(motorway|trunk)(_link)?$/;
+/** Boards on a portal sit at least this far apart (m): a board's width (gantry-mesh.ts BOARD_W 3.8) and a gap, side by
+ * side over a narrow road too. */
+const BOARD_PITCH = 4.0;
 
 /** A one-way carriageway / ramp way and its end points. */
 interface Way {
