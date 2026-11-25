@@ -67,13 +67,13 @@ export type KewStyle = BlockStyle | HouseStyle;
 const PREWAR: BlockStyle = {
   type: 'block',
   wall: 'brick',
-  tint: '#a26d5f',
+  tint: '#9c7b70',
   ground: 3.6,
   floor: 3.05,
   win: { w: 0.95, h: 1.6, sill: 0.8, bay: 2.3 },
   frame: '#ece9e2',
   sill: '#cfc6b4',
-  lintel: '#8e5c50',
+  lintel: '#86685e',
   bands: { at: [3.3], color: '#cbbfa9' },
   cornice: '#bdb3a2',
   coping: '#b7ad9c',
@@ -82,7 +82,7 @@ const PREWAR: BlockStyle = {
 };
 
 // Four-storey walk-ups (C1) of the same years: the same brick and trim, lower.
-const WALKUP: BlockStyle = { ...PREWAR, tint: '#9c6857', ground: 3.4 };
+const WALKUP: BlockStyle = { ...PREWAR, tint: '#977468', ground: 3.4 };
 
 // The two 20-storey buff-brick towers of 1973-74 (118-17 / 118-18 Union Tpke): small punched windows in dark frames,
 // balconies stacked down the narrow ends, a white band at the setback, the machine room on top (frame t1-05).
@@ -103,12 +103,12 @@ const TOWER: BlockStyle = {
 // upstairs, steep red clay tile roofs with a cross gable to the street (aerial photo, frames t1-12 .. t1-20).
 const TUDOR: HouseStyle = {
   type: 'house',
-  brick: '#9a5e4c',
+  brick: '#8f6a5c',
   upper: 'timber',
   stucco: '#e6dfcf',
   timber: '#4a3a30',
   eaves: 5.6,
-  tiles: '#b0583c',
+  tiles: '#8e5a48',
   frame: '#f1eee6',
   front: 135,
 };
@@ -127,8 +127,8 @@ export const KEW_STYLES: Record<number, KewStyle> = {
   4312089: {
     type: 'block',
     wall: 'glass',
-    tint: '#2b3444',
-    light: { bearings: [20, 75, 200, 260], tint: '#9cb6cf' },
+    tint: '#10141b',
+    light: { bearings: [20, 75, 200, 260], tint: '#7f98b0' },
     ground: 4.5,
     floor: 3.9,
     win: { w: 1.5, h: 3.9, sill: 0, bay: 1.5 },
@@ -139,29 +139,29 @@ export const KEW_STYLES: Record<number, KewStyle> = {
   // 78-14 Austin St (1932): six storeys, fire escapes on the parkway side
   4079633: { ...PREWAR, fire: [{ face: 140, at: [0.3, 0.75] }] },
   // 117-14 Union Tpke (1923)
-  4079199: { ...PREWAR, tint: '#9b6656', fire: [{ face: 320, at: [0.5] }] },
+  4079199: { ...PREWAR, tint: '#95766a', fire: [{ face: 320, at: [0.5] }] },
   // 80-15 Grenfell St (1930)
-  4079666: { ...PREWAR, tint: '#a8735f', fire: [{ face: 320, at: [0.35] }] },
+  4079666: { ...PREWAR, tint: '#a08072', fire: [{ face: 320, at: [0.35] }] },
   // 119-40 Union Tpke (1926): six storeys at the parkway
-  4080004: { ...PREWAR, tint: '#996252', fire: [{ face: 320, at: [0.4] }] },
+  4080004: { ...PREWAR, tint: '#927064', fire: [{ face: 320, at: [0.4] }] },
   // 119-14 / 119-20 Union Tpke (1923-26): four-storey walk-ups
   4080002: { ...WALKUP, fire: [{ face: 320, at: [0.5] }] },
-  4080003: { ...WALKUP, tint: '#a5705c', fire: [{ face: 320, at: [0.5] }] },
+  4080003: { ...WALKUP, tint: '#9e7b6c', fire: [{ face: 320, at: [0.5] }] },
   // 80-04 Austin St (1930): two four-storey wings
-  4434543: { ...WALKUP, tint: '#a06a58' },
-  4434541: { ...WALKUP, tint: '#a06a58' },
+  4434543: { ...WALKUP, tint: '#9b796b' },
+  4434541: { ...WALKUP, tint: '#9b796b' },
   // Tudor houses on the north side of Union Tpke and Markwood Pl
   4079189: TUDOR,
-  4079186: { ...TUDOR, tiles: '#a85238' },
-  4079183: { ...TUDOR, brick: '#8f5848' },
-  4079182: { ...TUDOR, tiles: '#a85238', front: 225 },
+  4079186: { ...TUDOR, tiles: '#86533f' },
+  4079183: { ...TUDOR, brick: '#866254' },
+  4079182: { ...TUDOR, tiles: '#86533f', front: 225 },
   4079190: { ...TUDOR, upper: 'brick' },
-  4079070: { ...TUDOR, brick: '#8f5848' },
-  4079188: { ...TUDOR, tiles: '#b86a48' },
+  4079070: { ...TUDOR, brick: '#866254' },
+  4079188: { ...TUDOR, tiles: '#93604c' },
   4521553: { ...TUDOR, eaves: 3.2 },
-  4079187: { ...TUDOR, upper: 'brick', tiles: '#a85238' },
+  4079187: { ...TUDOR, upper: 'brick', tiles: '#86533f' },
   4079184: TUDOR,
-  4079185: { ...TUDOR, brick: '#8f5848' },
+  4079185: { ...TUDOR, brick: '#866254' },
   4079191: { ...TUDOR, front: 225 },
-  4079069: { ...TUDOR, tiles: '#b86a48' },
+  4079069: { ...TUDOR, tiles: '#93604c' },
 };

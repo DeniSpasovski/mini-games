@@ -255,6 +255,60 @@ class Out {
     }
   }
 
+  /** Front-facing rectangle (x0, y0)-(x1, y1) at depth z on the plane (trim seen only from outside). */
+  face(
+    key: MatKey,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    z: number,
+    color: string,
+    m: Matrix4,
+  ): void {
+    this.poly(
+      key,
+      [
+        [x0, y0, z],
+        [x1, y0, z],
+        [x1, y1, z],
+        [x0, y1, z],
+      ],
+      color,
+      [0, 0, 1],
+      m,
+    );
+  }
+
+  /** Box seen from the front only: front face and top (sills, ledges). */
+  ledge(key: MatKey, a: V3, b: V3, color: string, m: Matrix4): void {
+    this.face(key, a[0], a[1], b[0], b[1], b[2], color, m);
+    this.poly(
+      key,
+      [
+        [a[0], b[1], a[2]],
+        [b[0], b[1], a[2]],
+        [b[0], b[1], b[2]],
+        [a[0], b[1], b[2]],
+      ],
+      color,
+      [0, 1, 0],
+      m,
+    );
+    this.poly(
+      key,
+      [
+        [a[0], a[1], a[2]],
+        [b[0], a[1], a[2]],
+        [b[0], a[1], b[2]],
+        [a[0], a[1], b[2]],
+      ],
+      color,
+      [0, -1, 0],
+      m,
+    );
+  }
+
   box(key: MatKey, a: V3, b: V3, color: string, m: Matrix4): void {
     this.f.box(key, a, b, color, { matrix: m });
   }
@@ -522,23 +576,26 @@ function window_(o: Out, st: BlockStyle, w: Win, m: Matrix4, r: number): void {
   const f = 0.055;
   const z = d + 0.04;
   const fc = st.frame;
-  o.box('paint', [s0, y0, d], [s1, y0 + f, z], fc, m);
-  o.box('paint', [s0, y1 - f, d], [s1, y1, z], fc, m);
-  o.box('paint', [s0, y0, d], [s0 + f, y1, z], fc, m);
-  o.box('paint', [s1 - f, y0, d], [s1, y1, z], fc, m);
+  o.face('paint', s0, y0, s1, y0 + f, z, fc, m);
+  o.face('paint', s0, y1 - f, s1, y1, z, fc, m);
+  o.face('paint', s0, y0, s0 + f, y1, z, fc, m);
+  o.face('paint', s1 - f, y0, s1, y1, z, fc, m);
   const ym = (y0 + y1) / 2;
-  o.box('paint', [s0, ym - 0.035, d], [s1, ym + 0.035, z + 0.02], fc, m);
+  o.face('paint', s0, ym - 0.035, s1, ym + 0.035, z, fc, m);
   if (s1 - s0 > 1.1)
-    o.box(
+    o.face(
       'paint',
-      [(s0 + s1) / 2 - 0.03, y0, d],
-      [(s0 + s1) / 2 + 0.03, y1, z],
+      (s0 + s1) / 2 - 0.03,
+      y0,
+      (s0 + s1) / 2 + 0.03,
+      y1,
+      z,
       fc,
       m,
     );
   // Stone sill and lintel.
   if (st.sill)
-    o.box(
+    o.ledge(
       'paint',
       [s0 - 0.08, y0 - 0.09, 0],
       [s1 + 0.08, y0 + 0.01, 0.07],
@@ -546,13 +603,7 @@ function window_(o: Out, st: BlockStyle, w: Win, m: Matrix4, r: number): void {
       m,
     );
   if (st.lintel)
-    o.box(
-      'paleBrick',
-      [s0 - 0.1, y1, 0],
-      [s1 + 0.1, y1 + 0.22, 0.02],
-      st.lintel,
-      m,
-    );
+    o.face('paleBrick', s0 - 0.1, y1, s1 + 0.1, y1 + 0.22, 0.015, st.lintel, m);
   // Window air conditioner in the lower sash, sticking out over the sill.
   if (st.ac && r > 1 - st.ac) {
     const c = (s0 + s1) / 2;
@@ -646,7 +697,7 @@ function fireEscape(
       o.box('metal', [a, y1 - t, 0.02], [a + 0.04, y1, D], col, m);
       o.box('metal', [b - 0.04, y1 - t, 0.02], [b, y1, D], col, m);
     }
-    for (let x = a; x <= b + 0.01; x += 0.34)
+    for (let x = a; x <= b + 0.01; x += 0.5)
       o.box(
         'metal',
         [x - 0.012, y, D - 0.03],
@@ -655,7 +706,7 @@ function fireEscape(
         m,
       );
     for (const x of [a, b])
-      for (let zz = 0.3; zz < D; zz += 0.34)
+      for (let zz = 0.3; zz < D; zz += 0.5)
         o.box(
           'metal',
           [x - 0.012, y, zz - 0.012],
@@ -1045,18 +1096,19 @@ function buildHouse(o: Out, b: Building, st: HouseStyle): void {
     tl([e, p, pb, eb], [sx, 1, 0], shade(tiles, sx > 0 ? 0.95 : 1));
   }
   // Chimney.
-  const chx = (h(5) > 0.5 ? 1 : -1) * (hw - 0.6);
+  // (on the ridge towards one end, as on the real houses: short over the tiles)
+  const chx = (h(5) > 0.5 ? 1 : -1) * Math.max(0.5, ridgeHalf * 0.7);
   o.box(
     'paleBrick',
-    [chx - 0.45, E - 1, -0.6],
-    [chx + 0.45, ridge + 0.9, 0.2],
+    [chx - 0.35, E - 1, -0.45],
+    [chx + 0.35, ridge + 0.9, 0.25],
     st.brick,
     m,
   );
   o.box(
     'paint',
-    [chx - 0.5, ridge + 0.9, -0.65],
-    [chx + 0.5, ridge + 1.0, 0.25],
+    [chx - 0.4, ridge + 0.9, -0.5],
+    [chx + 0.4, ridge + 1.0, 0.3],
     '#8d8880',
     m,
   );
@@ -1148,18 +1200,18 @@ function casement(
   );
   const f = 0.05;
   const z = d + 0.035;
-  o.box('paint', [s0, y0, d], [s1, y0 + f, z], st.frame, m);
-  o.box('paint', [s0, y1 - f, d], [s1, y1, z], st.frame, m);
-  o.box('paint', [s0, y0, d], [s0 + f, y1, z], st.frame, m);
-  o.box('paint', [s1 - f, y0, d], [s1, y1, z], st.frame, m);
+  o.face('paint', s0, y0, s1, y0 + f, z, st.frame, m);
+  o.face('paint', s0, y1 - f, s1, y1, z, st.frame, m);
+  o.face('paint', s0, y0, s0 + f, y1, z, st.frame, m);
+  o.face('paint', s1 - f, y0, s1, y1, z, st.frame, m);
   // Casement leaves: a mullion per 0.5 m and a transom.
   const n = Math.max(2, Math.round((s1 - s0) / 0.5));
   for (let i = 1; i < n; i++) {
     const x = s0 + ((s1 - s0) * i) / n;
-    o.box('paint', [x - 0.025, y0, d], [x + 0.025, y1, z], st.frame, m);
+    o.face('paint', x - 0.025, y0, x + 0.025, y1, z, st.frame, m);
   }
   const yt = y1 - (y1 - y0) * 0.28;
-  o.box('paint', [s0, yt - 0.025, d], [s1, yt + 0.025, z], st.frame, m);
+  o.face('paint', s0, yt - 0.025, s1, yt + 0.025, z, st.frame, m);
   o.box(
     'paint',
     [s0 - 0.06, y0 - 0.08, 0],
