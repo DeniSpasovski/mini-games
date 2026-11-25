@@ -3493,6 +3493,12 @@ export class Network {
     return false;
   }
 
+  /** Way `w`'s deck edges left / right of its line from the map's `deckStyles` (OSM way id), undefined = its section's. */
+  deckEdges(w: Way): [number, number] | undefined {
+    const osm = w.id.split('.')[0];
+    return this.deckStyles.find((d) => d.way === osm)?.edges;
+  }
+
   /** Way `w`'s deck abutments when the map's `deckStyles` names them (OSM way id), undefined = by the deck's face. */
   deckAbutment(w: Way): 'stone' | 'concrete' | undefined {
     const osm = w.id.split('.')[0];

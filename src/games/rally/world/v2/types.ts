@@ -175,8 +175,13 @@ export interface NetworkDef {
    */
   deckStyles?: {
     way: string;
-    facing: 'steel';
+    facing?: 'steel';
     abutment?: 'stone' | 'concrete';
+    /**
+     * The structure's edges, left / right of the way's line (m, USGS lidar): wider than the street there, a sidewalk on
+     * the deck out to the parapet (a deck is never narrower than its street).
+     */
+    edges?: [number, number];
   }[];
   /**
    * Junction plazas from a survey (v1's `junction.json` / `junction-cores.json`, scripts/realmap/plaza_islands.py): one

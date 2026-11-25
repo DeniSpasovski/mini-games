@@ -2481,8 +2481,12 @@ function decks(net: Network, field: NetField, w: Way, parts: Parts): void {
       'stone';
     const abut = abutStone ? p.stone : p.conc;
     const abutCol = abutStone ? STONE : CONC;
-    const edgeL = w.sec.footL + PARAPET_OUT;
-    const edgeR = w.sec.footR + PARAPET_OUT;
+    // the structure wider than the street (map `deckStyles` edges, lidar): a sidewalk out to the parapet
+    const edges = net.deckEdges(w);
+    const wideL = Math.max(0, (edges?.[0] ?? 0) - w.sec.footL - PARAPET_OUT);
+    const wideR = Math.max(0, (edges?.[1] ?? 0) - w.sec.footR - PARAPET_OUT);
+    const edgeL = w.sec.footL + wideL + PARAPET_OUT;
+    const edgeR = w.sec.footR + wideR + PARAPET_OUT;
     // (one half per side: on a narrowed pavement each side's edge moves in by its own shift; hw = that shift, so the
     // halves meet on the centreline)
     const soffitL: Row[] = [];
@@ -2528,6 +2532,8 @@ function decks(net: Network, field: NetField, w: Way, parts: Parts): void {
       const sg = side === 0 ? 1 : -1;
       const foot = side === 0 ? w.sec.footL : w.sec.footR;
       const edge = side === 0 ? edgeL : edgeR;
+      // the parapet's inner face (past the deck's own sidewalk where the structure is wider than the street)
+      const inner = foot + (side === 0 ? wideL : wideR);
       // the map's Jersey barrier for this stretch on the outer side (`wallStyles` barrier): a modern deck edge, the
       // precast barrier standing on the deck (barrierRuns) and a low concrete edge beam behind it
       const jersey =
@@ -2539,6 +2545,7 @@ function decks(net: Network, field: NetField, w: Way, parts: Parts): void {
         const fa: { x: number; z: number; bot: number; top: number }[] = [];
         const pa: typeof fa = [];
         const cap: Row[] = [];
+        const walk: Row[] = [];
         if (jersey) {
           jerseyParapet(net, w, p, side, r0, r1);
           continue;
@@ -2548,10 +2555,11 @@ function decks(net: Network, field: NetField, w: Way, parts: Parts): void {
           const y = net.surfaceAt(w, fr.i, fr.f, 0);
           const h = net.surfaceAt(w, fr.i, fr.f, sg * foot);
           const [x, z] = lat(fr, sg * edge);
-          const [ix, iz] = lat(fr, sg * (foot + PARAPET_IN));
+          const [ix, iz] = lat(fr, sg * (inner + PARAPET_IN));
           fa.push({ x, z, bot: y - DECK_DEPTH, top: h + capH });
           pa.push({ x: ix, z: iz, bot: h - 0.05, top: h + capH });
           cap.push(rowOf(fr, h + capH, sideShift(fr, side)));
+          walk.push(rowOf(fr, h, sideShift(fr, side)));
         }
         sFace.wall(fa, sCol);
         sFace.wall(pa, sCol);
@@ -2567,16 +2575,24 @@ function decks(net: Network, field: NetField, w: Way, parts: Parts): void {
             );
         sFace.strip(
           cap,
-          [sg * (foot + PARAPET_IN), 0, 0],
+          [sg * (inner + PARAPET_IN), 0, 0],
           [sg * edge, 0, 0],
           sCol,
           false,
         );
+        if (inner > foot + 0.05)
+          p.conc.strip(
+            walk,
+            [sg * foot, 0, 0],
+            [sg * (inner + PARAPET_IN), 0, 0],
+            CONC,
+            false,
+          );
         if (overStone && !jersey && cap.length >= 2)
           chainLink(
             p,
             cap,
-            sg * (foot + (PARAPET_IN + edge - foot) / 2),
+            sg * (inner + (PARAPET_IN + edge - inner) / 2),
             0,
             PARAPET_FENCE_H,
           );

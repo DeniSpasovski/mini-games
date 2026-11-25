@@ -64,6 +64,8 @@ export const jackie2Map: MapDef = {
       { from: 7200, to: 7800, barrier: 'jersey' },
       // tall tan / grey ashlar on both sides out of the Queens Blvd tunnel to the interchange (5:33-5:36)
       { from: 7300, to: 7470, wall: 'stone', fence: 'railing' },
+      // new poured concrete walls and parapets through the interchange past the ashlar (opposite lane 0:27-0:39)
+      { from: 7470, to: 8000, wall: 'concrete', deck: 'concrete', fence: 'none' },
     ],
     // pale cement-concrete pavement with sealed joints east of the Queens Blvd tunnel (drive video 5:30-5:49, opposite
     // lane 0:36-0:38); asphalt through the tunnel and at both portals (opposite lane 0:41-0:44 and 0:55-0:59)
@@ -79,10 +81,16 @@ export const jackie2Map: MapDef = {
     ],
     deckStyles: [
       // Myrtle Ave over the parkway: a painted plate-girder bridge on masonry abutments (drive video 3:34-3:36)
-      { way: '126080187', facing: 'steel' },
+      { way: '126080187', facing: 'steel', edges: [16, 12.7] },
       // Union Tpke over the parkway: dark steel girders under the slab, mesh fence, poured concrete abutments (video
       // our 4:55-4:56, opposite 1:33-1:35)
       { way: '126077113', facing: 'steel', abutment: 'concrete' },
+      // the overpasses' structures wider than their streets (USGS lidar, the deck seen over the stage road): sidewalks
+      // out to the parapets; Cypress Hills St's two carriageways on one deck, the median between them closed
+      { way: '126109614', edges: [6.5, 8.4] },
+      { way: '631895243', edges: [4, 9.8] },
+      { way: '631895241', edges: [4, 7.7] },
+      { way: '5706853', edges: [13, 13] },
     ],
     // Queens Blvd x Union Tpke over the Queens Blvd tunnel (the end zone): one paved plaza from the survey, the OSM
     // carriageways end on its rim (one source per junction)
