@@ -156,8 +156,9 @@ def pull_trees(force):
 
 
 # --- the WEST corridor: one query per pull chunk, features merged (chunks overlap) ------------------------------------
-# The roadbed, sidewalks, medians and centrelines (the v2 survey's widths and lines) and the trees.
-WEST_LAYERS = ('roadbed', 'sidewalk', 'median', 'cscl')
+# The roadbed, sidewalks, medians and centrelines (the v2 survey's widths and lines), spot heights, retaining walls, the
+# transportation structures (decks: holes in the lidar ground), kerbs and the trees.
+WEST_LAYERS = ('roadbed', 'sidewalk', 'median', 'cscl', 'elevation', 'retaining-wall', 'transport', 'curbs')
 
 
 def pull_geo_west(name, dataset, force):

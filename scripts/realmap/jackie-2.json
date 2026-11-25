@@ -48,8 +48,9 @@
       "ept": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/NY_NewYorkCity/",
       "box": [1870, 3080, -2060, -1220],
       "corridor": 60,
-      "from": 6450,
+      "from": 0,
       "tile": 64,
+      "route": true,
       "cache": "sources/maps/jackie-2/lidar"
     }
   }

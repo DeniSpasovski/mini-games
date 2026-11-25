@@ -70,7 +70,7 @@ export const jackie2Map: MapDef = {
     pavement: [{ from: 7474, to: 8000, surface: 'concrete' }],
     // the Queens Blvd tunnel's built-up steel girders: 12'-8" / 12'-10" under them on its plates (lidar deck top less
     // the floor less the slab)
-    tunnels: [{ from: 7280, to: 7460, girder: 1.1 }],
+    tunnels: [{ from: 7280, to: 7460, girder: 1.1, headwall: 'stone' }],
     deckStyles: [
       // Myrtle Ave over the parkway: a painted plate-girder bridge on masonry abutments (drive video 3:34-3:36)
       { way: '126080187', facing: 'steel' },

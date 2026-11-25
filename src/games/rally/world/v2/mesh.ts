@@ -153,6 +153,8 @@ const COLUMN: RGB = [0.5, 0.51, 0.5];
 /** The hall's outer barrier (`hallColumns`): low wall height (m) and the column spacing along it (m). */
 const HALL_WALL_H = 1.1;
 const HALL_COLUMN_EVERY = 3 * GIRDER_EVERY;
+/** A bore's end this far along from the stage road's portal shares its headwall line (`portalLine`, m). */
+const PORTAL_LINE_REACH = 8;
 /**
  * A steel deck (`deckStyles` 'steel'): the fascia girders' dull grey-green paint (drive video 3:34-3:36, Myrtle Ave),
  * the slab's underside above its girders (m under the deck top) and the girder spacing across the deck (m).
@@ -2998,48 +3000,84 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
     p.conc.wall(sideR, CONC);
     // headwalls: from the roof up to the slab top, across the cut; a parapet on top only where no road runs over
     // the portal's end (a headwall never cuts into the street above)
+    // (a tunnel with its own record: one straight headwall across all its bores, on the stage road's portal line at
+    // one coping level, in the record's material - Queens Blvd: one coursed-stone wall over both carriageways)
     for (const i of [i0, i1]) {
       const fr = frameAt(w, w.al.s[i]);
       const y = net.surfaceAt(w, fr.i, fr.f, 0);
+      const rec = net.tunnelAt(w, i);
+      const line = rec?.headwall ? portalLine(net, fr.x, fr.z) : undefined;
+      const slabTop = line ? line.top : w.slab[i];
+      const look = rec?.headwall ?? w.tpl.deck;
+      const mat = look === 'stone' ? p.stone : p.conc;
+      const col = look === 'stone' ? STONE : CONC;
       const pts: { x: number; z: number; bot: number; top: number }[] = [];
       const para: typeof pts = [];
       for (let t = -edgeR - 0.6; t <= edgeL + 0.61; t += 1) {
-        const [x, z] = lat(fr, t);
+        let [x, z] = lat(fr, t);
+        if (line) {
+          const d = (x - line.x) * line.tx + (z - line.z) * line.tz;
+          x -= line.tx * d;
+          z -= line.tz * d;
+        }
         pts.push({
           x,
           z,
           bot: y + w.tpl.clearance + 0.4 - net.girderAt(w, i),
-          top: under(x, z, w.slab[i]),
+          top: under(x, z, slabTop),
         });
         const over = field.top(x, z);
-        const open = !over || Math.abs(over.h - w.slab[i]) > 0.6;
+        const open = !over || Math.abs(over.h - slabTop) > 0.6;
         if (open)
           para.push({
             x,
             z,
-            bot: w.slab[i] - 0.02,
-            top: w.slab[i] + PARAPET_H,
+            bot: slabTop - 0.02,
+            top: slabTop + PARAPET_H,
           });
         else if (para.length > 1) {
-          (w.tpl.deck === 'stone' ? p.stone : p.conc).wall(
-            para,
-            w.tpl.deck === 'stone' ? STONE : CONC,
-          );
+          mat.wall(para, col);
           para.length = 0;
         } else para.length = 0;
       }
-      if (para.length > 1)
-        (w.tpl.deck === 'stone' ? p.stone : p.conc).wall(
-          para,
-          w.tpl.deck === 'stone' ? STONE : CONC,
-        );
-      (w.tpl.deck === 'stone' ? p.stone : p.conc).wall(
-        pts,
-        w.tpl.deck === 'stone' ? STONE : CONC,
-      );
+      if (para.length > 1) mat.wall(para, col);
+      mat.wall(pts, col);
       portalPlates(net, w, i, i0, i1, fr, y, midT, parts);
     }
   }
+}
+
+/**
+ * The stage road's portal nearest to (x, z) within PORTAL_LINE_REACH m along: the point and direction of the line a
+ * tunnel's own headwall stands on, and its coping level (the stage bore's slab top there).
+ */
+function portalLine(
+  net: Network,
+  x: number,
+  z: number,
+): { x: number; z: number; tx: number; tz: number; top: number } | undefined {
+  const st = net.stage;
+  if (!st.slab) return undefined;
+  let best:
+    { x: number; z: number; tx: number; tz: number; top: number } | undefined;
+  let bestD = PORTAL_LINE_REACH;
+  for (const run of runsOf(st.st, ST_TUNNEL))
+    for (const j of run) {
+      const d = Math.abs(
+        (x - st.al.x[j]) * st.al.tx[j] + (z - st.al.z[j]) * st.al.tz[j],
+      );
+      if (d >= bestD || Math.hypot(x - st.al.x[j], z - st.al.z[j]) > 40)
+        continue;
+      bestD = d;
+      best = {
+        x: st.al.x[j],
+        z: st.al.z[j],
+        tx: st.al.tx[j],
+        tz: st.al.tz[j],
+        top: st.slab[j],
+      };
+    }
+  return best;
 }
 
 /**

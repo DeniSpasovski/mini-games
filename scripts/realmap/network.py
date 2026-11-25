@@ -161,6 +161,12 @@ def tag_set(t):
     return s
 
 
+def write_route(folder, cfg, network):
+    """The menus' light route outline (maps/<id>/info.ts must not import the big files); the survey moves the stage."""
+    with open(os.path.join(folder, 'route.json'), 'w') as f:
+        json.dump({'meta': {'origin': cfg['origin']}, 'route': network['stage']['cps']}, f, separators=(',', ':'))
+
+
 def main():
     cfg_path = sys.argv[1]
     stats = '--stats' in sys.argv
@@ -179,6 +185,7 @@ def main():
         extend_stage(network, cfg.get('runout', 0))
         with open(fn, 'w') as f:
             json.dump(network, f, separators=(',', ':'))
+        write_route(folder, cfg, network)
         if '--runout-only' not in sys.argv and '--no-terrain' not in sys.argv:
             network_survey.lidar_terrain(cfg, ROOT, proj, network, os.path.join(folder, 'data.json'))
         return
@@ -396,9 +403,7 @@ def main():
     extend_stage(network, cfg.get('runout', 0))
     with open(os.path.join(folder, 'network.json'), 'w') as f:
         json.dump(network, f, separators=(',', ':'))
-    # The menus' light route outline (maps/<id>/info.ts must not import the big files).
-    with open(os.path.join(folder, 'route.json'), 'w') as f:
-        json.dump({'meta': {'origin': cfg['origin']}, 'route': network['stage']['cps']}, f, separators=(',', ':'))
+    write_route(folder, cfg, network)
     kinds = {}
     for e in out_edges:
         kinds[e['kind']] = kinds.get(e['kind'], 0) + 1
