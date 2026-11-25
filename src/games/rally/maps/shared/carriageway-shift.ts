@@ -1,7 +1,7 @@
 import type { PathDef } from './types';
 
 /**
- * The opposite carriageway moved sideways to its real distance from the stage road (`scripts/realmap/carriageway_offset.py`
+ * The opposite carriageway moved sideways to its real distance from the stage road (`carriageway-shift.json`, measured once from the NYC roadbed
  * writes `carriageway-shift.json`: per way the lateral offset of each vertex, + = left of the way's direction, measured
  * from the NYC planimetric roadbed). A node shared by shifted ways moves by the mean of their vectors; a way that is not
  * shifted but ends at such a node (a ramp, a street) follows with its end, the displacement fading out over `FADE` m; a

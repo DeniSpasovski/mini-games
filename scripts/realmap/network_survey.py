@@ -4,9 +4,9 @@ heights, so a map follows the city's survey instead of OSM defaults.
 
     "survey": {
       "planimetrics": "sources/maps/jackie/nyc-planimetrics",   # *-roadbed.geojson + *-median.geojson (nyc_pull.py)
-      "spotHeights": "src/games/rally/maps/jackie/spot-heights.json",   # spot_heights.py: route + streets [x, z, y]
+      "spotHeights": "src/games/rally/maps/jackie/spot-heights.json",   # NYC spot elevations: route + streets [x, z, y]
       "datum": 32.9,                                             # world y = survey y - datum (the heightmap offset)
-      "retainingWalls": "src/games/rally/maps/jackie/retaining-walls.json",   # retaining_walls.py: {walls: [[x, z, ...]]}
+      "retainingWalls": "src/games/rally/maps/jackie/retaining-walls.json",   # NYC retaining walls: {walls: [[x, z, ...]]}
       "wallsUntil": 6850                                         # stage m the wall survey covers (beyond: the daylight rule)
     }
 
@@ -157,7 +157,7 @@ def station_widths(pts, parts, tree, length):
 
 # Stage width stations (m), their smoothing window (m), the clean section widths (wider = a shoulder / ramp / gore the
 # roadbed merges in, narrower = a clip) and the clamp (two 2.6 m lanes + strips .. two 11 ft lanes + gutters): the same
-# rules as v1's parkway_width.py.
+# rules as v1's parkway width profile (maps/jackie route-width.json).
 STATION_STEP = 20.0
 STATION_SMOOTH = 200.0
 STATION_CLEAN = (4.2, 7.2)

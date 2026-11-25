@@ -1,7 +1,7 @@
 import type { PathDef } from '../maps/shared/types';
 
 /**
- * Paint of the streets that carry the street model (`PathDef.layout`, scripts/realmap/streets.py): which lines run where
+ * Paint of the streets that carry the street model (`PathDef.layout`, baked into Jackie's data): which lines run where
  * across a street, from its width, lane layout and class. Pure (no scene): `road-mesh.ts` sweeps the lines along the
  * ribbon, the world tests run the layout.
  *
@@ -21,7 +21,7 @@ export interface MarkLine {
   dash?: [number, number];
 }
 
-/** Parking lane, bike lane, minimum travel lane (m): the same numbers `streets.py` fits the layout with. */
+/** Parking lane, bike lane, minimum travel lane (m): the same numbers the street model's layout was fitted with. */
 export const PARK_W = 2.2;
 export const BIKE_W = 1.5;
 const DASH: [number, number] = [3, 9];

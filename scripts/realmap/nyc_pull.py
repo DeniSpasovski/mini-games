@@ -1,7 +1,8 @@
-"""Download NYC Open Data layers for the Jackie END BOX (scripts/realmap/endbox.py) into sources/maps/jackie/ (git-ignored).
+"""Download NYC Open Data layers for the Jackie maps into sources/maps/jackie/ (git-ignored): the END BOX (the Kew Gardens
+end, ENDBOX below) and the WEST corridor (the rest of the route, chunks along it).
 
     python scripts/realmap/nyc_pull.py [--force] [layer ...]
-    python scripts/realmap/nyc_pull.py --region west [--force] [layer ...]   # the WEST corridor (corridor.py): west-<layer>.*
+    python scripts/realmap/nyc_pull.py --region west [--force] [layer ...]   # the WEST corridor: west-<layer>.*
 
 Layers (Socrata dataset ids in LAYERS, checked in the catalog 2026-10-06): NYC Planimetric Database (OTI) polygons /
 lines / points, CSCL Centerline (DOT), Street Tree Census 2015 (Parks).
@@ -14,14 +15,62 @@ import os
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import corridor  # noqa: E402
-import endbox  # noqa: E402
+import numpy as np
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bake import Proj  # noqa: E402
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 OUT = os.path.join(ROOT, 'sources', 'maps', 'jackie', 'nyc-planimetrics')
 MARGIN = 100  # m around the END BOX
 PAGE = 20000
+# The END BOX (world x0, x1, z0, z1; bake.py Proj at jackie.json's origin, +X east, +Z south) and the WEST corridor: the
+# v1 route (maps/jackie/data.json) in CHUNK m pieces, each grown by REACH m (boxes wholly inside the END BOX skipped).
+ENDBOX = (1500.0, 4300.0, -2300.0, -900.0)
+ROUTE = os.path.join(ROOT, 'src', 'games', 'rally', 'maps', 'jackie', 'data.json')
+REACH = 560.0
+CHUNK = 600.0
+
+
+def proj():
+    return Proj(*json.load(open(os.path.join(HERE, 'jackie.json')))['origin'])
+
+
+def corners_ll(x0, z0, x1, z1):
+    p = proj()
+    return [p.inv(x, z) for x, z in [(x0, z0), (x1, z0), (x1, z1), (x0, z1)]]
+
+
+def wkt(ll):
+    """WKT for `$where=intersects(the_geom, '<wkt>')` (lon lat order, closed ring)."""
+    ring = [f'{lon:.6f} {lat:.6f}' for lat, lon in ll + ll[:1]]
+    return f'POLYGON(({", ".join(ring)}))'
+
+
+def bbox(ll):
+    """(south, west, north, east)."""
+    lats, lons = [a for a, _ in ll], [b for _, b in ll]
+    return min(lats), min(lons), max(lats), max(lons)
+
+
+def endbox_ll(margin):
+    x0, x1, z0, z1 = ENDBOX
+    return corners_ll(x0 - margin, z0 - margin, x1 + margin, z1 + margin)
+
+
+def west_chunks(margin=40.0):
+    """World boxes (x0, z0, x1, z1) of the WEST corridor's pull chunks."""
+    r = np.array(json.load(open(ROUTE, encoding='utf-8'))['route'], float)
+    along = np.concatenate([[0], np.cumsum(np.hypot(*np.diff(r, axis=0).T))])
+    ex0, ex1, ez0, ez1 = ENDBOX
+    out = []
+    for a0 in np.arange(0, along[-1], CHUNK):
+        pts = r[(along >= a0 - 30) & (along <= a0 + CHUNK + 30)]
+        (x0, z0), (x1, z1) = pts.min(axis=0) - REACH - margin, pts.max(axis=0) + REACH + margin
+        if not (x0 >= ex0 and x1 <= ex1 and z0 >= ez0 and z1 <= ez1):
+            out.append((x0, z0, x1, z1))
+    return out
 
 LAYERS = {
     'roadbed': 'i36f-5ih7',  # Planimetric: Roadbed (polygons: every carriageway, ramps, the parkway)
@@ -58,7 +107,7 @@ def pull_geo(name, dataset, force):
             (
                 f'https://data.cityofnewyork.us/resource/{dataset}.geojson',
                 [
-                    '--data-urlencode', f"$where=intersects(the_geom, '{endbox.socrata_polygon(MARGIN)}')",
+                    '--data-urlencode', f"$where=intersects(the_geom, '{wkt(endbox_ll(MARGIN))}')",
                     '--data-urlencode', f'$limit={PAGE}',
                     '--data-urlencode', f'$offset={off}',
                     '--data-urlencode', '$order=:id',
@@ -81,7 +130,7 @@ def pull_trees(force):
     if os.path.exists(fn) and not force:
         print(f'  trees: cached ({os.path.getsize(fn) // 1024} KB)')
         return
-    s, w, n, e = endbox.bbox_ll(MARGIN)
+    s, w, n, e = bbox(endbox_ll(MARGIN))
     rows, off = [], 0
     while True:
         j = curl_json(
@@ -107,7 +156,7 @@ def pull_trees(force):
 
 
 # --- the WEST corridor: one query per pull chunk, features merged (chunks overlap) ------------------------------------
-# What the street model (streets.py) and the street trees need there.
+# The roadbed, sidewalks, medians and centrelines (the v2 survey's widths and lines) and the trees.
 WEST_LAYERS = ('roadbed', 'sidewalk', 'median', 'cscl')
 
 
@@ -117,7 +166,7 @@ def pull_geo_west(name, dataset, force):
         print(f'  {name}: cached ({os.path.getsize(fn) // 1024} KB)')
         return
     feats = {}
-    for poly in corridor.socrata_polys():
+    for poly in (wkt(corners_ll(*c)) for c in west_chunks()):
         off = 0
         while True:
             j = curl_json(
@@ -149,7 +198,7 @@ def pull_trees_west(force):
         print(f'  trees: cached ({os.path.getsize(fn) // 1024} KB)')
         return
     rows = {}
-    for s, w, n, e in corridor.bbox_ll_chunks():
+    for s, w, n, e in (bbox(corners_ll(*c)) for c in west_chunks()):
         off = 0
         while True:
             j = curl_json(
@@ -181,7 +230,7 @@ if __name__ == '__main__' and '--region' in sys.argv:
         sys.exit(f'unknown region {region} (west)')
     args = [a for a in sys.argv[1:] if not a.startswith('--') and a != region]
     force = '--force' in sys.argv
-    print(f'WEST corridor: {len(corridor.socrata_polys())} chunks')
+    print(f'WEST corridor: {len(west_chunks())} chunks')
     for name in args or [*WEST_LAYERS, 'trees']:
         if name == 'trees':
             pull_trees_west(force)
@@ -192,7 +241,7 @@ if __name__ == '__main__' and '--region' not in sys.argv:
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     force = '--force' in sys.argv
     todo = args or [*LAYERS, 'trees']
-    print(f'END BOX +{MARGIN} m: {endbox.socrata_polygon(MARGIN)}')
+    print(f'END BOX +{MARGIN} m: {wkt(endbox_ll(MARGIN))}')
     for name in todo:
         if name == 'trees':
             pull_trees(force)

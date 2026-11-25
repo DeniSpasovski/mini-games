@@ -52,7 +52,7 @@ import { forestEdge } from '../shared/forest-edge';
 
 /**
  * Width of the stage road (m) `a` m along the route: the real carriageway (NYC planimetric roadbed minus the medians,
- * `route-width.json` from scripts/realmap/parkway_width.py): two narrow lanes, 5.6-7.0 m, smoothed over ~200 m (the
+ * `route-width.json` from the NYC roadbed): two narrow lanes, 5.6-7.0 m, smoothed over ~200 m (the
  * finish cut's tunnel bores and walls follow it).
  */
 function roadWidth(a: number): number {
@@ -124,7 +124,7 @@ const START_RAMP: PathDef = {
  * land of the narrow one past the fork (PathNetwork.query takes the full width; terrain came up through the lanes).
  * Matched by end points (path indices shift on a re-bake).
  */
-/** NYC street data (CSCL street width 50 ft, scripts/realmap/streets.py): travel lanes and parking, curb to curb (m). */
+/** NYC street data (CSCL street width 50 ft): travel lanes and parking, curb to curb (m). */
 const PARK_LANE_WIDTH = 15.2;
 const PARK_LANE_N: [number, number] = [2272.5, -1535.1];
 const PARK_LANE_S: [number, number][] = [
@@ -324,9 +324,9 @@ function routeDistance(x: number, z: number): number {
  */
 /**
  * The opposite carriageway sits at its real distance from the stage road (`carriageway-shift.json`, written by
- * scripts/realmap/carriageway_offset.py from the NYC roadbed; `maps/shared/carriageway-shift.ts`).
+ * measured from the NYC roadbed; `maps/shared/carriageway-shift.ts`).
  * 57 streets whose OSM centre line is 0.8-3 m off the real pavement are moved onto it (`street-shifts.json`, written by
- * scripts/realmap/streets.py from the NYC roadbed; `maps/shared/street-shift.ts`: junction nodes move together, nodes that
+ * measured from the NYC roadbed; `maps/shared/street-shift.ts`: junction nodes move together, nodes that
  * touch a deck / ramp / hand-built street stay put). The stage road's spans are fitted to the unshifted streets (below).
  */
 const shiftedPaths = keepClearOfRoute(
@@ -456,7 +456,7 @@ const bridgeSpans = lengthenBridges(
 
 /**
  * The stage road moved onto the real eastbound carriageway between 5 800 and 6 955 m (<= 1.5 m, mostly 1.1-1.5 m to the right;
- * `route-shift.json` from the NYC roadbed, scripts/realmap/route_offset.py; zero within 40 m of every bridge span, the
+ * `route-shift.json` from the NYC roadbed; zero within 40 m of every bridge span, the
  * overlook and the approved finish cut). Everything keyed to a distance along the road goes through `along` (the same
  * place on the road gets its new distance). The baked spans were fitted to the streets on the unshifted road (above).
  */
@@ -468,7 +468,7 @@ const along = shiftRoute(
 /** Height of the start above sea level (m): the heightmap's offset, so the start sits near y = 0. */
 const START_HEIGHT = 32.9;
 /**
- * NYC Planimetric Database spot elevations (`spot-heights.json`, scripts/realmap/spot_heights.py: m above sea level) in
+ * NYC Planimetric Database spot elevations (`spot-heights.json`: m above sea level) in
  * world heights.
  */
 const surveyed = (pts: number[][]): [number, number, number][] =>
@@ -527,7 +527,7 @@ export const jackieMap: MapDef = {
   paths,
   // The streets follow the NYC spot elevations on them too (ground streets; decks keep their clearance line).
   streetHeights: surveyed(spotHeights.streets),
-  // The NYC retaining walls beside the parkway up to the Union Tpke overlook (scripts/realmap/retaining_walls.py).
+  // The NYC retaining walls beside the parkway up to the Union Tpke overlook (`retaining-walls.json`).
   retainingWalls: retainingWalls.walls,
   // The Highland Blvd bridge behind the start: one deck surface through the NYC spot elevations on it (START_DECK).
   deckStructures: [
@@ -780,7 +780,7 @@ export const jackieMap: MapDef = {
   // Parked cars on the side streets, crowds on the overpasses and behind the closed junction mouths, police
   // cars and fire trucks standing at the junctions (all derived from the road network, see world/street-dressing.ts).
   // Kerbs, sidewalks, crosswalks and lamps on the streets within 560 m of the parkway (world/street-detail.ts): the
-  // NYC street-model corridor (scripts/realmap/corridor.py REACH), out to which the start area's streets are baked.
+  // NYC street-model corridor (560 m, nyc_pull.py REACH), out to which the start area's streets are baked.
   cityStreets: { reach: 560, sidewalk: 1.5, lampEvery: 34 },
   streetDressing: {
     parked: {
@@ -879,7 +879,7 @@ export const jackieMap: MapDef = {
     ...laneStart.trees,
     ...junctionCores.cores.flatMap((c) => c.trees),
   ],
-  // NYC Street Tree Census 2015 over the Kew Gardens end (scripts/realmap/street_trees.py).
+  // NYC Street Tree Census 2015 over the Kew Gardens end (`street-trees.json`).
   streetTrees,
   overheadSigns: {
     exits: true,

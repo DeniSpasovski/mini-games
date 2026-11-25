@@ -64,7 +64,6 @@
     "corridor": 560,
     "buildingsCorridor": 700
   },
-  "streets": { "applyWidth": true },
   "paths": {
     "corridor": 350,
     "highwayCorridor": 900
