@@ -874,12 +874,100 @@ function roofs(
 // Tudor houses: the footprint's rectangle, walls to the eaves, a hipped tile roof to the survey's ridge, a cross gable
 // to the street with half-timbering.
 
+/**
+ * The house's plan as up to three rectangles (the survey ring rasterised in its min-area rectangle's frame, largest
+ * rectangles first): an L or T house is a main wing and one or two cross wings, each under its own hipped roof (their
+ * union gives the valleys).
+ */
+function wingsOf(s: Shape): { u: number; v: number; w: number; d: number }[] {
+  const [cx, cz, W, D, ang] = s.rect;
+  const c = Math.cos(ang);
+  const sn = Math.sin(ang);
+  const ring = ringOf(s);
+  const G = 0.25;
+  const nu = Math.ceil(W / G);
+  const nv = Math.ceil(D / G);
+  const mask = new Uint8Array(nu * nv);
+  for (let j = 0; j < nv; j++)
+    for (let i = 0; i < nu; i++) {
+      const u = -W / 2 + (i + 0.5) * G;
+      const v = -D / 2 + (j + 0.5) * G;
+      if (inside(cx + u * c - v * sn, cz + u * sn + v * c, ring))
+        mask[j * nu + i] = 1;
+    }
+  const total = mask.reduce((a, b) => a + b, 0);
+  const out: { u: number; v: number; w: number; d: number }[] = [];
+  let covered = 0;
+  for (let k = 0; k < 3; k++) {
+    // Largest all-ones rectangle (histogram method).
+    const hgt = new Int32Array(nu);
+    let best = { a: 0, i0: 0, i1: 0, j0: 0, j1: 0 };
+    for (let j = 0; j < nv; j++) {
+      for (let i = 0; i < nu; i++) hgt[i] = mask[j * nu + i] ? hgt[i] + 1 : 0;
+      for (let i = 0; i < nu; i++) {
+        let mh = Infinity;
+        for (let i2 = i; i2 < nu && hgt[i2] > 0; i2++) {
+          mh = Math.min(mh, hgt[i2]);
+          const a = mh * (i2 - i + 1);
+          if (a > best.a) best = { a, i0: i, i1: i2, j0: j - mh + 1, j1: j };
+        }
+      }
+    }
+    if (best.a * G * G < 8 || (k > 0 && covered / total > 0.93)) break;
+    for (let j = best.j0; j <= best.j1; j++)
+      for (let i = best.i0; i <= best.i1; i++) {
+        covered++;
+      }
+    out.push({
+      u: -W / 2 + ((best.i0 + best.i1 + 1) / 2) * G,
+      v: -D / 2 + ((best.j0 + best.j1 + 1) / 2) * G,
+      w: (best.i1 - best.i0 + 1) * G,
+      d: (best.j1 - best.j0 + 1) * G,
+    });
+    // The next wing must add new area: the taken cells are out.
+    for (let j = best.j0; j <= best.j1; j++)
+      for (let i = best.i0; i <= best.i1; i++) mask[j * nu + i] = 0;
+  }
+  return out;
+}
+
 function buildHouse(o: Out, b: Building, st: HouseStyle): void {
   const s = b.shape;
-  const [cx, cz, W, D, ang] = s.rect;
+  const [cx, cz, , , ang] = s.rect;
   const ridge = Math.max(
     ...s.roofs.flatMap((r) => r.filter((_, i) => i % 3 === 2)),
   );
+  const wings = wingsOf(s);
+  const c = Math.cos(ang);
+  const sn = Math.sin(ang);
+  const slope =
+    (ridge - Math.min(st.eaves, ridge - 2.5)) /
+    Math.max(1, Math.min(wings[0].w, wings[0].d) / 2);
+  for (const [k, wg] of wings.entries()) {
+    const long = wg.w >= wg.d;
+    const x = cx + wg.u * c - wg.v * sn;
+    const z = cz + wg.u * sn + wg.v * c;
+    const W = long ? wg.w : wg.d;
+    const D = long ? wg.d : wg.w;
+    const E0 = Math.min(st.eaves, ridge - 2.5);
+    const r = k === 0 ? ridge : Math.min(ridge, E0 + (D / 2) * slope);
+    houseWing(o, b, st, x, z, W, D, long ? ang : ang + Math.PI / 2, r, k);
+  }
+}
+
+function houseWing(
+  o: Out,
+  b: Building,
+  st: HouseStyle,
+  cx: number,
+  cz: number,
+  W: number,
+  D: number,
+  ang: number,
+  ridge: number,
+  wing: number,
+): void {
+  const s = b.shape;
   const E = Math.min(st.eaves, ridge - 2.5);
   const c = Math.cos(ang);
   const sn = Math.sin(ang);
@@ -1076,6 +1164,7 @@ function buildHouse(o: Out, b: Building, st: HouseStyle): void {
     m,
   );
   // Cross gable to the street: steep, as tall as the main ridge, half-timbered face over the front wall.
+  if (wing > 0) return;
   const gw = Math.min(W * 0.42, 5.2);
   const gx = (h(77) > 0.5 ? 1 : -1) * Math.max(0, hw - gw / 2 - 0.6);
   const gz = hd + 0.3;
