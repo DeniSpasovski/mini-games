@@ -8,12 +8,14 @@
 /** Apartment blocks, towers and offices: the city model's walls with windows cut in. */
 export interface BlockStyle {
   type: 'block';
+  /** Raise (+) / lower (-) the whole building (m): where the survey's ground or roofs disagree with the lidar. */
+  lift?: number;
   /** Wall finish: face brick (tinted), painted render, or a glass curtain wall. */
   wall: 'brick' | 'render' | 'glass';
   /** Brick / render / glass colour. */
   tint: string;
-  /** Glass curtain walls: the lighter panes on the faces of these bearings (deg, +-12). */
-  light?: { bearings: number[]; tint: string };
+  /** Glass curtain walls: the lighter panes on the faces of these bearings (deg, +-12), no wider than `maxWidth` m. */
+  light?: { bearings: number[]; tint: string; maxWidth?: number };
   /** Ground floor height (m) and the typical floor above it. */
   ground: number;
   floor: number;
@@ -59,6 +61,7 @@ export interface BlockStyle {
 /** Detached / semi-detached Tudor houses: brick ground floor, half-timbered upper floor, red tile roofs. */
 export interface HouseStyle {
   type: 'house';
+  lift?: number;
   /** Ground floor brick colour. */
   brick: string;
   /** Upper floor: brick, or stucco with dark timbers. */
@@ -82,7 +85,7 @@ export type KewStyle = BlockStyle | HouseStyle;
 const PREWAR: BlockStyle = {
   type: 'block',
   wall: 'brick',
-  tint: '#93796d',
+  tint: '#a0837a',
   ground: 3.6,
   floor: 3.05,
   win: { w: 0.85, h: 1.6, sill: 0.8, bay: 2.9, pair: 2 },
@@ -125,7 +128,7 @@ const TUDOR: HouseStyle = {
   stucco: '#e6dfcf',
   timber: '#4a3a30',
   eaves: 5.6,
-  tiles: '#8e5a48',
+  tiles: '#7a4a3d',
   frame: '#f1eee6',
   front: 135,
 };
@@ -160,7 +163,7 @@ export const KEW_STYLES: Record<number, KewStyle> = {
     type: 'block',
     wall: 'glass',
     tint: '#10141b',
-    light: { bearings: [20, 75, 200, 260], tint: '#7f98b0' },
+    light: { bearings: [20, 75, 200, 260], tint: '#7f98b0', maxWidth: 9 },
     ground: 4.5,
     floor: 3.9,
     win: { w: 1.5, h: 3.9, sill: 0, bay: 1.5 },
@@ -182,8 +185,13 @@ export const KEW_STYLES: Record<number, KewStyle> = {
     fire: [{ face: 320, at: [0.4] }],
   },
   // 119-14 / 119-20 Union Tpke (1923-26): four-storey walk-ups
-  4080002: { ...WALKUP, fire: [{ face: 320, at: [0.5] }] },
-  4080003: { ...WALKUP, tint: '#aa9b88', fire: [{ face: 320, at: [0.5] }] },
+  4080002: {
+    ...WALKUP,
+    tint: '#c4b8a6',
+    lift: -0.6,
+    fire: [{ face: 320, at: [0.5] }],
+  },
+  4080003: { ...WALKUP, tint: '#bfb19c', fire: [{ face: 320, at: [0.5] }] },
   // 80-04 Austin St (1930): two four-storey wings
   4434543: { ...WALKUP, tint: '#a08a7a' },
   4434541: { ...WALKUP, tint: '#a08a7a' },
@@ -239,20 +247,37 @@ export const KEW_STYLES: Record<number, KewStyle> = {
     coping: '#d8cfbe',
     roof: '#85837e',
   },
+  // 118-01 Queens Blvd (1963): six-storey office block at the Union Tpke corner, pale buff brick with long bands of
+  // windows, a machine room on the white roof (aerial photo)
+  4052809: {
+    type: 'block',
+    lift: -0.6,
+    wall: 'brick',
+    tint: '#d6c7ac',
+    ground: 4.8,
+    floor: 3.9,
+    win: { w: 1.6, h: 1.7, sill: 1.0, bay: 1.75 },
+    frame: '#45474a',
+    sill: '#ddd5c4',
+    coping: '#e6e1d6',
+    roof: '#c9c7c1',
+  },
+  // 78-11 Kew Forest Ln (1920): four-storey walk-up on the cut's north rim
+  4079999: { ...WALKUP, tint: '#a3887a', fire: [{ face: 140, at: [0.5] }] },
   // 424 Burns St (1935): a brick two-family house, tile roof
   4079635: { ...TUDOR, upper: 'brick', front: 225 },
   // Tudor houses on the north side of Union Tpke and Markwood Pl
   4079189: TUDOR,
-  4079186: { ...TUDOR, tiles: '#86533f' },
+  4079186: { ...TUDOR, tiles: '#734436' },
   4079183: { ...TUDOR, brick: '#866254' },
-  4079182: { ...TUDOR, tiles: '#86533f', front: 225 },
+  4079182: { ...TUDOR, tiles: '#734436', front: 225 },
   4079190: { ...TUDOR, upper: 'brick' },
   4079070: { ...TUDOR, brick: '#866254' },
-  4079188: { ...TUDOR, tiles: '#93604c' },
+  4079188: { ...TUDOR, tiles: '#7f5041' },
   4521553: { ...TUDOR, eaves: 3.2 },
-  4079187: { ...TUDOR, upper: 'brick', tiles: '#86533f' },
+  4079187: { ...TUDOR, upper: 'brick', tiles: '#734436' },
   4079184: TUDOR,
   4079185: { ...TUDOR, brick: '#866254' },
   4079191: { ...TUDOR, front: 225 },
-  4079069: { ...TUDOR, tiles: '#93604c' },
+  4079069: { ...TUDOR, tiles: '#7f5041' },
 };

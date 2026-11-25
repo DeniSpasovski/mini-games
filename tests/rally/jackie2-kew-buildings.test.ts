@@ -6,6 +6,7 @@ import { KEW_STYLES } from '../../src/games/rally/maps/jackie-2/landmarks/kew-st
 import {
   KEW_BUILDINGS,
   kewBuildingsLandmark as landmark,
+  kewShare,
 } from '../../src/games/rally/maps/jackie-2/landmarks/kew-blocks';
 
 /**
@@ -62,6 +63,14 @@ describe('jackie 2 Kew Gardens buildings', () => {
     // (U-shaped blocks: the box centre lies in the yard, the box still goes)
     for (const id of [7917, 7949, 7954, 2707])
       expect(replaced.some((b) => b.id === id)).toBe(true);
+  });
+
+  test('no kept box stands inside a Kew building, no removed box leaves an empty lot', () => {
+    for (const b of jackie2Map.buildings!) {
+      const share = kewShare(b);
+      if (landmark.replaces(b)) expect(share).toBeGreaterThanOrEqual(0.4);
+      else expect(share).toBeLessThan(0.15);
+    }
   });
 
   test('solid boxes stay off the stage road', () => {

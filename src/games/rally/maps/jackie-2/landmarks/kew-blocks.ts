@@ -98,7 +98,8 @@ const BUILDINGS: { shape: Shape; style: KewStyle; ring: P2[] }[] =
 const DATUM = 32.9;
 
 /** Game height of the survey's h = 0 (the building's lowest ground point). */
-const baseOf = (s: Shape): number => s.ground - DATUM;
+const baseOf = (s: Shape): number =>
+  s.ground - DATUM + (KEW_STYLES[s.bin]?.lift ?? 0);
 
 /** Bearing (deg, 0 = north, 90 = east) of a horizontal outward normal (x east, z south). */
 const bearingOf = (nx: number, nz: number): number =>
@@ -684,7 +685,9 @@ function window_(o: Out, st: BlockStyle, w: Win, m: Matrix4, r: number): void {
 /** Glass curtain wall: pane colour per face, mullions and floor spandrels. */
 function curtain(o: Out, pl: Plane, st: BlockStyle, m: Matrix4): void {
   const light =
-    st.light && st.light.bearings.some((b) => near(b, pl.bearing, 12));
+    st.light &&
+    st.light.bearings.some((b) => near(b, pl.bearing, 12)) &&
+    pl.s1 - pl.s0 <= (st.light.maxWidth ?? Infinity);
   const tint = light ? st.light!.tint : st.tint;
   for (const pc of pl.pieces) {
     const uv = pc.pts.map(([sv, hv]): P2 => [sv / st.win.bay, hv / st.floor]);
@@ -1421,24 +1424,31 @@ function colliders(): StaticCollider[] {
 }
 
 /** A footprint box of the city bake overlaps a building's ring (a sample of points over the box, its corners too). */
-function overlaps(b: BuildingDef, ring: P2[]): boolean {
+/** Share of a footprint box of the city bake inside the Kew buildings' rings (7 x 7 points over the box). */
+export function kewShare(b: BuildingDef): number {
   const c = Math.cos(b.angle);
   const sn = Math.sin(b.angle);
+  let n = 0;
   for (let i = 0; i <= 6; i++)
     for (let j = 0; j <= 6; j++) {
       const u = (i / 6 - 0.5) * b.w * 0.96;
       const v = (j / 6 - 0.5) * b.d * 0.96;
-      if (inside(b.x + u * c - v * sn, b.z + u * sn + v * c, ring)) return true;
+      const x = b.x + u * c - v * sn;
+      const z = b.z + u * sn + v * c;
+      if (BUILDINGS.some((k) => inside(x, z, k.ring))) n++;
     }
-  return false;
+  return n / 49;
 }
+
+/** A box goes when a third of it lies under the Kew buildings (a U block's box has its centre in the yard). */
+const REPLACE_SHARE = 1 / 3;
 
 export const kewBuildingsLandmark: Landmark = {
   id: 'jackie-2-kew-buildings',
   occupies: (x, z, margin) =>
     BUILDINGS.some((b) => distToRing(x, z, b.ring) <= margin),
   // The footprint boxes of the city bake under these buildings.
-  replaces: (b) => BUILDINGS.some((k) => overlaps(b, k.ring)),
+  replaces: (b) => kewShare(b) >= REPLACE_SHARE,
   colliders,
   instances: () => [],
   build,
