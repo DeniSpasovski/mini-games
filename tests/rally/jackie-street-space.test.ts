@@ -34,6 +34,11 @@ const T0 = Date.now();
 const log = (m: string) =>
   process.env.JACKIE_LOG &&
   appendFileSync(process.env.JACKIE_LOG, `${m} ${Date.now() - T0} ms\n`);
+/** A check's numbers: in the test output and, with JACKIE_LOG=<file>, in that file (for the review report). */
+const report = (m: string) => {
+  console.info(m);
+  if (process.env.JACKIE_LOG) appendFileSync(process.env.JACKIE_LOG, `${m}\n`);
+};
 const world = new World(jackie2Map);
 log('world');
 const net = world.gen.net!;
@@ -186,7 +191,7 @@ describe('jackie 2: street space self-checks', () => {
     const rows = [...per.entries()].sort((a, b) => a[0] - b[0]);
     const tp = cells.filter(([, c]) => topPlaza(c));
     const tpBare = tp.filter(([k]) => !top.has(k)).length;
-    console.info(
+    report(
       `[jackie2 street] ${cells.length} m2 city street space (${space.size - cells.length} over the cut): bare ${bare.length} m2` +
         ` (road ${bare.filter(([, c]) => c.kind === 'road').length}, walk ${bare.filter(([, c]) => c.kind === 'walk').length});` +
         ` top plaza ${tp.length} m2, bare ${tpBare}; per 100 m: ${rows.map(([a, n]) => `${a}:${n}`).join(' ')}`,
@@ -227,7 +232,7 @@ describe('jackie 2: street space self-checks', () => {
       if (island.has(k)) raised++;
       if (walk.has(k)) walkOnRoad++;
     }
-    console.info(
+    report(
       `[jackie2 street] land above paving: ${above} of ${n} cells; raised island on real roadbed ${raised} m2,` +
         ` sidewalk paving on real roadbed ${walkOnRoad} m2`,
     );
@@ -265,7 +270,7 @@ describe('jackie 2: street space self-checks', () => {
       (n, pl) => n + pl.crosswalks.length,
       0,
     );
-    console.info(
+    report(
       `[jackie2 street] ${crosswalks} record crosswalks: ${drawn} of ${bars} ladder bars drawn;` +
         ` lane paint at ${painted.length} of ${junctions.length} plaza junctions`,
     );
@@ -313,7 +318,7 @@ describe('jackie 2: street space self-checks', () => {
         if (!mouth) unexpected++;
       }
     }
-    console.info(
+    report(
       `[jackie2 street] stage barriers 6600-7570: ${out.join('; ')}; ${unexpected} gaps away from a junction`,
     );
     expect(unexpected).toBe(0);
