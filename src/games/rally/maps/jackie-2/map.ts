@@ -71,6 +71,12 @@ export const jackie2Map: MapDef = {
     // the Queens Blvd tunnel's built-up steel girders: 12'-8" / 12'-10" under them on its plates (lidar deck top less
     // the floor less the slab)
     tunnels: [{ from: 7280, to: 7460, girder: 1.1, headwall: 'stone' }],
+    // the roads beside the parkway at its level are open to it, a barrier between (USGS lidar points: nothing over 0.9 m
+    // between them at 290-342, 6 969-7 011 and 7 165-7 523 - the Union Tpke lanes at Kew)
+    openBeside: [
+      { from: 250, to: 400 },
+      { from: 6900, to: 7620 },
+    ],
     deckStyles: [
       // Myrtle Ave over the parkway: a painted plate-girder bridge on masonry abutments (drive video 3:34-3:36)
       { way: '126080187', facing: 'steel' },

@@ -652,6 +652,7 @@ export class Network {
   private readonly deckStyles: NonNullable<NetworkDef['deckStyles']>;
   private readonly pavement: NonNullable<NetworkDef['pavement']>;
   private readonly tunnelDefs: NonNullable<NetworkDef['tunnels']>;
+  private readonly openBeside: NonNullable<NetworkDef['openBeside']>;
   private readonly paveNear = new Map<number, Projection>();
   /** Wall samples beside another, unrelated road at their level (`dividingWalls`): way, side, sample, that road. */
   private divides: [Way, 0 | 1, number, Way][] = [];
@@ -679,6 +680,7 @@ export class Network {
     this.deckStyles = def.deckStyles ?? [];
     this.pavement = def.pavement ?? [];
     this.tunnelDefs = def.tunnels ?? [];
+    this.openBeside = def.openBeside ?? [];
     const sw = def.data.survey;
     if (sw?.walls?.length && sw.wallsUntil) {
       const segs: number[] = [];
@@ -874,8 +876,10 @@ export class Network {
     const near = new Map<number, Projection>();
     const built = new Set<Way>();
     for (const [w, side, i, q] of this.divides) {
-      // (the stage road's carriageways only: the parkway in its cut)
+      // (the stage road's carriageways only: the parkway in its cut; not where the map has it open, `openBeside`)
       if (!(w.stage || w.corr) || w.st[i] !== ST_GROUND) continue;
+      const st = this.stationOf(w, i);
+      if (this.openBeside.some((r) => st >= r.from && st <= r.to)) continue;
       const sg = side === 0 ? 1 : -1;
       const foot = side === 0 ? w.sec.footL : w.sec.footR;
       const lw = worldT(w, i, 0, (foot + w.tpl.daylight.wallOffset) * sg);

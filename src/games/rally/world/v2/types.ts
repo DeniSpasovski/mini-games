@@ -153,6 +153,11 @@ export interface NetworkDef {
    */
   pavement?: { from: number; to: number; surface: 'concrete' }[];
   /**
+   * Stretches of the stage road (m along) where an unrelated road beside its carriageways at their level is open to
+   * them - a barrier between, no dividing wall (`Network.dividingWalls`; the lidar sees none there).
+   */
+  openBeside?: { from: number; to: number }[];
+  /**
    * One tunnel's soffit per stretch of the stage road (m along; every bore there by its nearest stage station): the depth
    * of its ceiling girders (m), so the clearance under them is the one on its plates, and its headwalls. Elsewhere the
    * template's (TUNNEL_GIRDER_DEFAULT).
