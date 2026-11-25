@@ -172,13 +172,15 @@ function gantry(g: GantryPlan): {
   // Boards hung under the beam, face towards the oncoming driver (-Z), dark back.
   for (const b of g.boards) {
     const tex = signBoardTexture(b.def);
-    const y = beamY - 0.15 - BOARD_H / 2;
-    const face = new PlaneGeometry(BOARD_W, BOARD_H)
+    const bw = b.w ?? BOARD_W;
+    const bh = bw * (640 / 1024);
+    const y = beamY - 0.15 - bh / 2;
+    const face = new PlaneGeometry(bw, bh)
       .rotateY(Math.PI)
       .translate(b.lateral, y, -0.03);
     maps.set(tex, [...(maps.get(tex) ?? []), face.toNonIndexed()]);
-    solids.push(box(BOARD_W, BOARD_H, 0.05, b.lateral, y, 0.0, DARK));
-    for (const dx of [-BOARD_W * 0.3, BOARD_W * 0.3])
+    solids.push(box(bw, bh, 0.05, b.lateral, y, 0.0, DARK));
+    for (const dx of [-bw * 0.3, bw * 0.3])
       solids.push(box(0.08, 0.3, 0.08, b.lateral + dx, beamY - 0.15, 0));
   }
   return { solid: solids, textured: maps };

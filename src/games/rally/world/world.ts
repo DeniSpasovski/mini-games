@@ -43,6 +43,7 @@ import {
   type ScatterInstance,
 } from './scatter';
 import { overheadSigns, type OverheadSigns } from './overhead-signs';
+import { barrierLateral } from './v2/mesh';
 import { stageSigns, type StageSigns } from './stage-signs';
 import { nearestRoadPoint } from './road-distance';
 import {
@@ -730,12 +731,24 @@ export class World implements GroundProvider {
       !!this.stageDef.reverse,
     );
     for (const c of this.signs.colliders) this.scatter.addFixedCollider(c);
+    const v2net = this.gen.net;
+    const v2field = this.gen.netField;
     this.overheadSigns = overheadSigns(
       map,
       this.road,
       this.analytic,
       this.gen.paths,
       this.gen.junctions,
+      v2net && v2field
+        ? (along, side) =>
+            barrierLateral(
+              v2net,
+              v2field,
+              v2net.stage,
+              along,
+              side === 1 ? 0 : 1,
+            )
+        : undefined,
     );
     for (const c of this.overheadSigns.colliders)
       this.scatter.addFixedCollider(c);

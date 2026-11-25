@@ -391,7 +391,11 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
             w.st[k] !== ST_DECK &&
             w.st[k] !== ST_TUNNEL &&
             w.wall[s][k] === WALL_NONE;
-          const drawn = world.gen.meshHeight(r.toe[0], r.toe[2]);
+          // (the city street space paved there is drawn too)
+          const drawn = Math.max(
+            world.gen.meshHeight(r.toe[0], r.toe[2]),
+            field.underDrawn(r.toe[0], r.toe[2]) ?? -Infinity,
+          );
           // (over land more than 0.1 m lower - a step - the slab side goes on as a face down to it, up to 4 m)
           const faced = drawn < r.toe[1] - 0.1 && drawn > r.toe[1] - 4;
           if (r.open && bare && !faced && drawn < r.toe[1] - 0.01) {
