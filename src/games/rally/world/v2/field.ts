@@ -163,6 +163,11 @@ interface ArmH {
   hw: number;
 }
 
+/** A limited-access mainline (motorway / trunk, not a link): streets meet it only by its ramps. */
+export function isLimited(w: Way): boolean {
+  return w.kind === 'motorway' || w.kind === 'trunk';
+}
+
 export interface TopHit {
   h: number;
   surface: SurfaceId;
@@ -515,8 +520,27 @@ export class NetField {
     return best;
   }
 
+  /**
+   * How far (x, z) lies inside the wall lines of a road in the trench below a plaza (m, < 0 outside them all; tunnel
+   * or not): with the portal line, the edge the plaza paving is clipped to (mesh.ts `plazaSurface`).
+   */
+  cutLateral(x: number, z: number): number {
+    let best = -Infinity;
+    for (const [wi, p] of this.nearestFoot(x, z)) {
+      const w = this.net.ways[wi];
+      if (!this.net.trench.has(w) || this.beyondEnds(w, p, x, z)) continue;
+      const k = p.f < 0.5 ? p.i : Math.min(w.al.n - 1, p.i + 1);
+      const footW = p.t >= 0 ? w.sec.footL : w.sec.footR;
+      best = Math.max(
+        best,
+        footW + wallOff(w, k, p.t >= 0 ? 0 : 1) + 0.5 - Math.abs(p.t),
+      );
+    }
+    return best;
+  }
+
   /** (x, z) lies over the open cut of a road in the trench below a plaza (on it or out to its wall line). */
-  private openCut(x: number, z: number): boolean {
+  openCut(x: number, z: number): boolean {
     for (const [wi, p] of this.nearestFoot(x, z)) {
       const w = this.net.ways[wi];
       if (!this.net.trench.has(w) || this.beyondEnds(w, p, x, z)) continue;
@@ -1812,6 +1836,22 @@ export class NetField {
     )
       out = slab;
     return out;
+  }
+
+  /**
+   * A limited-access road's pavement (a motorway / trunk mainline, not a ramp) at (x, z) within `tol` of height y: a
+   * street never crosses one at grade, so none of its paint or openings belong there.
+   */
+  limitedAt(x: number, z: number, y: number, tol = 1.2): Way | undefined {
+    for (const [wi, p] of this.nearestFoot(x, z)) {
+      const w = this.net.ways[wi];
+      if (w.internal || !isLimited(w) || this.beyondEnds(w, p, x, z)) continue;
+      if (Math.abs(p.t) > (p.t >= 0 ? w.sec.paveL : w.sec.paveR)) continue;
+      if (p.s < w.cut0 || p.s > w.al.length - w.cut1) continue;
+      if (Math.abs(this.net.surfaceAt(w, p.i, p.f, p.t) - y) > tol) continue;
+      return w;
+    }
+    return undefined;
   }
 
   /**

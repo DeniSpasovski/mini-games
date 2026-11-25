@@ -383,6 +383,8 @@ const UNDER_STOREY = 3;
 const DECK_WALL_CLEAR = 1;
 /** A cut wall at most this far (m) in front of a higher road's fill wall gives way to it (`facedWalls`). */
 const FACE_GAP = 6;
+/** A projection this much further from a way's line than its lateral offset lies past the way's end (m). */
+const PAST_END = 1;
 // a surveyed wall line within this of a road's own wall line keeps that wall (facedWalls)
 const WALL_SURVEY_HOLD = 2;
 // ... and nearer to it than the street's face by this much
@@ -4822,6 +4824,9 @@ export class Network {
           const q = this.ways[qi];
           const qFoot = p.t >= 0 ? q.sec.footL : q.sec.footR;
           if (Math.abs(p.t) > qFoot + 1) continue;
+          // (a point past that road's end - its projection clamped to the end - is not behind the face: a ramp ending
+          // short of the wall, 7 445-7 455 left)
+          if (p.d > Math.abs(p.t) + PAST_END) continue;
           const h = this.surfaceAt(
             q,
             p.i,
