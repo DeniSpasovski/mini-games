@@ -805,8 +805,7 @@ export class NetField {
     z: number,
   ): boolean {
     if (w.st[k] !== ST_GROUND) return false;
-    for (const f of this.plazaFields) {
-      const pl = f.pl;
+    for (const pl of this.net.plazas) {
       if (x < pl.minX || x > pl.maxX || z < pl.minZ || z > pl.maxZ) continue;
       if (!inPolygon(pl.area, x, z)) continue;
       if (!pl.level) return true;
@@ -845,8 +844,6 @@ export class NetField {
     x: number,
     z: number,
   ): boolean {
-    // (not while the plaza fields are being built)
-    if (!this.plazaFields) return false;
     if (p.s >= w.cut0 && p.s <= w.al.length - w.cut1) return false;
     return this.plazaGrade(w, p, k, x, z);
   }
