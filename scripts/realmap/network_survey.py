@@ -39,6 +39,10 @@ REACH = 20.0
 MIN_W = 3.0
 MAX_W = 24.0
 MIN_SHARE = 0.5
+# edges without a width from SECTION_STEP sections: from SHORT_MIN m long, SHORT_SECTIONS sections, SHORT_END m clear of the ends
+SHORT_MIN = 6.0
+SHORT_SECTIONS = 4
+SHORT_END = 3.0
 
 
 def find_path(root, rel):
@@ -95,13 +99,25 @@ def section_width(c, tg, parts, tree):
 
 
 def line_width(pts, parts, tree):
-    """Median clean section width along a polyline [n, 2], or None."""
+    """Median clean section width along a polyline [n, 2], or None: sections every SECTION_STEP m, not at the ends (a
+    junction's roadbed is there). An edge too short for that (a street between two close junctions, a short deck) gets
+    SHORT_SECTIONS sections over its length instead, SHORT_END m clear of its ends."""
     seg = np.hypot(*np.diff(pts, axis=0).T)
     d = np.concatenate([[0], np.cumsum(seg)])
-    if d[-1] < SECTION_STEP:
+    w = None
+    if d[-1] >= SECTION_STEP:
+        w = sections_width(pts, d, np.arange(SECTION_STEP / 2, d[-1] - SECTION_STEP / 4, SECTION_STEP), parts, tree)
+    if w is None and d[-1] >= SHORT_MIN:
+        step = d[-1] / SHORT_SECTIONS
+        end = max(step / 2, min(SHORT_END, d[-1] / 4))
+        w = sections_width(pts, d, np.arange(end, d[-1] - end + 1e-6, step), parts, tree)
+    return w
+
+
+def sections_width(pts, d, t, parts, tree):
+    """The median clean width of cross sections at arc lengths t, or None (too few clean ones)."""
+    if not len(t):
         return None
-    # not the ends: a junction's roadbed is there
-    t = np.arange(SECTION_STEP / 2, d[-1] - SECTION_STEP / 4, SECTION_STEP)
     c = np.stack([np.interp(t, d, pts[:, 0]), np.interp(t, d, pts[:, 1])], 1)
     g = np.gradient(c, axis=0) if len(c) > 1 else np.array([pts[-1] - pts[0]])
     g = g / np.maximum(np.linalg.norm(g, axis=1, keepdims=True), 1e-9)

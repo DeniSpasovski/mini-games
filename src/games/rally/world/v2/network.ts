@@ -90,8 +90,10 @@ const SPOT_TRUST = 3;
 const SPOT_ROOF = 0.5;
 /** A survey plaza's level also takes the spots this far outside its rim (the street ends it meets, m). */
 const PLAZA_RIM = 8;
-/** The surveyed widths hold off this far from a tunnel: the Queens Blvd tunnel's bores stay at the template (m). */
+/** The stage's surveyed width holds off this far along from its own tunnel: the Queens Blvd bores keep the section (m). */
 const TUNNEL_HOLD = 150;
+/** A street's surveyed width holds off this far from a tunnel's line: the bores and their portals keep the template (m). */
+const WIDTH_HOLD = 25;
 /** A survey spot this near a tunnel's line (and over the land) lies on its roof (m). */
 const TUNNEL_ROOF = 12;
 /**
@@ -120,7 +122,7 @@ function surveyed(e: EdgeData, t: TagSet, sets: TagSet[]): TagSet {
     e.tags.some(([, ti]) => sets[ti]?.tunnel)
   )
     return t;
-  return { ...t, width: e.surveyWidth };
+  return { ...t, width: e.surveyWidth, widthSurveyed: true };
 }
 /** A merging ramp's taper (m before its merge node) and its overlap under the host's edge where alongside. */
 const MERGE_TAPER = 55;
@@ -3225,13 +3227,14 @@ export class Network {
     return out;
   }
 
-  /** Any of the flat [x, z, ...] points within TUNNEL_HOLD m of a tunnel. */
+  /** Any of the flat [x, z, ...] points within WIDTH_HOLD m of a bore (not an OSM `tunnel` stub under an overpass). */
   private nearTunnel(pts: ArrayLike<number>): boolean {
     const t = this.tunnelPts;
     for (let i = 0; i < pts.length; i += 2)
       for (const k of this.tunnelGrid.at(pts[i], pts[i + 1]))
         if (
-          Math.hypot(t[k * 2] - pts[i], t[k * 2 + 1] - pts[i + 1]) < TUNNEL_HOLD
+          this.tunnelLong[k] &&
+          Math.hypot(t[k * 2] - pts[i], t[k * 2 + 1] - pts[i + 1]) < WIDTH_HOLD
         )
           return true;
     return false;

@@ -14,6 +14,8 @@ export interface TagSet {
   lanesBack?: number;
   /** Curb to curb (m). */
   width?: number;
+  /** `width` is the city survey's measured roadbed (network_survey.py), not an OSM tag: trusted further. */
+  widthSurveyed?: boolean;
   sidewalk?: string;
   /** Parking lane left / right of the way direction (1 = yes). */
   parking?: [number, number];
