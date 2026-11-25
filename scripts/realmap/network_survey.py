@@ -16,12 +16,15 @@ heights, so a map follows the city's survey instead of OSM defaults.
   to it, `templates.ts buildSection`). Same for the stage route (`stage.surveyWidth`), plus its width per station
   (`stage.widths`, smoothed over 200 m: the engine narrows the stage pavement along it, `network.ts stageScale`).
 - Heights: the spot list in world heights (`survey.heights`); the engine's profiles follow them (`network.ts profiles`).
+- Lidar (`lidar`, see the section below): 1 m ground tiles and the road's spot heights from the public point cloud near
+  the stage.
 - Retaining walls: the surveyed wall lines (`survey.walls`) and the stage metres they cover (`survey.wallsUntil`): there
   the parkway's cut / fill walls stand only beside a surveyed one (`network.ts surveyedWall`), elsewhere a bank.
 
 `sources/` is git-ignored and lives only in the main checkout: a worktree finds it there (git common dir).
 """
 
+import base64
 import glob
 import json
 import math
@@ -187,10 +190,272 @@ def apply(cfg, root, proj, network, stage_line):
         sp = json.load(open(os.path.join(root, sv['spotHeights'])))
         datum = sv.get('datum', 0.0)
         hs = [[round(x, 2), round(z, 2), round(y - datum, 2)] for k in ('route', 'streets') for x, z, y in sp.get(k, [])]
-        network['survey'] = {'heights': hs, 'source': sp.get('source', '')}
+        source = sp.get('source', '')
+        if sv.get('lidar') and folder:
+            in_area, ls = lidar_spots(sv['lidar'], root, proj, stage_line, folder, datum)
+            n0 = len(hs)
+            hs = [h for h in hs if not in_area(h[0], h[1])]
+            print(f'  survey: lidar area: {n0 - len(hs)} spot heights replaced by {len(ls)} lidar ones')
+            hs += ls
+            source += '; USGS 3DEP lidar ground'
+        network['survey'] = {'heights': hs, 'source': source}
         print(f'  survey: {len(hs)} spot heights')
     if sv.get('retainingWalls'):
         rw = json.load(open(os.path.join(root, sv['retainingWalls'])))
         network.setdefault('survey', {})['walls'] = [[round(v, 2) for v in w] for w in rw['walls']]
         network['survey']['wallsUntil'] = sv.get('wallsUntil', network['stage']['length'])
         print(f'  survey: {len(rw["walls"])} retaining walls (stage to {network["survey"]["wallsUntil"]} m)')
+
+
+# --- lidar ground (config survey.lidar) ----------------------------------------------------------------------------------
+# Public lidar point cloud (USGS 3DEP, Entwine Point Tile on AWS, EPSG:3857, heights in metres = the heightmap's datum)
+# for a world box. Its ground returns (LIDAR_GROUND) binned to a 1 m median grid, holes (buildings, decks, water)
+# filled linearly. Two uses within `corridor` m of the stage from stage metre `from`:
+#   - terrain: 1 m height grids (`tile` m blocks + LIDAR_PAD m overlap) put ahead of the map's 10 m grid (data.json)
+#   - road heights: in the same area the survey's spot heights are replaced by lidar ground on the roadbed every
+#     LIDAR_SPOT m (one source per area: the city's spot heights sit up to 0.7 m off the lidar in the Kew trench);
+#     spots where the lidar has no ground (decks, bridges) stay
+#
+#     "lidar": {"ept": "<EPT folder url>", "box": [x0, x1, z0, z1], "corridor": 60, "from": 6450, "tile": 64,
+#               "cache": "sources/maps/<id>/lidar"}
+#
+# Needs laspy + lazrs (pip install laspy lazrs) the first time (then cached in `cache`, git-ignored).
+
+LIDAR_GROUND = (2, 18)  # ground, overlap ground (USGS NY_NewYorkCity classes)
+LIDAR_PAD = 8  # m each tile reaches into its neighbours (> the engine's 6-cell edge blend)
+LIDAR_SPOT = 5.0  # m between lidar spot heights on the roadbed
+LIDAR_DECK_PAD = 3.0  # m around a planimetric deck outline that is deck, not ground (the outlines sit a few m off the lidar)
+
+
+def lidar_ground(lc, root, proj, coarse=None, structures=None):
+    """-> (x0, z0, grid [rows, cols] m, have [rows, cols]: the cell holds ground returns), 1 m cells.
+
+    The binned returns are cached; the holes (buildings, decks, water) are filled from `coarse` (x, z arrays -> height,
+    the map's own grid: a bare-earth DEM runs under the bridges) shifted by the lidar's offset to it around the hole,
+    else linearly across the hole. `structures` (world polygons: decks, bridges) are holes too.
+    """
+    from scipy import ndimage
+    from scipy.interpolate import griddata
+
+    x0, x1, z0, z1 = lc['box']
+    fn = os.path.join(root, lc['cache'], f'ground-{x0}_{x1}_{z0}_{z1}-raw.npz')
+    if not os.path.exists(fn):
+        pts = lidar_points(lc['ept'], proj, lc['box'])
+        g = pts[np.isin(pts[:, 3], LIDAR_GROUND)]
+        cols, rows = int(x1 - x0) + 1, int(z1 - z0) + 1
+        ix = np.clip(np.round(g[:, 0] - x0).astype(int), 0, cols - 1)
+        iz = np.clip(np.round(g[:, 1] - z0).astype(int), 0, rows - 1)
+        key = iz * cols + ix
+        order = np.argsort(key, kind='stable')
+        key, y = key[order], g[order, 2]
+        u, start, cnt = np.unique(key, return_index=True, return_counts=True)
+        grid = np.full(rows * cols, np.nan)
+        grid[u] = [np.median(y[s : s + c]) for s, c in zip(start, cnt)]
+        os.makedirs(os.path.dirname(fn), exist_ok=True)
+        np.savez_compressed(fn, grid=grid.reshape(rows, cols).astype(np.float32))
+        print(f'  lidar: {len(pts)} points, ground in {np.mean(~np.isnan(grid)):.0%} of the 1 m cells -> {os.path.relpath(fn, root)}')
+    grid = np.load(fn)['grid'].astype(float)
+    rows, cols = grid.shape
+    if structures:
+        # decks and bridges (planimetric transportation structures) are holes: a deck's top can be classed as ground
+        from shapely import contains_xy
+
+        for g in structures:
+            g = g.buffer(LIDAR_DECK_PAD)
+            bx0, bz0, bx1, bz1 = g.bounds
+            i0, i1 = max(0, int(bx0 - x0)), min(cols - 1, int(bx1 - x0) + 1)
+            j0, j1 = max(0, int(bz0 - z0)), min(rows - 1, int(bz1 - z0) + 1)
+            if i0 > i1 or j0 > j1:
+                continue
+            gx, gz = np.meshgrid(np.arange(i0, i1 + 1) + x0, np.arange(j0, j1 + 1) + z0)
+            m = contains_xy(g, gx, gz)
+            grid[j0 : j1 + 1, i0 : i1 + 1][m] = np.nan
+    have = ~np.isnan(grid)
+    jj, ii = np.nonzero(have)
+    qj, qi = np.nonzero(~have)
+    if coarse is not None:
+        base = coarse(x0 + np.arange(cols)[None, :] + 0 * np.arange(rows)[:, None], z0 + np.arange(rows)[:, None] + 0 * np.arange(cols)[None, :])
+        d = grid - base
+        d[~have] = griddata((jj, ii), d[have], (qj, qi), method='linear')
+        grid = base + d
+    else:
+        grid[~have] = griddata((jj, ii), grid[have], (qj, qi), method='linear')
+    still = np.isnan(grid)
+    if still.any():
+        _, (a, b) = ndimage.distance_transform_edt(still, return_indices=True)
+        grid = grid[a, b]
+    return x0, z0, grid, have
+
+
+def structures(root, sv, proj):
+    """The planimetric transportation structures (decks, bridges, overpasses) as world polygons, or None."""
+    folder = find_path(root, sv['planimetrics']) if sv.get('planimetrics') else None
+    out = []
+    for fn in sorted(glob.glob(os.path.join(folder or '', '*-transport.geojson'))):
+        for f in json.load(open(fn, encoding='utf-8'))['features']:
+            if f.get('geometry'):
+                out.append(transform(lambda lon, lat, z=None: proj.fwd(lat, lon), shape(f['geometry'])).buffer(0))
+    return out or None
+
+
+def coarse_height(hm):
+    """data.json heightmap -> f(x, z arrays) bilinear on its first grid coarser than 1 m (absolute metres)."""
+    import base64 as b64
+
+    g = next(g for g in hm['grids'] if g['cell'] > 1)
+    h = hm['base'] + np.frombuffer(b64.b64decode(g['data']), '<i2').reshape(g['rows'], g['cols']) * hm['step']
+
+    def f(x, z):
+        fx = np.clip((np.asarray(x) - g['originX']) / g['cell'], 0, g['cols'] - 1.001)
+        fz = np.clip((np.asarray(z) - g['originZ']) / g['cell'], 0, g['rows'] - 1.001)
+        i, j = fx.astype(int), fz.astype(int)
+        tx, tz = fx - i, fz - j
+        return (h[j, i] * (1 - tx) + h[j, i + 1] * tx) * (1 - tz) + (h[j + 1, i] * (1 - tx) + h[j + 1, i + 1] * tx) * tz
+
+    return f
+
+
+def lidar_points(ept_url, proj, box):
+    """All points of an EPT cloud in world box (x0, x1, z0, z1) -> [n, 4] world x, z, height, class."""
+    import concurrent.futures as cf
+    import io
+    import urllib.request
+
+    import laspy
+
+    R = 6378137.0
+    x0, x1, z0, z1 = box
+
+    def merc(x, z):
+        lat, lon = proj.inv(x, z)
+        return R * math.radians(lon), R * math.log(math.tan(math.pi / 4 + math.radians(lat) / 2))
+
+    cs = [merc(x, z) for x in (x0, x1) for z in (z0, z1)]
+    bx0, bx1 = min(c[0] for c in cs), max(c[0] for c in cs)
+    by0, by1 = min(c[1] for c in cs), max(c[1] for c in cs)
+
+    def get(u):
+        err = None
+        for _ in range(4):
+            try:
+                return urllib.request.urlopen(ept_url + u, timeout=60).read()
+            except OSError as e:
+                err = e
+        raise err
+
+    B = json.loads(get('ept.json'))['bounds']
+
+    def hit(k):
+        d, x, y, _ = map(int, k.split('-'))
+        s = (B[3] - B[0]) / 2**d
+        return B[0] + x * s <= bx1 and B[0] + (x + 1) * s >= bx0 and B[1] + y * s <= by1 and B[1] + (y + 1) * s >= by0
+
+    nodes = []
+
+    def walk(key):
+        for k, n in json.loads(get(f'ept-hierarchy/{key}.json')).items():
+            if not hit(k):
+                continue
+            if n == -1:
+                if k != key:
+                    walk(k)
+            elif n > 0:
+                nodes.append(k)
+
+    walk('0-0-0-0')
+
+    def load(k):
+        las = laspy.read(io.BytesIO(get(f'ept-data/{k}.laz')))
+        X, Y = np.asarray(las.x), np.asarray(las.y)
+        m = (X >= bx0) & (X <= bx1) & (Y >= by0) & (Y <= by1)
+        lon = np.degrees(X[m] / R)
+        lat = np.degrees(2 * np.arctan(np.exp(Y[m] / R)) - math.pi / 2)
+        wx, wz = proj.fwd(lat, lon)
+        return np.stack([wx, wz, np.asarray(las.z)[m], np.asarray(las.classification)[m].astype(float)], 1)
+
+    with cf.ThreadPoolExecutor(12) as ex:
+        P = np.concatenate(list(ex.map(load, nodes)))
+    m = (P[:, 0] >= x0) & (P[:, 0] <= x1) & (P[:, 1] >= z0) & (P[:, 1] <= z1)
+    return P[m]
+
+
+def lidar_area(lc, stage_line, length):
+    """-> (KD tree of the stage line from `from` m, corridor m): the area the lidar replaces terrain and spots in."""
+    from scipy.spatial import cKDTree
+
+    p = np.asarray(stage_line, float)
+    seg = [a + (b - a) * np.linspace(0, 1, max(1, int(np.linalg.norm(b - a))), endpoint=False)[:, None] for a, b in zip(p, p[1:])]  # fmt: skip
+    p = np.vstack([*seg, p[-1:]])
+    s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+    return cKDTree(p[s >= lc.get('from', 0)]), lc.get('corridor', 60)
+
+
+def lidar_tiles(sv, root, proj, stage_line, hm):
+    """1 m height grids (HeightGridDef) over the lidar area, in `tile` m blocks."""
+    lc = sv['lidar']
+    base, step = hm['base'], hm['step']
+    x0, z0, grid, _ = lidar_ground(lc, root, proj, coarse_height(hm), structures(root, sv, proj))
+    kd, corridor = lidar_area(lc, stage_line, 0)
+    rows, cols = grid.shape
+    t = lc.get('tile', 64)
+    out = []
+    for bz in range(int(z0), int(z0) + rows - 1, t):
+        for bx in range(int(x0), int(x0) + cols - 1, t):
+            gx, gz = np.meshgrid(np.linspace(bx, bx + t, 9), np.linspace(bz, bz + t, 9))
+            if kd.query(np.c_[gx.ravel(), gz.ravel()])[0].min() > corridor + t / 8:
+                continue
+            i0, j0 = max(0, bx - LIDAR_PAD - int(x0)), max(0, bz - LIDAR_PAD - int(z0))
+            i1, j1 = min(cols, bx + t + LIDAR_PAD + 1 - int(x0)), min(rows, bz + t + LIDAR_PAD + 1 - int(z0))
+            v = np.round((grid[j0:j1, i0:i1] - base) / step).astype('<i2')
+            out.append({
+                'originX': int(x0) + i0, 'originZ': int(z0) + j0, 'cell': 1, 'cols': i1 - i0, 'rows': j1 - j0,
+                'data': base64.b64encode(v.tobytes()).decode('ascii'),
+            })  # fmt: skip
+    return out
+
+
+def lidar_spots(lc, root, proj, stage_line, folder, datum):
+    """-> (in_area(x, z) -> bool, spot heights [[x, z, y], ...] world y) on the roadbed in the lidar area."""
+    x0, z0, grid, have = lidar_ground(lc, root, proj, structures=structures(root, {'planimetrics': folder}, proj))
+    kd, corridor = lidar_area(lc, stage_line, 0)
+    rows, cols = grid.shape
+    parts, _ = carriageways(folder, proj)
+    from shapely import contains_xy
+
+    road = unary_union(parts)
+    gx, gz = np.meshgrid(np.arange(x0, x0 + cols - 1, LIDAR_SPOT), np.arange(z0, z0 + rows - 1, LIDAR_SPOT))
+    gx, gz = gx.ravel(), gz.ravel()
+    keep = (kd.query(np.c_[gx, gz])[0] <= corridor) & contains_xy(road, gx, gz)
+    ix = np.round(gx - x0).astype(int)
+    iz = np.round(gz - z0).astype(int)
+    keep &= have[iz, ix]
+    spots = [[round(float(x), 2), round(float(z), 2), round(float(grid[j, i]) - datum, 2)] for x, z, i, j in zip(gx[keep], gz[keep], ix[keep], iz[keep])]  # fmt: skip
+    near = ndimage_max(have, 2)
+
+    def in_area(x, z):
+        # (where the lidar has no ground - a deck, a bridge - the survey's spots stay)
+        i, j = int(round(x - x0)), int(round(z - z0))
+        return 0 <= i < cols and 0 <= j < rows and near[j, i] and kd.query([x, z])[0] <= corridor
+
+    return in_area, spots
+
+
+def ndimage_max(mask, r):
+    from scipy import ndimage
+
+    return ndimage.maximum_filter(mask.astype(np.uint8), size=2 * r + 1) > 0
+
+
+def lidar_terrain(cfg, root, proj, network, data_path):
+    """The lidar tiles (survey.lidar) ahead of data.json's height grids; earlier tiles (1 m cells) are replaced."""
+    lc = (cfg.get('survey') or {}).get('lidar')
+    if not lc:
+        return
+    with open(data_path) as f:
+        data = json.load(f)
+    hm = data['heightmap']
+    tiles = lidar_tiles(cfg['survey'], root, proj, network['stage']['cps'], hm)
+    hm['grids'] = tiles + [g for g in hm['grids'] if g['cell'] > 1]
+    with open(data_path, 'w') as f:
+        json.dump(data, f, separators=(',', ':'))
+    print(f'  lidar: {len(tiles)} ground tiles (1 m) in {os.path.relpath(data_path, root)}')

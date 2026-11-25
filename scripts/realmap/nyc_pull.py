@@ -35,6 +35,7 @@ LAYERS = {
     'retaining-wall': 's2pi-ccum',  # Planimetric: Retaining Wall
     'misc': '92m5-3pwp',  # Planimetric: Miscellaneous Structures
     'cscl': 'inkn-q76z',  # CSCL street Centerline: streetwidth (ft), number_*_lanes, trafdir, rw_type, posted_speed
+    'footprints': '5zhs-2jue',  # Building Footprints (OTI): bin, height_roof (ft), construction_year, feature_code
 }
 TREES = 'uvpi-gqnh'  # 2015 Street Tree Census (JSON, latitude / longitude columns)
 

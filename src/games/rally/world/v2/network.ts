@@ -3242,7 +3242,7 @@ export class Network {
 
   /**
    * The surveyed spot heights on a way's pavement replace the DEM's land in its raw profile (the design fit follows them):
-   * the mean of the spots within the pavement and SPOT_ALONG m of each sample, those within SPOT_TRUST m of the land
+   * the median of the spots within the pavement and SPOT_ALONG m of each sample, those within SPOT_TRUST m of the land
    * (none over a tunnel and over the land: those lie on its roof).
    */
   private surveyHeights(w: Way, raw: Float64Array, valid: boolean[]): void {
@@ -3264,8 +3264,7 @@ export class Network {
           bored[i] = true;
     for (let i = 0; i < n; i++) {
       if (!valid[i]) continue;
-      let sum = 0;
-      let cnt = 0;
+      const ys: number[] = [];
       for (const k of spots.grid.at(x[i], z[i])) {
         const dx = spots.pts[k * 3] - x[i];
         const dz = spots.pts[k * 3 + 2] - z[i];
@@ -3282,11 +3281,13 @@ export class Network {
           this.overTunnel(spots.pts[k * 3], spots.pts[k * 3 + 2], !bored[i])
         )
           continue;
-        sum += y;
-        cnt++;
+        ys.push(y);
       }
-      if (cnt) {
-        raw[i] = sum / cnt;
+      if (ys.length) {
+        // the median: a lidar spot on a street or a wall top beside the pavement's edge is one of many, not a step
+        ys.sort((a, b) => a - b);
+        const m = ys.length >> 1;
+        raw[i] = ys.length % 2 ? ys[m] : (ys[m - 1] + ys[m]) / 2;
         this.debug.surveyed++;
       }
     }
@@ -3489,7 +3490,8 @@ export class Network {
       const valid: boolean[] = [];
       for (let i = 0; i < n; i++) {
         raw[i] = this.natural(x[i], z[i]);
-        valid.push(w.st[i] !== ST_DECK);
+        // (the land over a bore - the street on its roof - is not its floor either: the floor joins the open ends)
+        valid.push(w.st[i] !== ST_DECK && w.st[i] !== ST_TUNNEL);
       }
       // the land under the lower way's footprint at a crossing is not this way's ground either (the bare-earth DEM
       // has no bridges: an upper way sagged into the cut it spans)

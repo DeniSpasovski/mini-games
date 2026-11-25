@@ -24,6 +24,7 @@ import gzip
 import json
 import math
 import os
+import sys
 
 import cv2
 import numpy as np
@@ -420,3 +421,221 @@ def write_csv(cfg, proj, rows, path):
                          round(b['along']), 'L' if b['lat'] > 0 else 'R', round(b['dist'], 1), b['type'], b['floors'],
                          round(b['r'][2], 1), round(b['r'][3], 1), b['h'], b['src'], b['osm'] or '',
                          (b['tags'] or {}).get('building', ''), b.get('kind', ''), b.get('roof', ''), b.get('top', '')])  # fmt: skip
+
+# --- city footprints for a v2 road-engine map (network.py) ---------------------------------------------------------
+# City building footprints for a v2 road-engine map: adds the NYC buildings its bake has no building for.
+#
+#     python scripts/realmap/network.py scripts/realmap/jackie-2.json --city-buildings [--dry]
+#
+# The map's data.json takes its buildings from the source map's bake (network.py step 5: OpenStreetMap + Microsoft
+# footprints, buildings.py). The bake reads single OSM outlines only and drops footprints that touch one of its roads, so
+# some real buildings are missing (119-14 Union Tpke is a multi-part outline). This step reads NYC Building Footprints
+# (OTI, dataset 5zhs-2jue: `python scripts/realmap/nyc_pull.py footprints`) and adds, as source 'nyc', every footprint
+# inside the pulled box and within `buildingsCorridor` m of the route that the baked buildings cover less than `maxCover`
+# of. Wall height = the city's roof height; kind / roof from classify_kind. A footprint that lies on the city
+# roadbed (planimetric `roadbed`) by more than `maxOnRoad` of its area is left out (structures over a road).
+#
+# Re-runnable: rows with source 'nyc' are replaced; a footprint within 2.5 m of a previous 'nyc' row keeps its id.
+# network.py runs it after writing data.json, so a re-import keeps the city buildings.
+#
+# Footprints past `buildingsCorridor` (out to `corridor` m from route metre `corridorFrom`: the far skyline) are first matched against the source map's
+# bake (`terrainFrom`): the baked buildings that cover one are copied in, and only the rest become city buildings.
+#
+# Config `cityBuildings`: {footprints, roadbed (paths from the repo root), corridor (m, default buildingsCorridor),
+# corridorFrom (route m, default 0), maxCover 0.3, maxOnRoad 0.15, minArea 12}.
+
+PX = 0.5  # m per pixel for the cover / roadbed tests
+FT = 0.3048
+
+
+def rings_of(geom):
+    """GeoJSON (Multi)Polygon -> outer rings [[lon, lat], ...]."""
+    if geom['type'] == 'Polygon':
+        return [geom['coordinates'][0]]
+    if geom['type'] == 'MultiPolygon':
+        return [p[0] for p in geom['coordinates']]
+    return []
+
+
+def outline(r, poly):
+    """Baked building (rect [cx, cz, w, d, a], relative poly or None) -> world ring [n, 2]."""
+    cx, cz, w, d, a = r
+    if poly:
+        p = np.asarray(poly, float).reshape(-1, 2)
+        return p + [cx, cz]
+    ca, sa = math.cos(a), math.sin(a)
+    u, v = np.array([ca, sa]), np.array([-sa, ca])
+    return np.array([[cx, cz] + u * su * w / 2 + v * sv * d / 2 for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))])
+
+
+def share_covered(ring, others):
+    """Share of `ring`'s area inside the union of `others` (world rings), on a PX grid."""
+    lo = ring.min(0) - 1
+    hi = ring.max(0) + 1
+    size = np.ceil((hi - lo) / PX).astype(int) + 1
+    to_px = lambda q: np.round((np.asarray(q) - lo) / PX).astype(np.int32)  # noqa: E731
+    me = np.zeros((size[1], size[0]), np.uint8)
+    cv2.fillPoly(me, [to_px(ring)], 1)
+    them = np.zeros_like(me)
+    for o in others:
+        cv2.fillPoly(them, [to_px(o)], 1)
+    n = int(me.sum())
+    return float((me & them).sum()) / n if n else 1.0
+
+
+def city_buildings(cfg_path, dry=False):
+    """See the section comment above."""
+    from bake import Proj  # (bake imports this module)
+
+    root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
+    cfg = json.load(open(cfg_path))
+    cb = cfg['cityBuildings']
+    proj = Proj(*cfg['origin'])
+    folder = os.path.join(root, cfg['folder'])
+    data_path = os.path.join(folder, 'data.json')
+    data = json.load(open(data_path))
+    b = data['buildings']
+    F = b['fields']
+    col = {k: F.index(k) for k in F}
+    if 'nyc' not in b['sources']:
+        b['sources'] = [*b['sources'], 'nyc']
+    nyc = b['sources'].index('nyc')
+    prev = [r for r in b['rows'] if r[col['src']] == nyc]
+    rows = [r for r in b['rows'] if r[col['src']] != nyc]
+    polys = {k: v for k, v in (b.get('polys') or {}).items() if int(k) in {r[col['id']] for r in rows}}
+    baked = [
+        outline([r[col['x']], r[col['z']], r[col['w']], r[col['d']], r[col['angle']]], polys.get(str(r[col['id']])))
+        for r in rows
+    ]  # fmt: skip
+    bkd = cKDTree(np.array([[r[col['x']], r[col['z']]] for r in rows]))
+    # The source map's bake past `buildingsCorridor` (network.py keeps only the corridor): its buildings are copied
+    # in where they cover a footprint out to `corridor` m, before any city building is added.
+    src = json.load(open(os.path.join(root, cfg['terrainFrom'])))['buildings']
+    assert src['fields'] == F, 'source map building columns differ'
+    have = {r[col['id']] for r in rows}
+    spolys = src.get('polys') or {}
+    srows = [r for r in src['rows'] if r[col['id']] not in have and src['sources'][r[col['src']]] == b['sources'][r[col['src']]]]
+    souts = [outline([r[col['x']], r[col['z']], r[col['w']], r[col['d']], r[col['angle']]], spolys.get(str(r[col['id']]))) for r in srows]  # fmt: skip
+    skd = cKDTree(np.array([[r[col['x']], r[col['z']]] for r in srows]))
+    copied = {}
+    route = np.asarray(json.load(open(os.path.join(folder, 'network.json')))['stage']['cps'], float).reshape(-1, 2)
+    # Dense route for the along / corridor tests (control points are ~10-30 m apart).
+    seg = [a + (c - a) * np.linspace(0, 1, max(1, int(np.linalg.norm(c - a))), endpoint=False)[:, None] for a, c in zip(route, route[1:])]  # fmt: skip
+    route = np.vstack(seg + [route[-1:]])
+    acc = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(route, axis=0), axis=1))])
+    rkd = cKDTree(route)
+
+    road = []
+    for f in json.load(open(os.path.join(root, cb['roadbed'])))['features']:
+        for ring in rings_of(f['geometry'] or {'type': ''}):
+            road.append(np.array([proj.fwd(la, lo) for lo, la in ring]))
+    road_c = cKDTree(np.array([q.mean(0) for q in road]))
+    road_r = np.array([np.linalg.norm(q - q.mean(0), axis=1).max() for q in road])
+
+    feet = []
+    stats = {'far': 0, 'covered': 0, 'road': 0, 'small': 0}
+    for f in json.load(open(os.path.join(root, cb['footprints'])))['features']:
+        p = f['properties']
+        if 'demolition' in str(p.get('last_status_type') or '').lower():
+            continue
+        for ring in rings_of(f['geometry'] or {'type': ''}):
+            xy = np.array([proj.fwd(la, lo) for lo, la in ring])
+            if len(xy) > 1 and np.allclose(xy[0], xy[-1]):
+                xy = xy[:-1]
+            if len(xy) < 3:
+                continue
+            if abs(cv2.contourArea(xy.astype(np.float32))) < cb.get('minArea', 12):
+                stats['small'] += 1
+                continue
+            c = xy.mean(0)
+            dist, i = rkd.query(c)
+            far = cb.get('corridor', cfg['buildingsCorridor']) if acc[i] >= cb.get('corridorFrom', 0) else cfg['buildingsCorridor']
+            if dist > far:
+                stats['far'] += 1
+                continue
+            feet.append((xy, c, np.linalg.norm(xy - c, axis=1).max(), p, float(acc[i])))
+
+    def uncovered(outs, kd):
+        out = []
+        for ft in feet:
+            xy, c, reach = ft[:3]
+            if share_covered(xy, [outs[j] for j in kd.query_ball_point(c, reach + 60)]) < cb.get('maxCover', 0.3):
+                out.append(ft)
+        return out
+
+    # 1. The source bake's buildings that cover a footprint this map has none for.
+    for xy, c, reach, p, along in uncovered(baked, bkd):
+        near = [j for j in skd.query_ball_point(c, reach + 60) if share_covered(souts[j], [xy]) > 0.3]
+        if near and share_covered(xy, [souts[j] for j in near]) >= cb.get('maxCover', 0.3):
+            for j in near:
+                copied[srows[j][col['id']]] = j
+    outs = baked + [souts[j] for j in copied.values()]
+    okd = cKDTree(np.array([o.mean(0) for o in outs]))
+    # 2. City buildings for the rest, unless they stand on the roadbed.
+    cand = []
+    rest = uncovered(outs, okd)
+    stats['covered'] = len(feet) - len(rest)
+    for xy, c, reach, p, along in rest:
+        on = [j for j in road_c.query_ball_point(c, reach + road_r.max()) if np.linalg.norm(road[j].mean(0) - c) < reach + road_r[j]]  # fmt: skip
+        if on and share_covered(xy, [road[j] for j in on]) > cb.get('maxOnRoad', 0.15):
+            stats['road'] += 1
+            print(f'  on the roadbed, left out: bin {p.get("bin")} at {c[0]:.0f}, {c[1]:.0f}')
+            continue
+        h = float(p.get('height_roof') or 0) * FT
+        cand.append((xy, c, h, p, along))
+
+    # Rows like the bake's (py): oriented box + real outline, kind from the city roof height.
+    rects = [rect(xy) for xy, *_ in cand]
+    attached = attached_flags(rects)
+    pkd = cKDTree(np.array([[r[col['x']], r[col['z']]] for r in prev])) if prev else None
+    used = set()
+    # New ids above every id of this map and of the source map's bake (its rows can be copied in later).
+    taken = {r[col['id']] for r in rows} | {r[col['id']] for r in srows}
+    ids = [None] * len(cand)
+    for k, r in enumerate(rects):
+        if pkd is not None:
+            d, j = pkd.query(r[:2])
+            pid = prev[j][col['id']]
+            if d < 2.5 and pid not in used and pid not in taken:
+                ids[k] = pid
+                used.add(pid)
+    nxt = max(taken | used, default=0) + 1
+    for k in range(len(ids)):
+        if ids[k] is None:
+            ids[k] = nxt
+            nxt += 1
+    added = []
+    for k, ((xy, c, h, p, along), r, att) in enumerate(zip(cand, rects, attached)):
+        code = str(p.get('feature_code') or '')
+        tags = {'building': 'garage' if code == '5110' else 'yes'}
+        if h > 0:
+            tags['height'] = f'{h:.1f}'
+        kind, roof, wall, floors, typ, _top = classify_kind(r, tags, None, att)
+        bid = ids[k]
+        row = [0] * len(F)
+        vals = {
+            'id': bid, 'x': round(r[0], 1), 'z': round(r[1], 1), 'w': round(r[2], 1), 'd': round(r[3], 1),
+            'angle': round(r[4], 3), 'h': wall, 'floors': floors, 'type': TYPES.index(typ), 'src': nyc,
+            'along': round(along), 'kind': KINDS.index(kind), 'roof': ROOFS.index(roof),
+        }  # fmt: skip
+        for k, v in vals.items():
+            row[col[k]] = v
+        added.append(row)
+        poly = simplify_poly(xy)
+        if poly is not None and not (len(poly) <= 5 and cv2.contourArea(np.asarray(poly, np.float32)) > 0.9 * r[2] * r[3]):
+            polys[str(bid)] = [round(float(v), 1) for q in poly for v in (q[0] - r[0], q[1] - r[1])]
+    for j in copied.values():
+        rows.append(srows[j])
+        sp = spolys.get(str(srows[j][col['id']]))
+        if sp:
+            polys[str(srows[j][col['id']])] = sp
+    print(f'  city footprints: {len(added)} added (no baked building), {len(copied)} baked ones copied from '
+          f'{cfg["terrainFrom"]} (past the corridor), {stats["covered"]} already baked (or copied), '
+          f'{stats["road"]} on the roadbed, {stats["far"]} outside the corridor, {stats["small"]} under minArea')  # fmt: skip
+    if dry:
+        return
+    b['rows'] = sorted(rows + added, key=lambda r: r[col['id']])
+    b['polys'] = dict(sorted(polys.items(), key=lambda kv: int(kv[0])))
+    with open(data_path, 'w') as f:
+        json.dump(data, f, separators=(',', ':'))
+    print(f'  {os.path.relpath(data_path, root)}: {len(b["rows"])} buildings')
