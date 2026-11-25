@@ -273,6 +273,7 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-start-towers',
     'vodno-corner-house',
     'vodno-start-site',
+    'vodno-graffiti-wall',
     'vodno-roadside-gazebo',
     'vodno-pulloff-gazebo',
     'vodno-trail-lot',

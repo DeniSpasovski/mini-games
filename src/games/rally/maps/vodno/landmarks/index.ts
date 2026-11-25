@@ -121,6 +121,13 @@ import {
 } from './corner-house';
 import { buildShell, buildYard, SHELLS, YARD, YARD_RECT } from './start-shells';
 import {
+  buildGraffitiWall,
+  graffitiMesh,
+  graffitiWallColliders,
+  WALL_SITE as GRAFFITI_SITE,
+  wallStretches,
+} from './graffiti-wall';
+import {
   ARCH,
   ARCH_SITE,
   ARCH_TOP,
@@ -983,6 +990,19 @@ export const startSiteLandmark = landmark({
   },
 });
 
+/** The graffiti-covered retaining wall on the right at 296-386 m (graffiti-wall.ts). */
+export const graffitiWallLandmark = landmark({
+  id: 'vodno-graffiti-wall',
+  areas: wallStretches().map(({ site, len }) => ({
+    site,
+    rect: [-0.5, len + 0.5, -0.3, 1.0] as [number, number, number, number],
+  })),
+  colliders: (g) => graffitiWallColliders((x, z) => g.height(x, z)),
+  meshes: (ground) => [graffitiMesh(ground)],
+  build: (at, ground) =>
+    buildGraffitiWall(at(GRAFFITI_SITE, 'graffiti-wall'), ground),
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
@@ -1003,5 +1023,6 @@ export const VODNO_LANDMARKS: Landmark[] = [
   startTowersLandmark,
   cornerHouseLandmark,
   startSiteLandmark,
+  graffitiWallLandmark,
 ];
 export { VODNO_FLATS } from './sites';
