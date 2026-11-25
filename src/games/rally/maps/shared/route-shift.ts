@@ -1,7 +1,7 @@
 import type { RoadPoint } from './types';
 
 /**
- * The stage road moved sideways onto the real carriageway (`scripts/realmap/route_offset.py` writes `route-shift.json`:
+ * The stage road moved sideways onto the real carriageway (`route-shift.json`, measured once from the NYC roadbed:
  * keyframes [metres along, lateral shift] from the NYC roadbed, + = left of travel, zero near every structure). Only the control
  * points move (the road is a spline through them). Everything keyed to a distance along the road (bridge spans, trench fills,
  * sign gantries, crowds) is carried over with `alongMap`: the same place on the road gets its new distance.

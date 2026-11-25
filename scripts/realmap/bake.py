@@ -1345,10 +1345,6 @@ def main():
         for k, w, s, p, nj, ex in paths
     ]
     print(f'  {len(path_json)} paths ({sum(1 for q in path_json if q.get("bridge"))} on bridges)')
-    if 'streets' in cfg:  # city street model of the END BOX (real widths, lanes, sidewalks, paving): streets.py
-        import streets
-
-        streets.apply(path_json, proj, (nodes, ntags, ways), cfg['streets'])
     paths = [q[:4] for q in paths[:n_roads]]
 
     print('buildings...')

@@ -3,7 +3,7 @@ import data from '../../src/games/rally/maps/jackie/data.json';
 import type { PathDef } from '../../src/games/rally/maps/shared/types';
 
 /**
- * Street model of the Jackie END BOX (`scripts/realmap/streets.py`): every tarmac path with a point in the box carries
+ * Street model of the Jackie END BOX (baked data): every tarmac path with a point in the box carries
  * its real curb width, lane layout, sidewalks, paving and paint. Pure data (no World): the checks run on `data.json`.
  */
 const BOX = { x0: 1500, x1: 4300, z0: -2300, z1: -900 };
@@ -37,7 +37,7 @@ describe('jackie: street model (END BOX)', () => {
       expect(p.pave).toMatch(/^(asphalt|concrete)$/);
       expect(p.marks).toBeDefined();
     }
-    // outside the box: the WEST corridor (scripts/realmap/corridor.py) has its own model run; nothing else
+    // outside the box: the WEST corridor has its own model run; nothing else
     const meta = (
       data.meta as { streets?: { paths: number; paths_west?: number } }
     ).streets;

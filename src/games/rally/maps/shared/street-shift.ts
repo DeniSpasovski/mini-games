@@ -1,7 +1,7 @@
 import type { PathDef } from './types';
 
 /**
- * Streets moved sideways onto the real pavement (`scripts/realmap/streets.py` writes `street-shifts.json`: per street the
+ * Streets moved sideways onto the real pavement (`street-shifts.json`, measured once from the NYC roadbed: per street the
  * median lateral offset of its OSM centre line from the NYC roadbed mid-line, + = left of its direction). OSM centre lines
  * sit up to 2-3 m off the real street; the junction areas, kerbs and sidewalks come from the real outlines.
  *

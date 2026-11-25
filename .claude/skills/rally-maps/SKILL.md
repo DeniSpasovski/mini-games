@@ -222,7 +222,7 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
   `plazaIslands` / `plazaCrosswalks` / `plazaSignals` / `plazaTrees` (the whole street space around a junction from open
   surface data, ONE source per junction - never mix OSM ribbons and survey islands in one box: height field, islands, markings,
   furniture; NYC intersection polygons -> cores: `plaza_islands.py --cores`; worked example `maps/jackie/DETAILS.md` "Kew Gardens
-  junction"), an opposite carriageway at its real distance from the stage road (`carriageway_offset.py`, `maps/shared/carriageway-shift.ts`), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
+  junction"), an opposite carriageway at its real distance from the stage road (`carriageway-shift.json` data, `maps/shared/carriageway-shift.ts`), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
   `streetDressing` (parked cars, crowds, police / ambulance / fire vehicles, `village` street furniture: add `village` to the map's `models` in `maps/index.ts`), `overheadSigns` (green "EXIT n" gantries from the
   ramps + hand-placed boards), `road.trenchFills` (pad the land where the lidar has a void beside a sunken stretch). Streets
   crossing over a tunnelled parkway (`under` spans) become bridge decks automatically (`world/under-bridges.ts`) and the span

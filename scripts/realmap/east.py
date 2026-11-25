@@ -7,7 +7,7 @@ Config block (the map's bake config):
     "east": { "landcoverX1": 4500, "grid": [3500, 4700, -2700, -500], "pathsBox": [3300, 4500, -2500, -700], "highwayCorridor": 2200,
              "corridor": 1700, "streetsNearHighway": 350, "grassAlongHighways": { "fromX": 2950, "reach": 26 } }
 
-Order for a map that has all of them:  bake.py -> extend.py -> east.py -> streets.py.  (extend.py drops what east.py added.)
+Order for a map that has all of them:  bake.py -> extend.py -> east.py.  (extend.py drops what east.py added.)
 
 What it does: runs `bake.py` once into a scratch folder (`scripts/realmap/.cache/east/`) with the land cover / detail box
 grown to `landcoverX1` and a second OSM box for the new strip (the old box is cached, so the route and the old area stay

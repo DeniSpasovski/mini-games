@@ -6,7 +6,7 @@ Config block (the map's bake config):
 
     "west": { "landcoverX0": -3500, "box": [-3420, -2600, 1300, 2500], "corridor": 560, "buildingsCorridor": 700 }
 
-Order for a map that has all of them:  bake.py -> extend.py -> east.py -> west.py -> streets.py.
+Order for a map that has all of them:  bake.py -> extend.py -> east.py -> west.py.
 
 What it does: runs `bake.py` once into a scratch folder (`scripts/realmap/.cache/west/`) with the land cover box grown west to
 `landcoverX0`, a second OSM box for the new strip (the old box is cached, so the route and the old area stay exactly as they

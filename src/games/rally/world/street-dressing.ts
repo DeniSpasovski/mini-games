@@ -48,7 +48,7 @@ export interface DressingContext {
   lampEvery?: number;
 }
 
-/** Width of a parking lane (m): streets.py / street-markings.ts PARK_W. */
+/** Width of a parking lane (m): the street model / street-markings.ts PARK_W. */
 const PARK_LANE = 2.2;
 /** Spacing of the parking slots along a street (m). */
 const SLOT = 6.4;

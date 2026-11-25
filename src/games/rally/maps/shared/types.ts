@@ -591,7 +591,7 @@ export interface PathDef {
   /** Road name (motorways / main roads). */
   name?: string;
   /**
-   * Street model of a city map (`scripts/realmap/streets.py`, Jackie END BOX): measured from the NYC planimetric roadbed +
+   * Street model of a city map (Jackie END BOX, baked data): measured from the NYC planimetric roadbed +
    * centreline data. `lanes` stays the baked value; `width` = `curbWidth` for streets and ramps.
    */
   /** Curb to curb width (m) measured from the roadbed outline (else the centreline data's street width). */
