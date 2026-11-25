@@ -8,6 +8,7 @@ import {
   valueAt,
 } from '../../src/games/rally/world/v2/alignment';
 import {
+  arrowGlyph,
   barrierPlan,
   skirtRow,
   tunnelRoofs,
@@ -630,3 +631,22 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
     });
   },
 );
+
+describe('turn arrows', () => {
+  test('one glyph per OSM turn:lanes entry: a stem and a head per direction, pointing that way', () => {
+    expect(arrowGlyph('')).toEqual([]);
+    expect(arrowGlyph('none')).toEqual([]);
+    const through = arrowGlyph('through');
+    expect(through.length).toBe(2);
+    const tip = Math.max(...through.flat().map(([u]) => u));
+    expect(tip).toBeGreaterThan(3.5);
+    // a left arrow's head lies left of the stem (+v), a right one's right
+    const maxV = (g: [number, number][][]) =>
+      Math.max(...g.flat().map(([, v]) => v));
+    const minV = (g: [number, number][][]) =>
+      Math.min(...g.flat().map(([, v]) => v));
+    expect(maxV(arrowGlyph('left'))).toBeGreaterThan(1.5);
+    expect(minV(arrowGlyph('right'))).toBeLessThan(-1.5);
+    expect(arrowGlyph('left;through').length).toBe(4);
+  });
+});

@@ -476,6 +476,7 @@ export function* netMeshJob(world: World): Generator<void, Group | undefined> {
     if (w.internal) continue;
     waySurface(net, field, w, tiles);
     wayPaint(net, field, w, tiles);
+    turnArrows(net, field, w, tiles);
     walls(net, field, w, parts);
     decks(net, field, w, parts);
     medianDecks(net, w, parts);
@@ -1087,6 +1088,159 @@ function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
           );
     }
   }
+}
+
+/** A turn arrow's length, its stem's width, the head's length and width (m; NYC street arrows). */
+const ARROW_L = 4.2;
+const ARROW_STEM = 0.22;
+const ARROW_HEAD_L = 1.3;
+const ARROW_HEAD_W = 0.95;
+/** Turn arrows stand this far before a way's end (the stop line), a second set ARROW_AGAIN further back (m). */
+const ARROW_BEFORE = 9;
+const ARROW_AGAIN = 30;
+
+/**
+ * One arrow glyph as convex pieces in (u along the lane, v to its left), m: a stem and a head per direction of
+ * `turn` (an OSM turn:lanes entry, e.g. "through;right"); empty for none.
+ */
+export function arrowGlyph(turn: string): [number, number][][] {
+  const out: [number, number][][] = [];
+  const st = ARROW_STEM / 2;
+  const head = (u: number, v: number, du: number, dv: number) => {
+    // a head at (u, v) pointing along (du, dv)
+    const n = Math.hypot(du, dv);
+    const ax = du / n;
+    const ay = dv / n;
+    const bu = u - ax * ARROW_HEAD_L;
+    const bv = v - ay * ARROW_HEAD_L;
+    out.push([
+      [u, v],
+      [bu - ay * (ARROW_HEAD_W / 2), bv + ax * (ARROW_HEAD_W / 2)],
+      [bu + ay * (ARROW_HEAD_W / 2), bv - ax * (ARROW_HEAD_W / 2)],
+    ]);
+    return [bu, bv] as const;
+  };
+  const kinds = turn.split(';').map((k) => k.trim());
+  const bend = ARROW_L - ARROW_HEAD_L - 0.9;
+  let stem = 0;
+  for (const k of kinds) {
+    if (k === 'through') {
+      head(ARROW_L, 0, 1, 0);
+      stem = Math.max(stem, ARROW_L - ARROW_HEAD_L);
+    } else if (k === 'left' || k === 'right') {
+      const sg = k === 'left' ? 1 : -1;
+      const [, bv] = head(bend + st, sg * 1.75, 0, sg);
+      out.push([
+        [bend - st, 0],
+        [bend + st, 0],
+        [bend + st, bv],
+        [bend - st, bv],
+      ]);
+      stem = Math.max(stem, bend + st);
+    } else if (
+      k === 'slight_left' ||
+      k === 'slight_right' ||
+      k.startsWith('merge_to')
+    ) {
+      const sg = k === 'slight_left' || k === 'merge_to_left' ? 1 : -1;
+      const [bu, bv] = head(ARROW_L - 0.2, sg * 0.9, 1, sg * 0.6);
+      out.push([
+        [bend - 0.6, -st],
+        [bend - 0.6, st],
+        [bu, bv + st],
+        [bu, bv - st],
+      ]);
+      stem = Math.max(stem, bend - 0.6);
+    }
+  }
+  if (stem > 0)
+    out.push([
+      [0, -st],
+      [stem, -st],
+      [stem, st],
+      [0, st],
+    ]);
+  return out;
+}
+
+/**
+ * Turn arrows from OSM `turn:lanes` (`TagSet.turnFwd` / `turnBack`) in each lane before a way's ends at a junction:
+ * one set ARROW_BEFORE m before the stop line, a second ARROW_AGAIN m further back on a long approach (drive videos,
+ * the Kew Gardens streets). Lanes from the way's own lane lines, counted from the centre (one-way: from its left).
+ */
+function turnArrows(net: Network, field: NetField, w: Way, tiles: Tiles): void {
+  const { turnFwd, turnBack } = w.tags;
+  if (w.stage || w.tpl.pave === 'terrain' || (!turnFwd && !turnBack)) return;
+  const L = w.al.length;
+  const s0 = w.cut0;
+  const s1 = L - w.cut1;
+  const sec = w.sec;
+  const centre = sec.oneway
+    ? sec.paveL
+    : (sec.paint.find((p) => p.color === 'yellow')?.t ?? 0);
+  const bounds = [...new Set(sec.paint.map((p) => +p.t.toFixed(2)))];
+  const lanesOf = (dir: 1 | -1, n: number): number[] => {
+    // the lane line laterals on this direction's side, from its left (the centre) outwards
+    const edges = [centre, ...bounds.filter((t) => (t - centre) * dir < -0.3)]
+      .concat(dir === 1 ? [-sec.paveR] : [sec.paveL])
+      .sort((a, b) => (b - a) * dir);
+    const uniq = edges.filter(
+      (t, i) => i === 0 || Math.abs(t - edges[i - 1]) > 1.5,
+    );
+    const out: number[] = [];
+    for (let i = 0; i + 1 < uniq.length && out.length < n; i++)
+      out.push((uniq[i] + uniq[i + 1]) / 2);
+    return out;
+  };
+  const place = (turns: string, dir: 1 | -1, end: number) => {
+    const list = turns.split('|');
+    const lanes = lanesOf(dir, list.length);
+    if (lanes.length < list.length) return;
+    for (const back of [ARROW_BEFORE, ARROW_BEFORE + ARROW_AGAIN]) {
+      const sTip = end - dir * back;
+      const sTail = sTip - dir * ARROW_L;
+      if (sTail < s0 + 2 || sTail > s1 - 2 || sTip < s0 + 2 || sTip > s1 - 2)
+        continue;
+      for (let i = 0; i < list.length; i++) {
+        const glyph = arrowGlyph(list[i]);
+        if (!glyph.length) continue;
+        const t0 = lanes[i];
+        const at = (u: number, v: number) => {
+          const fr = frameAt(w, sTail + dir * u);
+          const t = t0 + dir * v;
+          const [x, z] = lat(fr, t);
+          return {
+            x,
+            z,
+            h: net.surfaceAt(w, fr.i, fr.f, t) + PAINT_LIFT * 1.5,
+          };
+        };
+        const mid = at(ARROW_L / 2, 0);
+        const o = field.pavedByOther(mid.x, mid.z, mid.h, w, 0.5);
+        if (o && o.tpl.rank > w.tpl.rank) continue;
+        const acc = tiles.at('paint', mid.x, mid.z);
+        for (const poly of glyph) {
+          const vs = poly.map(([u, v]) => {
+            const p = at(u, v);
+            return acc.v(p.x, p.h, p.z, v, u / PAINT_TILE, WHITE);
+          });
+          // (front faces up: a piece counter-clockwise in (u, v) is so seen from above, either direction - a turn of
+          // 180 degrees; a clockwise one is wound the other way)
+          let area = 0;
+          for (let k = 0; k < poly.length; k++) {
+            const [u0, v0] = poly[k];
+            const [u1, v1] = poly[(k + 1) % poly.length];
+            area += u0 * v1 - u1 * v0;
+          }
+          for (let k = 1; k + 1 < vs.length; k++)
+            if (area > 0) acc.tri(vs[0], vs[k], vs[k + 1]);
+            else acc.tri(vs[0], vs[k + 1], vs[k]);
+        }
+      }
+    }
+  };
+  if (turnFwd && !w.merge1) place(turnFwd, 1, s1);
+  if (turnBack && !sec.oneway && !w.merge0) place(turnBack, -1, s0);
 }
 
 /** The two lines of a double solid lane line, centre to centre (m). */
