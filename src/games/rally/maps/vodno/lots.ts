@@ -266,14 +266,17 @@ export const LOT_PADS: PadDef[] = [
     // Beyond it the earth path down to the picnic shelter and the hiking trail east: one walkable slope instead of the
     // land's step at the lot's end.
     name: 'trail_start',
-    polygon: [2119, -240.2, 2126.5, -227.5, 2150, -238, 2148, -254, 2122, -254],
+    polygon: [
+      2112, -247, 2124, -246.3, 2130.5, -241.5, 2133, -234.5, 2150, -238, 2148,
+      -254, 2112, -254,
+    ],
     blend: 4,
     frontage: [2083.3, -224, 2084, -204],
     surface: 'dirt',
     ramp: {
       from: [2124, -232],
       to: [2142, -246],
-      lift: [PAD_LIFT - TRAIL_FALL + SLAB, -9.5],
+      lift: [PAD_LIFT - TRAIL_FALL, -9.5],
     },
   },
   {

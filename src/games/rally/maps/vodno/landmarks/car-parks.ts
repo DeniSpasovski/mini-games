@@ -242,12 +242,20 @@ const TRAIL_SITE: Site = { x: 2086.4, z: -210.9, yaw: 0 };
 export const TRAIL: Lot = {
   site: TRAIL_SITE,
   centre: [
-    // (the first point short of the road: the end is square, and the mouth joins it to the road)
+    // (the first point short of the road: the mouth joins it to the road. The aerial photos: it widens towards the far
+    // end, which is rounded - the last points close a 6.3 m arc round [2120.5, -229].)
     [2090.5, -213.4],
-    [2104, -221.6],
-    [2121.4, -232.2],
+    [2104.5, -220.6],
+    [2113, -225.4],
+    [2120.5, -229],
+    [2122.3, -229.86],
+    [2123.66, -230.51],
+    [2124.83, -231.07],
+    [2125.64, -231.46],
+    [2126.09, -231.67],
   ].map(([x, z]): V2 => [x - TRAIL_SITE.x, z - TRAIL_SITE.z]),
   hw: 4.9,
+  widths: [4.9, 4.9, 5.6, 6.0, 5.97, 5.24, 4.08, 2.68, 1.12],
   bays: {
     depth: 4.8,
     pitch: 2.5,
