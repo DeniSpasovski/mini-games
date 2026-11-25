@@ -637,7 +637,7 @@ Rules the solver keeps (each one replaces v1 per-site fixes):
   stay in section metres, `worldT` / `sectionT` convert), not within `TUNNEL_HOLD` of the stage's own tunnels nor where
   another pavement touches its edge (`WIDTH_CONTACT`: a ramp, a gore). Up to `survey.wallsUntil` the stage's cut / fill
   walls stand only beside a surveyed retaining wall (`surveyedWall`), else a bank.
-- **Road slab** (main's rules on v2 sections): `NetField.meshSink` cuts the drawn terrain `SLAB_SINKS.asphalt` under the
+- **Road slab** (the v1 road slab rules on v2 sections): `NetField.meshSink` cuts the drawn terrain `SLAB_SINKS.asphalt` under the
   pavement (ramped over `SINK_RAMP`), drops the verge `EDGE_DROP` past a kerbless edge, never under a deck, a tunnel or a
   way passing under another; `slabSkirt` draws the slab's side (`SKIRT_DEPTH` down, `SKIRT_W` out, dark), none on other paving.
 - **Land between roads**: two roads within `BETWEEN_MAX` m with the point between them keep the land within `BETWEEN_HUMP`

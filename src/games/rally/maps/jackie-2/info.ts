@@ -49,7 +49,12 @@ export const jackie2Info: MapInfo = {
     {
       label: 'NYC Planimetric Database (NYC Open Data)',
       url: 'https://opendata.cityofnewyork.us/',
-      note: 'street widths (roadbed, medians) and surveyed spot heights - NYC Office of Technology and Innovation',
+      note: 'street widths (roadbed, medians), surveyed spot heights, Kew Gardens islands, painted medians and park - NYC Office of Technology and Innovation',
+    },
+    {
+      label: 'NYC DOT Bike Routes (NYC Open Data)',
+      url: 'https://data.cityofnewyork.us/d/mzxg-pwib',
+      note: 'protected bike lanes - NYC Department of Transportation',
     },
   ],
   stageNumber: 3,
