@@ -734,6 +734,11 @@ export interface TerrainDef {
    */
   lawns?: number[][];
   /**
+   * Dry ground: closed polygons (flat [x0, z0, ...], world metres) where the grass moisture is held at `moisture` (0 = dry
+   * ridge, 0.5 = neutral, 1 = wet) instead of the baked hollows: unwatered meadows and lots a valley floor would paint lush.
+   */
+  dryGround?: { poly: number[]; moisture: number }[];
+  /**
    * A cut in the DRAWN terrain only (m, + = down; world x, z, `height` = the levelled terrain): where a wall holds a step the
    * 1 m terrain mesh cannot (a lot under a raised verge). Physics keeps the levelled heights.
    */

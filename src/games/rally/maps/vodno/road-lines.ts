@@ -6,10 +6,11 @@
 export interface RoadLine {
   kind: 'fence' | 'wall';
   /**
-   * fence: `log` = the brown timber fence with a diagonal brace in every bay, `metal` = a steel post-and-rail railing
-   * (else timber rails).
+   * fence: `log` = the brown timber fence with a diagonal brace in every bay, `metal` = a steel post-and-rail railing,
+   * `chain` = chain-link wire on green posts, `net` = a building site's green shade net on tall posts with barbed-wire
+   * arms (else timber rails).
    */
-  type?: 'log' | 'metal';
+  type?: 'log' | 'metal' | 'chain' | 'net';
   side: 'left' | 'right';
   from: number;
   to: number;
@@ -21,21 +22,38 @@ export const ROAD_LINES: RoadLine[] = [
   // sidewalk first, then on the verge; a chain-link fence along the left of the bend before the crossroad
   { kind: 'wall', side: 'left', from: 8, to: 120, offset: 1.9 },
   { kind: 'fence', type: 'metal', side: 'left', from: 8, to: 120, offset: 1.9 },
-  { kind: 'wall', side: 'left', from: 180, to: 258, offset: 1.2 },
+  { kind: 'wall', side: 'left', from: 180, to: 205, offset: 1.2 },
   {
     kind: 'fence',
     type: 'metal',
     side: 'left',
     from: 180,
-    to: 258,
+    to: 205,
     offset: 1.2,
   },
-  // (the references: a wire fence in the scrub behind the grass strip, all along the left of the straight to the crossroad)
+  // (the drive videos: chain-link on green posts in the scrub past the blocks, then the building site's green net, then
+  // a wire fence behind the grass strip to the crossroad)
+  {
+    kind: 'fence',
+    type: 'chain',
+    side: 'left',
+    from: 205,
+    to: 298,
+    offset: 2.0,
+  },
+  {
+    kind: 'fence',
+    type: 'net',
+    side: 'left',
+    from: 298,
+    to: 336,
+    offset: 1.6,
+  },
   {
     kind: 'fence',
     type: 'metal',
     side: 'left',
-    from: 262,
+    from: 336,
     to: 396,
     offset: 2.6,
   },

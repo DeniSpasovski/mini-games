@@ -91,10 +91,8 @@ export function bakeGroundMoisture(
     data[k] = Math.round((0.5 + 0.5 * Math.max(-1, Math.min(1, m))) * 255);
   }
 
-  // Lawns (MapDef.terrain.lawns): wet, so the painted grass is lush green. Texels reach a little beyond the polygon (they are
-  // 12 m wide and filtered: a narrow garden would otherwise fall between texel centres); slopes dry it again in the shader.
-  for (const poly of map.terrain.lawns ?? []) {
-    const pts = Float64Array.from(poly);
+  /** The texels (i0, i1, j0, j1) round a polygon's bounds, a texel's margin added (only those are tested). */
+  const texelBounds = (pts: Float64Array): [number, number, number, number] => {
     let minX = Infinity;
     let maxX = -Infinity;
     let minZ = Infinity;
@@ -105,11 +103,34 @@ export function bakeGroundMoisture(
       minZ = Math.min(minZ, pts[k + 1]);
       maxZ = Math.max(maxZ, pts[k + 1]);
     }
-    // (only the texels near the polygon's bounds are tested)
-    const i0 = Math.max(0, Math.floor((minX - res - x0) / res));
-    const i1 = Math.min(nx - 1, Math.ceil((maxX + res - x0) / res));
-    const j0 = Math.max(0, Math.floor((minZ - res - z0) / res));
-    const j1 = Math.min(nz - 1, Math.ceil((maxZ + res - z0) / res));
+    return [
+      Math.max(0, Math.floor((minX - res - x0) / res)),
+      Math.min(nx - 1, Math.ceil((maxX + res - x0) / res)),
+      Math.max(0, Math.floor((minZ - res - z0) / res)),
+      Math.min(nz - 1, Math.ceil((maxZ + res - z0) / res)),
+    ];
+  };
+
+  // Dry ground (MapDef.terrain.dryGround): held at its own moisture (never wetter than baked), texel centres inside only.
+  for (const { poly, moisture } of map.terrain.dryGround ?? []) {
+    const pts = Float64Array.from(poly);
+    const [i0, i1, j0, j1] = texelBounds(pts);
+    const v = Math.round(Math.max(0, Math.min(1, moisture)) * 255);
+    for (let j = j0; j <= j1; j++) {
+      const z = z0 + (j + 0.5) * res;
+      for (let i = i0; i <= i1; i++) {
+        const x = x0 + (i + 0.5) * res;
+        if (polygonDistance(pts, x, z) === 0)
+          data[j * nx + i] = Math.min(data[j * nx + i], v);
+      }
+    }
+  }
+
+  // Lawns (MapDef.terrain.lawns): wet, so the painted grass is lush green. Texels reach a little beyond the polygon (they are
+  // 12 m wide and filtered: a narrow garden would otherwise fall between texel centres); slopes dry it again in the shader.
+  for (const poly of map.terrain.lawns ?? []) {
+    const pts = Float64Array.from(poly);
+    const [i0, i1, j0, j1] = texelBounds(pts);
     for (let j = j0; j <= j1; j++) {
       const z = z0 + (j + 0.5) * res;
       for (let i = i0; i <= i1; i++) {

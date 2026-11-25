@@ -444,7 +444,9 @@ export function* buildingMeshJob(
           b.angle,
           rgb(EXTRA, 1.05),
         );
+        // (a New York roof: none on the Macedonian blocks)
         if (
+          !MK_MAPS.has(world.map.id) &&
           (kind === 'row' || kind === 'apartment') &&
           b.h > 9 &&
           (h >> 9) % 2 === 0

@@ -382,6 +382,8 @@ export function osmFeaturesLandmark(map: MapDef, others: Landmark[]): Landmark {
             );
           }
         } else if (line.type === 'metal') fenceRun(l, loc, yAt);
+        else if (line.type === 'chain' || line.type === 'net')
+          meshFence(l, loc, yAt, line.type === 'net');
         else logRail(l, loc, yAt, 1.1, line.type === 'log');
       }
       yield;
@@ -432,6 +434,88 @@ function fenceRun(
         'metal',
         STEEL,
       );
+  }
+}
+
+/**
+ * A wire fence along a polyline (local, in the road's direction, the road on its right): posts every 2.5 m, chain-link
+ * between them following the ground, a top wire. `net`: a building site's fence, taller, a green shade net over the
+ * mesh, each post's top bent towards the road carrying two strands of barbed wire.
+ */
+function meshFence(
+  l: Local,
+  pts: V2[],
+  yAt: (x: number, z: number) => number,
+  net: boolean,
+): void {
+  const H = net ? 2.3 : 1.9;
+  const POST = net ? '#2e5a48' : '#3f6d52';
+  const WIRE = '#8d9397';
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [ax, az] = pts[i];
+    const [bx, bz] = pts[i + 1];
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.01) continue;
+    // (towards the road: the right of the line's direction)
+    const [rx, rz] = [-(bz - az) / len, (bx - ax) / len];
+    const n = Math.max(1, Math.round(len / 2.5));
+    for (let k = 0; k <= n; k++) {
+      if (k === n && i + 2 < pts.length) break;
+      const t = k / n;
+      const p: V2 = [ax + (bx - ax) * t, az + (bz - az) * t];
+      const y = yAt(...p);
+      post(l, p[0], p[1], y - 0.3, y + H, 0.06, 'metal', POST);
+      if (net)
+        strut(
+          l,
+          [p[0], y + H - 0.02, p[1]],
+          [p[0] + rx * 0.4, y + H + 0.4, p[1] + rz * 0.4],
+          0.04,
+          'metal',
+          POST,
+        );
+      if (k === n) break;
+      const q: V2 = [
+        ax + (bx - ax) * ((k + 1) / n),
+        az + (bz - az) * ((k + 1) / n),
+      ];
+      const yq = yAt(...q);
+      const L = len / n;
+      const yaw = -Math.atan2(q[1] - p[1], q[0] - p[0]);
+      const at = placeAt(
+        (p[0] + q[0]) / 2,
+        (y + yq) / 2,
+        (p[1] + q[1]) / 2,
+        yaw,
+      ).multiply(new Matrix4().makeShear((yq - y) / L, 0, 0, 0, 0, 0));
+      l.box('fence', [-L / 2, 0.05, -0.01], [L / 2, H - 0.05, 0.01], WIRE, at);
+      if (net)
+        l.box(
+          'paint',
+          [-L / 2, 0.1, 0.02],
+          [L / 2, H - 0.1, 0.03],
+          '#2c7a6c',
+          at,
+        );
+      strut(
+        l,
+        [p[0], y + H - 0.04, p[1]],
+        [q[0], yq + H - 0.04, q[1]],
+        0.02,
+        'metal',
+        WIRE,
+      );
+      if (net)
+        for (const d of [0.22, 0.4])
+          strut(
+            l,
+            [p[0] + rx * d, y + H + d - 0.02, p[1] + rz * d],
+            [q[0] + rx * d, yq + H + d - 0.02, q[1] + rz * d],
+            0.012,
+            'metal',
+            '#6f7376',
+          );
+    }
   }
 }
 

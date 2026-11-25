@@ -66,7 +66,7 @@ export const BALCONY_BLOCK: Site = frontSite(BALCONY_BOX, BALCONY_SIZE.depth);
 export const CURVED_BLOCK: Site = frontSite(CURVED_BOX, CURVED_SIZE.depth);
 
 /** A window or door on wall `w`: dark glass in a frame, `mullion` splits it down the middle (a French door). */
-function opening(
+export function opening(
   l: Local,
   w: Wall,
   s0: number,
@@ -115,7 +115,7 @@ function shuttered(
 }
 
 /** A small white air-conditioning unit hung on the facade (the front plane z = 0 pushed out by `z`). */
-function ac(l: Local, x: number, y: number, z = 0): void {
+export function ac(l: Local, x: number, y: number, z = 0): void {
   l.box('paint', [x, y, z], [x + 0.85, y + 0.5, z + 0.3], '#e9ebec');
   l.box(
     'paint',

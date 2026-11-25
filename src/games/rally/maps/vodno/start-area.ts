@@ -1,4 +1,9 @@
-import type { BuildingDef, PathDef, SidewalkLink } from '../shared/types';
+import type {
+  BuildingDef,
+  PadDef,
+  PathDef,
+  SidewalkLink,
+} from '../shared/types';
 
 /**
  * The first stretch of the road, by the embassies on Todor Aleksandrov street (world x 1550-1620, z -1150 to -1060): the main
@@ -43,29 +48,25 @@ export const startStreets = (paths: PathDef[]): PathDef[] =>
 const DROPPED_BUILDINGS = new Set([53, 64]);
 
 /**
- * The block closing the car park to the south (flat roof, three storeys, a car row along its north wall): OSM has no
- * building there, the footprint only had a garage.
+ * The terrace of the curved-roof block south of the car park (`landmarks/start-towers.ts`): the land falls ~8 m along it
+ * towards the start, so it stands cut into the slope at its uphill end and on a low bank at the start's end.
  */
-const SOUTH_BLOCK: BuildingDef = {
-  id: 900001,
-  x: 1586,
-  z: -1086,
-  w: 26,
-  d: 22,
-  angle: 0,
-  h: 9,
-  floors: 3,
-  type: 'flat',
-  source: 'manual',
-  along: 40,
-  kind: 'commercial',
-  roof: 'flat',
+export const HALL_PAD: PadDef = {
+  name: 'hall',
+  polygon: [1557, -1089, 1586, -1089, 1586, -1043, 1557, -1043],
+  blend: 4,
+  level: { at: [1571.5, -1076], lift: 0.1 },
 };
 
-export const startBuildings = (buildings: BuildingDef[]): BuildingDef[] => [
-  ...buildings.filter((b) => !DROPPED_BUILDINGS.has(b.id)),
-  SOUTH_BLOCK,
-];
+/** The white villas on the street above the courts (Microsoft footprints): flat roofs, as the aerial shows, not gables. */
+const FLAT_ROOFED = new Set([550, 581, 604, 615]);
+
+export const startBuildings = (buildings: BuildingDef[]): BuildingDef[] =>
+  buildings
+    .filter((b) => !DROPPED_BUILDINGS.has(b.id))
+    .map((b): BuildingDef =>
+      FLAT_ROOFED.has(b.id) ? { ...b, roof: 'flat' } : b,
+    );
 
 /**
  * The sidewalks at the side street's mouth (the street detail stops each run short of the other street's ribbon): the main
@@ -84,5 +85,30 @@ export const START_SIDEWALKS: SidewalkLink[] = [
     side: -1,
     dropStart: true,
     pts: [1569.7, -1148.72, 1571, -1148.77, 1572.38, -1148.81],
+  },
+];
+
+/**
+ * Unwatered ground round the start (`terrain.dryGround`): the low neighbourhood's open ground would read as a lush valley
+ * floor, but the aerial shows olive lawns and dry, trodden earth between the blocks and on the open slope above the road to
+ * the 560 m junction; the meadow there at 300-450 m (OSM way 230112771) is dry tan grass.
+ */
+export const START_DRY: { poly: number[]; moisture: number }[] = [
+  {
+    // (the neighbourhood, and the open slope above the road to the 560 m junction, 10 m off its north edge)
+    poly: [
+      1480, -1260, 1720, -1260, 1720, -1040, 1880, -1040, 1880, -760, 1817,
+      -760, 1801, -796, 1784, -833, 1757, -878, 1719, -913, 1672, -938, 1625,
+      -955, 1587, -967, 1558, -977, 1532, -987, 1480, -1040,
+    ],
+    moisture: 0.36,
+  },
+  {
+    poly: [
+      1809, -906, 1804, -941, 1800, -955, 1784, -946, 1772, -967, 1778, -971,
+      1759, -996, 1722, -982, 1711, -971, 1712, -956, 1711, -940, 1718, -917,
+      1754, -886, 1772, -883, 1785, -881, 1802, -888,
+    ],
+    moisture: 0.15,
   },
 ];

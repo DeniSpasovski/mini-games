@@ -5,6 +5,10 @@ import {
   START_LOT_CARS,
   START_LOT_PAD,
 } from '../../src/games/rally/maps/vodno/landmarks/start-lot';
+import {
+  ARCH,
+  ARCH_SITE,
+} from '../../src/games/rally/maps/vodno/landmarks/start-towers';
 import { vodnoMap } from '../../src/games/rally/maps/vodno/map';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
@@ -73,8 +77,8 @@ describe('vodno start area', () => {
     const ids = new Set(vodnoMap.buildings.map((b) => b.id));
     expect(ids.has(53)).toBe(false);
     expect(ids.has(64)).toBe(false);
-    const block = vodnoMap.buildings.find((b) => b.id === 900001)!;
-    expect(block).toBeDefined();
+    // (the curved-roof block is a landmark, start-towers.ts)
+    expect(ids.has(900001)).toBe(false);
     for (const [sx, sz] of [
       [-1, -1],
       [1, -1],
@@ -82,11 +86,7 @@ describe('vodno start area', () => {
       [-1, 1],
     ])
       expect(
-        inside(
-          poly(),
-          block.x + (sx * block.w) / 2,
-          block.z + (sz * block.d) / 2,
-        ),
+        inside(poly(), ARCH_SITE.x + sx * ARCH.hw, ARCH_SITE.z + sz * ARCH.hd),
       ).toBe(false);
   });
 });

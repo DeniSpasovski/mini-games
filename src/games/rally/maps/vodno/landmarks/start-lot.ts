@@ -3,7 +3,10 @@ import {
   BufferGeometry,
   Mesh,
   MeshStandardMaterial,
+  ShapeUtils,
+  Vector2,
 } from 'three';
+import { subdivide } from '../../ajvatovci/start-row/build/kit';
 import { applyRoadSurface } from '../../../engine/road-surface';
 import type { PadDef } from '../../shared/types';
 import { KERB_W } from '../../../world/street-detail';
@@ -237,6 +240,40 @@ export function startLotAsphalt(
       tri(a0, b1, a1);
     }
   }
+  return asphaltMesh('start-lot asphalt', pos, uv);
+}
+
+/**
+ * Another paved lot round the start in the same asphalt as this one: world outlines (any shape), draped on the ground in
+ * triangles of at most 2 m, `lift` m over it.
+ */
+export function lotAsphalt(
+  name: string,
+  outlines: V2[][],
+  ground: (x: number, z: number) => number,
+  lift: number,
+): Mesh {
+  const pos: number[] = [];
+  const uv: number[] = [];
+  for (const outline of outlines) {
+    const pts = outline.map(([x, z]) => new Vector2(x, z));
+    for (const [a, b, c] of ShapeUtils.triangulateShape(pts, [])) {
+      for (const t of subdivide([pts[a], pts[b], pts[c]], 2)) {
+        const up =
+          (t[1].y - t[0].y) * (t[2].x - t[0].x) -
+            (t[1].x - t[0].x) * (t[2].y - t[0].y) >
+          0;
+        for (const p of up ? t : [t[0], t[2], t[1]]) {
+          pos.push(p.x, ground(p.x, p.y) + lift, p.y);
+          uv.push(p.x / TILE, p.y / TILE);
+        }
+      }
+    }
+  }
+  return asphaltMesh(name, pos, uv);
+}
+
+function asphaltMesh(name: string, pos: number[], uv: number[]): Mesh {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
   g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
@@ -253,7 +290,7 @@ export function startLotAsphalt(
   );
   m.material.defines = { RALLY_GROUND: 1 };
   applyRoadSurface(m.material, 'road_tarmac_plain_junction');
-  m.name = 'start-lot asphalt';
+  m.name = name;
   m.receiveShadow = true;
   m.matrixAutoUpdate = false;
   return m;

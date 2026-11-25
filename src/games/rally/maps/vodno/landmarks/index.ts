@@ -80,6 +80,7 @@ import {
   buildCurvedBlock,
   CURVED_BLOCK,
   CURVED_BOX,
+  CORNER_HOUSE,
   CURVED_SIZE,
   GARDEN,
 } from './start-blocks';
@@ -96,8 +97,40 @@ import {
   START_LOT_AREAS,
   START_LOT_CARS,
   START_LOT_PLANTS,
+  lotAsphalt,
 } from './start-lot';
 import { buildStation } from './station';
+import {
+  START_LOT_OUTLINES,
+  START_LOTS_AREAS,
+  START_LOTS_CARS,
+  START_LOTS_SITE,
+} from './start-lots';
+import {
+  buildResidenceRoof,
+  RESIDENCE,
+  RESIDENCE_ID,
+  wallTop,
+} from './residence-roof';
+import { buildCourts, COURT_AREAS, courtColliders } from './start-courts';
+import {
+  buildCornerHouse,
+  CORNER,
+  CORNER_SITE,
+  CORNER_TOP,
+} from './corner-house';
+import { buildShell, buildYard, SHELLS, YARD, YARD_RECT } from './start-shells';
+import {
+  ARCH,
+  ARCH_SITE,
+  ARCH_TOP,
+  buildArchBlock,
+  buildTerraceBlock,
+  TERRACE,
+  TERRACE_SITE,
+  TERRACE_TOP,
+  TOWER,
+} from './start-towers';
 import {
   buildTrailLot,
   ISLAND_PLANTS,
@@ -801,6 +834,155 @@ export const trailLotLandmark = landmark({
   build: buildTrailLot,
 });
 
+/** The tennis courts round the start (start-courts.ts). */
+export const startCourtsLandmark = landmark({
+  id: 'vodno-start-courts',
+  areas: COURT_AREAS,
+  colliders: courtColliders,
+  build: (at, ground) => buildCourts(at, ground),
+});
+
+/** The start lots' asphalt (and the cars on it) over the ground. */
+const LOTS_LIFT = 0.1;
+
+/** The car parks OSM maps as areas round the start (start-lots.ts): asphalt and parked cars. */
+export const startLotsLandmark = landmark({
+  id: 'vodno-start-lots',
+  areas: START_LOTS_AREAS,
+  colliders: () => [],
+  plants: START_LOTS_CARS.map(({ x, z, rotY, variant }) => ({
+    asset: 'street_car',
+    site: START_LOTS_SITE,
+    x: x - START_LOTS_SITE.x,
+    z: z - START_LOTS_SITE.z,
+    scale: 1,
+    variant,
+    rotY,
+    lift: LOTS_LIFT,
+  })),
+  meshes: (ground) => [
+    lotAsphalt('start lots asphalt', START_LOT_OUTLINES, ground, LOTS_LIFT),
+  ],
+  build: () => {},
+});
+
+/** The red tiled roofs on the Turkish residence by the start (residence-roof.ts): on the baked building's walls. */
+export const residenceRoofLandmark = landmark({
+  id: 'vodno-residence-roof',
+  areas: [],
+  colliders: () => [],
+  build: (at, ground, world) => {
+    const b = world.buildings.buildings.find((x) => x.id === RESIDENCE_ID);
+    if (b)
+      buildResidenceRoof(at(RESIDENCE, 'residence-roof'), wallTop(b, ground));
+  },
+});
+
+/** The curved-roof block, the six-storey block and the glass stair tower south of the start's car park (start-towers.ts). */
+export const startTowersLandmark = landmark({
+  id: 'vodno-start-towers',
+  areas: [
+    {
+      site: ARCH_SITE,
+      rect: [-ARCH.hw - 2, ARCH.hw + 2, -ARCH.hd - 2, ARCH.hd + 1],
+    },
+    {
+      site: TERRACE_SITE,
+      rect: [-TERRACE.hw - 2, TERRACE.hw, -TERRACE.hd - 4.5, TERRACE.hd + 1],
+    },
+  ],
+  colliders: (g) => [
+    boxCollider(
+      ARCH_SITE,
+      [-ARCH.hw, ARCH.hw, -ARCH.hd, ARCH.hd],
+      base(g, ARCH_SITE) - 2,
+      ARCH_TOP + 2,
+    ),
+    boxCollider(
+      TERRACE_SITE,
+      [-TERRACE.hw, TERRACE.hw, -TERRACE.hd, TERRACE.hd],
+      base(g, TERRACE_SITE) - 8,
+      TERRACE_TOP + 8,
+    ),
+    boxCollider(
+      TERRACE_SITE,
+      [TOWER[0], TOWER[1], TOWER[2], TOWER[3]],
+      base(g, TERRACE_SITE) - 8,
+      TERRACE_TOP + 8,
+    ),
+  ],
+  build: (at, ground) => {
+    buildArchBlock(at(ARCH_SITE, 'arch-block'), ground);
+    buildTerraceBlock(at(TERRACE_SITE, 'terrace-block'), ground);
+  },
+});
+
+/** The house on the bank at the corner before the blocks (corner-house.ts), in place of baked building 9. */
+export const cornerHouseLandmark = landmark({
+  id: 'vodno-corner-house',
+  areas: [
+    {
+      site: CORNER_SITE,
+      rect: [-CORNER.hw - 1, CORNER.hw + 1, -CORNER.hd - 1.2, CORNER.hd + 1],
+    },
+  ],
+  replaces: (b) => b.id === CORNER_HOUSE.id,
+  // (in 3 m pieces, the road-side half apart: the house stands close to the road at its middle)
+  colliders: (g) =>
+    Array.from(
+      { length: 8 },
+      (_, i) => -CORNER.hw + 1.5 + i * ((2 * CORNER.hw - 3) / 7),
+    ).flatMap((x) =>
+      [
+        [-CORNER.hd, 0],
+        [0, CORNER.hd],
+      ].map(([z0, z1]) =>
+        boxCollider(
+          CORNER_SITE,
+          [x - 1.5, x + 1.5, z0, z1],
+          base(g, CORNER_SITE) - 3,
+          CORNER_TOP + 3,
+        ),
+      ),
+    ),
+  build: (at, ground) =>
+    buildCornerHouse(at(CORNER_SITE, 'corner-house'), ground),
+});
+
+/** The building site on the left at 250-340 m (start-shells.ts): concrete-frame blocks and the yard by the road. */
+export const startSiteLandmark = landmark({
+  id: 'vodno-start-site',
+  areas: [
+    ...SHELLS.map((s) => ({
+      site: s.site,
+      rect: [-s.w / 2 - 1.5, s.w / 2 + 1.5, -s.d / 2 - 1.5, s.d / 2 + 1.5] as [
+        number,
+        number,
+        number,
+        number,
+      ],
+    })),
+    { site: YARD, rect: YARD_RECT },
+  ],
+  colliders: (g) => [
+    ...SHELLS.map((s) =>
+      boxCollider(
+        s.site,
+        [-s.w / 2, s.w / 2, -s.d / 2, s.d / 2],
+        base(g, s.site) - 3,
+        s.storeys * 3 + 6,
+      ),
+    ),
+    boxCollider(YARD, [6.3, 18.4, -1.3, 1.3], base(g, YARD) - 1, 4.5),
+  ],
+  build: (at, ground) => {
+    SHELLS.forEach((s, i) =>
+      buildShell(at(s.site, `shell-${i}`), s, i, ground),
+    );
+    buildYard(at(YARD, 'site-yard'), ground);
+  },
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
@@ -815,5 +997,11 @@ export const VODNO_LANDMARKS: Landmark[] = [
   roadsideGazeboLandmark,
   pulloffGazeboLandmark,
   trailLotLandmark,
+  startCourtsLandmark,
+  residenceRoofLandmark,
+  startLotsLandmark,
+  startTowersLandmark,
+  cornerHouseLandmark,
+  startSiteLandmark,
 ];
 export { VODNO_FLATS } from './sites';
