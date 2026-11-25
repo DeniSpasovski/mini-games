@@ -39,6 +39,7 @@
   "runout": 90,
   "survey": {
     "planimetrics": "sources/maps/jackie/nyc-planimetrics",
+    "centre": true,
     "spotHeights": "src/games/rally/maps/jackie/spot-heights.json",
     "datum": 32.9,
     "retainingWalls": "src/games/rally/maps/jackie/retaining-walls.json",

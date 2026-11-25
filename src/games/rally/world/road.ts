@@ -131,7 +131,11 @@ export class Road {
       const last = pts[pts.length - 1];
       const hw = (last.width ?? def.width) / 2;
       for (let k = 1; k <= nt; k++) {
-        const t = tail.getUtoTmapping((start + k * step) / total, 0);
+        // (clamped: start + nt * step can land a hair past the end, off three's arc table)
+        const t = tail.getUtoTmapping(
+          Math.min(1, (start + k * step) / total),
+          0,
+        );
         tail.getPoint(t, tmp);
         tail.getTangent(t, tan);
         const tl = Math.hypot(tan.x, tan.z) || 1;

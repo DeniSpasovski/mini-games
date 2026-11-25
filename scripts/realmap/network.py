@@ -1,11 +1,11 @@
 """
 Road network importer for the v2 road engine (maps with `MapDef.network`, world/v2/): OpenStreetMap ways -> a graph.
 
-    python scripts/realmap/network.py scripts/realmap/jackie-2.json [--stats] [--survey-only [--runout-only]] [--city-buildings]
+    python scripts/realmap/network.py scripts/realmap/jackie-2.json [--stats] [--survey-only [--runout-only] [--no-terrain]] [--city-buildings]
 
 --city-buildings  re-runs only the city footprints step (config `cityBuildings`, see data.json below); --dry: counts only
 --survey-only  re-applies the config's `survey` to the existing network.json (no OSM fetch: the graph stays as baked),
-               then the `runout` (once); with --runout-only too, only the run-out
+               then the `runout` (once); with --runout-only too, only the run-out; --no-terrain: not the lidar terrain
 
 Writes into the config's `folder`:
 
@@ -179,7 +179,7 @@ def main():
         extend_stage(network, cfg.get('runout', 0))
         with open(fn, 'w') as f:
             json.dump(network, f, separators=(',', ':'))
-        if '--runout-only' not in sys.argv:
+        if '--runout-only' not in sys.argv and '--no-terrain' not in sys.argv:
             network_survey.lidar_terrain(cfg, ROOT, proj, network, os.path.join(folder, 'data.json'))
         return
 

@@ -164,6 +164,304 @@ STATION_CLEAN = (4.2, 7.2)
 STATION_CLAMP = (5.6, 7.0)
 
 
+# --- carriageway lines (config survey.centre) ---------------------------------------------------------------------------
+# OSM's parkway lines wander 1-2 m off the city's roadbed (both carriageways, the stage too: drive videos and the lidar
+# walls sit on the planimetric edges). `"centre": true` moves the stage route and every motorway / trunk mainline edge
+# sideways onto its roadbed's centre: sections every CENTRE_STEP m (clean: one carriageway CENTRE_CLEAN m wide holding
+# the line), their centre offset as a running median over CENTRE_SMOOTH m, clamped to CENTRE_MAX, gaps interpolated;
+# tunnels from CENTRE_BORE m keep their OSM line: nothing within CENTRE_BORE_R m of one moves (eased over CENTRE_HOLD m
+# beyond), decks are interpolated over. A node moves with
+# its mainline edges (their mean end offset; a stage node with the stage) and drags the other edges' ends along, faded
+# over CENTRE_EASE m. Mainline edges also get their width per station (`widths`, as the stage's: the engine narrows
+# their pavement to it). Applied once (a full import starts from OSM again; --survey-only skips a centred network).
+CENTRE_KINDS = ('motorway', 'trunk')
+CENTRE_STEP = 10.0
+CENTRE_CLEAN = (4.2, 9.0)
+CENTRE_SMOOTH = 120.0
+CENTRE_MAX = 3.0
+CENTRE_HOLD = 60.0
+CENTRE_BORE = 40.0  # m: a tunnel this long keeps its line (a short underpass is a street's deck over the road)
+CENTRE_BORE_R = 25.0  # m around such a bore nothing moves (the parallel bore, the streets on its roof)
+CENTRE_EASE = 40.0
+
+
+def arc(pts):
+    return np.concatenate([[0], np.cumsum(np.hypot(*np.diff(pts, axis=0).T))])
+
+
+def normals(pts):
+    g = np.gradient(pts, axis=0)
+    g = g / np.maximum(np.linalg.norm(g, axis=1, keepdims=True), 1e-9)
+    return np.stack([g[:, 1], -g[:, 0]], 1)  # (left, as section_width)
+
+
+def section_centre(c, tg, parts, tree):
+    """(centre offset + left, width) of the roadbed interval holding point c on its cross line, or None."""
+    left = np.array([tg[1], -tg[0]])
+    cross = LineString([c - left * REACH, c + left * REACH])
+    best = None
+    for i in tree.query(cross):
+        g = cross.intersection(parts[i])
+        for ln in getattr(g, 'geoms', [g]):
+            if ln.is_empty or ln.geom_type != 'LineString':
+                continue
+            u0 = cross.project(ln.interpolate(0)) - REACH
+            u1 = cross.project(ln.interpolate(ln.length)) - REACH
+            lo, hi = min(u0, u1), max(u0, u1)
+            if lo - 1.0 <= 0 <= hi + 1.0:
+                best = ((lo + hi) / 2, hi - lo)
+    return best
+
+
+def centre_profile(pts, parts, tree, hold=None):
+    """Smoothed lateral offset (m, + left) of polyline pts [n, 2] onto its roadbed centre, at each vertex, or None.
+    hold(m) -> True on a structure (offset 0 there, eased)."""
+    d = arc(pts)
+    if d[-1] < CENTRE_STEP:
+        return None
+    t = np.arange(CENTRE_STEP / 2, d[-1], CENTRE_STEP)
+    c = np.stack([np.interp(t, d, pts[:, 0]), np.interp(t, d, pts[:, 1])], 1)
+    g = np.gradient(c, axis=0) if len(c) > 1 else np.array([pts[-1] - pts[0]])
+    g = g / np.maximum(np.linalg.norm(g, axis=1, keepdims=True), 1e-9)
+    raw = np.full(len(t), np.nan)
+    for k, (ci, gi) in enumerate(zip(c, g)):
+        r = section_centre(ci, gi, parts, tree)
+        if r and CENTRE_CLEAN[0] <= r[1] <= CENTRE_CLEAN[1]:
+            raw[k] = r[0]
+    held = np.array([bool(hold and hold(m)) for m in t])
+    raw[held] = np.nan
+    ok = ~np.isnan(raw)
+    if ok.sum() < max(3, 0.3 * len(t)):
+        return None
+    sm = np.full(len(t), np.nan)
+    for k in range(len(t)):
+        win = ok & (np.abs(t - t[k]) <= CENTRE_SMOOTH / 2)
+        if win.sum() >= 3:
+            sm[k] = np.median(raw[win])
+    good = ~np.isnan(sm)
+    if not good.any():
+        return None
+    sm = np.interp(t, t[good], sm[good])
+    sm = np.clip(sm, -CENTRE_MAX, CENTRE_MAX)
+    if held.any():
+        dh = np.min(np.abs(t[:, None] - t[held][None, :]), axis=1)
+        sm *= np.clip(dh / CENTRE_HOLD, 0, 1) ** 2 * (3 - 2 * np.clip(dh / CENTRE_HOLD, 0, 1))
+    return np.interp(d, t, sm)
+
+
+def fade(s, L):
+    """1 at an end (s = 0) .. 0 from CENTRE_EASE m in (smoothstep)."""
+    u = np.clip(s / max(1e-6, min(CENTRE_EASE, L / 2)), 0, 1)
+    return 1 - u * u * (3 - 2 * u)
+
+
+def stage_tunnels(network):
+    """Stage m ranges of its long tunnel stretches."""
+    return [(sp['from'], sp['to']) for sp in network['stage']['spans']
+            if sp['kind'] != 'bridge' and sp['to'] - sp['from'] >= CENTRE_BORE]  # fmt: skip
+
+
+def bore_keep(network, line, hold=None, reach=CENTRE_BORE_R, ease=CENTRE_HOLD, edges=True):
+    """f(points) -> per point 0 within `reach` m of a bore (the stage's long tunnel stretches, every long tunnel run of
+    an edge unless not `edges`) .. 1 from `reach` + `ease` m out (smoothstep)."""
+    from scipy.spatial import cKDTree
+
+    line = np.asarray(line, float)
+    dl = arc(line)
+    if hold is None:
+        scale = network['stage']['length'] / max(1e-6, dl[-1])
+        spans = stage_tunnels(network)
+
+        def hold(m):
+            return any(a <= m * scale <= b for a, b in spans)
+
+    sets = network['tagSets']
+    bore = [line[k] for k in range(len(line)) if hold(dl[k])]
+    for e in network['edges'] if edges else ():
+        p = np.array(e['pts'], float).reshape(-1, 2)
+        d = arc(p)
+        for k, (s0, ti) in enumerate(e['tags']):
+            s1 = e['tags'][k + 1][0] if k + 1 < len(e['tags']) else len(p) - 1
+            if sets[ti].get('tunnel') and d[s1] - d[s0] >= CENTRE_BORE:
+                q = p[s0:s1 + 1]
+                bore += list(np.vstack([np.linspace(q[i], q[i + 1], max(2, int(np.hypot(*(q[i + 1] - q[i])) / 2)))
+                                        for i in range(len(q) - 1)]))
+    kd = cKDTree(np.array(bore)) if bore else None
+
+    def keep(pts):
+        if kd is None:
+            return np.ones(len(np.asarray(pts).reshape(-1, 2)))
+        u = np.clip((kd.query(np.asarray(pts, float).reshape(-1, 2))[0] - reach) / ease, 0, 1)
+        return u * u * (3 - 2 * u)
+
+    return keep
+
+
+def centre(network, parts, tree, stage_line):
+    """Moves the stage route and the mainline edges onto their roadbed centres (see above). Returns the moved stage
+    line (or the given one)."""
+    sv = network.setdefault('survey', {})
+    if sv.get('centred'):
+        print('  survey: lines already centred (a full import re-centres)')
+        return stage_line
+    st = network['stage']
+    sets = network['tagSets']
+    scale = None
+    line = np.asarray(stage_line, float)
+    dl = arc(line)
+    scale = st['length'] / max(1e-6, dl[-1])
+    spans = stage_tunnels(network)
+
+    def stage_hold(m):
+        return any(a <= m * scale <= b for a, b in spans)
+
+    so = centre_profile(line, parts, tree, stage_hold)
+    keep = bore_keep(network, line, stage_hold)
+
+    moved_line = line if so is None else line + normals(line) * so[:, None]
+
+    def stage_disp(m_stage):
+        if so is None:
+            return np.zeros(2)
+        m = np.clip(m_stage / scale, 0, dl[-1])
+        k = min(len(dl) - 2, max(0, int(np.searchsorted(dl, m) - 1)))
+        f = (m - dl[k]) / max(1e-9, dl[k + 1] - dl[k])
+        return (moved_line[k] - line[k]) * (1 - f) + (moved_line[k + 1] - line[k + 1]) * f
+
+    # the stage's control points: each moves with the stage line at its own m along it
+    cps = np.asarray(st['cps'], float)
+    dc = arc(cps) * st['length'] / max(1e-6, arc(cps)[-1])
+    dv = np.array([stage_disp(m) for m in dc]) * keep(cps)[:, None]
+    st['cps'] = [[round(float(x), 2), round(float(z), 2)] for x, z in cps + dv]
+    # mainline edges' own offsets
+    own = {}
+    for e in network['edges']:
+        if e['kind'] not in CENTRE_KINDS:
+            continue
+        p = np.array(e['pts'], float).reshape(-1, 2)
+        seg_st = []
+        for k, (s0, ti) in enumerate(e['tags']):
+            s1 = e['tags'][k + 1][0] if k + 1 < len(e['tags']) else len(p) - 1
+            seg_st += [bool(sets[ti].get('tunnel'))] * (s1 - s0)
+        d = arc(p)
+        ranges = [(d[i], d[i + 1]) for i, s in enumerate(seg_st) if s]
+        if sum(b - a for a, b in ranges) < CENTRE_BORE:
+            ranges = []
+        o = centre_profile(p, parts, tree, lambda m, r=ranges: any(a - 1 <= m <= b + 1 for a, b in r))
+        if o is not None:
+            own[e['id']] = (p, normals(p) * o[:, None])
+    # node moves: a stage node with the stage, else the mean end offset of its mainline edges
+    length = st['length']
+    runout = st.get('runout', {}).get('length', 0)
+    disp = {}
+    ends = {}
+    for e in network['edges']:
+        for at, nid in enumerate(e['nodes']):
+            ends.setdefault(nid, []).append((e, at))
+    for n in network['nodes']:
+        nid, along = n[0], n[4]
+        if along >= 0:
+            v = stage_disp(min(along, length))
+            if along > length:
+                v = v * float(fade(np.array([runout - (along - length)]), runout)[0]) if runout else v * 0
+            disp[nid] = v
+            continue
+        vs = [own[e['id']][1][-1 if at else 0] for e, at in ends.get(nid, []) if e['id'] in own]
+        if vs:
+            disp[nid] = np.mean(vs, axis=0)
+    moved = 0
+    for n in network['nodes']:
+        v = disp.get(n[0])
+        if v is not None:
+            v = v * keep([n[1], n[2]])[0]  # (as the edges' ends below)
+        if v is not None and np.hypot(*v) > 0.01:
+            n[1], n[2] = round(float(n[1] + v[0]), 2), round(float(n[2] + v[1]), 2)
+    for e in network['edges']:
+        p = np.array(e['pts'], float).reshape(-1, 2)
+        d = arc(p)
+        L = d[-1]
+        v = own[e['id']][1].copy() if e['id'] in own else np.zeros_like(p)
+        for at, nid in enumerate(e['nodes']):
+            dn = disp.get(nid)
+            if dn is None:
+                dn = v[-1 if at else 0]
+            w = fade(L - d if at else d, L)[:, None]
+            v = v * (1 - w) + dn[None, :] * w
+        v = v * keep(p)[:, None]
+        if np.abs(v).max() > 0.01:
+            e['pts'] = [round(float(x), 2) for x in (p + v).reshape(-1)]
+            moved += 1
+    if st.get('runout'):
+        rp = np.asarray(st['runout']['pts'], float)
+        d = arc(np.vstack([cps[-1:], rp]))[1:]
+        v0 = stage_disp(length) * keep(cps[-1:])[0]
+        rl = st['runout']['length']
+        st['runout']['pts'] = [[round(float(x), 2), round(float(z), 2)]
+                               for x, z in rp + v0[None, :] * (1 - np.clip(d / max(1e-6, rl), 0, 1))[:, None]]
+    sv['centred'] = moved
+    shift = np.abs(so) if so is not None else np.zeros(1)
+    print(f'  survey: centred the stage (median {np.median(shift):.2f} m, max {shift.max():.2f} m) and {len(own)} '
+          f'mainline edges; {moved} edges moved')
+    return moved_line
+
+
+# A mainline's widths near the stage's bores: none (the engine keeps the template section within TUNNEL_HOLD m along of
+# the stage's tunnels and eases over WIDTH_EASE, network.ts): the same reach here, as a width that clamps to the
+# template. An edge with a tunnel run from CENTRE_BORE m gets none.
+WIDTH_BORE_R = 150.0
+WIDTH_BORE_EASE = 100.0
+WIDTH_TEMPLATE = 99.0
+
+
+def mainline_widths(network, parts, tree, stage_line):
+    """Width per station on the mainline edges (`edge.widths`, m along the edge), as the stage's; tunnel edges none."""
+    keep = bore_keep(network, stage_line, reach=WIDTH_BORE_R, ease=WIDTH_BORE_EASE, edges=False)
+    sets = network['tagSets']
+    n = 0
+    for e in network['edges']:
+        if e['kind'] not in CENTRE_KINDS:
+            continue
+        p = np.array(e['pts'], float).reshape(-1, 2)
+        L = arc(p)[-1]
+        if L < 2 * SECTION_STEP:
+            continue
+        d = arc(p)
+        bore = any(sets[ti].get('tunnel') and d[e['tags'][k + 1][0] if k + 1 < len(e['tags']) else -1] - d[s0]
+                   >= CENTRE_BORE for k, (s0, ti) in enumerate(e['tags']))  # fmt: skip
+        st = None if bore else station_widths(p, parts, tree, L)
+        if st:
+            at = np.stack([np.interp([m for m, _ in st], d, p[:, 0]), np.interp([m for m, _ in st], d, p[:, 1])], 1)
+            kw = keep(at)
+            st = [[m, round(min(WIDTH_TEMPLATE, w / max(k, 1e-3)), 2)] for (m, w), k in zip(st, kw)]
+            e['widths'] = st
+            n += 1
+        else:
+            e.pop('widths', None)
+    # a short piece between two surveyed ones (an underpass under a street deck, no roadbed survey there): their end
+    # widths, joined
+    ends = {}
+    for e in network['edges']:
+        for at, nid in enumerate(e['nodes']):
+            ends.setdefault(nid, []).append((e, at))
+    for e in network['edges']:
+        if e['kind'] not in CENTRE_KINDS or e.get('widths'):
+            continue
+        p = np.array(e['pts'], float).reshape(-1, 2)
+        L = arc(p)[-1]
+        if L >= 4 * SECTION_STEP:
+            continue
+        ws = []
+        for at, nid in enumerate(e['nodes']):
+            o = [(f, a) for f, a in ends.get(nid, []) if f is not e]
+            if len(o) == 1 and o[0][0].get('widths') and o[0][0]['kind'] in CENTRE_KINDS:
+                st = o[0][0]['widths']
+                ws.append(st[-1][1] if o[0][1] else st[0][1])
+        if len(ws) == 2:
+            e['widths'] = [[0.0, ws[0]], [round(float(L), 1), ws[1]]]
+            n += 1
+    return n
+
+
 def apply(cfg, root, proj, network, stage_line):
     sv = cfg.get('survey')
     if not sv:
@@ -171,6 +469,8 @@ def apply(cfg, root, proj, network, stage_line):
     folder = find_path(root, sv['planimetrics'])
     if folder:
         parts, tree = carriageways(folder, proj)
+        if sv.get('centre'):
+            stage_line = centre(network, parts, tree, stage_line)
         n = 0
         for e in network['edges']:
             w = line_width(np.array(e['pts'], float).reshape(-1, 2), parts, tree)
@@ -184,6 +484,8 @@ def apply(cfg, root, proj, network, stage_line):
         if st:
             network['stage']['widths'] = st
         print(f'  survey: widths on {n} of {len(network["edges"])} edges, stage {sw} m, {len(st or [])} stations')
+        if sv.get('centre'):
+            print(f'  survey: widths per station on {mainline_widths(network, parts, tree, stage_line)} mainline edges')
     else:
         print(f'  survey: {sv["planimetrics"]} not found, no widths')
     if sv.get('spotHeights'):
@@ -198,7 +500,7 @@ def apply(cfg, root, proj, network, stage_line):
             print(f'  survey: lidar area: {n0 - len(hs)} spot heights replaced by {len(ls)} lidar ones')
             hs += ls
             source += '; USGS 3DEP lidar ground'
-        network['survey'] = {'heights': hs, 'source': source}
+        network.setdefault('survey', {}).update(heights=hs, source=source)
         print(f'  survey: {len(hs)} spot heights')
     if sv.get('retainingWalls'):
         rw = json.load(open(os.path.join(root, sv['retainingWalls'])))

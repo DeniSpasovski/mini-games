@@ -2775,6 +2775,66 @@ export function tunnelRoofs(net: Network): DryZone[] {
       }
     }
   }
+  return mergeHalls(out);
+}
+
+/**
+ * Bores side by side under one roof (the Queens Blvd hall: both carriageways and the service lanes) become one row of
+ * zones over the hall's whole width: the shading takes only the nearest DRY_ZONES, and four bores' worth would leave
+ * lit blocks inside. A zone takes in its neighbour from another bore when they run parallel (|cos| > HALL_COS), their
+ * middles lie within ROOF_STEP m along and their edges within HALL_GAP m across.
+ */
+const HALL_COS = 0.9;
+const HALL_GAP = 3;
+function mergeHalls(zones: DryZone[]): DryZone[] {
+  const out = zones.slice();
+  for (let merged = true; merged;) {
+    merged = false;
+    for (let i = 0; i < out.length && !merged; i++)
+      for (let j = i + 1; j < out.length && !merged; j++) {
+        const a = out[i];
+        const b = out[j];
+        const ux = a.bx - a.ax;
+        const uz = a.bz - a.az;
+        const la = Math.hypot(ux, uz) || 1;
+        const tx = ux / la;
+        const tz = uz / la;
+        const vx = b.bx - b.ax;
+        const vz = b.bz - b.az;
+        const lb = Math.hypot(vx, vz) || 1;
+        const cos = (tx * vx + tz * vz) / lb;
+        if (Math.abs(cos) < HALL_COS) continue;
+        const dx = (b.ax + b.bx) / 2 - (a.ax + a.bx) / 2;
+        const dz = (b.az + b.bz) / 2 - (a.az + a.bz) / 2;
+        const along = dx * tx + dz * tz;
+        const across = dx * tz - dz * tx;
+        if (Math.abs(along) > ROOF_STEP * 0.75) continue;
+        if (Math.abs(across) > a.radius + b.radius + HALL_GAP) continue;
+        // the union across (a's frame: + = a's left), centred, over a's length
+        const lo = Math.min(-a.radius, across - b.radius);
+        const hi = Math.max(a.radius, across + b.radius);
+        const mid = (lo + hi) / 2;
+        const ox = tz * mid;
+        const oz = -tx * mid;
+        out[i] = {
+          ax: a.ax + ox,
+          az: a.az + oz,
+          bx: a.bx + ox,
+          bz: a.bz + oz,
+          radius: (hi - lo) / 2,
+          top: Math.max(a.top, b.top),
+          shade: Math.max(a.shade ?? 0, b.shade ?? 0),
+          // (b's ends in a's direction)
+          ends:
+            (a.ends ?? 0) |
+            (cos >= 0
+              ? (b.ends ?? 0)
+              : (((b.ends ?? 0) & 1) << 1) | (((b.ends ?? 0) & 2) >> 1)),
+        };
+        out.splice(j, 1);
+        merged = true;
+      }
+  }
   return out;
 }
 

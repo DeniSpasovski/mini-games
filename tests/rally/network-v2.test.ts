@@ -1,6 +1,11 @@
 import { describe, expect, test } from '@rstest/core';
 import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import tunnelFixture from './fixtures/jackie2-tunnel.json';
+import {
+  DRY_ZONES,
+  type DryZone,
+} from '../../src/games/rally/engine/world-shading';
+import { nearestZones } from '../../src/games/rally/game/rain';
 import { World } from '../../src/games/rally/world/world';
 import {
   inPolygon,
@@ -626,8 +631,52 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
           for (const z of over) expect(z.shade).toBeGreaterThan(0.5);
         }
       }
-      expect(zones.filter((z) => (z.ends ?? 0) & 1).length).toBe(bores);
-      expect(zones.filter((z) => (z.ends ?? 0) & 2).length).toBe(bores);
+      // (bores side by side share one row of zones: one portal zone per hall end at least)
+      const a = zones.filter((z) => (z.ends ?? 0) & 1).length;
+      const b = zones.filter((z) => (z.ends ?? 0) & 2).length;
+      expect(a).toBeGreaterThan(0);
+      expect(a).toBeLessThanOrEqual(bores);
+      expect(b).toBeGreaterThan(0);
+      expect(b).toBeLessThanOrEqual(bores);
+    });
+
+    test('inside any bore the nearest DRY_ZONES zones roof every bore floor around (no lit block)', () => {
+      const zones = tunnelRoofs(net);
+      const near: DryZone[] = [];
+      const covered = (z: DryZone, x: number, zz: number, y: number) => {
+        const abx = z.bx - z.ax;
+        const abz = z.bz - z.az;
+        const t = Math.min(
+          1,
+          Math.max(
+            0,
+            ((x - z.ax) * abx + (zz - z.az) * abz) /
+              (abx * abx + abz * abz || 1),
+          ),
+        );
+        return (
+          Math.hypot(x - z.ax - abx * t, zz - z.az - abz * t) < z.radius &&
+          y < z.top
+        );
+      };
+      const floors: [number, number, number][] = [];
+      for (const w of net.ways) {
+        if (!w.slab) continue;
+        for (const [i0, i1] of runsOf(w.st, ST_TUNNEL))
+          for (let i = i0 + 2; i <= i1 - 2; i += 2)
+            floors.push([w.al.x[i], w.al.z[i], net.surfaceAt(w, i, 0, 0)]);
+      }
+      let lit = 0;
+      for (const [cx, cz] of floors) {
+        nearestZones(zones, cx, cz, DRY_ZONES, near);
+        for (const [x, z, y] of floors)
+          if (
+            Math.hypot(x - cx, z - cz) < 40 &&
+            !near.some((q) => covered(q, x, z, y))
+          )
+            lit++;
+      }
+      expect(lit).toBe(0);
     });
   },
 );

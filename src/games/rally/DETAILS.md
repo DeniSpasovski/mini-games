@@ -638,7 +638,11 @@ Rules the solver keeps (each one replaces v1 per-site fixes):
   Buildings: a real outline is kept off the network by its own corners (`World.onNetRoad`), not its bounding box.
   The stage width per station (`stage.widths`, 200 m median) narrows the stage pavement (`stageScale`, `Way.k`; laterals
   stay in section metres, `worldT` / `sectionT` convert), not within `TUNNEL_HOLD` of the stage's own tunnels nor where
-  another pavement touches its edge (`WIDTH_CONTACT`: a ramp, a gore). Up to `survey.wallsUntil` the stage's cut / fill
+  another pavement touches its edge (`WIDTH_CONTACT`: a ramp, a gore). Parkway mainlines with `widths` (survey `centre`:
+  the importer also moves them and the stage onto the city roadbed's centre, bores kept) narrow the same way
+  (`mainlineScale`, eased to the template over `WIDTH_END_EASE` into a junction / bore); the right-of-way passes
+  (`separate`, the node push) keep their gaps at the surveyed widths (`widthK`). Bores side by side share one row of
+  roof zones (`mergeHalls`). Up to `survey.wallsUntil` the stage's cut / fill
   walls stand only beside a surveyed retaining wall (`surveyedWall`), else a bank.
 - **Road slab** (the v1 road slab rules on v2 sections): `NetField.meshSink` cuts the drawn terrain `SLAB_SINKS.asphalt` under the
   pavement (ramped over `SINK_RAMP`), drops the verge `EDGE_DROP` past a kerbless edge, never under a deck, a tunnel or a

@@ -45,6 +45,8 @@ export interface EdgeData {
   template?: string;
   /** Surveyed curb-to-curb width (m, network_survey.py): scales the template's pavement (beats the OSM `width`). */
   surveyWidth?: number;
+  /** Parkway mainline: surveyed width per station [m along, carriageway width m] (network_survey.py `centre`). */
+  widths?: [number, number][];
 }
 
 export interface StageSpanData {
