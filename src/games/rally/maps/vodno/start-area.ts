@@ -33,6 +33,26 @@ const DROPPED = new Set([
  */
 const MOUTH = [1566.2, -1150.6, 1573, -1151.4, 1579, -1151.3, 1584, -1150.3];
 
+/**
+ * The street round the building site east of 250 m: OSM still runs it through the site's east end, where blocks now
+ * stand (`landmarks/start-shells.ts`); it goes along the site's north edge instead, between the first point kept before
+ * the site (`SITE_FROM`) and the first after it (`SITE_TO`).
+ */
+const SITE_STREET = '1617,-1054';
+const SITE_FROM = '1621,-1005';
+const SITE_TO = '1696,-1012';
+const SITE_EDGE = [1645, -1006, 1668, -1008, 1688, -1008];
+
+function roundSite(pts: number[]): number[] {
+  const keys = Array.from({ length: pts.length / 2 }, (_, i) =>
+    pointKey(pts[2 * i], pts[2 * i + 1]),
+  );
+  const a = keys.indexOf(SITE_FROM);
+  const b = keys.indexOf(SITE_TO);
+  if (a < 0 || b < a) return pts;
+  return [...pts.slice(0, 2 * a + 2), ...SITE_EDGE, ...pts.slice(2 * b)];
+}
+
 export const startStreets = (paths: PathDef[]): PathDef[] =>
   paths
     .filter((p) => !DROPPED.has(wayKey(p)))
@@ -41,7 +61,10 @@ export const startStreets = (paths: PathDef[]): PathDef[] =>
       !p.oneway &&
       pointKey(p.pts[0], p.pts[1]) === '1586,-1148'
         ? { ...p, pts: [...MOUTH, ...p.pts] }
-        : p,
+        : p.kind === 'residential' &&
+            pointKey(p.pts[0], p.pts[1]) === SITE_STREET
+          ? { ...p, pts: roundSite(p.pts) }
+          : p,
     );
 
 /** Baked buildings that stand where the car park and its tree island are (a garage footprint on the island; another at the lot's end). */
@@ -58,14 +81,26 @@ export const HALL_PAD: PadDef = {
   level: { at: [1571.5, -1076], lift: 0.1 },
 };
 
-/** The white villas on the street above the courts (Microsoft footprints): flat roofs, as the aerial shows, not gables. */
+/** The white villas on the street above the courts (Microsoft footprints): white flat roofs, as the aerial shows, not gables. */
 const FLAT_ROOFED = new Set([550, 581, 604, 615]);
+const WHITE_ROOF = '#e8e6e0';
+
+/**
+ * The two houses in the trees west of the road at 100 m, as the aerial shows them: the north one's brown tiled roof stands
+ * ~7 m north of its footprint (moved there), the south one is a flat-roofed house with a terrace.
+ */
+const TREE_HOUSES: Record<number, Partial<BuildingDef>> = {
+  43: { x: 1480.5, z: -1112, roofColor: '#8a5a44' },
+  40: { roof: 'flat', roofColor: '#8f8d88' },
+};
 
 export const startBuildings = (buildings: BuildingDef[]): BuildingDef[] =>
   buildings
     .filter((b) => !DROPPED_BUILDINGS.has(b.id))
     .map((b): BuildingDef =>
-      FLAT_ROOFED.has(b.id) ? { ...b, roof: 'flat' } : b,
+      FLAT_ROOFED.has(b.id)
+        ? { ...b, roof: 'flat', roofColor: WHITE_ROOF }
+        : { ...b, ...TREE_HOUSES[b.id] },
     );
 
 /**

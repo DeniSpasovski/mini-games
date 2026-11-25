@@ -5,7 +5,7 @@ import { opening } from './start-blocks';
 import { footOf } from './start-towers';
 
 /**
- * The building site on the left of the road at 250-340 m (not in OSM), from the drive videos: three blocks of flats
+ * The building site on the left of the road at 250-340 m (not in OSM), from the drive videos: five blocks of flats
  * going up as bare concrete frames (slabs on columns, stair cores), red clay brick infill with window openings on the
  * lower floors, open floors over them with props under the newest slab and rebar standing out of the top columns; the
  * site's office containers and stacks of timber and brick pallets behind the green net on the road. Placed by eye from
@@ -42,10 +42,26 @@ export const SHELLS: Shell[] = [
     roof: false,
   },
   {
-    site: { x: 1642.5, z: -978, yaw: 0.3 },
-    w: 21,
-    d: 18,
+    site: { x: 1639.5, z: -981, yaw: 0.3 },
+    w: 17,
+    d: 19,
     storeys: 3,
+    brick: 0,
+    roof: false,
+  },
+  {
+    site: { x: 1658, z: -986, yaw: 0.3 },
+    w: 15,
+    d: 21,
+    storeys: 3,
+    brick: 1,
+    roof: false,
+  },
+  {
+    site: { x: 1679, z: -988, yaw: 0.3 },
+    w: 21,
+    d: 23,
+    storeys: 4,
     brick: 0,
     roof: false,
   },

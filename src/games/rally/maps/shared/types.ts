@@ -342,6 +342,8 @@ export interface BuildingDef {
     | 'church'
     | 'tomb';
   roof?: 'flat' | 'gable';
+  /** The roof's colour where a reference shows it (else a grey or brown picked by id). */
+  roofColor?: string;
   /** Real footprint outline, flat [dx, dz, ...] relative to (x, z) in world axes (absent = the box w x d). */
   poly?: number[];
 }
