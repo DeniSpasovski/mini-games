@@ -148,6 +148,11 @@ export interface NetworkDef {
     deck?: 'stone' | 'concrete';
   }[];
   /**
+   * Stretches of the stage road (m along) where a chain-link fence stands on the median barrier (drive videos: opposite
+   * lane 1:05-1:20, west of the Queens Blvd tunnel).
+   */
+  medianFences?: { from: number; to: number }[];
+  /**
    * Pavement per stretch of the stage road (m along; both carriageways and the highway ramps there by stage station):
    * 'concrete' = pale cement-concrete slabs with sealed joints (drive videos: from the Queens Blvd tunnel portal on).
    */

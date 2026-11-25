@@ -63,12 +63,22 @@ export const jackie2Map: MapDef = {
       // the decks over Vermont Pl: a concrete Jersey parapet on the outer edge of both carriageways, the guard rail
       // ending against it (video 1:11-1:13, opposite lane 6:38-6:42)
       { from: 1228, to: 1290, barrier: 'jersey' },
-      { from: 7200, to: 7800, barrier: 'jersey' },
+      // concrete on both outer sides from where the stone cut opens up to the hall (opposite lane 1:03-1:11, lidar)
+      { from: 6940, to: 7800, barrier: 'jersey' },
       // tall tan / grey ashlar on both sides out of the Queens Blvd tunnel to the interchange (5:33-5:36)
       { from: 7300, to: 7470, wall: 'stone', fence: 'railing' },
       // new poured concrete walls and parapets through the interchange past the ashlar (opposite lane 0:27-0:39)
-      { from: 7470, to: 8000, wall: 'concrete', deck: 'concrete', fence: 'none' },
+      {
+        from: 7470,
+        to: 8000,
+        wall: 'concrete',
+        deck: 'concrete',
+        fence: 'none',
+      },
     ],
+    // a chain-link fence on the median barrier where the parkway leaves the stone cut west of the Queens Blvd tunnel
+    // to past Park Lane's approach (opposite lane 1:05-1:20)
+    medianFences: [{ from: 6915, to: 7185 }],
     // pale cement-concrete pavement with sealed joints east of the Queens Blvd tunnel (drive video 5:30-5:49, opposite
     // lane 0:36-0:38); asphalt through the tunnel and at both portals (opposite lane 0:41-0:44 and 0:55-0:59)
     pavement: [{ from: 7474, to: 8000, surface: 'concrete' }],

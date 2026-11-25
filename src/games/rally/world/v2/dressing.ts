@@ -6,6 +6,7 @@ import type { NetField } from './field';
 import {
   BARRIER_OFF,
   barrierPlan,
+  hallLane,
   JERSEY_END,
   JERSEY_H,
   PARAPET_H,
@@ -347,8 +348,10 @@ export function netColliders(net: Network, field: NetField): StaticCollider[] {
       const foot = side === 0 ? w.sec.footL : w.sec.footR;
       // (out on the surveyed line past a verge, `wallOut`)
       const t = (i: number) => sg * (foot + wallOff(w, i, side) + 0.3);
+      // (no lane wall in a hall: the carriageway's barrier there, `hallLane`)
+      const built = w.wall[side].map((k, i) => (hallLane(w, side, i) ? 0 : k));
       for (const kind of [WALL_CUT, WALL_FILL])
-        for (const [i0, i1] of runsOf(w.wall[side], kind)) {
+        for (const [i0, i1] of runsOf(built, kind)) {
           const s0 = w.al.s[i0];
           const s1 = w.al.s[i1];
           const lane = w.wallLane[side][i0] === 1;
