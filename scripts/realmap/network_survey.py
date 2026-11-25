@@ -30,6 +30,7 @@ import json
 import math
 import os
 import subprocess
+from itertools import pairwise
 
 import numpy as np
 from shapely.geometry import LineString, shape
@@ -175,6 +176,8 @@ STATION_CLAMP = (5.6, 7.0)
 # over CENTRE_EASE m. Mainline edges also get their width per station (`widths`, as the stage's: the engine narrows
 # their pavement to it). Applied once (a full import starts from OSM again; --survey-only skips a centred network).
 CENTRE_KINDS = ('motorway', 'trunk')
+LANE_TEMPLATE = 'nyc_tunnel_lane'  # a street running as a lane in the parkway's cut (config centre.lanes)
+LANE_KINDS = ('primary',)  # (the cut's outer lanes; the service roads at street level above it stay streets)
 CENTRE_STEP = 10.0
 CENTRE_CLEAN = (4.2, 9.0)
 CENTRE_SMOOTH = 120.0
@@ -297,9 +300,13 @@ def bore_keep(network, line, hold=None, reach=CENTRE_BORE_R, ease=CENTRE_HOLD, e
     return keep
 
 
-def centre(network, parts, tree, stage_line):
+def centre(network, parts, tree, stage_line, opts=None):
     """Moves the stage route and the mainline edges onto their roadbed centres (see above). Returns the moved stage
-    line (or the given one)."""
+    line (or the given one). opts (config `centre` as an object): `bores` true = the bores move too (a hall laid out
+    on the survey: its widths too, `mainline_widths`), `alongside` m = also every other edge running alongside the stage
+    within that distance (the lanes beside the parkway); `lanes` [[from, to], ...] stage m: there those are roadways
+    in the parkway's cut (the outer lanes of a hall: LANE_TEMPLATE, kerbless, their width per station too)."""
+    opts = opts if isinstance(opts, dict) else {}
     sv = network.setdefault('survey', {})
     if sv.get('centred'):
         print('  survey: lines already centred (a full import re-centres)')
@@ -313,10 +320,38 @@ def centre(network, parts, tree, stage_line):
     spans = stage_tunnels(network)
 
     def stage_hold(m):
-        return any(a <= m * scale <= b for a, b in spans)
+        return not opts.get('bores') and any(a <= m * scale <= b for a, b in spans)
 
     so = centre_profile(line, parts, tree, stage_hold)
-    keep = bore_keep(network, line, stage_hold)
+    if opts.get('bores'):
+        def keep(pts):
+            return np.ones(len(np.asarray(pts).reshape(-1, 2)))
+    else:
+        keep = bore_keep(network, line, stage_hold)
+    from scipy.spatial import cKDTree
+
+    stage_kd = cKDTree(line)
+    reach = opts.get('alongside', 0)
+
+    lane_m = opts.get('lanes', [])
+
+    def alongside(p):
+        """Most of the edge within `reach` m of the stage line and parallel to it: False, True, or 'lane' (in a
+        `lanes` stretch)."""
+        if not reach or len(p) < 2:
+            return False
+        dense = np.vstack([np.linspace(p[i], p[i + 1], max(2, int(np.hypot(*(p[i + 1] - p[i])) / 4)))
+                           for i in range(len(p) - 1)])  # fmt: skip
+        dd, ii = stage_kd.query(dense)
+        tg = np.gradient(dense, axis=0)
+        tg /= np.maximum(np.linalg.norm(tg, axis=1, keepdims=True), 1e-9)
+        ts = np.gradient(line, axis=0)[ii]
+        ts /= np.maximum(np.linalg.norm(ts, axis=1, keepdims=True), 1e-9)
+        par = np.abs((tg * ts).sum(1)) > 0.9
+        if float(np.mean((dd <= reach) & par)) < 0.6:
+            return False
+        m = dl[ii] * scale
+        return 'lane' if float(np.mean([any(a <= v <= b for a, b in lane_m) for v in m])) >= 0.6 else True
 
     moved_line = line if so is None else line + normals(line) * so[:, None]
 
@@ -335,17 +370,24 @@ def centre(network, parts, tree, stage_line):
     st['cps'] = [[round(float(x), 2), round(float(z), 2)] for x, z in cps + dv]
     # mainline edges' own offsets
     own = {}
+    lanes = 0
     for e in network['edges']:
-        if e['kind'] not in CENTRE_KINDS:
-            continue
         p = np.array(e['pts'], float).reshape(-1, 2)
+        if e['kind'] not in CENTRE_KINDS:
+            how = alongside(p)
+            if not how:
+                continue
+            lanes += 1
+            if how == 'lane' and e['kind'] in LANE_KINDS:
+                e['template'] = LANE_TEMPLATE
+                e['lane'] = True
         seg_st = []
         for k, (s0, ti) in enumerate(e['tags']):
             s1 = e['tags'][k + 1][0] if k + 1 < len(e['tags']) else len(p) - 1
             seg_st += [bool(sets[ti].get('tunnel'))] * (s1 - s0)
         d = arc(p)
         ranges = [(d[i], d[i + 1]) for i, s in enumerate(seg_st) if s]
-        if sum(b - a for a, b in ranges) < CENTRE_BORE:
+        if sum(b - a for a, b in ranges) < CENTRE_BORE or opts.get('bores'):
             ranges = []
         o = centre_profile(p, parts, tree, lambda m, r=ranges: any(a - 1 <= m <= b + 1 for a, b in r))
         if o is not None:
@@ -399,9 +441,11 @@ def centre(network, parts, tree, stage_line):
         st['runout']['pts'] = [[round(float(x), 2), round(float(z), 2)]
                                for x, z in rp + v0[None, :] * (1 - np.clip(d / max(1e-6, rl), 0, 1))[:, None]]
     sv['centred'] = moved
+    if opts.get('bores'):
+        st['boreWidths'] = True  # (the engine narrows the stage to its surveyed width in its bores too)
     shift = np.abs(so) if so is not None else np.zeros(1)
     print(f'  survey: centred the stage (median {np.median(shift):.2f} m, max {shift.max():.2f} m) and {len(own)} '
-          f'mainline edges; {moved} edges moved')
+          f'mainline edges and lanes alongside ({lanes}); {moved} edges moved')
     return moved_line
 
 
@@ -413,13 +457,18 @@ WIDTH_BORE_EASE = 100.0
 WIDTH_TEMPLATE = 99.0
 
 
-def mainline_widths(network, parts, tree, stage_line):
-    """Width per station on the mainline edges (`edge.widths`, m along the edge), as the stage's; tunnel edges none."""
-    keep = bore_keep(network, stage_line, reach=WIDTH_BORE_R, ease=WIDTH_BORE_EASE, edges=False)
+def mainline_widths(network, parts, tree, stage_line, bores=False):
+    """Width per station on the mainline edges (`edge.widths`, m along the edge), as the stage's; tunnel edges none
+    (unless `bores`: a hall laid out on the survey)."""
+    if bores:
+        def keep(pts):
+            return np.ones(len(np.asarray(pts).reshape(-1, 2)))
+    else:
+        keep = bore_keep(network, stage_line, reach=WIDTH_BORE_R, ease=WIDTH_BORE_EASE, edges=False)
     sets = network['tagSets']
     n = 0
     for e in network['edges']:
-        if e['kind'] not in CENTRE_KINDS:
+        if e['kind'] not in CENTRE_KINDS and not e.get('lane'):
             continue
         p = np.array(e['pts'], float).reshape(-1, 2)
         L = arc(p)[-1]
@@ -428,7 +477,7 @@ def mainline_widths(network, parts, tree, stage_line):
         d = arc(p)
         bore = any(sets[ti].get('tunnel') and d[e['tags'][k + 1][0] if k + 1 < len(e['tags']) else -1] - d[s0]
                    >= CENTRE_BORE for k, (s0, ti) in enumerate(e['tags']))  # fmt: skip
-        st = None if bore else station_widths(p, parts, tree, L)
+        st = None if bore and not bores else station_widths(p, parts, tree, L)
         if st:
             at = np.stack([np.interp([m for m, _ in st], d, p[:, 0]), np.interp([m for m, _ in st], d, p[:, 1])], 1)
             kw = keep(at)
@@ -444,7 +493,7 @@ def mainline_widths(network, parts, tree, stage_line):
         for at, nid in enumerate(e['nodes']):
             ends.setdefault(nid, []).append((e, at))
     for e in network['edges']:
-        if e['kind'] not in CENTRE_KINDS or e.get('widths'):
+        if (e['kind'] not in CENTRE_KINDS and not e.get('lane')) or e.get('widths'):
             continue
         p = np.array(e['pts'], float).reshape(-1, 2)
         L = arc(p)[-1]
@@ -453,7 +502,7 @@ def mainline_widths(network, parts, tree, stage_line):
         ws = []
         for at, nid in enumerate(e['nodes']):
             o = [(f, a) for f, a in ends.get(nid, []) if f is not e]
-            if len(o) == 1 and o[0][0].get('widths') and o[0][0]['kind'] in CENTRE_KINDS:
+            if len(o) == 1 and o[0][0].get('widths'):
                 st = o[0][0]['widths']
                 ws.append(st[-1][1] if o[0][1] else st[0][1])
         if len(ws) == 2:
@@ -470,7 +519,7 @@ def apply(cfg, root, proj, network, stage_line):
     if folder:
         parts, tree = carriageways(folder, proj)
         if sv.get('centre'):
-            stage_line = centre(network, parts, tree, stage_line)
+            stage_line = centre(network, parts, tree, stage_line, sv['centre'])
         n = 0
         for e in network['edges']:
             w = line_width(np.array(e['pts'], float).reshape(-1, 2), parts, tree)
@@ -485,7 +534,7 @@ def apply(cfg, root, proj, network, stage_line):
             network['stage']['widths'] = st
         print(f'  survey: widths on {n} of {len(network["edges"])} edges, stage {sw} m, {len(st or [])} stations')
         if sv.get('centre'):
-            print(f'  survey: widths per station on {mainline_widths(network, parts, tree, stage_line)} mainline edges')
+            print(f'  survey: widths per station on {mainline_widths(network, parts, tree, stage_line, bool(isinstance(sv['centre'], dict) and sv['centre'].get('bores')))} mainline edges')
     else:
         print(f'  survey: {sv["planimetrics"]} not found, no widths')
     if sv.get('spotHeights'):
@@ -494,7 +543,8 @@ def apply(cfg, root, proj, network, stage_line):
         hs = [[round(x, 2), round(z, 2), round(y - datum, 2)] for k in ('route', 'streets') for x, z, y in sp.get(k, [])]
         source = sp.get('source', '')
         if sv.get('lidar') and folder:
-            in_area, ls = lidar_spots(sv['lidar'], root, proj, stage_line, folder, datum)
+            in_area, ls, decks = lidar_spots(sv['lidar'], root, proj, stage_line, folder, datum)
+            network.setdefault('survey', {})['decks'] = decks
             n0 = len(hs)
             hs = [h for h in hs if not in_area(h[0], h[1])]
             print(f'  survey: lidar area: {n0 - len(hs)} spot heights replaced by {len(ls)} lidar ones')
@@ -518,18 +568,57 @@ def apply(cfg, root, proj, network, stage_line):
 #     LIDAR_SPOT m (one source per area: the city's spot heights sit up to 0.7 m off the lidar in the Kew trench);
 #     spots where the lidar has no ground (decks, bridges) stay
 #
-#     "lidar": {"ept": "<EPT folder url>", "box": [x0, x1, z0, z1], "corridor": 60, "from": 6450, "tile": 64,
-#               "cache": "sources/maps/<id>/lidar"}
+#     "lidar": {"ept": "<EPT folder url>", "box": [x0, x1, z0, z1], "corridor": 60, "from": 0, "tile": 64,
+#               "route": true, "cache": "sources/maps/<id>/lidar"}
+#
+# `box` is fetched whole (the end zone: its buildings and streets); with `route` the rest of the corridor is fetched in
+# LIDAR_CHUNK m pieces along the stage (`lidar_regions`), each its own cached grid on the same `tile` lattice.
 #
 # Needs laspy + lazrs (pip install laspy lazrs) the first time (then cached in `cache`, git-ignored).
 
 LIDAR_GROUND = (2, 18)  # ground, overlap ground (USGS NY_NewYorkCity classes)
+LIDAR_NOISE = 7
 LIDAR_PAD = 8  # m each tile reaches into its neighbours (> the engine's 6-cell edge blend)
 LIDAR_SPOT = 5.0  # m between lidar spot heights on the roadbed
+LIDAR_CHUNK = 400.0  # m of stage line per fetched piece of the corridor (`route`)
+LIDAR_DECK_ALONG = 15.0  # m along the stage: the neighbours a deck spot is checked against (trees)
+LIDAR_DECK_TOL = 0.4  # m over their lower quarter a deck spot may stand
+LIDAR_DECK_DISC = 6.0  # m around a deck spot: the cells its level is the commonest of
+LIDAR_DECK_BIN = 0.5  # m levels the cells are counted in
 LIDAR_DECK_PAD = 3.0  # m around a planimetric deck outline that is deck, not ground (the outlines sit a few m off the lidar)
 
 
-def lidar_ground(lc, root, proj, coarse=None, structures=None):
+def cell_stat(pts, x0, z0, rows, cols, f):
+    """1 m cells over (x0, z0) [rows, cols]: f(heights in the cell), NaN where none."""
+    ix = np.clip(np.round(pts[:, 0] - x0).astype(int), 0, cols - 1)
+    iz = np.clip(np.round(pts[:, 1] - z0).astype(int), 0, rows - 1)
+    key = iz * cols + ix
+    order = np.argsort(key, kind='stable')
+    key, y = key[order], pts[order, 2]
+    u, start, cnt = np.unique(key, return_index=True, return_counts=True)
+    grid = np.full(rows * cols, np.nan)
+    grid[u] = [f(y[s : s + c]) for s, c in zip(start, cnt)]
+    return grid.reshape(rows, cols).astype(np.float32)
+
+
+def lidar_cache(lc, root, proj, box):
+    """The cached 1 m grids of a lidar box (fetched once): `grid` = median ground return, `low` = the lowest tenth of
+    every return but noise (a deck's top where the ground is hidden under it)."""
+    x0, x1, z0, z1 = box
+    fn = os.path.join(root, lc['cache'], f'ground-{x0}_{x1}_{z0}_{z1}-raw.npz')
+    have = dict(np.load(fn)) if os.path.exists(fn) else {}
+    if 'grid' not in have or 'low' not in have:
+        pts = lidar_points(lc['ept'], proj, box)
+        cols, rows = int(x1 - x0) + 1, int(z1 - z0) + 1
+        have['grid'] = cell_stat(pts[np.isin(pts[:, 3], LIDAR_GROUND)], x0, z0, rows, cols, np.median)
+        have['low'] = cell_stat(pts[pts[:, 3] != LIDAR_NOISE], x0, z0, rows, cols, lambda v: np.percentile(v, 10))
+        os.makedirs(os.path.dirname(fn), exist_ok=True)
+        np.savez_compressed(fn, **have)
+        print(f'  lidar: {len(pts)} points, ground in {np.mean(~np.isnan(have["grid"])):.0%} of the 1 m cells -> {os.path.relpath(fn, root)}')
+    return fn
+
+
+def lidar_ground(lc, root, proj, coarse=None, structures=None, box=None):
     """-> (x0, z0, grid [rows, cols] m, have [rows, cols]: the cell holds ground returns), 1 m cells.
 
     The binned returns are cached; the holes (buildings, decks, water) are filled from `coarse` (x, z arrays -> height,
@@ -539,23 +628,9 @@ def lidar_ground(lc, root, proj, coarse=None, structures=None):
     from scipy import ndimage
     from scipy.interpolate import griddata
 
-    x0, x1, z0, z1 = lc['box']
-    fn = os.path.join(root, lc['cache'], f'ground-{x0}_{x1}_{z0}_{z1}-raw.npz')
-    if not os.path.exists(fn):
-        pts = lidar_points(lc['ept'], proj, lc['box'])
-        g = pts[np.isin(pts[:, 3], LIDAR_GROUND)]
-        cols, rows = int(x1 - x0) + 1, int(z1 - z0) + 1
-        ix = np.clip(np.round(g[:, 0] - x0).astype(int), 0, cols - 1)
-        iz = np.clip(np.round(g[:, 1] - z0).astype(int), 0, rows - 1)
-        key = iz * cols + ix
-        order = np.argsort(key, kind='stable')
-        key, y = key[order], g[order, 2]
-        u, start, cnt = np.unique(key, return_index=True, return_counts=True)
-        grid = np.full(rows * cols, np.nan)
-        grid[u] = [np.median(y[s : s + c]) for s, c in zip(start, cnt)]
-        os.makedirs(os.path.dirname(fn), exist_ok=True)
-        np.savez_compressed(fn, grid=grid.reshape(rows, cols).astype(np.float32))
-        print(f'  lidar: {len(pts)} points, ground in {np.mean(~np.isnan(grid)):.0%} of the 1 m cells -> {os.path.relpath(fn, root)}')
+    box = box or lc['box']
+    x0, _, z0, _ = box
+    fn = lidar_cache(lc, root, proj, box)
     grid = np.load(fn)['grid'].astype(float)
     rows, cols = grid.shape
     if structures:
@@ -620,6 +695,7 @@ def coarse_height(hm):
 def lidar_points(ept_url, proj, box):
     """All points of an EPT cloud in world box (x0, x1, z0, z1) -> [n, 4] world x, z, height, class."""
     import concurrent.futures as cf
+    import http.client
     import io
     import urllib.request
 
@@ -641,7 +717,7 @@ def lidar_points(ept_url, proj, box):
         for _ in range(4):
             try:
                 return urllib.request.urlopen(ept_url + u, timeout=60).read()
-            except OSError as e:
+            except (OSError, http.client.HTTPException) as e:  # (a cut transfer: IncompleteRead)
                 err = e
         raise err
 
@@ -686,60 +762,160 @@ def lidar_area(lc, stage_line, length):
     from scipy.spatial import cKDTree
 
     p = np.asarray(stage_line, float)
-    seg = [a + (b - a) * np.linspace(0, 1, max(1, int(np.linalg.norm(b - a))), endpoint=False)[:, None] for a, b in zip(p, p[1:])]  # fmt: skip
+    seg = [a + (b - a) * np.linspace(0, 1, max(1, int(np.linalg.norm(b - a))), endpoint=False)[:, None] for a, b in pairwise(p)]  # fmt: skip
     p = np.vstack([*seg, p[-1:]])
     s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
     return cKDTree(p[s >= lc.get('from', 0)]), lc.get('corridor', 60)
 
 
+def lidar_regions(lc, stage_line):
+    """-> [box (x0, x1, z0, z1)]: `box`, then (`route`) the corridor's pieces along the stage outside it, on its tile
+    lattice, each grown so every tile it holds has LIDAR_PAD m of grid around it."""
+    out = [tuple(lc['box'])]
+    if not lc.get('route'):
+        return out
+    t = lc.get('tile', 64)
+    ox, oz = lc['box'][0], lc['box'][2]
+    reach = lc.get('corridor', 60) + t + LIDAR_PAD
+    p = np.asarray(stage_line, float)
+    seg = [a + (b - a) * np.linspace(0, 1, max(1, int(np.linalg.norm(b - a))), endpoint=False)[:, None] for a, b in pairwise(p)]  # fmt: skip
+    p = np.vstack([*seg, p[-1:]])
+    s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+    bx0, bx1, bz0, bz1 = lc['box']
+    for a0 in np.arange(lc.get('from', 0), s[-1], LIDAR_CHUNK):
+        q = p[(s >= a0 - 20) & (s <= a0 + LIDAR_CHUNK + 20)]
+        if not len(q):
+            continue
+        if q[:, 0].min() > bx0 + reach and q[:, 0].max() < bx1 - reach and q[:, 1].min() > bz0 + reach and q[:, 1].max() < bz1 - reach:
+            continue  # (wholly inside `box`)
+        x0 = ox + t * math.floor((q[:, 0].min() - reach - ox) / t) - LIDAR_PAD
+        x1 = ox + t * math.ceil((q[:, 0].max() + reach - ox) / t) + LIDAR_PAD
+        z0 = oz + t * math.floor((q[:, 1].min() - reach - oz) / t) - LIDAR_PAD
+        z1 = oz + t * math.ceil((q[:, 1].max() + reach - oz) / t) + LIDAR_PAD
+        out.append((int(x0), int(x1), int(z0), int(z1)))
+    return out
+
+
 def lidar_tiles(sv, root, proj, stage_line, hm):
-    """1 m height grids (HeightGridDef) over the lidar area, in `tile` m blocks."""
+    """1 m height grids (HeightGridDef) over the lidar area, in `tile` m blocks on one lattice (each block once, from
+    the first region whose grid holds it with its LIDAR_PAD margin)."""
     lc = sv['lidar']
     base, step = hm['base'], hm['step']
-    x0, z0, grid, _ = lidar_ground(lc, root, proj, coarse_height(hm), structures(root, sv, proj))
     kd, corridor = lidar_area(lc, stage_line, 0)
-    rows, cols = grid.shape
     t = lc.get('tile', 64)
+    ox, oz = lc['box'][0], lc['box'][2]
+    coarse = coarse_height(hm)
+    st = structures(root, sv, proj)
+    done = set()
     out = []
-    for bz in range(int(z0), int(z0) + rows - 1, t):
-        for bx in range(int(x0), int(x0) + cols - 1, t):
-            gx, gz = np.meshgrid(np.linspace(bx, bx + t, 9), np.linspace(bz, bz + t, 9))
-            if kd.query(np.c_[gx.ravel(), gz.ravel()])[0].min() > corridor + t / 8:
-                continue
-            i0, j0 = max(0, bx - LIDAR_PAD - int(x0)), max(0, bz - LIDAR_PAD - int(z0))
-            i1, j1 = min(cols, bx + t + LIDAR_PAD + 1 - int(x0)), min(rows, bz + t + LIDAR_PAD + 1 - int(z0))
-            v = np.round((grid[j0:j1, i0:i1] - base) / step).astype('<i2')
-            out.append({
-                'originX': int(x0) + i0, 'originZ': int(z0) + j0, 'cell': 1, 'cols': i1 - i0, 'rows': j1 - j0,
-                'data': base64.b64encode(v.tobytes()).decode('ascii'),
-            })  # fmt: skip
+    for box in lidar_regions(lc, stage_line):
+        x0, z0, grid, _ = lidar_ground(lc, root, proj, coarse, st, box)
+        rows, cols = grid.shape
+        for bz in range(oz + t * math.ceil((z0 - oz) / t), int(z0) + rows - 1, t):
+            for bx in range(ox + t * math.ceil((x0 - ox) / t), int(x0) + cols - 1, t):
+                if (bx, bz) in done:
+                    continue
+                gx, gz = np.meshgrid(np.linspace(bx, bx + t, 9), np.linspace(bz, bz + t, 9))
+                if kd.query(np.c_[gx.ravel(), gz.ravel()])[0].min() > corridor + t / 8:
+                    continue
+                if box != tuple(lc['box']) and (bx - LIDAR_PAD < x0 or bz - LIDAR_PAD < z0 or bx + t + LIDAR_PAD > x0 + cols - 1 or bz + t + LIDAR_PAD > z0 + rows - 1):  # fmt: skip
+                    continue  # (a piece's edge: the next piece holds it whole)
+                done.add((bx, bz))
+                i0, j0 = max(0, bx - LIDAR_PAD - int(x0)), max(0, bz - LIDAR_PAD - int(z0))
+                i1, j1 = min(cols, bx + t + LIDAR_PAD + 1 - int(x0)), min(rows, bz + t + LIDAR_PAD + 1 - int(z0))
+                v = np.round((grid[j0:j1, i0:i1] - base) / step).astype('<i2')
+                out.append({
+                    'originX': int(x0) + i0, 'originZ': int(z0) + j0, 'cell': 1, 'cols': i1 - i0, 'rows': j1 - j0,
+                    'data': base64.b64encode(v.tobytes()).decode('ascii'),
+                })  # fmt: skip
     return out
 
 
 def lidar_spots(lc, root, proj, stage_line, folder, datum):
-    """-> (in_area(x, z) -> bool, spot heights [[x, z, y], ...] world y) on the roadbed in the lidar area."""
-    x0, z0, grid, have = lidar_ground(lc, root, proj, structures=structures(root, {'planimetrics': folder}, proj))
-    kd, corridor = lidar_area(lc, stage_line, 0)
-    rows, cols = grid.shape
-    parts, _ = carriageways(folder, proj)
+    """-> (in_area(x, z) -> bool, spot heights [[x, z, y], ...] world y on the roadbed in the lidar area, deck heights: on a
+    deck (the survey's transport polygons) its top (`low` grid): the stage's own bridges and the overpasses over it)."""
+    from scipy.spatial import cKDTree
     from shapely import contains_xy
 
+    kd, corridor = lidar_area(lc, stage_line, 0)
+    parts, _ = carriageways(folder, proj)
     road = unary_union(parts)
-    gx, gz = np.meshgrid(np.arange(x0, x0 + cols - 1, LIDAR_SPOT), np.arange(z0, z0 + rows - 1, LIDAR_SPOT))
-    gx, gz = gx.ravel(), gz.ravel()
-    keep = (kd.query(np.c_[gx, gz])[0] <= corridor) & contains_xy(road, gx, gz)
-    ix = np.round(gx - x0).astype(int)
-    iz = np.round(gz - z0).astype(int)
-    keep &= have[iz, ix]
-    spots = [[round(float(x), 2), round(float(z), 2), round(float(grid[j, i]) - datum, 2)] for x, z, i, j in zip(gx[keep], gz[keep], ix[keep], iz[keep])]  # fmt: skip
-    near = ndimage_max(have, 2)
+    st = structures(root, {'planimetrics': folder}, proj)
+    regions = []
+    spots = []
+    # (the same outline the ground grid leaves as a hole: a deck's ends lie in it too)
+    decks = unary_union([g.buffer(LIDAR_DECK_PAD) for g in st]) if st else None
+    deck_spots = []
+    for box in lidar_regions(lc, stage_line):
+        x0, z0, grid, have = lidar_ground(lc, root, proj, structures=st, box=box)
+        low = np.load(lidar_cache(lc, root, proj, box))['low'].astype(float)
+        rows, cols = grid.shape
+        gx, gz = np.meshgrid(np.arange(x0, x0 + cols - 1, LIDAR_SPOT), np.arange(z0, z0 + rows - 1, LIDAR_SPOT))
+        gx, gz = gx.ravel(), gz.ravel()
+        keep = (kd.query(np.c_[gx, gz])[0] <= corridor) & contains_xy(road, gx, gz)
+        # (each spot once: from the first region that holds it)
+        for b in regions:
+            keep &= ~((gx >= b[0]) & (gx <= b[0] + b[2].shape[1] - 1) & (gz >= b[1]) & (gz <= b[1] + b[2].shape[0] - 1))
+        ix = np.round(gx - x0).astype(int)
+        iz = np.round(gz - z0).astype(int)
+        keep &= have[iz, ix]
+        spots += [[round(float(x), 2), round(float(z), 2), round(float(grid[j, i]) - datum, 2)] for x, z, i, j in zip(gx[keep], gz[keep], ix[keep], iz[keep])]  # fmt: skip
+        if decks is not None:
+            # the decks: their top where a roadbed lies on one (no ground seen through a deck)
+            on = (kd.query(np.c_[gx, gz])[0] <= corridor) & contains_xy(road, gx, gz) & contains_xy(decks, gx, gz)
+            for b in regions:
+                on &= ~((gx >= b[0]) & (gx <= b[0] + b[2].shape[1] - 1) & (gz >= b[1]) & (gz <= b[1] + b[2].shape[0] - 1))
+            on &= ~np.isnan(low[iz, ix])
+            deck_spots += [(float(x), float(z), y - datum) for x, z, y in zip(gx[on], gz[on], deck_level(low, x0, z0, decks, gx[on], gz[on]))]  # fmt: skip
+        regions.append((x0, z0, ndimage_max(have, 2)))
 
     def in_area(x, z):
         # (where the lidar has no ground - a deck, a bridge - the survey's spots stay)
-        i, j = int(round(x - x0)), int(round(z - z0))
-        return 0 <= i < cols and 0 <= j < rows and near[j, i] and kd.query([x, z])[0] <= corridor
+        if kd.query([x, z])[0] > corridor:
+            return False
+        if decks is not None and contains_xy(decks, x, z):
+            return True  # (a deck: its lidar top replaces the survey there)
+        for x0, z0, near in regions:
+            i, j = round(x - x0), round(z - z0)
+            if 0 <= i < near.shape[1] and 0 <= j < near.shape[0]:
+                return bool(near[j, i])
+        return False
 
-    return in_area, spots
+    if deck_spots:
+        # (trees over a deck: a cell of leaves only stands over the deck's top; kept within LIDAR_DECK_TOL m of the lower
+        # quarter of the spots within LIDAR_DECK_ALONG m)
+        d = np.array(deck_spots)
+        tree = cKDTree(d[:, :2])
+        keep = [y <= np.percentile(d[n, 2], 25) + LIDAR_DECK_TOL for (_, _, y), n in zip(d, tree.query_ball_point(d[:, :2], LIDAR_DECK_ALONG))]  # fmt: skip
+        deck_spots = [[round(x, 2), round(z, 2), round(y, 2)] for (x, z, y), k in zip(deck_spots, keep) if k]
+        print(f'  survey: lidar: {len(deck_spots)} deck heights ({len(keep) - len(deck_spots)} under trees dropped)')
+    return in_area, spots, deck_spots
+
+
+def deck_level(low, x0, z0, decks, xs, zs):
+    """The deck's top at each point: the commonest LIDAR_DECK_BIN m level of the `low` cells on the deck within
+    LIDAR_DECK_DISC m (the median of that level's cells) - not the ground seen under its edge, nor a lone tree."""
+    from shapely import contains_xy
+
+    r = int(LIDAR_DECK_DISC)
+    out = []
+    for x, z in zip(xs, zs):
+        i, j = round(x - x0), round(z - z0)
+        i0, i1, j0, j1 = max(0, i - r), min(low.shape[1], i + r + 1), max(0, j - r), min(low.shape[0], j + r + 1)
+        cx, cz = np.meshgrid(np.arange(i0, i1) + x0, np.arange(j0, j1) + z0)
+        v = low[j0:j1, i0:i1]
+        m = ((cx - x) ** 2 + (cz - z) ** 2 <= LIDAR_DECK_DISC**2) & ~np.isnan(v) & contains_xy(decks, cx, cz)
+        v = v[m]
+        if not len(v):
+            out.append(float(low[j, i]))
+            continue
+        b = np.floor(v / LIDAR_DECK_BIN).astype(int)
+        u, c = np.unique(b, return_counts=True)
+        # (a level and the next one up together: a deck sloping across a bin's edge is one level)
+        pair = c + np.r_[c[1:] * (np.diff(u) == 1), 0]
+        k = u[int(np.argmax(pair))]
+        out.append(float(np.median(v[(b == k) | (b == k + 1)])))
+    return out
 
 
 def ndimage_max(mask, r):

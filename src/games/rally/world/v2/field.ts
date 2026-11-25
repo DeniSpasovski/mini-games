@@ -1276,9 +1276,11 @@ export class NetField {
       const footW = p.t >= 0 ? w.sec.footL : w.sec.footR;
       if (Math.abs(p.t) > footW + w.tpl.daylight.wallOffset + SLAB_REACH)
         continue;
-      const h =
-        w.slab[p.i] +
-        (w.slab[Math.min(w.al.n - 1, p.i + 1)] - w.slab[p.i]) * p.f;
+      // (only between bore samples: past the portal the next sample has no roof)
+      const j = Math.min(w.al.n - 1, p.i + 1);
+      const a = w.st[p.i] === ST_TUNNEL ? w.slab[p.i] : w.slab[j];
+      const b = w.st[j] === ST_TUNNEL ? w.slab[j] : w.slab[p.i];
+      const h = a + (b - a) * p.f;
       out = out === undefined ? h : Math.max(out, h);
     }
     return out;
@@ -1441,7 +1443,7 @@ export class NetField {
    * wall's face, in front of a fill wall's, inside a deck's side over the land under it) drops to the land on its low
    * side (a cut wall's road-side ground, the land at a fill wall's foot or beside the deck). Physics keeps `ground`.
    */
-  private wallCut(x: number, z: number): number {
+  wallCut(x: number, z: number): number {
     let cut = 0;
     let h = NaN;
     for (const [wi, p] of this.nearestFoot(x, z)) {

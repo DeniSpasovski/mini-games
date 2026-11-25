@@ -65,8 +65,12 @@ export const jackie2Map: MapDef = {
       // tall tan / grey ashlar on both sides out of the Queens Blvd tunnel to the interchange (5:33-5:36)
       { from: 7300, to: 7470, wall: 'stone', fence: 'railing' },
     ],
-    // pale cement-concrete pavement with sealed joints from the Queens Blvd tunnel portal on (drive video 5:30-5:49)
-    pavement: [{ from: 7290, to: 8000, surface: 'concrete' }],
+    // pale cement-concrete pavement with sealed joints east of the Queens Blvd tunnel (drive video 5:30-5:49, opposite
+    // lane 0:36-0:38); asphalt through the tunnel and at both portals (opposite lane 0:41-0:44 and 0:55-0:59)
+    pavement: [{ from: 7474, to: 8000, surface: 'concrete' }],
+    // the Queens Blvd tunnel's built-up steel girders: 12'-8" / 12'-10" under them on its plates (lidar deck top less
+    // the floor less the slab)
+    tunnels: [{ from: 7280, to: 7460, girder: 1.1, headwall: 'stone' }],
     deckStyles: [
       // Myrtle Ave over the parkway: a painted plate-girder bridge on masonry abutments (drive video 3:34-3:36)
       { way: '126080187', facing: 'steel' },
@@ -305,10 +309,12 @@ export const jackie2Map: MapDef = {
     }),
   ],
   roadside: [
-    // Chevron boards on the outside of the tight bends (drive videos: yellow on black, behind the barriers; rows of them in
-    // the cemetery curves 2 600-2 900 m, the same bends that get the double lane line, `solidLaneRadius`).
+    // Curve warning boards on the outside of the tight bends (drive videos: US black arrows on yellow, behind the barriers;
+    // rows of them in the cemetery curves 2 600-2 900 m, the same bends that get the double lane line, `solidLaneRadius`).
+    // The run-out's ramps past the finish (7 500 m) get none.
     {
-      asset: 'chevron_sign',
+      asset: 'chevron_sign_us',
+      to: 7500,
       every: 16,
       maxRadius: 130,
       side: 'outside',

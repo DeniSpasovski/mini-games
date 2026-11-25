@@ -192,6 +192,148 @@ const effRank = (w: Way) =>
 const CORRIDOR = 18;
 /** A highway ramp takes the pavement of the stage road within this distance (m, `NetworkDef.pavement`). */
 const PAVEMENT_REACH = 120;
+/** A bore's soffit where the map's `tunnels` name none: plain beams this deep (m), and how far from the stage road a
+ * bore takes the stage's stretch (m, `girderAt`). */
+export const TUNNEL_GIRDER_DEFAULT = 0.5;
+const TUNNEL_REACH = 40;
+/** A spot height on the stage road's deck stands at least this far over the land under it (m, `surveyHeights`). */
+/** A crossing whose deck and road the survey measured keeps at least this under the deck's soffit (m). */
+const SURVEYED_CLEARANCE_MIN = 3.6;
+/** The stage road's other carriageway, eased onto it, keeps within this many times its own grade. */
+const CORRIDOR_GRADE = 1.3;
+/** How far past a stage dip's flat its vertical curves reach (m): the stage's profile is eased that far. */
+const DIP_CURVE_REACH = 160;
+/** ... less this much (m): the profiles' fit to their spots, not a clearance to make up. */
+const SURVEYED_SLACK = 0.3;
+/** `surveyGaps`: a surveyed height off the line through its neighbours (SURVEY_NEAR..SURVEY_FAR m either side) by
+ * more than SURVEY_OFF m is a stray (a deck's edge, a wall top); a gap in the survey up to SURVEY_HOLE m long whose land
+ * strays as far from the line across it is a hole (under a deck, the ground's fill) and takes that line. */
+const SURVEY_NEAR = 5;
+const SURVEY_FAR = 20;
+const SURVEY_OFF = 0.8;
+const SURVEY_HOLE = 40;
+
+/** The median of the finite values of `got` from sample `i` on, `dir` (+-1) way, with |s - s[i]| in [near, far]. */
+function medianIn(
+  s: ArrayLike<number>,
+  got: Float64Array,
+  i: number,
+  dir: number,
+  near: number,
+  far: number,
+): number {
+  const ys: number[] = [];
+  for (let k = i; k >= 0 && k < got.length; k += dir) {
+    const d = Math.abs(s[k] - s[i]);
+    if (d > far) break;
+    if (d >= near && Number.isFinite(got[k])) ys.push(got[k]);
+  }
+  if (!ys.length) return NaN;
+  ys.sort((p, q) => p - q);
+  return ys[ys.length >> 1];
+}
+
+/** A way's surveyed heights cleaned up (SURVEY_OFF): strays dropped, holes in the survey bridged by the line across. */
+function surveyGaps(
+  s: ArrayLike<number>,
+  raw: Float64Array,
+  valid: boolean[],
+  got: Float64Array,
+): void {
+  const n = got.length;
+  // (the line through the medians either side)
+  const line = (i: number) => {
+    const a = medianIn(s, got, i, -1, SURVEY_NEAR, SURVEY_FAR);
+    const b = medianIn(s, got, i, 1, SURVEY_NEAR, SURVEY_FAR);
+    return Number.isFinite(a) && Number.isFinite(b) ? (a + b) / 2 : NaN;
+  };
+  const stray: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (!Number.isFinite(got[i])) continue;
+    const y = line(i);
+    if (Number.isFinite(y) && Math.abs(got[i] - y) > SURVEY_OFF) stray.push(i);
+  }
+  for (const i of stray) {
+    got[i] = NaN;
+    valid[i] = false;
+  }
+  for (let i = 0; i < n;) {
+    if (Number.isFinite(got[i]) || !valid[i]) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < n && !Number.isFinite(got[j])) j++;
+    if (i > 0 && j < n && s[j] - s[i - 1] <= SURVEY_HOLE) {
+      const ya = got[i - 1];
+      const yb = got[j];
+      let off = 0;
+      for (let k = i; k < j; k++) {
+        const f = (s[k] - s[i - 1]) / (s[j] - s[i - 1]);
+        if (valid[k])
+          off = Math.max(off, Math.abs(raw[k] - (ya + (yb - ya) * f)));
+      }
+      if (off > SURVEY_OFF) for (let k = i; k < j; k++) valid[k] = false;
+    }
+    i = j;
+  }
+}
+
+/** `y` held to `g` grade: the mean of a forward and a backward capped pass (each within it, so is their mean). */
+function gradeCap(
+  y: Float64Array,
+  s: ArrayLike<number>,
+  g: number,
+): Float64Array {
+  const n = y.length;
+  const f = y.slice();
+  const b = y.slice();
+  for (let i = 1; i < n; i++) {
+    const m = g * (s[i] - s[i - 1]);
+    f[i] = Math.min(f[i - 1] + m, Math.max(f[i - 1] - m, f[i]));
+  }
+  for (let i = n - 2; i >= 0; i--) {
+    const m = g * (s[i + 1] - s[i]);
+    b[i] = Math.min(b[i + 1] + m, Math.max(b[i + 1] - m, b[i]));
+  }
+  for (let i = 0; i < n; i++) y[i] = (f[i] + b[i]) / 2;
+  return y;
+}
+
+/** Spot heights [x, z, y] -> points (x, y, z) + a grid of their reach. */
+function spotsOf(
+  hs: [number, number, number][] | undefined,
+): { pts: Float64Array; grid: Grid<number> } | undefined {
+  if (!hs?.length) return undefined;
+  const pts = new Float64Array(hs.length * 3);
+  const grid = new Grid<number>(16);
+  hs.forEach(([x, z, y], k) => {
+    pts.set([x, y, z], k * 3);
+    grid.add(
+      k,
+      x - SPOT_ALONG - 12,
+      z - SPOT_ALONG - 12,
+      x + SPOT_ALONG + 12,
+      z + SPOT_ALONG + 12,
+    );
+  });
+  return { pts, grid };
+}
+
+/** The median of a way's surveyed heights (NaN where none) within SPOT_ALONG m of `s`, NaN if it has none there. */
+function nearestOf(al: Alignment, got: Float64Array, s: number): number {
+  const ys: number[] = [];
+  for (let i = 0; i < al.n; i++)
+    if (Math.abs(al.s[i] - s) <= SPOT_ALONG && Number.isFinite(got[i]))
+      ys.push(got[i]);
+  if (!ys.length) return NaN;
+  ys.sort((a, b) => a - b);
+  return ys[ys.length >> 1];
+}
+/** The stage profile's residual to its survey is smoothed over this window before it is added back (m, `profiles`). */
+const RESIDUAL_WINDOW = 30;
+/** A carriageway node takes the stage road's height when one of its last this many samples has a corridor station. */
+const CORR_END_LOOK = 4;
 /**
  * A street running alongside the stage road in its cut (within this, m; parallel, at its level within SIDE_LEVEL m)
  * takes the stage's wall look there: one cut, one wall (drive video 5:22-5:24, the ashlar cut before Queens Blvd).
@@ -491,6 +633,8 @@ export class Network {
     surveyed: number;
     /** Stage samples held at the template width (`stageScale`: tunnel, contact), m along to the nearest. */
     widthHeld?: Float64Array;
+    /** The stage's land profile with its survey, before the design fit. */
+    raw?: Float64Array;
   } = {
     base: [],
     dips: [],
@@ -500,11 +644,14 @@ export class Network {
   private readonly natural: NaturalHeight;
   /** Surveyed spot heights (x, y, z flat) and their grid (network_survey.py). */
   private spots?: { pts: Float64Array; grid: Grid<number> };
+  /** The survey's deck tops (`survey.decks`): only the samples of a way on its own deck take them. */
+  private deckSpots?: { pts: Float64Array; grid: Grid<number> };
   /** Surveyed retaining wall segments [x0, z0, x1, z1] flat + grid, the stage metres the survey covers. */
   private surveyWalls?: { segs: number[]; grid: Grid<number>; until: number };
   private readonly wallStyles: NonNullable<NetworkDef['wallStyles']>;
   private readonly deckStyles: NonNullable<NetworkDef['deckStyles']>;
   private readonly pavement: NonNullable<NetworkDef['pavement']>;
+  private readonly tunnelDefs: NonNullable<NetworkDef['tunnels']>;
   private readonly paveNear = new Map<number, Projection>();
   /** Wall samples beside another, unrelated road at their level (`dividingWalls`): way, side, sample, that road. */
   private divides: [Way, 0 | 1, number, Way][] = [];
@@ -531,6 +678,7 @@ export class Network {
     this.wallStyles = def.wallStyles ?? [];
     this.deckStyles = def.deckStyles ?? [];
     this.pavement = def.pavement ?? [];
+    this.tunnelDefs = def.tunnels ?? [];
     const sw = def.data.survey;
     if (sw?.walls?.length && sw.wallsUntil) {
       const segs: number[] = [];
@@ -561,22 +709,8 @@ export class Network {
       def.patches,
     );
     this.missingPatches = missing;
-    const hs = def.data.survey?.heights;
-    if (hs?.length) {
-      const pts = new Float64Array(hs.length * 3);
-      const grid = new Grid<number>(16);
-      hs.forEach(([x, z, y], k) => {
-        pts.set([x, y, z], k * 3);
-        grid.add(
-          k,
-          x - SPOT_ALONG - 12,
-          z - SPOT_ALONG - 12,
-          x + SPOT_ALONG + 12,
-          z + SPOT_ALONG + 12,
-        );
-      });
-      this.spots = { pts, grid };
-    }
+    this.spots = spotsOf(def.data.survey?.heights);
+    this.deckSpots = spotsOf(def.data.survey?.decks);
     // --- 1. ways ---------------------------------------------------------------------------------------------
     this.stage = this.addStage(def, road);
     // the OSM layers before any structure is solved (right of way needs them: a road crossing under a bridge is no neighbour)
@@ -2634,6 +2768,16 @@ export class Network {
           if (from < reach) w.y[j] += d * (1 - smoothstep(0, reach, from));
         }
       }
+      // (the ease from its own profile onto the stage road's stays within its grade, CORRIDOR_GRADE times over)
+      pinnedGrade(
+        w.y,
+        w.al.s,
+        w.tpl.maxGrade * CORRIDOR_GRADE,
+        !!this.nodes.get(w.nodes[0]) &&
+          this.nodes.get(w.nodes[0])!.kind !== 'end',
+        !!this.nodes.get(w.nodes[1]) &&
+          this.nodes.get(w.nodes[1])!.kind !== 'end',
+      );
     }
   }
 
@@ -3065,11 +3209,15 @@ export class Network {
             add(al.x[i], al.z[i]);
   }
 
-  /** The stage's samples within TUNNEL_HOLD m along of its own tunnel stretches (the bores are sized by the section). */
+  /**
+   * The stage's samples within TUNNEL_HOLD m along of its own tunnel stretches (the bores are sized by the section);
+   * none when its widths apply in the bores too (`stage.boreWidths`).
+   */
   private stageTunnelHeld(data: NetworkData, road: Road): Uint8Array {
     const { n, s } = this.stage.al;
     const scale = road.runoutFrom / Math.max(1, data.stage.length);
     const held = new Uint8Array(n);
+    if (data.stage.boreWidths) return held;
     for (const sp of data.stage.spans)
       if (sp.kind !== 'bridge' && (sp.to - sp.from) * scale >= TUNNEL_MIN)
         for (let i = 0; i < n; i++)
@@ -3275,6 +3423,32 @@ export class Network {
     return undefined;
   }
 
+  /** The map's own record of the tunnel bore `w` runs in at sample i (`NetworkDef.tunnels` by its nearest stage station). */
+  tunnelAt(
+    w: Way,
+    i: number,
+  ): NonNullable<NetworkDef['tunnels']>[number] | undefined {
+    if (!this.tunnelDefs.length) return undefined;
+    let st = this.stationOf(w, i);
+    if (Number.isNaN(st)) {
+      this.nearLines(
+        w.al.x[i],
+        w.al.z[i],
+        TUNNEL_REACH,
+        this.paveNear,
+        (q) => !q.stage,
+      );
+      st = this.paveNear.get(0)?.s ?? NaN;
+    }
+    if (Number.isNaN(st)) return undefined;
+    return this.tunnelDefs.find((r) => st >= r.from && st <= r.to);
+  }
+
+  /** The ceiling girder depth of bore `w` at sample i (its tunnel's record, else TUNNEL_GIRDER_DEFAULT), m. */
+  girderAt(w: Way, i: number): number {
+    return this.tunnelAt(w, i)?.girder ?? TUNNEL_GIRDER_DEFAULT;
+  }
+
   /** The cut wall height limit of way `w` at sample i (map `wallStyles` maxHeight), Infinity where none. */
   wallMax(w: Way, i: number): number {
     const st = this.stationOf(w, i);
@@ -3345,9 +3519,14 @@ export class Network {
    * the median of the spots within the pavement and SPOT_ALONG m of each sample, those within SPOT_TRUST m of the land
    * (none over a tunnel and over the land: those lie on its roof).
    */
-  private surveyHeights(w: Way, raw: Float64Array, valid: boolean[]): void {
-    const spots = this.spots;
-    if (!spots) return;
+  private surveyHeights(
+    w: Way,
+    raw: Float64Array,
+    valid: boolean[],
+    deck?: boolean[],
+    got?: Float64Array,
+  ): void {
+    if (!this.spots && !this.deckSpots) return;
     const { n, x, z, tx, tz } = w.al;
     const halfL = w.sec.paveL;
     const halfR = w.sec.paveR;
@@ -3363,7 +3542,11 @@ export class Network {
         )
           bored[i] = true;
     for (let i = 0; i < n; i++) {
-      if (!valid[i]) continue;
+      const onDeck = !valid[i] && !!deck?.[i];
+      if (!valid[i] && !onDeck) continue;
+      // (the pavement on the land takes the ground's spots, a deck its top's)
+      const spots = onDeck ? this.deckSpots : this.spots;
+      if (!spots) continue;
       const ys: number[] = [];
       for (const k of spots.grid.at(x[i], z[i])) {
         const dx = spots.pts[k * 3] - x[i];
@@ -3374,7 +3557,14 @@ export class Network {
         if (lat > halfL * scaleAt(w, i) || -lat > halfR * scaleAt(w, i))
           continue;
         const y = spots.pts[k * 3 + 1];
-        if (Math.abs(y - raw[i]) > SPOT_TRUST) continue;
+        // (a deck's top stands at or over the land around it - its fill under the deck is the approaches' level - by
+        // any height; the ground's spots near the land)
+        if (
+          onDeck && w.st[i] === ST_DECK
+            ? y < raw[i] - SPOT_TRUST
+            : Math.abs(y - raw[i]) > SPOT_TRUST
+        )
+          continue;
         // (a spot over a tunnel, above the land, lies on its roof: not this road's height)
         if (
           y > raw[i] + SPOT_ROOF &&
@@ -3388,6 +3578,8 @@ export class Network {
         ys.sort((a, b) => a - b);
         const m = ys.length >> 1;
         raw[i] = ys.length % 2 ? ys[m] : (ys[m - 1] + ys[m]) / 2;
+        if (onDeck) valid[i] = true;
+        if (got) got[i] = raw[i];
         this.debug.surveyed++;
       }
     }
@@ -3584,6 +3776,8 @@ export class Network {
 
   private profiles(pins: Map<number, number>): void {
     const base: Float64Array[] = [];
+    // (each way's surveyed heights - lidar spots on its pavement or its deck's top - by sample, NaN where none)
+    const seen: Float64Array[] = [];
     for (const w of this.ways) {
       const { n, x, z } = w.al;
       const raw = new Float64Array(n);
@@ -3602,8 +3796,14 @@ export class Network {
         for (let i = 0; i < n; i++)
           if (Math.abs(w.al.s[i] - c.sU) < half) valid[i] = false;
       }
-      this.surveyHeights(w, raw, valid);
+      // (a way's own decks: their lidar top, `network_survey.py` lidar deck spots, is the deck's height)
+      const deck = valid.map((v, i) => !v && w.st[i] !== ST_TUNNEL);
+      const got = new Float64Array(n).fill(NaN);
+      this.surveyHeights(w, raw, valid, deck, got);
+      seen.push(got);
+      surveyGaps(w.al.s, raw, valid, got);
       fillInvalid(raw, valid);
+      if (w.stage) this.debug.raw = raw.slice();
       // the designed profile: tangents + vertical curves fitted to the land within the class's tolerance
       const tol = w.tpl.tolerance ?? profileTol(w.tpl.rank);
       const design = (r: Float64Array, s: Float64Array) => {
@@ -3617,12 +3817,27 @@ export class Network {
           w.tpl.smoothing / 6,
         );
       };
+      // the stage road on its surveyed ground (lidar spot heights the whole way): the fitted tangents and vertical
+      // curves hang below a crest and stand over a sag the survey has (Woodhaven Blvd deck: 0.8 m); the residual to the
+      // survey, smoothed over RESIDUAL_WINDOW m, is added back
+      const fit = (r: Float64Array, s: Float64Array) => {
+        const src = r.slice();
+        const out = design(r, s);
+        if (!w.stage) return out;
+        const d = new Float64Array(out.length);
+        for (let k = 0; k < 2; k++) {
+          for (let i = 0; i < d.length; i++) d[i] = src[i] - out[i];
+          smooth1d(d, Math.max(1, RESIDUAL_WINDOW / STEP));
+          for (let i = 0; i < d.length; i++) out[i] += d[i];
+        }
+        return gradeCap(out, s, w.tpl.maxGrade);
+      };
       // the stage's run-out is a piece of its own from the route's end on: the fit is global (its PVIs follow the
       // ends), so the route before it - the Queens Blvd tunnel - keeps the profile it was designed with
       const m = w.stage ? this.runoutFrom : n;
       if (m < n - 1) {
-        const main = design(raw.slice(0, m + 1), w.al.s.slice(0, m + 1));
-        const tail = design(raw.slice(m), w.al.s.slice(m));
+        const main = fit(raw.slice(0, m + 1), w.al.s.slice(0, m + 1));
+        const tail = fit(raw.slice(m), w.al.s.slice(m));
         const out = new Float64Array(n);
         out.set(main);
         // (the tail starts at the main piece's end height and eases into its own fit over RUNOUT_EASE m)
@@ -3632,7 +3847,7 @@ export class Network {
             tail[k] +
             d0 * (1 - smoothstep(0, RUNOUT_EASE, w.al.s[m + k] - w.al.s[m]));
         base.push(out);
-      } else base.push(design(raw, w.al.s));
+      } else base.push(fit(raw, w.al.s));
     }
     // the stage road's other carriageway: the stage road's land profile at the same station
     for (const w of this.ways)
@@ -3640,7 +3855,22 @@ export class Network {
     // Tunnel slabs: the street level at the portals' rims, never below the roof.
     for (const w of this.ways)
       if (w.st.includes(ST_TUNNEL)) this.tunnelSlab(w, base[w.index]);
-    const need = (c: Crossing) => c.lower.tpl.clearance + DECK_DEPTH + 0.2;
+    // (where the survey measured the upper way's deck top, the structure stands as built: its own clearance over the
+    // lower way's profile, never less than SURVEYED_CLEARANCE_MIN under the deck)
+    const need = (c: Crossing) => {
+      const t = c.lower.tpl.clearance + DECK_DEPTH + 0.2;
+      const yu = nearestOf(c.upper.al, seen[c.upper.index], c.sU);
+      if (
+        !Number.isFinite(yu) ||
+        c.upper.st[sampleAt(c.upper.al, c.sU)] !== ST_DECK
+      )
+        return t;
+      const yl = valueAt(c.lower.al, base[c.lower.index], c.sL);
+      return Math.min(
+        t,
+        Math.max(yu - yl - SURVEYED_SLACK, SURVEYED_CLEARANCE_MIN + DECK_DEPTH),
+      );
+    };
     // How far a way can rise / drop at `s` with its (pinned) ends held: the grade cone from each junction end.
     const reach = (w: Way, s: number) => {
       const g = w.tpl.maxGrade * 0.85;
@@ -3737,14 +3967,29 @@ export class Network {
         }
       }
     // The stage road's dips get vertical curves (smoothed, then held at the required depth again).
+    // (only around them: the rest of the stage keeps its fit to the survey)
     {
       const b = base[0];
-      smooth1d(b, 40 / STEP);
+      const al = this.stage.al;
+      const near = new Float64Array(al.n);
       for (const d of dips)
-        if (d.w.stage) shape(d.w.al, b, d.s, d.y, d.flat, d.g, d.mode);
-      smooth1d(b, 16 / STEP);
-      for (const d of dips)
-        if (d.w.stage) shape(d.w.al, b, d.s, d.y, d.flat, d.g, d.mode);
+        if (d.w.stage)
+          for (let i = 0; i < al.n; i++) {
+            const e = Math.abs(al.s[i] - d.s) - d.flat;
+            near[i] = Math.max(
+              near[i],
+              1 - smoothstep(DIP_CURVE_REACH * 0.5, DIP_CURVE_REACH, e),
+            );
+          }
+      const eased = (r: number) => {
+        const sm = b.slice();
+        smooth1d(sm, r / STEP);
+        for (let i = 0; i < al.n; i++) b[i] += (sm[i] - b[i]) * near[i];
+        for (const d of dips)
+          if (d.w.stage) shape(d.w.al, b, d.s, d.y, d.flat, d.g, d.mode);
+      };
+      eased(40);
+      eased(16);
     }
     // Node heights, final profiles; crossings re-checked on the final profiles push the junction heights (a street
     // dipping under a deck takes the junction beside it down with it), a few rounds.
@@ -3869,6 +4114,8 @@ export class Network {
     ceil: Map<number, number>,
   ): void {
     const stage = this.stage;
+    // (nodes on the stage road's profile: the stage's own and its other carriageway's)
+    const onStage = new Set<NetNode>();
     for (const node of this.nodes.values()) {
       if (!node.ends.length) continue;
       if (pins.has(node.id)) {
@@ -3889,12 +4136,20 @@ export class Network {
         const b = base[e.way.index];
         sum += e.atEnd ? b[b.length - 1] : b[0];
         cnt++;
-        const c = e.way.corr?.[e.atEnd ? b.length - 1 : 0];
-        if (c !== undefined && !Number.isNaN(c)) corrSt = c;
+        // (the station of its end sample, or of one just before it: the end itself can fall past the corridor's line)
+        const corr = e.way.corr;
+        if (corr)
+          for (let k = 0; k < CORR_END_LOOK && Number.isNaN(corrSt); k++) {
+            const c = corr[e.atEnd ? b.length - 1 - k : k];
+            if (c !== undefined && !Number.isNaN(c)) corrSt = c;
+          }
       }
       node.h = cnt ? sum / cnt : 0;
       // a node of the stage road's other carriageway sits on the stage road's profile at that station
-      if (!Number.isNaN(corrSt)) node.h = valueAt(stage.al, base[0], corrSt);
+      if (!Number.isNaN(corrSt)) {
+        node.h = valueAt(stage.al, base[0], corrSt);
+        onStage.add(node);
+      }
       const f = floor.get(node.id);
       const c = ceil.get(node.id);
       if (f !== undefined) node.h = Math.max(node.h, f);
@@ -3903,7 +4158,11 @@ export class Network {
     // Neighbouring nodes on a short edge: never steeper between them than the way allows (two junctions 6 m apart got
     // their heights from different arms and stood a metre apart).
     const held = (n: NetNode) =>
-      n.kind === 'stage' || pins.has(n.id) || floor.has(n.id) || ceil.has(n.id);
+      n.kind === 'stage' ||
+      onStage.has(n) ||
+      pins.has(n.id) ||
+      floor.has(n.id) ||
+      ceil.has(n.id);
     for (let pass = 0; pass < 6; pass++)
       for (const w of this.ways) {
         if (w.stage) continue;

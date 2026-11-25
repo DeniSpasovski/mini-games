@@ -1393,7 +1393,7 @@ export function roadsideInstances(
           const sc = rule.scale ? rng.range(rule.scale[0], rule.scale[1]) : 1;
           // Chevrons: variant 0 points left, 1 points right (as seen by the driver).
           const variant =
-            rule.asset === 'chevron_sign'
+            rule.asset === 'chevron_sign' || rule.asset === 'chevron_sign_us'
               ? p.curvature > 0
                 ? 0
                 : 1

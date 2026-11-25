@@ -68,16 +68,20 @@ export interface NetworkData {
     surveyWidth?: number;
     /** Surveyed width per station [m along, carriageway width m] (network_survey.py, smoothed over 200 m). */
     widths?: [number, number][];
+    /** The widths apply in the stage's bores too (survey `centre.bores`: a hall laid out on the survey). */
+    boreWidths?: boolean;
     /** The run-out past the route's end (network.py `extend_stage`): RoadDef.runout points + their length (m). */
     runout?: { pts: [number, number][]; length: number };
   };
   /**
-   * Survey data (network_survey.py): spot heights [x, z, y] in world heights the profiles follow; retaining wall lines
+   * Survey data (network_survey.py): spot heights [x, z, y] in world heights the profiles follow (`decks`: the tops of
+   * bridge decks and overpasses, for the ways on them only); retaining wall lines
    * [x0, z0, x1, z1, ...] and the stage metres the wall survey covers (the parkway's cut / fill walls stand only where it
    * has one, `Network.surveyedWall`).
    */
   survey?: {
     heights: [number, number, number][];
+    decks?: [number, number, number][];
     source?: string;
     walls?: number[][];
     wallsUntil?: number;
@@ -148,6 +152,18 @@ export interface NetworkDef {
    * 'concrete' = pale cement-concrete slabs with sealed joints (drive videos: from the Queens Blvd tunnel portal on).
    */
   pavement?: { from: number; to: number; surface: 'concrete' }[];
+  /**
+   * One tunnel's soffit per stretch of the stage road (m along; every bore there by its nearest stage station): the depth
+   * of its ceiling girders (m), so the clearance under them is the one on its plates, and its headwalls. Elsewhere the
+   * template's (TUNNEL_GIRDER_DEFAULT).
+   */
+  tunnels?: {
+    from: number;
+    to: number;
+    girder: number;
+    /** One straight headwall across all its bores at each end, on the stage road's portal line, in this material. */
+    headwall?: 'stone' | 'concrete';
+  }[];
   /**
    * One street deck's look by its OSM way id, over the template's `deck` (drive videos): 'steel' = a painted plate-girder
    * bridge, steel girders under a slab, stone abutments ('concrete': `abutment`).

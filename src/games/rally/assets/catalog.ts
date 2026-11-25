@@ -1716,6 +1716,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 500, castShadow: true }],
     breakable: { r: 0.65, h: 1.6, slow: 0.93 },
   },
+  {
+    id: 'chevron_sign_us',
+    name: 'Chevron sign (US)',
+    category: 'markers',
+    description:
+      'US curve warning board: a black arrow on retroreflective yellow, on two posts. Variant 0 points left, 1 points right. Breakable like the chevron sign.',
+    variants: 2,
+    lods: [{ maxDistance: 500, castShadow: true }],
+    breakable: { r: 0.65, h: 1.6, slow: 0.93 },
+  },
 ];
 
 /** The box buildings: unit boxes scaled per instance to a real footprint (world/buildings.ts). */
