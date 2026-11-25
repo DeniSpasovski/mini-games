@@ -1778,7 +1778,14 @@ function plazaSurface(
       if (inPolygon(q, p[k], p[k + 1])) return true;
     return false;
   };
-  const raised = raisedIslands(pl);
+  // (none under a carriageway's own barrier: the survey's median there is the parkway's, asphalt to the barrier foot)
+  const raised = raisedIslands(pl).filter((il) => {
+    for (let k = 0; k < il.pts.length; k += 2) {
+      const [x, z] = [il.pts[k], il.pts[k + 1]];
+      if (barrierBy(net, x, z, islandH(x, z))) return false;
+    }
+    return true;
+  });
   for (const il of raised) {
     let ok = true;
     for (let k = 0; k < il.pts.length && ok; k += 2)
@@ -1954,6 +1961,38 @@ function underSurface(
   }
 }
 
+/** Past a way's foot on a side with a barrier, this far (m): the barrier's and its foot's ground, no raised median. */
+const MEDIAN_BARRIER_REACH = 1.5;
+const BARRIER_NEAR = new Map<number, Projection>();
+
+/**
+ * A way's own barrier stands at (x, z) at about height h (within 1 m): its asphalt runs to the barrier's foot, no
+ * survey median is raised under it.
+ */
+function barrierBy(
+  net: Network,
+  x: number,
+  z: number,
+  h: number | undefined,
+): boolean {
+  for (const [wi, p] of net.nearLines(
+    x,
+    z,
+    MEDIAN_BARRIER_REACH + 8,
+    BARRIER_NEAR,
+  )) {
+    const w = net.ways[wi];
+    const side = p.t >= 0 ? 0 : 1;
+    // (a motorway carriageway's: a street's or a ramp's islands are the survey's own)
+    if (!w.sec.barrier[side] || w.kind !== 'motorway') continue;
+    const foot = side === 0 ? w.sec.footL : w.sec.footR;
+    if (Math.abs(p.t) > foot + MEDIAN_BARRIER_REACH) continue;
+    if (h === undefined || Math.abs(net.surfaceAt(w, p.i, p.f, p.t) - h) < 1)
+      return true;
+  }
+  return false;
+}
+
 /**
  * The street space's raised medians: a kerb high over its paving with a kerb face round them, never on a drawn road
  * (an OSM carriageway lying over the surveyed median keeps its lane) nor over the open cut.
@@ -1961,6 +2000,7 @@ function underSurface(
 function underMedians(net: Network, field: NetField, tiles: Tiles): void {
   const free = (x: number, z: number) => {
     if (cutMargin(net, field, x, z) > -0.3) return undefined;
+    if (barrierBy(net, x, z, field.underDrawn(x, z))) return undefined;
     const h = field.underDrawn(x, z);
     if (h === undefined) return undefined;
     const t = field.top(x, z, h + 0.5);
