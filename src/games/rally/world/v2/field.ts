@@ -14,6 +14,7 @@ import {
   type NaturalHeight,
   type Plaza,
   type Network,
+  type Under,
   ST_DECK,
   ST_GROUND,
   scaleAt,
@@ -55,6 +56,26 @@ interface PlazaField {
   /** 1 = a structure's cell the paving meets (a slab top, a junction's paving). */
   struct: Uint8Array;
 }
+interface UnderField {
+  x0: number;
+  z0: number;
+  nx: number;
+  nz: number;
+  h: Float32Array;
+  /** 0 = outside, 1 = free, 2 = fixed (a terrain verge's level), 3 = over the open cut, 4 = under a drawn surface. */
+  state: Uint8Array;
+  /** 1 = the sample point is in the piece (the field runs one cell past it). */
+  inside: Uint8Array;
+}
+
+/** City street space further than this (m) from a drawn surface lies on the land (nearer, it blends to the roads). */
+const UNDER_BLEND = 8;
+/** Over the land (a street's grass verge the survey paves, the land past UNDER_BLEND) the paving lies this far up (m):
+ * level with it, the two would flicker. */
+const UNDER_LAND_LIFT = 0.04;
+/** City street space under a drawn road / sidewalk / junction / plaza: this far below its top (m). */
+export const ROAD_UNDER = 0.1;
+
 /** Just past a kerbless pavement edge the drawn verge lies this much lower (m), easing back over EDGE_EASE m: the slab's
  * side (the skirt) shows, as on main's road slab. */
 const EDGE_DROP = 0.04;
@@ -79,6 +100,17 @@ const TRENCH_FLOOR = 6;
 const UNDER_DROP = 1.5;
 /** A junction plaza this far under a road's own pavement at (x, z) lies under it (a street tucked under a bridge end), not on it (m). */
 const UNDER_PLAZA = 3.5;
+/** A survey plaza under a street end overlapping it: this far below the street's pavement (m). */
+export const PLAZA_UNDER = 0.03;
+/** A survey plaza under a street running onto it: this far below the street's pavement (m; any less and the two fight). */
+const PLAZA_UNDER_STREET = 0.06;
+/** ... from this far in from the street's pavement edge (m). */
+const STREET_EDGE = 0.5;
+/** A trench road within this of a plaza's level runs at grade through it (m; `plazaField`'s state 3 test). */
+const PLAZA_GRADE = 1;
+/** At grade, the plaza paving runs this far in under a road's pavement edge (m). */
+const GRADE_UNDER = 0.3;
+
 /**
  * The land rises behind a cut wall this far behind its face (hidden by the wall body + its coping, mesh.ts WALL_BACK):
  * no wider than the coping, or a trench opens behind it; more than a coarse terrain cell, so no far-LOD triangle spans
@@ -260,6 +292,241 @@ export class NetField {
     this.qseg = new Int32Array(nw);
     this.buildArmHeights();
     this.plazaFields = net.plazas.map((pl) => this.plazaField(pl));
+    net.under.forEach((u, i) =>
+      this.ugrid.add(i, u.minX, u.minZ, u.maxX, u.maxZ),
+    );
+    if (net.under.length) this.under = this.underField(net.under);
+    // (the ground beside the roads is final only now)
+    this.atGradeMemo = new WeakMap();
+  }
+
+  /** The city street space's one field (all its pieces: no step where two meet). */
+  private under?: UnderField;
+  private ugrid = new Grid<number>(32);
+
+  /** (x, z) lies in a piece of the city street space. */
+  private inStreetSpace(x: number, z: number): boolean {
+    for (const i of this.ugrid.at(x, z))
+      if (NetField.inUnder(this.net.under[i], x, z)) return true;
+    return false;
+  }
+
+  /** In piece u's outline, not in one of its holes. */
+  private static inUnder(u: Under, x: number, z: number): boolean {
+    if (x < u.minX || x > u.maxX || z < u.minZ || z > u.maxZ) return false;
+    if (!inPolygon(u.area, x, z)) return false;
+    return !u.holes.some((h) => inPolygon(h, x, z));
+  }
+
+  /**
+   * A piece of city street space on 1 m cells: under a drawn road, sidewalk, junction or plaza its top (the lowest one
+   * there: the street under a deck, not the deck); over the open cut of a road down in its trench nothing; a terrain
+   * verge holds its own level; the cells left between them smooth (Laplace) from those.
+   */
+  private underField(pieces: Under[]): UnderField {
+    const x0 = Math.floor(Math.min(...pieces.map((u) => u.minX))) - 1;
+    const z0 = Math.floor(Math.min(...pieces.map((u) => u.minZ))) - 1;
+    const nx = Math.ceil(Math.max(...pieces.map((u) => u.maxX)) - x0) + 2;
+    const nz = Math.ceil(Math.max(...pieces.map((u) => u.maxZ)) - z0) + 2;
+    const h = new Float32Array(nx * nz);
+    const state = new Uint8Array(nx * nz);
+    let sum = 0;
+    let cnt = 0;
+    // (the cells in it and one cell round it: a point on its outline reads a whole cell either side)
+    const inside = new Uint8Array(nx * nz);
+    for (const u of pieces)
+      for (let j = Math.floor(u.minZ) - z0; j <= Math.ceil(u.maxZ) - z0; j++)
+        for (let i = Math.floor(u.minX) - x0; i <= Math.ceil(u.maxX) - x0; i++)
+          if (NetField.inUnder(u, x0 + i, z0 + j)) inside[j * nx + i] = 1;
+    const near = (i: number, j: number) => {
+      for (let dj = -1; dj <= 1; dj++)
+        for (let di = -1; di <= 1; di++) {
+          const ii = i + di;
+          const jj = j + dj;
+          if (ii >= 0 && jj >= 0 && ii < nx && jj < nz && inside[jj * nx + ii])
+            return true;
+        }
+      return false;
+    };
+    for (let j = 0; j < nz; j++)
+      for (let i = 0; i < nx; i++) {
+        const x = x0 + i;
+        const z = z0 + j;
+        if (!near(i, j)) continue;
+        const k = j * nx + i;
+        if (this.openCut(x, z) && !this.trenchAtGrade(x, z)) {
+          state[k] = 3;
+          continue;
+        }
+        const pd = this.plazaPaving(x, z);
+        let t = this.top(x, z);
+        // (down to a street under a deck - never into a bore under its roof slab: the street space is on the slab)
+        const slab = this.slabAt(x, z);
+        for (let n = 0; t && n < 4; n++) {
+          const lower = this.top(x, z, t.h - 1.5);
+          if (!lower || (slab !== undefined && lower.h < slab - 1.5)) break;
+          t = lower;
+        }
+        const y = pd ?? t?.h;
+        if (y === undefined) {
+          state[k] = 1;
+          continue;
+        }
+        h[k] = y;
+        state[k] = pd === undefined && t?.surface === 'grass' ? 2 : 4;
+        sum += y;
+        cnt++;
+      }
+    // (further than UNDER_BLEND from anything drawn: on the land - the survey's street level - not a level spread
+    // from roads far away)
+    const dist = new Float32Array(nx * nz).fill(Infinity);
+    const queue: number[] = [];
+    for (let k = 0; k < state.length; k++)
+      if (state[k] === 2 || state[k] === 4) {
+        dist[k] = 0;
+        queue.push(k);
+      }
+    for (let q = 0; q < queue.length; q++) {
+      const k = queue[q];
+      const i = k % nx;
+      for (const kk of [k - 1, k + 1, k - nx, k + nx]) {
+        if (kk < 0 || kk >= h.length || Math.abs((kk % nx) - i) > 1) continue;
+        if (state[kk] !== 1 || dist[kk] <= dist[k] + 1) continue;
+        dist[kk] = dist[k] + 1;
+        queue.push(kk);
+      }
+    }
+    for (let k = 0; k < state.length; k++)
+      if (state[k] === 1 && dist[k] > UNDER_BLEND) {
+        h[k] = this.groundAt(x0 + (k % nx), z0 + Math.floor(k / nx));
+        state[k] = 2;
+        sum += h[k];
+        cnt++;
+      }
+    const mean = cnt ? sum / cnt : 0;
+    for (let k = 0; k < h.length; k++) if (state[k] === 1) h[k] = mean;
+    for (let it = 0; it < 400; it++)
+      for (let j = 0; j < nz; j++)
+        for (let i = 0; i < nx; i++) {
+          const k = j * nx + i;
+          if (state[k] !== 1) continue;
+          let a = 0;
+          let c = 0;
+          for (const kk of [k - 1, k + 1, k - nx, k + nx]) {
+            if (kk < 0 || kk >= h.length) continue;
+            const st = state[kk];
+            if (st === 1 || st === 2 || st === 4) {
+              a += h[kk];
+              c++;
+            }
+          }
+          if (c) h[k] = a / c;
+        }
+    return { x0, z0, nx, nz, h, state, inside };
+  }
+
+  /**
+   * The city street space's paving at (x, z) as its mesh draws it (`underSurface`): ROAD_UNDER below a drawn surface,
+   * on its own level between them; undefined off the street space or over an open cut.
+   */
+  underDrawn(x: number, z: number, outline = false): number | undefined {
+    const f = this.under;
+    if (!f) return undefined;
+    const fx = x - f.x0;
+    const fz = z - f.z0;
+    if (fx < 0 || fz < 0 || fx > f.nx - 1 || fz > f.nz - 1) return undefined;
+    const i = Math.min(f.nx - 2, Math.floor(fx));
+    const j = Math.min(f.nz - 2, Math.floor(fz));
+    const k0 = j * f.nx + i;
+    // (a cell on the outline: only its part inside - or a point of the outline itself, `outline`)
+    if (
+      !(
+        f.inside[k0] &&
+        f.inside[k0 + 1] &&
+        f.inside[k0 + f.nx] &&
+        f.inside[k0 + f.nx + 1]
+      ) &&
+      !(outline
+        ? f.inside[k0] ||
+          f.inside[k0 + 1] ||
+          f.inside[k0 + f.nx] ||
+          f.inside[k0 + f.nx + 1]
+        : this.inStreetSpace(x, z))
+    )
+      return undefined;
+    const u = fx - i;
+    const v = fz - j;
+    let a = 0;
+    let wsum = 0;
+    for (const [di, dj, wt] of [
+      [0, 0, (1 - u) * (1 - v)],
+      [1, 0, u * (1 - v)],
+      [0, 1, (1 - u) * v],
+      [1, 1, u * v],
+    ]) {
+      const k = (j + dj) * f.nx + i + di;
+      const st = f.state[k];
+      if (st === 0 || st === 3) continue;
+      a +=
+        (st === 4
+          ? f.h[k] - ROAD_UNDER
+          : st === 2
+            ? f.h[k] + UNDER_LAND_LIFT
+            : f.h[k]) * wt;
+      wsum += wt;
+    }
+    return wsum < 0.3 ? undefined : a / wsum;
+  }
+
+  /** The road in the trench whose open cut holds (x, z) runs on the ground at the level of the land beside it. */
+  private trenchAtGrade(x: number, z: number): boolean {
+    for (const [wi, p] of this.nearestFoot(x, z)) {
+      const w = this.net.ways[wi];
+      if (!this.net.trench.has(w) || this.beyondEnds(w, p, x, z)) continue;
+      const k = p.f < 0.5 ? p.i : Math.min(w.al.n - 1, p.i + 1);
+      const side = p.t >= 0 ? 0 : 1;
+      const foot = side === 0 ? w.sec.footL : w.sec.footR;
+      if (Math.abs(p.t) > foot + wallOff(w, k, side) + 0.5) continue;
+      return this.besideAtGrade(w, p, k);
+    }
+    return false;
+  }
+
+  /**
+   * Way w runs on the ground at the level of the land just past its wall line on that side (within PLAZA_GRADE): not
+   * down in a cut.
+   */
+  private besideAtGrade(w: Way, p: Projection, k: number): boolean {
+    if (w.st[k] !== ST_GROUND) return false;
+    const side = p.t >= 0 ? 0 : 1;
+    let memo = this.atGradeMemo.get(w);
+    if (!memo) this.atGradeMemo.set(w, (memo = new Map()));
+    const got = memo.get(k * 2 + side);
+    if (got !== undefined) return got;
+    const at = this.besideAtGradeRaw(w, p, k, side);
+    memo.set(k * 2 + side, at);
+    return at;
+  }
+
+  /** `besideAtGrade` per way, sample and side (the ground there is looked up once). */
+  private atGradeMemo = new WeakMap<Way, Map<number, boolean>>();
+
+  private besideAtGradeRaw(
+    w: Way,
+    p: Projection,
+    k: number,
+    side: 0 | 1,
+  ): boolean {
+    const sg = side === 0 ? 1 : -1;
+    const pave = side === 0 ? w.sec.paveL : w.sec.paveR;
+    const e = this.net.surfaceAt(w, p.i, p.f, sg * pave);
+    const reach =
+      (side === 0 ? w.sec.footL : w.sec.footR) + wallOff(w, k, side) + 2;
+    const tx = w.al.tx[k];
+    const tz = w.al.tz[k];
+    const bx = w.al.x[k] + tz * sg * reach;
+    const bz = w.al.z[k] - tx * sg * reach;
+    return Math.abs(this.groundAt(bx, bz) - e) <= PLAZA_GRADE;
   }
 
   /** Survey plazas' height fields (`plazaField`), one per `net.plazas`. */
@@ -505,7 +772,7 @@ export class NetField {
   }
 
   /** The pavement height of a street (not in the trench) at (x, z) where it runs onto a survey plaza, else undefined. */
-  streetOnPlaza(x: number, z: number): number | undefined {
+  streetOnPlaza(x: number, z: number, inset = 0): number | undefined {
     let best: number | undefined;
     for (const [wi, p] of this.nearestFoot(x, z)) {
       const w = this.net.ways[wi];
@@ -513,7 +780,8 @@ export class NetField {
         continue;
       // (only its paved length: a street wholly inside the plaza is the plaza's)
       if (p.s < w.cut0 || p.s > w.al.length - w.cut1) continue;
-      if (Math.abs(p.t) > (p.t >= 0 ? w.sec.paveL : w.sec.paveR)) continue;
+      if (Math.abs(p.t) > (p.t >= 0 ? w.sec.paveL : w.sec.paveR) - inset)
+        continue;
       const h = this.net.surfaceAt(w, p.i, p.f, p.t);
       if (best === undefined || h < best) best = h;
     }
@@ -530,13 +798,40 @@ export class NetField {
       const w = this.net.ways[wi];
       if (!this.net.trench.has(w) || this.beyondEnds(w, p, x, z)) continue;
       const k = p.f < 0.5 ? p.i : Math.min(w.al.n - 1, p.i + 1);
-      const footW = p.t >= 0 ? w.sec.footL : w.sec.footR;
-      best = Math.max(
-        best,
-        footW + wallOff(w, k, p.t >= 0 ? 0 : 1) + 0.5 - Math.abs(p.t),
-      );
+      // (a road in its tunnel under the paving: roofed, no open cut there)
+      if (w.st[k] === ST_TUNNEL || this.pavedOver(w, p, k, x, z)) continue;
+      const side = p.t >= 0 ? 0 : 1;
+      // (where it runs at the plaza's level, the paving meets its pavement edge - its verge, kerb and sidewalk are
+      // the plaza's there, a strip left out would show the earth; down in its cut, the wall line)
+      const reach = this.plazaGrade(w, p, k, x, z)
+        ? (side === 0 ? w.sec.paveL : w.sec.paveR) - GRADE_UNDER
+        : (side === 0 ? w.sec.footL : w.sec.footR) + wallOff(w, k, side) + 0.5;
+      best = Math.max(best, reach - Math.abs(p.t));
     }
     return best;
+  }
+
+  /** Trench way w runs on the ground at the level of the plaza holding (x, z) there (within PLAZA_GRADE). */
+  private plazaGrade(
+    w: Way,
+    p: Projection,
+    k: number,
+    x: number,
+    z: number,
+  ): boolean {
+    if (w.st[k] !== ST_GROUND) return false;
+    for (const pl of this.net.plazas) {
+      if (x < pl.minX || x > pl.maxX || z < pl.minZ || z > pl.maxZ) continue;
+      if (!inPolygon(pl.area, x, z)) continue;
+      if (!pl.level) return true;
+      const pave = p.t >= 0 ? w.sec.paveL : w.sec.paveR;
+      const e = this.net.surfaceAt(w, p.i, p.f, Math.sign(p.t) * pave);
+      return Math.abs(e - pl.level(x, z)) <= PLAZA_GRADE;
+    }
+    // (on the city street space: at the level of the land past its wall line, not down in a cut)
+    if (this.under && this.inStreetSpace(x, z))
+      return this.besideAtGrade(w, p, k);
+    return false;
   }
 
   /** (x, z) lies over the open cut of a road in the trench below a plaza (on it or out to its wall line). */
@@ -545,12 +840,27 @@ export class NetField {
       const w = this.net.ways[wi];
       if (!this.net.trench.has(w) || this.beyondEnds(w, p, x, z)) continue;
       const k = p.f < 0.5 ? p.i : Math.min(w.al.n - 1, p.i + 1);
-      if (w.st[k] === ST_TUNNEL) continue;
+      if (w.st[k] === ST_TUNNEL || this.pavedOver(w, p, k, x, z)) continue;
       const footW = p.t >= 0 ? w.sec.footL : w.sec.footR;
       if (Math.abs(p.t) <= footW + wallOff(w, k, p.t >= 0 ? 0 : 1) + 0.5)
         return true;
     }
     return false;
+  }
+
+  /**
+   * Trench way w is cut back from (x, z) (its end on a plaza: `trimToPlazas`) and runs at the paving's level there: the
+   * paving covers it, no open cut (else neither the road nor the paving would be drawn there).
+   */
+  private pavedOver(
+    w: Way,
+    p: Projection,
+    k: number,
+    x: number,
+    z: number,
+  ): boolean {
+    if (p.s >= w.cut0 && p.s <= w.al.length - w.cut1) return false;
+    return this.plazaGrade(w, p, k, x, z);
   }
 
   /** (x, z) within a drawn way's foot (pavement + kerb / sidewalk / shoulder): not internal, not on a cut-back end. */
@@ -633,6 +943,24 @@ export class NetField {
       if (r !== undefined) return r;
     }
     return undefined;
+  }
+
+  /** The plaza's paving as its mesh draws it (mesh.ts `plazaSurface`): just under a street running onto it. */
+  plazaPaving(x: number, z: number): number | undefined {
+    const h = this.plazaDrawn(x, z, PLAZA_UNDER);
+    if (h === undefined) return undefined;
+    return this.underStreet(x, z, h);
+  }
+
+  /**
+   * Plaza paving height h at (x, z) kept under a street running onto the plaza: PLAZA_UNDER_STREET under its pavement,
+   * only PLAZA_UNDER along its edge (the plaza paving beside the street dips no lower than that).
+   */
+  underStreet(x: number, z: number, h: number): number {
+    const inner = this.streetOnPlaza(x, z, STREET_EDGE);
+    if (inner !== undefined) return Math.min(h, inner - PLAZA_UNDER_STREET);
+    const st = this.streetOnPlaza(x, z);
+    return st === undefined ? h : Math.min(h, st - PLAZA_UNDER);
   }
 
   /** A survey plaza's paving height at (x, z), undefined off every plaza (or over its open cut). */
@@ -1114,6 +1442,19 @@ export class NetField {
     if (ph !== undefined) {
       onMesh = true;
       foot = Math.min(foot, ph - SINK);
+    }
+    // (and under the paving as its mesh draws it - over a junction's or a road's cells, just under a street running
+    // onto it - where that lies lower than the solved field: no land shows through the paving)
+    const pd = this.plazaPaving(x, z);
+    if (pd !== undefined && pd >= ownedTop - UNDER_PLAZA) {
+      onMesh = true;
+      foot = Math.min(foot, pd - SINK);
+    }
+    // (the city street space paved under the roads: the same)
+    const ud = this.underDrawn(x, z);
+    if (ud !== undefined && ud >= ownedTop - UNDER_PLAZA) {
+      onMesh = true;
+      foot = Math.min(foot, ud - SINK);
     }
     for (const ji of this.jgrid.at(x, z)) {
       const j = net.junctions[ji];

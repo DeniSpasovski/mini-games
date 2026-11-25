@@ -17,8 +17,24 @@ import kewGardens from '../jackie/junction.json';
 import laneStart from '../jackie/junction-lane-start.json';
 // Queens Blvd SE of Kew Gardens (bus lane, medians, kerbed islands): this map's own survey area (same script)
 import qbEast from './junction-qb-east.json';
+
+/**
+ * The paved triangle beside the hall's east portal (2024 aerial): the record's sidewalk strip along its south-west side
+ * widened out to the trench wall.
+ */
+const eastTriangle = {
+  kind: 'sidewalk',
+  pts: [
+    2744.2, -1810.5, 2748.2, -1811.9, 2739.2, -1838.2, 2723.9, -1833.6, 2720.8,
+    -1832.6, 2720.3, -1832.2, 2719.7, -1831.0, 2719.5, -1829.9, 2719.8, -1828.9,
+    2720.5, -1827.7, 2725.5, -1823.4, 2741.7, -1810.5,
+  ],
+};
 // The fountain park east of Kew Gardens: lawn, footpaths, fountain (scripts/realmap/park_block.py: NYC planimetrics + OSM)
 import parkKew from './park-kew.json';
+// The city street space by the stage road's last kilometre: roadbed, sidewalks, medians (scripts/realmap/street_space.py:
+// NYC planimetrics)
+import streetSpace from './street-space.json';
 // Protected bike lanes and painted medians (scripts/realmap/nyc_lanes.py: NYC DOT Bike Routes, NYC planimetrics)
 import markings from './markings.json';
 import patches from './network-patches.json';
@@ -108,16 +124,33 @@ export const jackie2Map: MapDef = {
     // Queens Blvd x Union Tpke over the Queens Blvd tunnel (the end zone): one paved plaza from the survey, the OSM
     // carriageways end on its rim (one source per junction)
     plazas: [
-      { area: kewGardens.area, islands: kewGardens.islands },
-      { area: laneStart.area, islands: laneStart.islands },
+      {
+        area: kewGardens.area,
+        islands: kewGardens.islands.map((il) =>
+          il.pts[0] === 2744.19 && il.pts[1] === -1810.45 ? eastTriangle : il,
+        ),
+        crosswalks: kewGardens.crosswalks,
+      },
+      {
+        area: laneStart.area,
+        islands: laneStart.islands,
+        crosswalks: laneStart.crosswalks,
+      },
       {
         area: qbEast.area,
         islands: qbEast.islands,
         crosswalks: qbEast.crosswalks,
       },
     ],
+    // ... and the rest of the street space beside it, paved under the street ribbons (none of it bare land)
+    streetSpace,
     parks: [parkKew],
     bikeLanes: markings.lanes,
+    // the two red bus lanes on Queens Blvd either side of the hall (2024 aerial)
+    busLanes: [
+      [2669.2, -1813.5, 2685.6, -1803.6, 2.9],
+      [2733.2, -1777.6, 2748.2, -1769.0, 2.9],
+    ],
     paintedMedians: markings.painted,
     // One-off bridges (by the OSM ways beneath; each deck also covers the skewed footprint of the road below, walls
     // included): v1's 36 m minimum span, so the cut walls of the road below end under the decks at the abutments; the

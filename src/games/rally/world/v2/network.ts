@@ -430,6 +430,8 @@ export interface Way {
   /** m at the start / end inside a junction polygon (the way's own surface stops there). */
   cut0: number;
   cut1: number;
+  /** Cut back to a survey plaza's rim (`trimToPlazas`): its junction cuts before that (its paint runs on over the plaza). */
+  plazaCut?: [number, number];
   /** Merge ends (a ramp onto the stage road or a through road): the end overlaps the higher road, drawn under it. */
   merge0: boolean;
   merge1: boolean;
@@ -588,6 +590,17 @@ export interface Junction {
   plaza?: boolean;
 }
 
+/** A piece of city street space (`NetworkDef.streetSpace`) with its box: paved under the roads. */
+export interface Under {
+  kind: 'road' | 'walk';
+  area: number[];
+  holes: number[][];
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
 /** A survey plaza (`NetworkDef.plazas`) with its box. */
 export interface Plaza {
   area: number[];
@@ -642,10 +655,16 @@ export class Network {
   readonly junctions: Junction[] = [];
   /** Survey plazas (`NetworkDef.plazas`). */
   readonly plazas: Plaza[];
+  /** City street space (`NetworkDef.streetSpace`): paved under the roads. */
+  readonly under: Under[];
+  /** Its raised medians (outlines). */
+  readonly underMedians: number[][];
   /** Small city parks (`NetworkDef.parks`): footpaths and fountains. */
   readonly parks: NetPark[];
   /** Protected bike lanes on street centrelines (`NetworkDef.bikeLanes`). */
   readonly bikeLanes: number[][];
+  /** Red bus lanes (`NetworkDef.busLanes`). */
+  readonly busLanes: number[][];
   /** Painted median outlines (`NetworkDef.paintedMedians`). */
   readonly paintedMedians: number[][];
   /** The roads in the trench under a plaza (`trimToPlazas`): their open cut is never paved over. */
@@ -709,8 +728,32 @@ export class Network {
         rim: [],
       };
     });
+    const box = (area: number[]) => {
+      const xs = area.filter((_, i) => i % 2 === 0);
+      const zs = area.filter((_, i) => i % 2 === 1);
+      return {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minZ: Math.min(...zs),
+        maxZ: Math.max(...zs),
+      };
+    };
+    const sp = def.streetSpace;
+    this.under = [
+      ...(sp?.road ?? []).map((u) => ({ kind: 'road' as const, ...u })),
+      ...(sp?.walk ?? []).map((u) => ({ kind: 'walk' as const, ...u })),
+    ]
+      .filter((u) => u.area.length >= 6)
+      .map((u) => ({
+        kind: u.kind,
+        area: u.area,
+        holes: u.holes ?? [],
+        ...box(u.area),
+      }));
+    this.underMedians = (sp?.medians ?? []).filter((m) => m.length >= 6);
     this.parks = def.parks ?? [];
     this.bikeLanes = def.bikeLanes ?? [];
+    this.busLanes = def.busLanes ?? [];
     this.paintedMedians = def.paintedMedians ?? [];
     this.wallStyles = def.wallStyles ?? [];
     this.deckStyles = def.deckStyles ?? [];
@@ -2675,6 +2718,7 @@ export class Network {
         const L = w.al.length;
         const inAt = (i: number) => inside(pl, x[i], z[i]);
         if (!inAt(0) && !inAt(n - 1)) continue;
+        w.plazaCut ??= [w.cut0, w.cut1];
         if (inAt(0) && inAt(n - 1)) {
           w.cut0 = L;
           w.cut1 = 0;

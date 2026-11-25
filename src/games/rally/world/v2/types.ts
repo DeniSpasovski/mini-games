@@ -202,6 +202,16 @@ export interface NetworkDef {
     crosswalks?: number[][];
   }[];
   /**
+   * City street space beside the stage road (scripts/realmap/street_space.py, NYC planimetric roadbed / sidewalk /
+   * median): paved under every road, sidewalk and junction (NetField `underDrawn`), so no land shows between the street
+   * ribbons where the survey has street; the raised medians stand a kerb high on it. Pieces: an outline and its holes.
+   */
+  streetSpace?: {
+    road?: { area: number[]; holes?: number[][] }[];
+    walk?: { area: number[]; holes?: number[][] }[];
+    medians?: number[][];
+  };
+  /**
    * Small city parks (scripts/realmap/park_block.py): footpaths (x, z polylines, `pathWidth` m wide) paved on the
    * drawn land and fountains (a stone basin of radius `r`, a tiered centrepiece). The lawn is the map's landcover paint.
    */
@@ -213,6 +223,8 @@ export interface NetworkDef {
   bikeLanes?: number[][];
   /** Painted medians (NYC planimetric 360010 outlines, x, z): a yellow outline + hatch on the paving under each. */
   paintedMedians?: number[][];
+  /** Red bus lanes: [x0, z0, x1, z1, width] lane centrelines (m), painted on the paving under them. */
+  busLanes?: number[][];
   /**
    * Bridges as one-off structures (NYC: every crossing is its own), by the OSM ids of the ways passing beneath: each
    * road crossing over one of them gets a deck `length` m long (along itself, centred on the crossing) in place of the
