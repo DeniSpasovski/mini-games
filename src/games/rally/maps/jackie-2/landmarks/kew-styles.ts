@@ -15,7 +15,14 @@ export interface BlockStyle {
   /** Brick / render / glass colour. */
   tint: string;
   /** Glass curtain walls: the lighter panes on the faces of these bearings (deg, +-12), no wider than `maxWidth` m. */
-  light?: { bearings: number[]; tint: string; maxWidth?: number };
+  light?: {
+    bearings: number[];
+    tint: string;
+    maxWidth?: number;
+    stripe?: string;
+  };
+  /** Glass curtain walls: the mullion grid colour (default `frame`). */
+  mullion?: string;
   /** Ground floor height (m) and the typical floor above it. */
   ground: number;
   floor: number;
@@ -54,8 +61,21 @@ export interface BlockStyle {
   plinth?: string;
   /** Flat roof colour (tar / white coating). */
   roof: string;
-  /** Parts with their own windows / trim: walls whose top is at least `minTop` m (first match). */
-  parts?: { minTop: number; style: Partial<BlockStyle> }[];
+  /** Pitched (hipped) roofs instead of flat ones: the eaves `rise` m under the survey height, slate / shingle colour. */
+  hip?: { rise: number; tiles: string };
+  /** Piers (flat pilasters) between every window bay. */
+  piers?: { width: number; color: string };
+  /** A lantern cupola on the roof over world (x, z). */
+  cupola?: { x: number; z: number; color: string; roof: string };
+  /**
+   * Parts with their own windows / trim: walls whose top is at least `minTop` m and, with `near`, whose middle lies
+   * within `near[2]` m of world (`near[0]`, `near[1]`) (first match).
+   */
+  parts?: {
+    minTop: number;
+    near?: [number, number, number];
+    style: Partial<BlockStyle>;
+  }[];
 }
 
 /** Detached / semi-detached Tudor houses: brick ground floor, half-timbered upper floor, red tile roofs. */
@@ -162,8 +182,14 @@ export const KEW_STYLES: Record<number, KewStyle> = {
   4312089: {
     type: 'block',
     wall: 'glass',
-    tint: '#10141b',
-    light: { bearings: [20, 75, 200, 260], tint: '#7f98b0', maxWidth: 9 },
+    tint: '#2a3a5c',
+    light: {
+      bearings: [20, 75, 200, 260],
+      tint: '#a7bfd3',
+      maxWidth: 9,
+      stripe: '#eef2f4',
+    },
+    mullion: '#6c7684',
     ground: 4.5,
     floor: 3.9,
     win: { w: 1.5, h: 3.9, sill: 0, bay: 1.5 },
@@ -187,11 +213,11 @@ export const KEW_STYLES: Record<number, KewStyle> = {
   // 119-14 / 119-20 Union Tpke (1923-26): four-storey walk-ups
   4080002: {
     ...WALKUP,
-    tint: '#c4b8a6',
+    tint: '#ddd3c2',
     lift: -0.6,
     fire: [{ face: 320, at: [0.5] }],
   },
-  4080003: { ...WALKUP, tint: '#bfb19c', fire: [{ face: 320, at: [0.5] }] },
+  4080003: { ...WALKUP, tint: '#d8cbb6', fire: [{ face: 320, at: [0.5] }] },
   // 80-04 Austin St (1930): two four-storey wings
   4434543: { ...WALKUP, tint: '#a08a7a' },
   4434541: { ...WALKUP, tint: '#a08a7a' },
@@ -222,17 +248,36 @@ export const KEW_STYLES: Record<number, KewStyle> = {
       },
     ],
   },
-  // 119-17 Union Tpke: the low white rendered building on the cut's north rim, a band of windows on each floor
+  // 119-17 Union Tpke (Kew-Forest School) on the cut's north rim: a long white front, tall windows between flat
+  // pilasters, grey slate hipped roofs; the red brick wing at the west end under a white cupola (frames t0-59 .. t1-04,
+  // aerial photo)
   4079979: {
     type: 'block',
     wall: 'render',
-    tint: '#f2f0ea',
-    ground: 4.2,
-    floor: 3.8,
-    win: { w: 1.4, h: 1.5, sill: 0.9, bay: 1.6 },
-    frame: '#5e6266',
-    coping: '#dcdad4',
-    roof: '#6c6f74',
+    tint: '#f1efe8',
+    ground: 4.0,
+    floor: 3.9,
+    win: { w: 1.25, h: 2.3, sill: 0.8, bay: 2.6 },
+    frame: '#4f5357',
+    sill: '#e4e1d8',
+    coping: '#f4f2ec',
+    roof: '#7d8085',
+    hip: { rise: 2.6, tiles: '#80848a' },
+    piers: { width: 0.7, color: '#fbfaf6' },
+    cupola: { x: 2481.2, z: -1705.1, color: '#f6f5f0', roof: '#6f7378' },
+    parts: [
+      {
+        minTop: 0,
+        near: [2481, -1705, 14],
+        style: {
+          wall: 'brick',
+          tint: '#9a5f4c',
+          win: { w: 1.1, h: 1.9, sill: 0.9, bay: 2.6 },
+          frame: '#f2f0ea',
+          piers: undefined,
+        },
+      },
+    ],
   },
   // 112-09 Queens Blvd (1983): 16-storey office tower of tan brick north of the interchange, rows of paired windows
   // (frames t0-38 .. t0-44)
@@ -264,6 +309,39 @@ export const KEW_STYLES: Record<number, KewStyle> = {
   },
   // 78-11 Kew Forest Ln (1920): four-storey walk-up on the cut's north rim
   4079999: { ...WALKUP, tint: '#a3887a', fire: [{ face: 140, at: [0.5] }] },
+  // Queens Borough Hall, 120-55 Queens Blvd (1940): long four-storey wings of red-brown brick with limestone trim,
+  // rows of white sashes, tar roofs with plant rooms (aerial photo, frames t0-27 .. t0-35)
+  4052812: {
+    type: 'block',
+    wall: 'brick',
+    tint: '#94604f',
+    ground: 4.4,
+    floor: 4.0,
+    win: { w: 1.3, h: 2.1, sill: 0.9, bay: 3.0 },
+    frame: '#ece9e2',
+    sill: '#d9d1bf',
+    lintel: '#d9d1bf',
+    bands: { at: [4.2], color: '#d8d0bd' },
+    cornice: '#d6cfbf',
+    coping: '#cfc8b8',
+    plinth: '#d3cbb9',
+    roof: '#434447',
+  },
+  // 120-10 Queens Blvd (1923): five-storey brick apartment house over a row of one-storey shops, white roofs
+  4080149: {
+    type: 'block',
+    wall: 'render',
+    tint: '#d3cbbd',
+    ground: 4.0,
+    floor: 3.6,
+    win: { w: 2.6, h: 2.3, sill: 0.5, bay: 3.3 },
+    frame: '#3b3c3e',
+    coping: '#c9c3b6',
+    roof: '#cbc8c1',
+    parts: [{ minTop: 10, style: { ...WALKUP, tint: '#a07f70' } }],
+  },
+  // 119-66 80 Rd (1929): four-storey walk-up, white roof
+  4080025: { ...WALKUP, tint: '#a8826f', roof: '#cfccc5' },
   // 424 Burns St (1935): a brick two-family house, tile roof
   4079635: { ...TUDOR, upper: 'brick', front: 225 },
   // Tudor houses on the north side of Union Tpke and Markwood Pl

@@ -391,15 +391,27 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
   const s = b.shape;
   const planes = planesOf(s, b.base);
   const h = (i: number, j: number) => hash3(s.bin, i, j, 7341) / 4294967296;
-  const wallKey: MatKey =
-    st.wall === 'brick'
-      ? 'paleBrick'
-      : st.wall === 'render'
-        ? 'render'
-        : 'glass';
+  const keyOf = (q: BlockStyle): MatKey =>
+    q.wall === 'brick' ? 'paleBrick' : q.wall === 'render' ? 'render' : 'glass';
   const topAll = Math.max(
     ...s.roofs.flatMap((r) => r.filter((_, i) => i % 3 === 2)),
   );
+  // Pitched roofs: the walls stop at the eaves, `hip.rise` under the survey's (ridge) height.
+  if (st.hip)
+    for (const pl of planes)
+      for (const pc of pl.pieces) {
+        const cut = pc.top - st.hip.rise;
+        if (cut < pc.bot + 2.5) continue;
+        const pts = pc.pts.map(([sv, hv]): P2 => [sv, Math.min(hv, cut)]);
+        pc.pts = pts.filter(
+          (q, i) =>
+            Math.hypot(
+              q[0] - pts[(i + 1) % pts.length][0],
+              q[1] - pts[(i + 1) % pts.length][1],
+            ) > 1e-3,
+        );
+        pc.top = cut;
+      }
   let pi = 0;
   for (const pl of planes) {
     pi++;
@@ -415,9 +427,19 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
       .filter((f) => near(f.face, pl.bearing, 25) && pl.s1 - pl.s0 > 8)
       .flatMap((f) => f.at.map((t) => pl.s0 + (pl.s1 - pl.s0) * t));
     for (const [qi, pc] of pl.pieces.entries()) {
-      // A part with its own windows (a tower over a lower wing): by the piece's top.
-      const part = st.parts?.find((p) => pc.top >= p.minTop);
+      // A part with its own windows (a tower over a lower wing): by the piece's top, or its place.
+      const sc = (pc.s0 + pc.s1) / 2;
+      const part = st.parts?.find(
+        (p) =>
+          pc.top >= p.minTop &&
+          (!p.near ||
+            Math.hypot(
+              pl.ox + pl.nz * sc - p.near[0],
+              pl.oz - pl.nx * sc - p.near[1],
+            ) <= p.near[2]),
+      );
       const ps: BlockStyle = part ? { ...st, ...part.style } : st;
+      const wallKey = keyOf(ps);
       const pcols = part ? columns(ps, pl.s0, pl.s1) : cols;
       const wins: Win[] = [];
       for (const [fi, y] of lines.entries()) {
@@ -438,6 +460,14 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
               return [c - ps.pilasters!.width / 2, c + ps.pilasters!.width / 2];
             })
           : [];
+      // Piers between every window bay (a pilastered front).
+      const bayPiers: [number, number][] = [];
+      if (ps.piers)
+        for (let k = 1; k < pcols.length; k++) {
+          const c = (pcols[k - 1] + pcols[k]) / 2;
+          if (c - ps.piers.width / 2 > pc.s0 && c + ps.piers.width / 2 < pc.s1)
+            bayPiers.push([c - ps.piers.width / 2, c + ps.piers.width / 2]);
+        }
       if (piers.length) {
         const keep = wins.filter(
           (w) => !piers.some(([a, b]) => w.s1 > a - 0.2 && w.s0 < b + 0.2),
@@ -455,9 +485,17 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
           [w.s1, w.y1],
           [w.s0, w.y1],
         ]),
-        st.tint,
+        ps.tint,
         m,
       );
+      for (const [a, b] of bayPiers)
+        o.box(
+          'paint',
+          [a, Math.max(pc.bot, -FOOT), 0],
+          [b, pc.top - (st.hip ? 0.1 : 0.3), 0.14],
+          ps.piers!.color,
+          m,
+        );
       for (const [wi, w] of wins.entries())
         window_(o, ps, w, m, h(pi * 997 + qi, wi));
       for (const [a, b] of piers)
@@ -502,8 +540,18 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
           m,
         );
       }
-      // Parapet: inner face, coping and cornice along the top.
+      // Parapet: inner face, coping and cornice along the top (pitched roofs: a fascia under the eaves).
       const top = pc.top;
+      if (st.hip) {
+        o.box(
+          'paint',
+          [pc.s0 - 0.05, top - 0.45, 0],
+          [pc.s1 + 0.05, top, 0.12],
+          st.coping,
+          m,
+        );
+        continue;
+      }
       o.poly(
         wallKey,
         [
@@ -512,7 +560,7 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
           [pc.s1, top, -0.25],
           [pc.s0, top, -0.25],
         ],
-        shade(st.tint, 0.8),
+        shade(ps.tint, 0.8),
         [0, 0, -1],
         m,
       );
@@ -553,7 +601,9 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
     if (st.balconies?.faces.some((f) => near(f, pl.bearing, 25)))
       balconies(o, st, pl, lines, topAll, m);
   }
-  roofs(o, s, b.base, st.roof, st.wall === 'glass' ? 0.4 : PARAPET);
+  if (st.hip) hipRoofs(o, s, b.base, st);
+  else roofs(o, s, b.base, st.roof, st.wall === 'glass' ? 0.4 : PARAPET);
+  if (st.cupola) cupola(o, s, b.base, st);
 }
 
 /** One double-hung window in its hole: reveals, sashes and glass, sill, lintel, sometimes an air conditioner. */
@@ -611,7 +661,8 @@ function window_(o: Out, st: BlockStyle, w: Win, m: Matrix4, r: number): void {
     m,
   );
   // Glass (one pane texture over the window), a little different behind each (blinds, curtains).
-  const g = r < 0.18 ? '#d9d2c2' : r < 0.3 ? '#b9b2a6' : '#ffffff';
+  // (the pane texture's sky gradient darkened: from the street the glass of these blocks reads dark grey-blue)
+  const g = r < 0.18 ? '#b3ab9c' : r < 0.3 ? '#8d887f' : '#727a84';
   o.poly(
     'glass',
     [
@@ -689,10 +740,14 @@ function curtain(o: Out, pl: Plane, st: BlockStyle, m: Matrix4): void {
     st.light.bearings.some((b) => near(b, pl.bearing, 12)) &&
     pl.s1 - pl.s0 <= (st.light.maxWidth ?? Infinity);
   const tint = light ? st.light!.tint : st.tint;
+  const mullion = light
+    ? (st.light!.stripe ?? st.frame)
+    : (st.mullion ?? st.frame);
   for (const pc of pl.pieces) {
     const uv = pc.pts.map(([sv, hv]): P2 => [sv / st.win.bay, hv / st.floor]);
+    // The pale band's panes are opaque-looking light glass: a flat colour, not the dark pane texture.
     o.poly(
-      'glass',
+      light ? 'paint' : 'glass',
       pc.pts.map(([sv, hv]): V3 => [sv, hv, 0]),
       tint,
       [0, 0, 1],
@@ -706,20 +761,14 @@ function curtain(o: Out, pl: Plane, st: BlockStyle, m: Matrix4): void {
       sv < pc.s1 - 0.05;
       sv += st.win.bay
     )
-      o.box(
-        'metal',
-        [sv - 0.03, y0, 0],
-        [sv + 0.03, pc.top, 0.07],
-        st.frame,
-        m,
-      );
+      o.box('metal', [sv - 0.05, y0, 0], [sv + 0.05, pc.top, 0.07], mullion, m);
     for (let y = st.ground; y < pc.top - 0.3; y += st.floor)
       if (y > pc.bot)
         o.box(
           'metal',
-          [pc.s0, y - 0.25, 0],
+          [pc.s0, y - (light ? 0.45 : 0.25), 0],
           [pc.s1, y + 0.05, 0.05],
-          shade(st.frame, 1.1),
+          light ? mullion : shade(mullion, 1.1),
           m,
         );
     o.box(
@@ -882,11 +931,14 @@ function roofs(
  * rectangles first): an L or T house is a main wing and one or two cross wings, each under its own hipped roof (their
  * union gives the valleys).
  */
-function wingsOf(s: Shape): { u: number; v: number; w: number; d: number }[] {
-  const [cx, cz, W, D, ang] = s.rect;
+function wingsOf(
+  ring: P2[],
+  rect: number[],
+  max = 3,
+): { u: number; v: number; w: number; d: number }[] {
+  const [cx, cz, W, D, ang] = rect;
   const c = Math.cos(ang);
   const sn = Math.sin(ang);
-  const ring = ringOf(s);
   const G = 0.25;
   const nu = Math.ceil(W / G);
   const nv = Math.ceil(D / G);
@@ -901,7 +953,7 @@ function wingsOf(s: Shape): { u: number; v: number; w: number; d: number }[] {
   const total = mask.reduce((a, b) => a + b, 0);
   const out: { u: number; v: number; w: number; d: number }[] = [];
   let covered = 0;
-  for (let k = 0; k < 3; k++) {
+  for (let k = 0; k < max; k++) {
     // Largest all-ones rectangle (histogram method).
     const hgt = new Int32Array(nu);
     let best = { a: 0, i0: 0, i1: 0, j0: 0, j1: 0 };
@@ -934,13 +986,165 @@ function wingsOf(s: Shape): { u: number; v: number; w: number; d: number }[] {
   return out;
 }
 
+/** Minimum-area rectangle of a ring over its edge directions: [cx, cz, long, short, angle of the long side]. */
+function minRect(r: P2[]): number[] {
+  let best = [0, 0, 0, 0, 0];
+  let bestA = Infinity;
+  for (let i = 0; i < r.length; i++) {
+    const [x0, z0] = r[i];
+    const [x1, z1] = r[(i + 1) % r.length];
+    const a = Math.atan2(z1 - z0, x1 - x0);
+    const c = Math.cos(a);
+    const sn = Math.sin(a);
+    let u0 = Infinity;
+    let u1 = -Infinity;
+    let v0 = Infinity;
+    let v1 = -Infinity;
+    for (const [x, z] of r) {
+      const u = x * c + z * sn;
+      const v = -x * sn + z * c;
+      u0 = Math.min(u0, u);
+      u1 = Math.max(u1, u);
+      v0 = Math.min(v0, v);
+      v1 = Math.max(v1, v);
+    }
+    const area = (u1 - u0) * (v1 - v0);
+    if (area >= bestA) continue;
+    bestA = area;
+    const uc = (u0 + u1) / 2;
+    const vc = (v0 + v1) / 2;
+    const cx = uc * c - vc * sn;
+    const cz = uc * sn + vc * c;
+    best =
+      u1 - u0 >= v1 - v0
+        ? [cx, cz, u1 - u0, v1 - v0, a]
+        : [cx, cz, v1 - v0, u1 - u0, a + Math.PI / 2];
+  }
+  return best;
+}
+
+/**
+ * Pitched roofs over a block (`hip`): each survey roof piece split into up to four rectangles, each under a hipped
+ * roof from the eaves (`rise` under the piece's height) up at one slope; small pieces stay flat at the eaves.
+ */
+function hipRoofs(o: Out, s: Shape, base: number, st: BlockStyle): void {
+  const hp = st.hip!;
+  for (const r of s.roofs) {
+    const ring: P2[] = [];
+    let y = 0;
+    for (let i = 0; i < r.length; i += 3) {
+      ring.push([r[i], r[i + 1]]);
+      y += r[i + 2];
+    }
+    y /= ring.length;
+    if (ring.length < 3) continue;
+    const yE = base + y - hp.rise;
+    let area = 0;
+    for (let i = 0; i < ring.length; i++) {
+      const [x0, z0] = ring[i];
+      const [x1, z1] = ring[(i + 1) % ring.length];
+      area += x0 * z1 - x1 * z0;
+    }
+    if (Math.abs(area) / 2 < 30) {
+      o.f.polygon(
+        'roofing',
+        ring.map(([x, z]) => new Vector2(x, z)),
+        yE,
+        hp.tiles,
+      );
+      continue;
+    }
+    const rect = minRect(ring);
+    const [cx, cz, , , ang] = rect;
+    const c = Math.cos(ang);
+    const sn = Math.sin(ang);
+    // One slope for the whole piece: the rise over the half-depth of its widest rectangle.
+    const wings = wingsOf(ring, rect, 4);
+    if (!wings.length) continue;
+    const slope = hp.rise / (Math.min(wings[0].w, wings[0].d) / 2);
+    for (const wg of wings) {
+      const long = wg.w >= wg.d;
+      const W = long ? wg.w : wg.d;
+      const D = long ? wg.d : wg.w;
+      const a = long ? ang : ang + Math.PI / 2;
+      const x = cx + wg.u * c - wg.v * sn;
+      const z = cz + wg.u * sn + wg.v * c;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const m = new Matrix4().set(
+        ca,
+        0,
+        -sa,
+        x,
+        0,
+        1,
+        0,
+        0,
+        sa,
+        0,
+        ca,
+        z,
+        0,
+        0,
+        0,
+        1,
+      ); // fmt: skip
+      const ridge = Math.min(base + y, yE + (D / 2) * slope);
+      hipRoof(
+        o,
+        m,
+        W / 2 + 0.4,
+        D / 2 + 0.4,
+        yE - 0.05,
+        ridge,
+        hp.tiles,
+        st.coping,
+        'roofing',
+      );
+    }
+  }
+}
+
+/** A white lantern with a pyramid cap on the roof over (x, z) (the school's cupola). */
+function cupola(o: Out, s: Shape, base: number, st: BlockStyle): void {
+  const cp = st.cupola!;
+  let y = -Infinity;
+  for (const r of s.roofs) {
+    const ring: P2[] = [];
+    for (let i = 0; i < r.length; i += 3) ring.push([r[i], r[i + 1]]);
+    if (inside(cp.x, cp.z, ring)) y = Math.max(y, r[2]);
+  }
+  if (y === -Infinity) return;
+  const m = new Matrix4().makeTranslation(cp.x, base + y - 0.6, cp.z);
+  o.box('paint', [-1.5, 0, -1.5], [1.5, 0.5, 1.5], cp.color, m);
+  o.box('render', [-1.1, 0.5, -1.1], [1.1, 2.6, 1.1], cp.color, m);
+  o.box('paint', [-1.3, 2.6, -1.3], [1.3, 2.8, 1.3], cp.color, m);
+  for (let k = 0; k < 4; k++) {
+    const a = (k * Math.PI) / 2;
+    const mk = m.clone().multiply(new Matrix4().makeRotationY(a));
+    o.poly(
+      'roofing',
+      [
+        [-1.3, 2.8, 1.3],
+        [1.3, 2.8, 1.3],
+        [0, 4.6, 0],
+      ],
+      cp.roof,
+      [0, 0.6, 1],
+      mk,
+    );
+    // Dark louvre in each face.
+    o.face('paint', -0.45, 1.0, 0.45, 2.2, 1.12, '#3b3d40', mk);
+  }
+}
+
 function buildHouse(o: Out, b: Building, st: HouseStyle): void {
   const s = b.shape;
   const [cx, cz, , , ang] = s.rect;
   const ridge = Math.max(
     ...s.roofs.flatMap((r) => r.filter((_, i) => i % 3 === 2)),
   );
-  const wings = wingsOf(s);
+  const wings = wingsOf(ringOf(s), s.rect);
   const c = Math.cos(ang);
   const sn = Math.sin(ang);
   const slope =
@@ -1115,57 +1319,7 @@ function houseWing(
   const tiles = st.tiles;
   const tl = (p: V3[], want: V3, col: string) =>
     o.poly('tiles', p, col, want, m, roofUv(p, want));
-  tl(
-    [
-      [-rx, yE, rz],
-      [rx, yE, rz],
-      [ridgeHalf, ridge, 0],
-      [-ridgeHalf, ridge, 0],
-    ],
-    [0, 1, 1],
-    tiles,
-  );
-  tl(
-    [
-      [-rx, yE, -rz],
-      [rx, yE, -rz],
-      [ridgeHalf, ridge, 0],
-      [-ridgeHalf, ridge, 0],
-    ],
-    [0, 1, -1],
-    shade(tiles, 0.92),
-  );
-  tl(
-    [
-      [rx, yE, -rz],
-      [rx, yE, rz],
-      [ridgeHalf, ridge, 0],
-    ],
-    [1, 1, 0],
-    shade(tiles, 0.96),
-  );
-  tl(
-    [
-      [-rx, yE, -rz],
-      [-rx, yE, rz],
-      [-ridgeHalf, ridge, 0],
-    ],
-    [-1, 1, 0],
-    shade(tiles, 0.96),
-  );
-  // Soffit (underside of the overhang).
-  o.poly(
-    'paint',
-    [
-      [-rx, yE, -rz],
-      [rx, yE, -rz],
-      [rx, yE, rz],
-      [-rx, yE, rz],
-    ],
-    shade(st.stucco, 0.75),
-    [0, -1, 0],
-    m,
-  );
+  hipRoof(o, m, rx, rz, yE, ridge, tiles, shade(st.stucco, 0.75));
   // Cross gable to the street: steep, as tall as the main ridge, half-timbered face over the front wall.
   if (wing > 0) return;
   const gw = Math.min(W * 0.42, 5.2);
@@ -1267,6 +1421,76 @@ function houseWing(
     [chx - 0.4, ridge + 0.9, -0.5],
     [chx + 0.4, ridge + 1.0, 0.3],
     '#8d8880',
+    m,
+  );
+}
+
+/**
+ * A hipped roof over the rectangle |x| <= rx, |z| <= rz of the frame `m` (x the long side): eaves at `yE`, the ridge
+ * along x at `ridge`, and the soffit under the eaves.
+ */
+function hipRoof(
+  o: Out,
+  m: Matrix4,
+  rx: number,
+  rz: number,
+  yE: number,
+  ridge: number,
+  tiles: string,
+  soffit: string,
+  key: MatKey = 'tiles',
+): void {
+  const ridgeHalf = Math.max(0, rx - rz);
+  const tl = (p: V3[], want: V3, col: string) =>
+    o.poly(key, p, col, want, m, roofUv(p, want));
+  tl(
+    [
+      [-rx, yE, rz],
+      [rx, yE, rz],
+      [ridgeHalf, ridge, 0],
+      [-ridgeHalf, ridge, 0],
+    ],
+    [0, 1, 1],
+    tiles,
+  );
+  tl(
+    [
+      [-rx, yE, -rz],
+      [rx, yE, -rz],
+      [ridgeHalf, ridge, 0],
+      [-ridgeHalf, ridge, 0],
+    ],
+    [0, 1, -1],
+    shade(tiles, 0.92),
+  );
+  tl(
+    [
+      [rx, yE, -rz],
+      [rx, yE, rz],
+      [ridgeHalf, ridge, 0],
+    ],
+    [1, 1, 0],
+    shade(tiles, 0.96),
+  );
+  tl(
+    [
+      [-rx, yE, -rz],
+      [-rx, yE, rz],
+      [-ridgeHalf, ridge, 0],
+    ],
+    [-1, 1, 0],
+    shade(tiles, 0.96),
+  );
+  o.poly(
+    'paint',
+    [
+      [-rx, yE, -rz],
+      [rx, yE, -rz],
+      [rx, yE, rz],
+      [-rx, yE, rz],
+    ],
+    soffit,
+    [0, -1, 0],
     m,
   );
 }
@@ -1423,7 +1647,6 @@ function colliders(): StaticCollider[] {
   return out;
 }
 
-/** A footprint box of the city bake overlaps a building's ring (a sample of points over the box, its corners too). */
 /** Share of a footprint box of the city bake inside the Kew buildings' rings (7 x 7 points over the box). */
 export function kewShare(b: BuildingDef): number {
   const c = Math.cos(b.angle);
