@@ -1778,7 +1778,14 @@ function plazaSurface(
       if (inPolygon(q, p[k], p[k + 1])) return true;
     return false;
   };
-  const raised = raisedIslands(pl);
+  // (none under a carriageway's own barrier: the survey's median there is the parkway's, asphalt to the barrier foot)
+  const raised = raisedIslands(pl).filter((il) => {
+    for (let k = 0; k < il.pts.length; k += 2) {
+      const [x, z] = [il.pts[k], il.pts[k + 1]];
+      if (barrierFoot(net, x, z, islandH(x, z)) !== undefined) return false;
+    }
+    return true;
+  });
   for (const il of raised) {
     let ok = true;
     for (let k = 0; k < il.pts.length && ok; k += 2)
@@ -1932,6 +1939,10 @@ function underSurface(
       const p = field.plazaPaving(x, z) ?? field.plazaNear(x, z);
       if (p !== undefined && p < h + UNDER_POKE) cap = Math.min(cap, p);
     }
+    // (at a motorway's median barrier under a deck: at its road, never climbing towards the deck)
+    const foot = barrierFoot(net, x, z, h, true);
+    if (foot !== undefined && (field.top(x, z)?.h ?? -Infinity) > foot + 2.5)
+      cap = Math.min(cap, foot);
     return cap - ROAD_UNDER < h ? cap - ROAD_UNDER : h;
   });
   const ids = pts.map(([x, z], k) =>
@@ -1954,6 +1965,46 @@ function underSurface(
   }
 }
 
+/** Past a way's foot on a side with a barrier, this far (m): the barrier's and its foot's ground, no raised median. */
+const MEDIAN_BARRIER_REACH = 1.5;
+const BARRIER_NEAR = new Map<number, Projection>();
+
+/** Under a deck this far (m) over a motorway: the street space there is the deck's street, not the barrier's foot. */
+const BARRIER_DECK_CLEAR = 4;
+
+/**
+ * A motorway carriageway's own barrier stands at (x, z), a street space point at height h (or none yet): the way's
+ * surface there - its asphalt runs to the barrier's foot, no survey median is raised under it, and the street space
+ * under it stays at the road (not climbing to a deck over it). Undefined where no such barrier stands (with
+ * `medianOnly`, no median barrier: its left side).
+ */
+function barrierFoot(
+  net: Network,
+  x: number,
+  z: number,
+  h: number | undefined,
+  medianOnly = false,
+): number | undefined {
+  for (const [wi, p] of net.nearLines(
+    x,
+    z,
+    MEDIAN_BARRIER_REACH + 8,
+    BARRIER_NEAR,
+  )) {
+    const w = net.ways[wi];
+    const side = p.t >= 0 ? 0 : 1;
+    // (a motorway carriageway's: a street's or a ramp's islands are the survey's own)
+    if (!w.sec.barrier[side] || w.kind !== 'motorway') continue;
+    if (medianOnly && side !== 0) continue;
+    const foot = side === 0 ? w.sec.footL : w.sec.footR;
+    if (Math.abs(p.t) > foot + MEDIAN_BARRIER_REACH) continue;
+    const y = net.surfaceAt(w, p.i, p.f, p.t);
+    if (h === undefined || (h > y - 1.5 && h < y + BARRIER_DECK_CLEAR))
+      return y;
+  }
+  return undefined;
+}
+
 /**
  * The street space's raised medians: a kerb high over its paving with a kerb face round them, never on a drawn road
  * (an OSM carriageway lying over the surveyed median keeps its lane) nor over the open cut.
@@ -1961,6 +2012,8 @@ function underSurface(
 function underMedians(net: Network, field: NetField, tiles: Tiles): void {
   const free = (x: number, z: number) => {
     if (cutMargin(net, field, x, z) > -0.3) return undefined;
+    if (barrierFoot(net, x, z, field.underDrawn(x, z)) !== undefined)
+      return undefined;
     const h = field.underDrawn(x, z);
     if (h === undefined) return undefined;
     const t = field.top(x, z, h + 0.5);

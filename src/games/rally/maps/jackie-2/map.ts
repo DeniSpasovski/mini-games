@@ -148,14 +148,6 @@ export const jackie2Map: MapDef = {
     streetSpace,
     parks: [parkKew],
     bikeLanes: markings.lanes,
-    // the streets at 80th Rd / Queens Blvd by the hall's east end: on the plaza's level (city survey), not in the cut
-    plazaStreets: [
-      '839648523',
-      '910426777',
-      '1336661456',
-      '1215078814',
-      '1218155985',
-    ],
     // the two red bus lanes on Queens Blvd either side of the hall (2024 aerial)
     busLanes: [
       [2669.2, -1813.5, 2685.6, -1803.6, 2.9],

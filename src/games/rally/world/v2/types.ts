@@ -226,11 +226,6 @@ export interface NetworkDef {
   /** Red bus lanes: [x0, z0, x1, z1, width] lane centrelines (m), painted on the paving under them. */
   busLanes?: number[][];
   /**
-   * OSM way ids that meet a bore's way but run on a survey plaza's level (`trimToPlazas`): the plaza's, not the trench's
-   * (no open cut of their own across the plaza).
-   */
-  plazaStreets?: string[];
-  /**
    * Bridges as one-off structures (NYC: every crossing is its own), by the OSM ids of the ways passing beneath: each
    * road crossing over one of them gets a deck `length` m long (along itself, centred on the crossing) in place of the
    * fitted one - room for the cut walls of the road below to end at the abutments (v1 `lengthenBridges`); one span
