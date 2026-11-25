@@ -319,6 +319,7 @@ its `reversed()` view) for timing, spawn, signs, fans, closures and the autopilo
 | `ajvatovci` | Ajvatovci Hill  | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                                                                       |
 | `petralica` | Petralica       | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                                                            |
 | `jackie`    | The Jackie      | real world (New York), 7.3 km parkway with bridges and portals                                                                                                 |
+| `jackie_2`  | The Jackie 2    | the same parkway on the v2 road engine (`world/v2/`, test map), 7.4 km                                                                                         |
 | `galichica` | Galichica       | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); West released, East and Prespa test           |
 | `vodno`     | Vodno Hillclimb | real world (Skopje, North Macedonia), 4.0 km hillclimb up Mount Vodno, whole suburb, ai-generated churches and summit landmarks, cross, mast, moving cable car |
 
@@ -546,12 +547,178 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
-  `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`). Plaza queries look
-  only at the plazas listed on a 16 m candidate grid (`Plazas.candidates`); same answers as a loop over all
+  `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`). Streets with the
+  street model (`PathDef.layout`) get a paint layer (`street-markings.ts` lines, `street-glyphs.ts` stop bars / arrows / bike
+  symbols, `merge-paint.ts` at carriageway splits), measured sidewalks, tree lawns and driveway kerb cuts; `terrain.lotYards`
+  greens the yards; `overheadSigns.splits` puts guide gantries over an interchange. The height grids drop one- and two-cell
+  crests (`deRidge`, `world/heightfield.ts`): a row of spikes where two terrain carves leave a thin strip between them.
+- **Surveyed heights and walls** (`jackie`, worked example in its DETAILS "Survey heights and retaining walls"): `road.heights`
+  (spot elevations on the stage road, `Road.applyHeights`), `streetHeights` (`TerrainGenerator.spotCorrections`),
+  `road.bridgeClearance` and a span's `clearance` / `ramp` / `open`, `retainingWalls` (terrain step `applyWalls` + the wall in
+  `cut-wall-mesh.ts`, `world/retaining-walls.ts`), measured bridge outlines (`decksInOutline` in `maps/shared/deck-fit.ts` +
+  `deckStructures`: every street inside is deck, on one plane through the spots, `TerrainGenerator.onDeckStructures`).
+  Tests: `tests/rally/jackie-survey.test.ts`, `deck-fit.test.ts`.
+- **Junction cores** (`junctionAreas`, `world/plazas.ts` `insideCore`): one source (the survey's street surface), no ribbons or paint
+  inside; the streets leading in get a crosswalk at the core edge (`street-detail.ts`). `ribbonAreas` keep the ribbons.
+- **Network rules** (all maps): a side road is never joined to the stage road across another carriageway / parkway lane or a
+  street running alongside it (`connectPaths`); on a city map a street alongside never breaks the stage road's barrier (only
+  ramps / parkway lanes merge in); lane paint stops where another street crosses or meets at its level (`road-mesh.ts` `crossed`); the barrier
+  breaks over a gore wedge and starts behind its crash cushion (`gore.ts` `inGore`); a twin deck end that continues into another deck
+  is not grown (`alignTwinDeckEnds`); no shoulder gravel under the middle of a stage-road span (`TerrainGenerator.splat`).
+- Plaza queries look only at the plazas listed on a 16 m candidate grid (`Plazas.candidates`); same answers as a loop over all
   (`tests/rally/plaza-index.test.ts`).
 
 City-map rules (streets keep their own height line, no terrain through decks, bug-fix workflow): rally-maps skill "Bridges and
 underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-roads`, `water`, `railways`, `stage-signs`.
+
+## Road engine v2 (`world/v2/`, maps with `MapDef.network`)
+
+A map with `network` gets every road from one model instead of the per-feature rules above (`jackie_2`; the other maps run
+v1). Plan + research: local `sources/rally/ROADS-V2.md`. The data shape is the switch: `World` / `TerrainGenerator` build a
+`Network` when `map.network` is set, and `road-mesh.ts` runs `netMeshJob` instead of the stage / path ribbons.
+
+| Step      | File                         | What                                                                                                                                                                                                   |
+| --------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| import    | `scripts/realmap/network.py` | OSM ways -> `network.json`: junction-to-junction edges (way joints chained away, a tunnel is its own edge), nodes with OSM ids, per-segment tags, the stage route                                      |
+| survey    | `network_survey.py`          | config `survey`: `surveyWidth` per edge (NYC roadbed minus medians, curb to curb), `stage.widths`, `survey.heights` (spot heights), `survey.walls`; `--survey-only` re-applies it without an OSM fetch |
+| patches   | `v2/patches.ts`              | `network-patches.json`: `moveNode`, `dropEdge`, `addEdge`, `setTemplate`, `setLanes`, `pinHeight`, `setStructure` by stable id (unknown ids are reported)                                              |
+| templates | `v2/templates.ts`            | cross-section per OSM class and region pack (`nyc`, `mk-rural`): lanes, parking, shoulders, kerb, lawn, sidewalk, paint, barriers, daylight rule, design grade                                         |
+| network   | `v2/network.ts`              | sections (a side facing a parallel road gets a median, no parking / sidewalk), right of way (`separate`), stage merges, junctions, crossings, profiles, banking, walls                                 |
+| junctions | `v2/junction.ts`             | arms cut back at their kerb corners + kerb returns, one polygon per node, clusters (divided roads) as a union outline, sidewalk corners                                                                |
+| field     | `v2/field.ts`                | `ground` (terrain conform: sections own the ground, the lower one wins, daylight slopes / walls) and `top` (the physics surface)                                                                       |
+| meshes    | `v2/mesh.ts`                 | sections with a body, kerbs, sidewalks, junction paving, paint + crosswalks / stop bars, walls, decks, tunnel (roof slab, headwalls, lamps), barriers                                                  |
+| dressing  | `v2/dressing.ts`             | lamps, street trees, parked cars, signals (instances) and the colliders of barriers, parapets, walls, piers                                                                                            |
+
+Rules the solver keeps (each one replaces v1 per-site fixes):
+
+- **Structures from the graph**: OSM bridge tags + every crossing without a shared node (by OSM `layer`) make the upper way a
+  deck over the lower one's section; a stage-road `under` span of 40 m+ or an OSM tunnel of 30 m+ is a tunnel: an open trench
+  under a roof slab mesh, the streets on top run on the slab. A way ending against another one without a node is cut back
+  clear of it, or (over a tunnel) lifted onto the slab. One-off bridges (`NetworkDef.decks`, by the OSM ids of the ways
+  beneath): the deck is at least `length` long and covers the lower road's skewed footprint, walls + coping included
+  (`skewFootprint`); `median: true` decks the median between the two carriageways' decks too (`medianDecks`: slab,
+  land held under its soffit); `parapet: 'jersey'` casts the roadside Jersey barrier on its edges (`jerseyParapet`,
+  concrete fascia). One span, no piers.
+- **Heights**: each way's land profile is a designed vertical alignment (`designProfile`: PVIs fitted to the land within the
+  class's tolerance, grade-limited, parabolic vertical curves), not a filtered ground line; clearances at every crossing (the
+  upper way rises as far as its junction ends allow, the lower one dips for the rest, the stage road too); one height per
+  junction node, the ways eased to it.
+- **Corridor**: the stage road's other carriageway (a motorway / trunk way alongside it at the same land level, `corridor`)
+  follows the stage road's profile at the same station (`coupleTo`, land profile and final profile), keeps its own crossing
+  dips and junction ends; its nodes sit on the stage profile. A short stage `under` span gives the street over it a deck;
+  two decks of one way closer than `DECK_JOIN` are one span (both carriageways + the median).
+- **Connectors**: a kerbless way joining a through road at a shallow angle (on the stage road or at any node with two arms in
+  line, `mergeNodes`) merges: no junction polygon, it runs edge to edge with its host and tapers in over `MERGE_TAPER`, takes
+  the host's plane (`coupleMerges`), its mesh is stitched to the host's pavement edge (`MERGE_STITCH`), its lines stop under
+  the host and the host's edge line is broken beside it (lines within `MERGE_LINE_GAP` of other paving stop; the merge's
+  edge columns run `MERGE_UNDERLAP` under the host, so no seam shows). While the host's edge lies within `GORE_MAX` of the ramp's, the
+  wedge between them is paved (`Way.gore`, `goreAt`: one more mesh column per side, driven as pavement, no slab side, the
+  terrain cut under it); past it the roads part over a verge.
+- **Right of way**: a lower-ranked way alongside a higher-ranked one is moved off it (sections + room for a wall / barrier),
+  never within `CROSS_HOLD` of where its OSM line crosses that road at another layer (`tagLayer`: a grade separation);
+  barriers, parapets, lamps, trees and cars never stand on another road; a way's kerb / sidewalk is cut where another
+  pavement lies.
+- **Platforms + walls**: a wall is decided from the land as the other roads shape it (`NetField.ground` without the way
+  itself) and never stands on or beside another road at its level (`PLATFORM_PROBES`, `sectionByOther`): roads in contact
+  share one platform and only its outer edges get walls. A cut / fill deeper than the template's `maxCut` / `maxFill` is a
+  wall object (front, coping `WALL_BACK`, back face, end faces); the retained earth behind a cut wall stays level with its
+  top (`WALL_HOLD`), the setback trench stays under the coping (the drawn land is up at the earth past `WALL_CELL`,
+  `copingLand`, and the coping reaches a cell diagonal beyond that: no stairs along its back); a wall carrying a street at the rim has no parapet
+  (`wallCarried`). The drawn terrain drops to the low side's level within `WALL_CELL` of a wall face on its high side
+  (`NetField.wallCut`, physics keeps its ground), so no 1 m mesh triangle bridges the face in teeth; in front of a fill
+  wall it drops from the pavement edge (`fillBedFrom`) under a flat concrete bed. Coarse terrain LODs on v2 maps take the
+  lowest ground in their cell, so sunken roads stay open from the air.
+- **Survey**: a surveyed width scales the template's pavement (not on motorway / trunk mainlines); the spot heights on a
+  way's pavement replace the DEM in its land profile (within `SPOT_TRUST` m of it). The width never applies within
+  `TUNNEL_HOLD` m of a tunnel (`holdTunnels`); a spot over a bore's line and above the land is its roof, dropped only
+  on the way's own bore (± `TUNNEL_ROOF`) and, for every way, over an OSM tunnel stub shorter than `TUNNEL_MIN`
+  (`surveyHeights`), so the Queens Blvd tunnel keeps its design (`tests/rally/fixtures/jackie2-tunnel.json`).
+  The stage width per station (`stage.widths`, 200 m median) narrows the stage pavement (`stageScale`, `Way.k`; laterals
+  stay in section metres, `worldT` / `sectionT` convert), not within `TUNNEL_HOLD` of the stage's own tunnels nor where
+  another pavement touches its edge (`WIDTH_CONTACT`: a ramp, a gore). Up to `survey.wallsUntil` the stage's cut / fill
+  walls stand only beside a surveyed retaining wall (`surveyedWall`), else a bank.
+- **Road slab** (main's rules on v2 sections): `NetField.meshSink` cuts the drawn terrain `SLAB_SINKS.asphalt` under the
+  pavement (ramped over `SINK_RAMP`), drops the verge `EDGE_DROP` past a kerbless edge, never under a deck, a tunnel or a
+  way passing under another; `slabSkirt` draws the slab's side (`SKIRT_DEPTH` down, `SKIRT_W` out, dark), none on other paving.
+- **Land between roads**: two roads within `BETWEEN_MAX` m with the point between them keep the land within `BETWEEN_HUMP`
+  of the higher edge (no mound between carriageways). A strip under `STRIP_MAX` m between two pavement edges / kerb backs
+  is one surface edge to edge (`stripHeight`, overriding each road's own cut / fill slope): a plane, eased to level with
+  the lower edge once steeper than `STRIP_FLAT`; the higher road's side is then a concrete face down to the drawn land
+  (`slabSkirt` / `kerbFace`, `faceLand`), and `NetField.stepCut` drops the drawn terrain within `STEP_CELL` / `WALL_CELL` of that face on
+  both sides so the 1 m mesh draws no teeth along it.
+  A step only up to `STEP_FACE` (the face a slab side can draw); a taller drop keeps the plane / bank. Within
+  `EDGE_HOLD` past an edge the drawn land stays under it, between two edges under the plane edge to edge. Under a tunnel
+  slab the land past a bore's side is its floor (`TRENCH_FLOOR`), a lane wall's back reaches the lower bore's floor. A cut
+  wall takes its height from the land right behind it (`NEAR_PROBE`), steps down at an open run end (`WALL_END_SLOPE`)
+  and is banned only where its own wall line runs under a deck (also a deck found over the next way of the same road at
+  a joint); there it stands up to the soffit and the land behind it rises to the deck. The way's own end is not an open
+  end; at a joint the wall runs on to the node. A fill wall
+  within `WALL_DECK_JOIN` of a deck end on its side runs on to the deck (never over a road beneath), from its parapet's end
+  on the parapet's lines; its concrete bed reaches the scaled pavement edge (`sideShift`). A lower-ranked road's cut wall within
+  `FACE_GAP` in front of a higher road's fill wall gives way to it (`facedWalls`): one face, the land between at the
+  lower road's level (also with no wall of its own, where the bank would be steeper than 1:1). Before a lower-ranked
+  street's fill wall the parkway's carriageways keep their own wall, up to the street's edge, and the fill wall goes. A street dipping under a deck caps its junction ends with its own ramp (`profiles`). No slab
+  skirt face hangs from a deck edge.
+- **Nothing in a lane**: a deck runs on (heights kept) while its way's own section still reaches over a road a storey
+  below (`decksOverLanes`, a skewed crossing); a barrier opens over another road's pavement; a pier stands only where
+  no pavement lies between the land and the soffit along its whole length (`pierClear`, mesh and colliders); a signal
+  stands on its arm's own line, never on another road.
+- **Edges at walls and slabs**: in front of a fill wall and on a deck the pavement runs level to the wall's / parapet's
+  inner face (no skirt, `slabSkirt`). A tunnel's slab top, side walls and headwalls come down under any street crossing
+  them lower than the slab's level (`NetField.streetBelow`), so no slab face stands in a street's lanes.
+- **Survey plazas** (`NetworkDef.plazas`, jackie_2: v1's Kew Gardens `junction.json`, lane-start
+  `junction-lane-start.json` and its own Queens Blvd box `junction-qb-east.json`, all `plaza_islands.py`): one paved
+  surface (`plazaSurface`); painted islands (NYC median 360010) get a yellow outline + hatch and the OSM zebra crossings
+  ladder bars (`plazaPaint`, `markings`). Streets running onto it are cut back
+  to a sample past its edge and pin its rim; streets wholly inside and the junctions inside are left out
+  (`Network.trimToPlazas`). The roads in the trench below (`Network.trench`) stay. Its height (`NetField.plazaField`) is
+  the slab top over a bore, the rim pins at the street ends, the edge of a trench road running on the ground and of a
+  junction's own paving at its level (`atGrade`, `junctionPaving`), the paving cells along a slab / junction edge held at
+  its level, and a Laplace fill in between plus the spots' Gaussian residual on the free cells (`plazaResidual`), with
+  nothing over the open cut. No paving step over 5 cm at a slab / junction edge (`plazaEdgeSteps`, network-v2 test). A trench road's cells are its own only where it is drawn (`drawnFoot`); the plaza mesh runs on 3 cm under
+  them (`plazaDrawn`), so no gap opens along the 1 m grid. The land holds under its rim, easing back up to the land out to `PLAZA_EASE`, and it stays 3 cm under any street end lying on it. Its
+  surveyed level (`Plaza.level`, `plazaDips`) comes from the spots inside and within `PLAZA_RIM` outside, except those
+  belonging to a road in the cut below (each spot to its nearest road; over a bore only a spot above the land is roof).
+  Every street meets that level where it crosses the rim, a bore under it dips so its roof carries the plaza, and a
+  portal under it takes the plaza's level as its rim (`tunnelSlab`). A cut wall holds the higher of the road or the
+  plaza behind it (`decideWalls`, `plazaNear`). Islands also stand on the land beside the roads, never on a pavement
+  (`onPaving`).
+- **City parks** (`NetworkDef.parks`, `scripts/realmap/park_block.py`: the block between the NYC roadbeds, OSM footways,
+  a fountain where an OSM footway ring closes round one): paths paved on the drawn land, a stone quatrefoil fountain with
+  a cylinder collider (`parkMesh`, `fountain`); the lawn is `landcover.paint` grass.
+- **Protected bike lanes** (`NetworkDef.bikeLanes`, `scripts/realmap/nyc_lanes.py` -> `markings.json`, NYC DOT Bike Routes on
+  the street centrelines): green, at the kerb of the outermost parallel roadway on the lane's side; a boulevard's service road
+  (another roadway beside it on one side only) carries it on its median side (`bikeLanes`).
+- **Painted medians** (`NetworkDef.paintedMedians`, NYC planimetric 360010 via `nyc_lanes.py`): outside the plazas, a
+  yellow outline + hatch on the highest paving under each (a street on its deck), the same painter as the plazas' (`markings`).
+- **Bores under the stage**: the roof never stands above the stage where it crosses (`stageRoof`).
+- **Road beside road**: two roads side by side are one platform within `ROAD_STEP`; a higher step between them is walled
+  (no room for a slope), below the template's `maxCut` for open land (`wallsOf`). Walls under a deck reach its soffit
+  (`UNDERPASS_*`), and no cut wall stands taller than a road passing above it (`WALL_UNDER_ROAD`, `WALL_FENCE_CLEAR`).
+- **Parkway look** (drive videos): lamps on the right verge only (`lampSide`, `lampOff`), a concrete barrier at the foot of
+  cut walls (`cutBarrier`, `barrierPlan`; a free Jersey run end turns down into the ground, `JERSEY_END`), a steel girder
+  ceiling with two lamp rows in tunnels (`GIRDER_*`), a median barrier that stays up along a ramp's painted gore and opens only at the taper, a double solid lane line in winding runs of curves tighter than
+  `solidLaneRadius` (`solidLaneRuns`; a lone short bend keeps its dashes, `SOLID_MIN`; the other carriageway follows the stage road's curves), wall / fence style per stage stretch
+  (`network.wallStyles`: concrete / stone wall, railing / chain-link / none on its rim, outer barrier jersey / guard rail /
+  none), a street deck's facing by OSM way id (`network.deckStyles`: `steel` = painted plate girders, `paintedSteel`,
+  girders under a higher slab, masonry abutments), cement-concrete pavement per stretch
+  (`network.pavement`, tile `concrete_highway`; highway ramps take the nearest stage station). v2 parkways and ramps use
+  their own calm tile `asphalt_parkway` (v1 keeps `asphalt_highway`); v2 stone / concrete take more sky light so the
+  shade side is not dark slate (`structureMaterials`). Lines use the worn `road_paint` tile of v1 / Vodno, yellow a faded
+  parkway yellow (`YELLOW`).
+- **Shadows**: every v2 caster has its own depth material (`plainDepthMaterial`): three's shared one switches program by
+  draw order, so the load's warm frame missed the railings' double-sided variant (a mid-stage stall).
+- **Stage ends**: a way running straight on from the stage road's first / last node carries the road on; it is never a
+  merge (`stageNodes`), so the run-out leads into the interchange.
+- **Spans**: a deck's abutment stops at the soffit over a road passing under the deck end; a junction polygon over a road a
+  storey below is a deck (soffit + fascia).
+- **Physics**: inside a section the section is the surface (kerbs, decks, tunnel floors exact); a blind probe on the stage
+  road keeps the stage road. New surfaces `asphalt_city`, `concrete`, `paint` (lane lines, crosswalks) have their own grip.
+
+Tests: `tests/rally/network-v2.test.ts` (grades, clearances, walls never on a road, every merge on its host, the other
+carriageway on the stage profile, stage surface, slab sink + skirt, survey, the tunnel fixture, lamps, cut-wall barrier, land
+between carriageways, colliders off other pavements), the generic world / stage tests; `integration-tests/rally/stage-jackie-2.test.ts` (autopilot, every car). `Network.debug` (`base`, `dips`) exposes the solver to tests and the map viewer
+(`window.__mapViewer.world.gen.net`).
 
 ## Cars
 
@@ -847,7 +1014,7 @@ colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`
 | `galichica_west` · `galichica_east` · `prespa_ohrid` (09:00) | spring | **13 / 23**   | 18 / 36     | 20 / 37     | 19 / 30 | 10 / 10 |
 |                                                              | summer | **19 / 32**   | 25 / 47     | 28 / 48     | 27 / 41 | 16 / 16 |
 |                                                              | autumn | **9 / 13**    | 14 / 24     | 17 / 25     | 17 / 20 | 9 / 9   |
-| `jackie` (08:00)                                             | spring | **15 / 21**   | 20 / 38     | 22 / 39     | 22 / 34 | 16 / 16 |
+| `jackie` · `jackie_2` (08:00)                                | spring | **15 / 21**   | 20 / 38     | 22 / 39     | 22 / 34 | 16 / 16 |
 |                                                              | summer | **24 / 31**   | 28 / 50     | 30 / 51     | 30 / 45 | 24 / 24 |
 |                                                              | autumn | **12 / 13**   | 17 / 26     | 19 / 27     | 19 / 23 | 14 / 14 |
 

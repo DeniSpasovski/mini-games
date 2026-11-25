@@ -7,7 +7,6 @@ import { newRoadQuery, type Road } from './road';
 import { nearestRoadPoint } from './road-distance';
 import type { ScatterInstance } from './scatter';
 import { KERB_H, KERB_W, type StreetDetail } from './street-detail';
-import { UNDERPASS_WALL } from './terrain-gen';
 import { STREET_CAR_MIX } from '../assets/builders/vehicles';
 
 /**
@@ -33,8 +32,6 @@ export interface DressingContext {
   pathHeight: (pi: number, along: number) => number;
   /** Something solid (a building) within `r` m of the point. */
   blocked: (x: number, z: number, r: number) => boolean;
-  /** Path `pi` at `along` m runs in an underpass trench (retaining walls `UNDERPASS_WALL` past its edge). */
-  underpass?: (pi: number, along: number) => boolean;
   /** Sidewalk runs of the city streets (lamps stand on them), sidewalk width, lamp spacing (0 = none). */
   streetDetail?: StreetDetail;
   /** On a junction plaza (plazas.ts): no crowd / parked car there. */
@@ -45,10 +42,14 @@ export interface DressingContext {
   /** Traffic signals / street trees of the junction areas (MapDef.plazaSignals / plazaTrees). */
   signals?: readonly number[];
   trees?: readonly number[];
+  /** Street trees over the whole map (MapDef.streetTrees): [x, z, dbh, ...]. */
+  streetTrees?: readonly number[];
   sidewalk?: number;
   lampEvery?: number;
 }
 
+/** Width of a parking lane (m): streets.py / street-markings.ts PARK_W. */
+const PARK_LANE = 2.2;
 /** Spacing of the parking slots along a street (m). */
 const SLOT = 6.4;
 /** Distance of the stage road samples used for the "within reach" tests (m). */
@@ -63,6 +64,10 @@ const ISLAND_LAMP_MIN = 20;
 const PARAPET_SPACING = 1.6;
 /** Streets with a mainline role never get parked cars / crowds. */
 const MAINLINE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link']);
+/** Half length of a fire truck, half width of a lane-parked emergency vehicle and the least distance between two of a kind (m). */
+const FIRE_HALF_L = 4.6;
+const LANE_VEHICLE_HALF_W = 1.2;
+const LANE_VEHICLE_SPACING = 500;
 
 const yawAlong = (dx: number, dz: number): number => -Math.atan2(dz, dx);
 const yawToward = (dx: number, dz: number): number => Math.atan2(dx, dz);
@@ -74,6 +79,17 @@ export function streetDressingInstances(
   const out: ScatterInstance[] = [];
   const { road, net } = ctx;
   const nearRoad = nearestRoadPoint(road, ROAD_STEP);
+  // The top of the ground street at (x, z): its ribbon keeps the street's own height line where the land dips (a vehicle
+  // in a junction mouth stood a few cm into the street it was parked on).
+  const tq = newPathQuery();
+  const streetTop = (x: number, z: number): number => {
+    const g = ctx.height(x, z);
+    if (!net) return g;
+    net.query(x, z, tq, 'tarmac', (qi) => !net.paths[qi].bridge);
+    return tq.found && tq.distance <= tq.halfWidth
+      ? Math.max(g, ctx.pathHeight(tq.path, tq.along) + 0.03)
+      : g;
+  };
   const place = (
     asset: string,
     variant: number,
@@ -109,12 +125,14 @@ export function streetDressingInstances(
     /** Half the wheel base and half the track of the vehicle (m). */
     halfL = CAR_HALF_L,
     halfW = CAR_HALF_W,
+    /** Ground under the wheels (a vehicle in a junction mouth: the street's own top, `streetTop`). */
+    ground: (x: number, z: number) => number = ctx.height,
   ): void => {
     // Local +X (nose) and +Z (the side a positive roll lowers) on the ground.
     const fx = Math.cos(rotY);
     const fz = -Math.sin(rotY);
     const h = (u: number, v: number) =>
-      ctx.height(x + fx * u - fz * v, z + fz * u + fx * v);
+      ground(x + fx * u - fz * v, z + fz * u + fx * v);
     const L = halfL;
     const W = halfW;
     const front = (h(L, W) + h(L, -W)) / 2;
@@ -131,6 +149,90 @@ export function streetDressingInstances(
       Math.atan2(sideNegZ - sideZ, 2 * W),
       Math.atan2(front - rear, 2 * L),
     );
+  };
+
+  // --- fire trucks / ambulances parked in a street lane -----------------------------------------------
+  // Standing lengthwise in the parking / traffic lane of a side street near the stage (the way they wait at a closure),
+  // never across a mouth: clear of buildings along their whole length (sideways ~1.2 m), off other streets and the
+  // stage road, on level ground, and `LANE_VEHICLE_SPACING` m from the last one of their kind so they spread out.
+  const em = rule.emergency;
+  const laneKinds =
+    em && rule.parked && net
+      ? [
+          {
+            asset: ctx.country === 'mk' ? 'fire_truck_mk' : 'fire_truck',
+            share: em.fire,
+            halfL: FIRE_HALF_L,
+            wheels: (ctx.country === 'mk' ? [3, 1.1] : [3.5, 1.2]) as [
+              number,
+              number,
+            ],
+            at: [] as { x: number; z: number }[],
+          },
+          {
+            asset: 'ambulance',
+            share: em.ambulance ?? 0,
+            halfL: 3.2,
+            wheels: [2.2, 0.9] as [number, number],
+            at: [] as { x: number; z: number }[],
+          },
+        ].filter((k) => k.share > 0)
+      : [];
+  type LaneKind = (typeof laneKinds)[number];
+  const fq = newPathQuery();
+  const rq = newRoadQuery();
+  const parkInLane = (
+    k: LaneKind,
+    pi: number,
+    at: number,
+    side: 1 | -1,
+    hw: number,
+    inset: number,
+  ): boolean => {
+    if (!net) return false;
+    const c = { x: 0, z: 0 };
+    const b = { x: 0, z: 0 };
+    const f = { x: 0, z: 0 };
+    // Its tail at this slot, its nose a vehicle length on (the next slot on this side stays empty).
+    const mid = at - 2.3 + k.halfL;
+    net.pointAt(pi, mid - k.halfL, b);
+    net.pointAt(pi, mid + k.halfL, f);
+    const tl = Math.hypot(f.x - b.x, f.z - b.z) || 1;
+    const tx = (f.x - b.x) / tl;
+    const tz = (f.z - b.z) / tl;
+    net.pointAt(pi, mid, c);
+    const lat = side * Math.max(0, hw - inset);
+    const x = c.x + tz * lat;
+    const z = c.z - tx * lat;
+    for (const o of k.at)
+      if (Math.hypot(o.x - x, o.z - z) < LANE_VEHICLE_SPACING) return false;
+    for (let u = -k.halfL; u <= k.halfL + 0.01; u += k.halfL / 2) {
+      const px = x + tx * u;
+      const pz = z + tz * u;
+      if (ctx.blocked(px, pz, LANE_VEHICLE_HALF_W) || ctx.paved?.(px, pz))
+        return false;
+      net.query(
+        px,
+        pz,
+        fq,
+        undefined,
+        (qi) => qi !== pi && !net.paths[qi].bridge,
+      );
+      if (fq.found && fq.distance <= fq.halfWidth + LANE_VEHICLE_HALF_W)
+        return false;
+      road.query(px, pz, rq);
+      if (rq.found && rq.distance <= rq.halfWidth + 2) return false;
+    }
+    const dh = Math.abs(
+      ctx.height(x + tx * k.halfL, z + tz * k.halfL) -
+        ctx.height(x - tx * k.halfL, z - tz * k.halfL),
+    );
+    if (dh > 1) return false;
+    // Nose with the traffic of its side (right = along the street).
+    const yaw = side < 0 ? yawAlong(tx, tz) : yawAlong(-tx, -tz);
+    placeCar(k.asset, 0, x, z, yaw, k.wheels[0], k.wheels[1]);
+    k.at.push({ x, z });
+    return true;
   };
 
   // --- parked cars --------------------------------------------------------------------------
@@ -151,9 +253,21 @@ export function streetDressingInstances(
       if (L < 20) return;
       const rng = new Rng(hash3(pi, 31, 7, ctx.seed));
       const hw = p.width / 2;
-      // Narrow streets are parked on one side only (the other stays open for the cars driving by).
-      const sides: (1 | -1)[] =
-        p.width >= 7 ? [1, -1] : [rng.chance(0.5) ? 1 : -1];
+      // Modelled streets (PathDef.layout): cars only in the real parking lanes, in the middle of the lane. Others: narrow
+      // streets are parked on one side only (the other stays open for the cars driving by).
+      const lay = p.layout;
+      const sides: (1 | -1)[] = lay
+        ? ([lay.parkL ? 1 : 0, lay.parkR ? -1 : 0].filter(Boolean) as (
+            1 | -1
+          )[])
+        : p.width >= 7
+          ? [1, -1]
+          : [rng.chance(0.5) ? 1 : -1];
+      if (!sides.length) return;
+      const fill = lay ? Math.min(0.85, parked.fill * 2.2) : parked.fill;
+      // One fire truck or ambulance at most per street, in its lane like the parked cars (a truck fits a lane lengthwise).
+      let laneKind = laneKinds.find((k) => rng.chance(k.share));
+      const skipSide = new Map<number, number>();
       for (let a = 8; a < L - 8; a += SLOT) {
         const at = a + rng.range(-0.8, 0.8);
         net.pointAt(pi, at - 1.5, pt);
@@ -166,8 +280,18 @@ export function streetDressingInstances(
         // Not right beside the parkway, not out of sight of it.
         if (r.d > parked.reach || r.d < 14 + road.at(0).halfWidth) continue;
         for (const side of sides) {
-          if (!rng.chance(parked.fill)) continue;
-          const lat = side * (hw - 1.05);
+          if ((skipSide.get(side) ?? -1) >= a) continue;
+          if (
+            laneKind &&
+            a + laneKind.halfL * 2 < L - 8 &&
+            parkInLane(laneKind, pi, at, side, hw, lay ? PARK_LANE / 2 : 1.25)
+          ) {
+            laneKind = undefined;
+            skipSide.set(side, a + SLOT);
+            continue;
+          }
+          if (!rng.chance(fill)) continue;
+          const lat = side * (hw - (lay ? PARK_LANE / 2 : 1.05));
           const x = pt.x + tz * lat;
           const z = pt.z - tx * lat;
           // Another street under the car (a crossing / junction), a building, a steep bit.
@@ -185,8 +309,15 @@ export function streetDressingInstances(
               ctx.height(x - tx * 2.2, z - tz * 2.2),
           );
           if (dh > 0.8) continue;
-          // Half of them face the other way (they were parked from the other direction).
-          const flip = rng.chance(0.5) ? 1 : -1;
+          // Half of them face the other way (they were parked from the other direction); on a modelled street the cars
+          // of a side face the traffic of that side (right = with the path, left = against it; one-way: all with it).
+          const flip = lay
+            ? p.oneway || side < 0
+              ? 1
+              : -1
+            : rng.chance(0.5)
+              ? 1
+              : -1;
           const yaw = yawAlong(tx * flip, tz * flip);
           if (parked.taxiShare && rng.chance(parked.taxiShare))
             placeCar('taxi', 0, x, z, yaw);
@@ -255,7 +386,6 @@ export function streetDressingInstances(
   if (detail && net && ctx.lampEvery) {
     const pt = { x: 0, z: 0 };
     const nx = { x: 0, z: 0 };
-    const W = ctx.sidewalk ?? 1.5;
     const lq = newPathQuery();
     for (const run of detail.runs) {
       const hw = net.paths[run.path].width / 2;
@@ -274,30 +404,21 @@ export function streetDressingInstances(
         net.pointAt(run.path, a, pt);
         const ox = tz * run.side;
         const oz = -tx * run.side;
-        const off = hw + KERB_W + W - 0.4;
+        // (not in a driveway's kerb cut; behind a tree lawn the pole stands at the back of the sidewalk all the same)
+        if (run.cuts?.some(([c0, c1]) => a > c0 - 1.5 && a < c1 + 1.5))
+          continue;
+        const lawn = net.paths[run.path].lawn?.[run.side > 0 ? 0 : 1] ?? 0;
+        const off = hw + KERB_W + lawn + run.width - 0.4;
         const x = pt.x + ox * off;
         const z = pt.z + oz * off;
         if (ctx.blocked(x, z, 0.5)) continue;
-        // No pole under or beside a bridge deck (it would stand up through it): in an underpass trench the light is
-        // fixed to the retaining wall instead, elsewhere the slot stays empty.
+        // No pole under or beside a bridge deck (it would stand up through it): the light of an underpass hangs from
+        // its ceiling instead (bridge-mesh.ts `underpassLamps`), elsewhere the slot stays empty.
         net.query(x, z, lq, 'tarmac', (qi) => !!net.paths[qi].bridge);
         const deck =
           nearRoad(x, z).d < road.at(0).halfWidth + 4 ||
           (lq.found && lq.distance <= lq.halfWidth + 2);
-        if (deck) {
-          if (ctx.underpass?.(run.path, a)) {
-            const wall = hw + UNDERPASS_WALL;
-            place(
-              'wall_lamp',
-              0,
-              pt.x + ox * wall,
-              pt.z + oz * wall,
-              yawToward(-ox, -oz),
-              ctx.height(x, z),
-            );
-          }
-          continue;
-        }
+        if (deck) continue;
         // The arm points +Z: turn it over the street.
         place(
           'street_lamp',
@@ -308,6 +429,123 @@ export function streetDressingInstances(
           ctx.height(x, z) + KERB_H,
         );
       }
+    }
+  }
+
+  // --- the interchange ramps: marker posts, bend chevrons ---------------------------------------
+  const rm = rule.rampMarkers;
+  if (rm && net) {
+    const mq = newPathQuery();
+    const a0 = { x: 0, z: 0 };
+    const a1 = { x: 0, z: 0 };
+    const a2 = { x: 0, z: 0 };
+    net.paths.forEach((p, pi) => {
+      if (!p.kind.endsWith('_link') || p.bridge || p.surface !== 'tarmac')
+        return;
+      const L = net.lengths[pi];
+      if (L < 40) return;
+      let mx = 0;
+      for (let k = 0; k < p.pts.length; k += 2) mx += p.pts[k];
+      if (mx / (p.pts.length / 2) < rm.fromX) return;
+      const free = (x: number, z: number): boolean => {
+        if (ctx.blocked(x, z, 0.6) || ctx.paved?.(x, z)) return false;
+        net.query(x, z, mq, 'tarmac', (qi) => qi !== pi);
+        return !(mq.found && mq.distance <= mq.halfWidth + 0.3);
+      };
+      const frame = (a: number) => {
+        net.pointAt(pi, Math.max(0, a - 1.5), a0);
+        net.pointAt(pi, Math.min(L, a + 1.5), a1);
+        const tl = Math.hypot(a1.x - a0.x, a1.z - a0.z) || 1;
+        net.pointAt(pi, a, a2);
+        return {
+          x: a2.x,
+          z: a2.z,
+          tx: (a1.x - a0.x) / tl,
+          tz: (a1.z - a0.z) / tl,
+        };
+      };
+      for (let a = 10; a < L - 10; a += rm.postEvery) {
+        const f = frame(a);
+        const off = net.halfWidthAt(pi, a) + 1.2;
+        const x = f.x - f.tz * off; // right of travel = -(tz, -tx)
+        const z = f.z + f.tx * off;
+        if (free(x, z)) place('marker_post', 0, x, z, 0, ctx.height(x, z));
+      }
+      const DS = 16;
+      for (let a = DS; a < L - DS; a += rm.chevronEvery) {
+        const f0 = frame(a - DS / 2);
+        const f1 = frame(a + DS / 2);
+        // left turn = the later direction has a component along the earlier one's left (tz, -tx)
+        const turn = f1.tx * f0.tz - f1.tz * f0.tx;
+        const angle = Math.abs(Math.asin(Math.max(-1, Math.min(1, turn))));
+        if (angle < 1e-3 || DS / angle > rm.maxRadius) continue;
+        const f = frame(a);
+        const left = turn > 0;
+        const side = left ? -1 : 1; // the outside of the bend
+        const off = net.halfWidthAt(pi, a) + 2.4;
+        const x = f.x + f.tz * side * off;
+        const z = f.z - f.tx * side * off;
+        if (!free(x, z)) continue;
+        const heading = Math.atan2(f.tx, f.tz);
+        place(
+          'chevron_sign',
+          left ? 0 : 1,
+          x,
+          z,
+          heading + (side > 0 ? -Math.PI / 2 : Math.PI / 2),
+          ctx.height(x, z),
+        );
+      }
+    });
+  }
+
+  // --- street trees (census points): not on a road, in a building, on a plaza (those have their own) ----------------
+  const st = ctx.streetTrees;
+  if (st && net) {
+    const tq = newPathQuery();
+    for (let i = 0; i + 2 < st.length; i += 3) {
+      const x = st[i];
+      const z = st[i + 1];
+      if (ctx.paved?.(x, z) || ctx.blocked(x, z, 0.9)) continue;
+      if (nearRoad(x, z).d < road.at(0).halfWidth + 4) continue;
+      net.query(x, z, tq, 'tarmac', (qi) => !net.paths[qi].bridge);
+      if (tq.found && tq.distance <= tq.halfWidth + 0.3) continue;
+      const rng = new Rng(
+        hash3(Math.round(x * 10), Math.round(z * 10), 9, ctx.seed),
+      );
+      // On a sidewalk (not in a tree lawn): a soil pit round it, square to the street.
+      const pathTo = tq.found ? tq.distance - tq.halfWidth : Infinity;
+      const tp = tq.found ? net.paths[tq.path] : undefined;
+      if (tp && pathTo < 4.5 && !MAINLINE.has(tp.kind)) {
+        // (a tree in a measured tree lawn stands in the grass)
+        const lawn = Math.max(...(tp.lawn ?? [0, 0]));
+        if (!(lawn > 0 && pathTo < KERB_W + lawn + 0.2)) {
+          const a = { x: 0, z: 0 };
+          const b = { x: 0, z: 0 };
+          net.pointAt(tq.path, Math.max(0, tq.along - 1), a);
+          net.pointAt(tq.path, Math.min(net.lengths[tq.path], tq.along + 1), b);
+          place(
+            'tree_pit',
+            0,
+            x,
+            z,
+            yawAlong(b.x - a.x, b.z - a.z),
+            ctx.height(x, z) + 0.03 + KERB_H + 0.005,
+          );
+        }
+      }
+      out.push({
+        asset: 'oak_tree',
+        variant: rng.int(0, 3),
+        x,
+        y: ctx.height(x, z),
+        z,
+        rotY: rng.range(0, Math.PI * 2),
+        // trunk diameter (inch) -> size: a 4" sapling is small, a 30" plane tree full grown
+        scale: Math.min(1.1, Math.max(0.4, 0.3 + st[i + 2] / 32)),
+        tiltX: 0,
+        tiltZ: 0,
+      });
     }
   }
 
@@ -538,7 +776,7 @@ export function streetDressingInstances(
           )
             out.splice(k, 1);
         }
-        placeCar(asset, 0, c.x, c.z, yaw, wheels[0], wheels[1]);
+        placeCar(asset, 0, c.x, c.z, yaw, wheels[0], wheels[1], streetTop);
         n++;
         if (!twoAbreast || n % 2 === 0) vehicleEnd = t + length / 2 + 1.2;
       };
@@ -574,6 +812,7 @@ export function streetDressingInstances(
           c.x,
           c.z,
           yawToward(-j.dx, -j.dz) + rng.range(-0.5, 0.5),
+          streetTop(c.x, c.z),
         );
       }
     }

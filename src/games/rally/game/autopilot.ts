@@ -130,6 +130,11 @@ export class Autopilot {
   get along(): number {
     return this.progress;
   }
+
+  /** Road left beyond the current progress (m). */
+  get roadLeft(): number {
+    return this.road.length - this.progress;
+  }
 }
 
 /**
@@ -150,8 +155,12 @@ export function finishStopControls(
   out.throttle = 0;
   out.handbrake = 0;
   // Below 0.3 m/s release so Vehicle auto-hold (engages < 0.5 m/s, no pedals) parks it.
-  // (A floor of 0.45: a weak-braked car creeping on a slight downhill must still stop.)
-  let brake = sp > 0.3 ? Math.min(0.7, 0.45 + sp / 40) : 0;
+  // (A floor of 0.45: a weak-braked car creeping on a slight downhill must still stop - and below walking pace a firm
+  // brake: on a 3 % run-out the 0.45 floor held a car at a steady 1.2 km/h crawl, never slow enough to park.)
+  let brake = sp > 0.3 ? (sp < 1.5 ? 0.9 : Math.min(0.7, 0.45 + sp / 40)) : 0;
+  // A short run-out (the road ends soon after the line): brake as hard as the ABS allows while the stopping
+  // distance at ~0.5 g does not fit into the road left.
+  if (sp > 3 && pilot.roadLeft - 10 < (sp * sp) / (2 * 5) * 1.3) brake = 1;
   // ABS (called once per physics step): locked wheels can't steer - from 150 km/h on gravel 0.7 locked all four and
   // slid the car off a bend. Eased, not switched every step (that bounced the car on its springs).
   if (sp > 3) {

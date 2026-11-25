@@ -1,0 +1,41 @@
+{
+  "id": "jackie_2",
+  "name": "The Jackie 2",
+  "folder": "src/games/rally/maps/jackie-2",
+  "origin": [40.698, -73.863],
+  "waypoints": [
+    [40.6799051, -73.8966863],
+    [40.6988507, -73.8689168],
+    [40.714605, -73.8298097],
+    [40.7152178, -73.8283329]
+  ],
+  "osmBox": [-3300, 3700, -2400, 2400],
+  "route": {
+    "highways": true,
+    "offHighwayCost": 5
+  },
+  "routeSmoothSigma": 4,
+  "routeTolerance": 0.8,
+  "minCornerRadius": 25,
+  "corridor": {
+    "streets": 260,
+    "highways": 420
+  },
+  "dropService": [
+    "parking_aisle",
+    "driveway",
+    "drive-through",
+    "emergency_access"
+  ],
+  "terrainFrom": "src/games/rally/maps/jackie/data.json",
+  "horizonFrom": "src/games/rally/maps/jackie/horizon.json",
+  "buildingsCorridor": 320,
+  "runout": 90,
+  "survey": {
+    "planimetrics": "sources/maps/jackie/nyc-planimetrics",
+    "spotHeights": "src/games/rally/maps/jackie/spot-heights.json",
+    "datum": 32.9,
+    "retainingWalls": "src/games/rally/maps/jackie/retaining-walls.json",
+    "wallsUntil": 6850
+  }
+}

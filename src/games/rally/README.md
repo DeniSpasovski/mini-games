@@ -42,6 +42,7 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 | [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km       | gravel + tarmac | playable      |
 | [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km       | old tarmac      | playable      |
 | [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km       | tarmac, bridges | playable      |
+| [The Jackie 2](maps/jackie-2/)          | New York City (v2 engine)   | 7.4 km       | tarmac, bridges | test          |
 | [Forest Rally](maps/test/)              | procedural forest           | 1.7 km       | gravel          | physics       |
 | [Galichica](maps/galichica/) (3 stages) | Lake Ohrid - Lake Prespa    | 12.7-27.4 km | mountain tarmac | West playable |
 | [Vodno Hillclimb](maps/vodno/)          | Skopje, North Macedonia     | 4.0 km       | mountain tarmac | playable      |

@@ -348,6 +348,7 @@ export const STAGE_TIMES_VERSIONS: Record<string, number> = {
   ajvatovci: 2,
   petralica: 1,
   jackie: 1,
+  jackie_2: 1,
   galichica_west: 1,
   galichica_east: 1,
   prespa_ohrid: 1,

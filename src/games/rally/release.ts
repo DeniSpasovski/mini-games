@@ -41,6 +41,7 @@ export const STAGES_LIST: readonly ReleaseEntry[] = [
   { id: 'galichica_east', hideInProd: true },
   { id: 'prespa_ohrid', hideInProd: true },
   { id: 'jackie' },
+  { id: 'jackie_2', hideInProd: true },
 ];
 
 /** Weathers of the stage screen (`weather.ts`): dry always; a hidden one is offered (and read from `?weather=`) only on the dev server and test builds. */

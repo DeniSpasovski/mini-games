@@ -918,6 +918,41 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'cylinder', r: 0.12, h: 8 }],
   },
   {
+    id: 'cobra_lamp',
+    name: 'Highway lamp',
+    category: 'props',
+    description:
+      'Galvanised ~10 m highway mast, a long arm over the lanes (+Z) and a cobra-head housing. Solid pole.',
+    variants: 1,
+    lods: [
+      { maxDistance: 140, castShadow: true },
+      { maxDistance: 800, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.16, h: 10 }],
+  },
+  {
+    id: 'twin_lamp',
+    name: 'Median highway lamp',
+    category: 'props',
+    description:
+      'Galvanised ~12 m mast for a median barrier, an arm over each carriageway (+Z / -Z) with a flat head. Solid pole.',
+    variants: 1,
+    lods: [
+      { maxDistance: 140, castShadow: true },
+      { maxDistance: 800, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.17, h: 12 }],
+  },
+  {
+    id: 'tree_pit',
+    name: 'Street tree pit',
+    category: 'props',
+    description:
+      'Square soil pit with a granite edging round a street tree, flat on the sidewalk. No collider.',
+    variants: 1,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
     id: 'traffic_signal',
     name: 'Traffic signal',
     category: 'props',

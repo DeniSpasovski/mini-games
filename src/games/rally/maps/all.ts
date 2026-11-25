@@ -1,6 +1,7 @@
 import { ajvatovciMap } from './ajvatovci/map';
 import { galichicaMap } from './galichica/map';
 import { jackieMap } from './jackie/map';
+import { jackie2Map } from './jackie-2/map';
 import { petralicaMap } from './petralica/map';
 import { testMap } from './test/map';
 import { vodnoMap } from './vodno/map';
@@ -17,6 +18,7 @@ export const ALL_MAPS: MapDef[] = [
   petralicaMap,
   galichicaMap,
   jackieMap,
+  jackie2Map,
 ];
 
 /** Every stage of every map with its full map (tests: `new World(map, stage)` per stage). */

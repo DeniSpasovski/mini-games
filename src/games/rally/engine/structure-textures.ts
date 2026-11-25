@@ -1,6 +1,7 @@
 import {
   CanvasTexture,
   LinearMipmapLinearFilter,
+  RepeatWrapping,
   SRGBColorSpace,
   type Texture,
 } from 'three';
@@ -183,9 +184,9 @@ export function signBoardTexture(b: SignBoard): Texture {
   });
 }
 
-/** Chain-link fence (256 x 256, tileable, alpha): a diamond mesh on transparent ground. */
+/** Chain-link fence (256 x 256, alpha, repeats along the fence): a diamond mesh on transparent ground. */
 export function chainLinkTexture(): Texture {
-  return make('chainlink', 256, 256, (ctx, w, h) => {
+  const t = make('chainlink', 256, 256, (ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(190,195,200,0.95)';
     ctx.lineWidth = 3;
@@ -199,4 +200,6 @@ export function chainLinkTexture(): Texture {
     }
     ctx.stroke();
   });
+  t.wrapS = t.wrapT = RepeatWrapping;
+  return t;
 }

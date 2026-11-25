@@ -14,6 +14,7 @@ import { facadePhotosReady, type FacadeId } from '../engine/facade-textures';
 import type { BuildingDef } from '../maps/shared/types';
 import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
+import { inArea, type MeshArea } from './mesh-area';
 
 /**
  * Mesh buildings (BuildingDef.kind set - real-world maps whose footprints carry OSM heights):
@@ -249,8 +250,11 @@ function macedonianStyle(
 
 export function* buildingMeshJob(
   world: World,
+  area?: MeshArea,
 ): Generator<void, Group | undefined> {
-  const list = world.buildings.buildings.filter((b) => b.kind);
+  const list = world.buildings.buildings.filter(
+    (b) => b.kind && inArea(area, b.x, b.z, b.x, b.z, 60),
+  );
   if (!list.length) return undefined;
   while (!facadePhotosReady) yield;
   const tiles = new Map<string, { walls: Map<FacadeId, Acc>; roof: Acc }>();

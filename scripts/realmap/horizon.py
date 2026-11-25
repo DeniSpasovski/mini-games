@@ -6,9 +6,11 @@ game as a backdrop beyond the streamed terrain (src/games/rally/world/horizon.ts
 
 Reads the map's bake config (origin, bounds via `detail.extent`) and its optional "horizon" block:
 
-    "horizon": { "inner": { "cell": 100, "radius": 8000 }, "outer": { "cell": 300, "radius": 25000 } }
+    "horizon": { "inner": { "cell": 100, "radius": 8000 }, "outer": { "cell": 300, "radius": 25000 }, "cover": ["water"] }
 
-(radius = half the side of a square around the centre of `detail.extent`, metres). A grid may instead give a world-space
+(radius = half the side of a square around the centre of `detail.extent`, metres; `cover` = the cover channels to keep,
+default all of tree / crop / built / water - the rest is drawn as grass). Terrarium carries sea-floor depths: heights
+are clamped to >= 0 so bays and the sea are flat at sea level. A grid may instead give a world-space
 `"extent": [minX, maxX, minZ, maxZ]` (metres, +Z south): an off-centre, non-square backdrop, e.g. a map that looks over a
 valley to one side and at its own ridge on the other. Writes
 src/games/rally/maps/<id>/horizon.json - two grids, each:
@@ -33,6 +35,7 @@ from bake import ROOT, Proj, grid_coords, terrarium_sampler, worldcover_sampler 
 STEP = 0.5
 # WorldCover classes -> channel (tree, crop, built / bare, water); grass / shrub / moss = the rest.
 CHANNELS = {10: 0, 95: 0, 40: 1, 50: 2, 60: 2, 70: 2, 80: 3, 90: 3}
+NAMES = ['tree', 'crop', 'built', 'water']
 # Terrarium zoom per grid cell size (finer DEM pixels than the cell).
 ZOOM = {100: 12, 300: 10}
 
@@ -51,11 +54,11 @@ def grid_extent(g, cx, cz):
     return [cx - r, cx + r, cz - r, cz + r]
 
 
-def bake_grid(proj, ext, cell, wc):
+def bake_grid(proj, ext, cell, wc, keep):
     X, Z = grid_coords(ext, cell)
     lat, lon = proj.inv(X, Z)
     dem = terrarium_sampler(*ll_box(proj, ext, 2 * cell), ZOOM.get(cell, 11))
-    h = gaussian_filter(dem(lat.ravel(), lon.ravel()).reshape(X.shape), 0.7)
+    h = gaussian_filter(np.maximum(dem(lat.ravel(), lon.ravel()), 0).reshape(X.shape), 0.7)
     base = float(np.floor(h.min()))
     hv = np.clip(np.round((h - base) / STEP), -32768, 32767).astype('<i2')
 
@@ -70,6 +73,9 @@ def bake_grid(proj, ext, cell, wc):
             for c, ch in CHANNELS.items():
                 shares[..., ch] += cls == c
     shares /= n * n
+    for ch, name in enumerate(NAMES):
+        if name not in keep:
+            shares[..., ch] = 0
     q = np.clip(np.round(shares * 15), 0, 15).astype(np.uint16)
     cover = (q[..., 0] | (q[..., 1] << 4) | (q[..., 2] << 8) | (q[..., 3] << 12)).astype('<u2')
 
@@ -97,12 +103,13 @@ def main():
     outer = hz.get('outer', {'cell': 300, 'radius': 25000})
     d = cfg['detail']['extent']
     cx, cz = (d[0] + d[1]) / 2, (d[2] + d[3]) / 2
+    keep = hz.get('cover', NAMES)
     exts = [grid_extent(g, cx, cz) for g in (inner, outer)]
     box = [min(e[0] for e in exts), max(e[1] for e in exts), min(e[2] for e in exts), max(e[3] for e in exts)]
     print('worldcover (horizon box)...')
     wc = worldcover_sampler(*ll_box(proj, box, 400))
     print('grids...')
-    grids = [bake_grid(proj, e, g['cell'], wc) for e, g in zip(exts, (inner, outer))]
+    grids = [bake_grid(proj, e, g['cell'], wc, keep) for e, g in zip(exts, (inner, outer))]
     out_dir = os.path.dirname(os.path.join(ROOT, cfg['out']))
     out = os.path.join(out_dir, 'horizon.json')
     with open(out, 'w') as f:

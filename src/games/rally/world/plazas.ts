@@ -317,6 +317,12 @@ export class Plazas {
     return !this.empty && this.indexAt(x, z, pad) >= 0;
   }
 
+  /** On a junction area without street ribbons (MapDef.junctionAreas): a junction core with its own surface. */
+  insideCore(x: number, z: number, pad = 0): boolean {
+    const i = this.empty ? -1 : this.indexAt(x, z, pad);
+    return i >= 0 && this.polys[i].area && !this.polys[i].ribbons;
+  }
+
   /** Plaza surface height at (x, z): the slab top of the portal it sits on, carried across (undefined off every plaza's portal). */
   height(x: number, z: number): number | undefined {
     let best: Poly | undefined;
@@ -458,11 +464,27 @@ export class Plazas {
             if (state[k] !== 1 && state[k] !== 3) continue;
             let s = 0;
             let c = 0;
-            for (const q of [k - 1, k + 1, k - nx, k + nx])
-              if (state[q] && state[q] !== 4) {
-                s += h[q];
-                c++;
-              }
+            // (the 4 neighbours unrolled: the hot loop of a city map's load)
+            const a = state[k - 1];
+            const b = state[k + 1];
+            const u = state[k - nx];
+            const w = state[k + nx];
+            if (a && a !== 4) {
+              s += h[k - 1];
+              c++;
+            }
+            if (b && b !== 4) {
+              s += h[k + 1];
+              c++;
+            }
+            if (u && u !== 4) {
+              s += h[k - nx];
+              c++;
+            }
+            if (w && w !== 4) {
+              s += h[k + nx];
+              c++;
+            }
             if (state[k] === 3) {
               s += street[k] * STREET_PIN;
               c += STREET_PIN;

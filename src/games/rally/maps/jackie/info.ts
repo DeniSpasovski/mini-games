@@ -1,4 +1,6 @@
 import type { MapInfo } from '../shared/types';
+import { type ShiftKey, shiftRouteXY } from '../shared/route-shift';
+import routeShiftKeys from './route-shift.json';
 import data from './route.json';
 import { jackieStages } from './stages';
 
@@ -8,6 +10,14 @@ import { jackieStages } from './stages';
  * `route` / `surfaces` are the menu's route outline and surface tags - tests/rally/map-registry.test.ts checks them
  * against the full map.
  */
+/** The baked route + the run-out past the Queens Blvd portal, as baked (before `route-shift.json` moves it onto the real carriageway). */
+export const JACKIE_RAW_ROUTE: number[][] = [
+  ...data.route,
+  [2835, -1847],
+  [2866, -1858.6],
+  [2896, -1870.9],
+];
+
 export const jackieInfo: MapInfo = {
   id: 'jackie',
   name: 'The Jackie',
@@ -16,7 +26,7 @@ export const jackieInfo: MapInfo = {
   geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
   credits: [
     ...data.meta.sources,
-    'Kew Gardens junction surface, medians, street trees: NYC Planimetric Database + Street Tree Census (NYC Open Data)',
+    'Parkway width, carriageway positions, road and street heights (spot elevations), retaining walls, street widths, lanes, sidewalks, junction surfaces, medians, street trees: NYC Planimetric Database, Street Centerline (CSCL) + Street Tree Census (NYC Open Data)',
   ],
   sources: [
     {
@@ -46,13 +56,15 @@ export const jackieInfo: MapInfo = {
       note: 'land cover - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
     },
     {
-      label: 'NYC Planimetric Database, Street Tree Census (NYC Open Data)',
+      label:
+        'NYC Planimetric Database, Street Centerline (CSCL), Street Tree Census (NYC Open Data)',
       url: 'https://opendata.cityofnewyork.us/',
-      note: 'street surface, medians, sidewalks and street trees of the Kew Gardens junction - NYC Office of Technology and Innovation, NYC Parks',
+      note: 'the parkway carriageway width along the whole stage; street widths, lanes and sidewalks at the Kew Gardens end; street surface, medians and street trees of the junction - NYC Office of Technology and Innovation, NYC DOT, NYC Parks',
     },
   ],
   stageNumber: 3,
-  bounds: { minX: -3150, maxX: 3550, minZ: -2300, maxZ: 2300 },
+  // The stage area + a 2 km ring of terrain and water only (scripts/realmap/extend.py: no roads, buildings or scatter there).
+  bounds: { minX: -5150, maxX: 5550, minZ: -4300, maxZ: 4300 },
   environment: {
     sunElevation: 42,
     sunAzimuth: 330,
@@ -97,7 +109,7 @@ export const jackieInfo: MapInfo = {
       autumn: { grass: '#867438', amount: 0.65 },
     },
   },
-  // Baked route + the run-out past the Queens Blvd portal (see `road.points` in ./map.ts).
-  route: [...data.route, [2835, -1847], [2866, -1858.6], [2896, -1870.9]],
+  // Baked route + the run-out past the Queens Blvd portal, shifted onto the real carriageway (see `road.points` in ./map.ts).
+  route: shiftRouteXY(JACKIE_RAW_ROUTE, routeShiftKeys as ShiftKey[]),
   surfaces: ['tarmac'],
 };

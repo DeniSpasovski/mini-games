@@ -43,7 +43,10 @@ export type SurfaceId =
   | 'tarmac'
   | 'tarmac_gravel'
   | 'mud'
-  | 'snow';
+  | 'snow'
+  | 'asphalt_city'
+  | 'concrete'
+  | 'paint';
 
 export const SURFACES: Record<SurfaceId, SurfaceDef> = {
   gravel: {
@@ -182,5 +185,54 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     dust: 0.9,
     dustColor: 0xf2f4f8,
     loose: 0.9,
+  },
+  // Road engine v2 (world/v2/) surfaces.
+  // City street asphalt: patched, worn and rutted by buses - a touch less grip than clean tarmac and a little bumpier.
+  asphalt_city: {
+    id: 'asphalt_city',
+    name: 'City asphalt',
+    mu: 1.0,
+    slide: 0.72,
+    peakSlip: 0.1,
+    peakAngle: 7,
+    rolling: 0.014,
+    bump: 0.0045,
+    rough: 0.15,
+    heat: 0.95,
+    dust: 0,
+    dustColor: 0x5a5a58,
+    loose: 0,
+  },
+  // Concrete slabs (parkway decks, sidewalks, kerbs, concrete streets): hard, a little less bite than asphalt, joints.
+  concrete: {
+    id: 'concrete',
+    name: 'Concrete',
+    mu: 0.97,
+    slide: 0.7,
+    peakSlip: 0.095,
+    peakAngle: 6.8,
+    rolling: 0.012,
+    bump: 0.0035,
+    rough: 0.1,
+    heat: 0.7,
+    dust: 0,
+    dustColor: 0x9a9890,
+    loose: 0,
+  },
+  // Thermoplastic road paint (stop bars, crosswalk stripes, wide lines): smooth and slippery, worst when sliding.
+  paint: {
+    id: 'paint',
+    name: 'Road paint',
+    mu: 0.84,
+    slide: 0.66,
+    peakSlip: 0.09,
+    peakAngle: 6.5,
+    rolling: 0.012,
+    bump: 0.002,
+    rough: 0,
+    heat: 0.8,
+    dust: 0,
+    dustColor: 0xdddddd,
+    loose: 0,
   },
 };

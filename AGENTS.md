@@ -18,7 +18,7 @@
 **Public, source-available repo** (educational three.js project, not commercial): treat every committed file as published.
 
 - **Licences:** code, procedural assets, docs, screenshots = [PolyForm Noncommercial 1.0.0](LICENSE). Baked real-map data
-  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `canopy.json`, `culverts.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg`)
+  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `network.json`, `junction*.json`, `park-*.json`, `markings.json`, `canopy.json`, `culverts.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg`)
   is OpenStreetMap-derived = **ODbL**; a new baked file joins this list (README, `THIRD-PARTY.md`). Third-party models / data keep
   their own licences.
 - **Never commit a third-party file** (model, texture, font, sound, image, dataset) unless its licence allows redistribution of
@@ -77,6 +77,8 @@ into `DETAILS.md`, never up.
   (open work, local)
 - Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts` (the world), `stages.ts` (its stages), baked data, README; local-only DETAILS (every source) +
   `TODO.md`; `maps/shared/` = format + helpers
+- Rally road engine v2 (`world/v2/`, maps with `MapDef.network`, so far `jackie-2`): road graph from
+  `scripts/realmap/network.py`, templates, junctions, structures, walls, terrain conform; rally `DETAILS.md` "Road engine v2"
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
 - 3, 2, 1 Kabooom (`src/games/kaboom/`): `STYLEGUIDE.md` (UI look: tokens, type, components; read before UI work), `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
 - Hole Island: `src/games/hole/STYLEGUIDE.md` (UI look: tokens, type, components; read before UI work), `DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
@@ -116,9 +118,13 @@ into `DETAILS.md`, never up.
 - `scripts/plants/bake-seasons.py` - the rally reed / weed season sheets (`engine/plants/reeds-autumn.webp`, `reeds-winter.webp`, `weeds-rust.webp` + `season-sheets.data.ts`) recoloured per texel from `reeds.webp` / `weeds.webp`: `python3 -I scripts/plants/bake-seasons.py`
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
-  `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
-  `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
-  the DEM), `dem_heightmap.py` (re-bakes only the heightmap from a local DEM, GLO-30 on Vodno), `culverts.py` (`culverts.json`: culverts where the DEM's drainage crosses the stage road), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
+  `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `extend.py` (terrain + water ring around a baked map), `plaza_islands.py` (city junction
+  `junction.json`), `park_block.py` (a city park's lawn, paths, fountain), `nyc_lanes.py` (NYC DOT protected bike lanes), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
+  the DEM), `nyc_pull.py` + `streets.py` + `endbox.py` (NYC open data -> real street widths / lanes / sidewalks of the Jackie
+  end box + `corridor.py` the west corridor, `maps/jackie/DETAILS.md` "Street model"), `east.py` (grows a baked map east with the full bake's roads / land cover / terrain), `west.py` (grows it west: streets,
+  buildings, land cover), `regrid.py` (re-samples a baked map's heightmap grids from its DEM), `route_offset.py` (parkway shift profile), `carriageway_offset.py` (opposite carriageway at its real distance), `parkway_width.py` (parkway width profile),
+  `spot_heights.py` (NYC spot elevations -> road / street heights), `retaining_walls.py` (NYC retaining walls) + `street_trees.py` (census trees),
+  `dem_heightmap.py` (re-bakes only the heightmap from a local DEM, GLO-30 on Vodno), `culverts.py` (`culverts.json`: culverts where the DEM's drainage crosses the stage road), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
   from a winter + summer Sentinel-2 scene, run after `bake.py`), `canopy.py` (`canopy.json`: canopy share / stand height grids and the
   real trees from the Meta / WRI canopy height map, run after `leaf_type.py`), `features.py` (config `osm.features`: park furniture,
   barriers, single trees, signs and fence / wall / guard-rail lines -> `data.json` "features"; runs inside `bake.py` or alone),

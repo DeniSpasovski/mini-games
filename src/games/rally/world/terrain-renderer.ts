@@ -7,7 +7,7 @@ import {
 } from 'three';
 import { mapSeason } from '../maps/shared/climate';
 import { farShadowCaster } from './far-shadow';
-import { CHUNK_CELLS } from './heightfield';
+import { CHUNK_CELLS, deRidge } from './heightfield';
 import type { GenCache } from './gen-cache';
 import type { TerrainGenerator } from './terrain-gen';
 import {
@@ -89,6 +89,8 @@ export interface TerrainOptions {
   viewDistance: number;
   /** Distance thresholds between LODs (m). */
   lodDistances?: [number, number, number];
+  /** Leave the ground moisture neutral: the caller bakes it later (`World.moistureJob`) and sets it. */
+  deferMoisture?: boolean;
   /** Tiles cast sun shadows (both shadow maps: `farShadowCaster`). */
   castShadow?: boolean;
 }
@@ -136,7 +138,7 @@ export class TerrainRenderer {
       world.map.environment.groundTint,
       mapSeason(world.map.environment),
     );
-    setGroundMoisture(world.moisture);
+    setGroundMoisture(opts.deferMoisture ? null : world.moisture);
     if (world.map.culverts && world.gen.culverts.length) {
       // The holes material is first drawn mid-stage (no culvert at the start line): an empty mesh carries it through
       // the loading warm-up, so its program compiles there, and hides itself once drawn.
@@ -526,6 +528,7 @@ export class TerrainRenderer {
           step * this.world.heightfield.cell,
           nx,
           nz,
+          CHUNK_CELLS / step,
         ),
         pos: new Float32Array(vcount * 3),
         nor: new Float32Array(vcount * 3),
@@ -632,9 +635,30 @@ export class TerrainRenderer {
         step * cell,
         nx,
         nz,
+        CHUNK_CELLS / step,
       );
       g.heights(0, nz + 2);
       g.vertices(0, nz, pos, nor, spl);
+      if (this.world.gen.net) {
+        // the lowest ground in the cell around each vertex: a road sunk between two coarse samples stays open
+        const gen = this.world.gen;
+        const wx = ox * this.cs;
+        const wz = oz * this.cs;
+        const r = (step * cell) / 2;
+        for (let v = 0; v < nx * nz; v++) {
+          const x = wx + pos[v * 3];
+          const z = wz + pos[v * 3 + 2];
+          let h = pos[v * 3 + 1];
+          for (const [dx, dz] of [
+            [r, 0],
+            [-r, 0],
+            [0, r],
+            [0, -r],
+          ])
+            h = Math.min(h, gen.meshHeight(x + dx, z + dz));
+          pos[v * 3 + 1] = h;
+        }
+      }
     }
 
     // Skirts: copies of the edge vertices pushed down.
@@ -753,6 +777,8 @@ export class TerrainGrid {
     readonly d: number,
     readonly nx: number,
     readonly nz: number,
+    /** Vertex intervals per chunk side: a merged tile filters crests at its inner chunk edges as each chunk would. */
+    readonly chunkStep = nx - 1,
   ) {
     this.m = nx + 2;
     const size = this.m * (nz + 2);
@@ -792,7 +818,20 @@ export class TerrainGrid {
         const v = j * nx + i;
         const k = (j + 1) * m + (i + 1);
         pos[v * 3] = i * d;
-        pos[v * 3 + 1] = hs[k];
+        // (the same one-cell crest filter as the 1 m heightfield, at this LOD's spacing)
+        // (the two-cell test along x only: the rows two out may not be sampled yet; none at a chunk's side edges)
+        const ex = i % this.chunkStep === 0 || i === nx - 1;
+        pos[v * 3 + 1] = deRidge(
+          hs[k],
+          ex ? NaN : hs[k - 2],
+          hs[k - 1],
+          hs[k + 1],
+          ex ? NaN : hs[k + 2],
+          NaN,
+          hs[k - m],
+          hs[k + m],
+          NaN,
+        );
         pos[v * 3 + 2] = j * d;
         const dx = hs[k - 1] - hs[k + 1];
         const dz = hs[k - m] - hs[k + m];

@@ -705,6 +705,132 @@ export const streetLamp: AssetBuilder = ({ seed, lod }) => {
 };
 
 /**
+ * Highway cobra-head lamp: a tall tapered galvanised mast on a flange, a long arm rising out over the lanes (+Z = road
+ * side) and the cobra head - a long rounded housing with its lens underneath (the parkway drive videos: ~10 m masts,
+ * ~3 m arms over the right lane).
+ */
+export const cobraLamp: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(9.4, 10.2);
+  const REACH = rng.range(2.9, 3.4);
+  const ZINC = '#a2a7aa';
+  const HEAD = '#8a8f92';
+  const near = lod === 0;
+  const parts: BufferGeometry[] = [];
+  const pole = new CylinderGeometry(0.07, 0.15, H, near ? 10 : 6);
+  pole.translate(0, H / 2, 0);
+  parts.push(cylindricalUV(paint(pole, ZINC, rng, 0.03), 0.5, 2));
+  // the arm: out from the mast near its top, a gentle rise to the head
+  const bend: [number, number][] = near
+    ? [
+        [H - 0.35, 0],
+        [H - 0.05, 0.5],
+        [H + 0.2, 1.4],
+        [H + 0.32, REACH],
+      ]
+    : [
+        [H - 0.35, 0],
+        [H + 0.32, REACH],
+      ];
+  for (let i = 1; i < bend.length; i++) {
+    const [y0, z0] = bend[i - 1];
+    const [y1, z1] = bend[i];
+    const piece = new CylinderGeometry(
+      0.045,
+      0.055,
+      Math.hypot(y1 - y0, z1 - z0) + 0.04,
+      6,
+    );
+    piece.rotateX(Math.atan2(z1 - z0, y1 - y0));
+    piece.translate(0, (y0 + y1) / 2, (z0 + z1) / 2);
+    parts.push(paint(piece, ZINC));
+  }
+  // the cobra head: a long low housing, a little nose-down, past the arm end
+  const head = new BoxGeometry(0.34, 0.16, 0.8);
+  head.rotateX(0.06);
+  head.translate(0, H + 0.3, REACH + 0.36);
+  parts.push(paint(head, HEAD));
+  if (near) {
+    const top = new BoxGeometry(0.24, 0.06, 0.6);
+    top.rotateX(0.06);
+    top.translate(0, H + 0.4, REACH + 0.33);
+    parts.push(paint(top, HEAD));
+    const flange = new CylinderGeometry(0.24, 0.24, 0.04, 8);
+    flange.translate(0, 0.02, 0);
+    parts.push(paint(flange, ZINC));
+    parts.push(box(0.1, 0.34, 0.02, 0, 0.8, 0.14, '#959a9e'));
+  }
+  const lens = box(0.26, 0.04, 0.56, 0, H + 0.2, REACH + 0.4, '#ffd690');
+  return {
+    parts: [
+      { geometry: merge(parts), material: getMaterial('props') },
+      { geometry: lens, material: getMaterial('lamp_lens') },
+    ],
+  };
+};
+
+/**
+ * Median highway lamp: a tall galvanised mast standing on the median barrier with two arms, one out over each
+ * carriageway (+Z and -Z), each with a flat LED head (the drive videos past the Queens Blvd tunnel: ~12 m twin-arm masts).
+ */
+export const twinLamp: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(11.6, 12.4);
+  const REACH = rng.range(2.6, 3.0);
+  const ZINC = '#a2a7aa';
+  const HEAD = '#8a8f92';
+  const near = lod === 0;
+  const parts: BufferGeometry[] = [];
+  const pole = new CylinderGeometry(0.08, 0.17, H, near ? 10 : 6);
+  pole.translate(0, H / 2, 0);
+  parts.push(cylindricalUV(paint(pole, ZINC, rng, 0.03), 0.5, 2));
+  const lenses: BufferGeometry[] = [];
+  for (const sg of [1, -1]) {
+    const bend: [number, number][] = near
+      ? [
+          [H - 0.3, 0],
+          [H, 0.45 * sg],
+          [H + 0.18, 1.3 * sg],
+          [H + 0.26, REACH * sg],
+        ]
+      : [
+          [H - 0.3, 0],
+          [H + 0.26, REACH * sg],
+        ];
+    for (let i = 1; i < bend.length; i++) {
+      const [y0, z0] = bend[i - 1];
+      const [y1, z1] = bend[i];
+      const piece = new CylinderGeometry(
+        0.045,
+        0.055,
+        Math.hypot(y1 - y0, z1 - z0) + 0.04,
+        6,
+      );
+      piece.rotateX(Math.atan2(z1 - z0, y1 - y0));
+      piece.translate(0, (y0 + y1) / 2, (z0 + z1) / 2);
+      parts.push(paint(piece, ZINC));
+    }
+    const head = new BoxGeometry(0.36, 0.12, 0.72);
+    head.translate(0, H + 0.26, (REACH + 0.32) * sg);
+    parts.push(paint(head, HEAD));
+    lenses.push(
+      box(0.28, 0.03, 0.56, 0, H + 0.19, (REACH + 0.34) * sg, '#ffd690'),
+    );
+  }
+  if (near) {
+    const flange = new CylinderGeometry(0.26, 0.26, 0.05, 8);
+    flange.translate(0, 0.025, 0);
+    parts.push(paint(flange, ZINC));
+  }
+  return {
+    parts: [
+      { geometry: merge(parts), material: getMaterial('props') },
+      { geometry: merge(lenses), material: getMaterial('lamp_lens') },
+    ],
+  };
+};
+
+/**
  * City traffic signal: a grey pole with a mast arm over the road (+Z), two three-lamp heads facing +X (the traffic coming
  * from +X sees them) - one on the arm, one on the pole - and a pedestrian head. Generic, no signs.
  */
@@ -737,6 +863,25 @@ export const trafficSignal: AssetBuilder = ({ lod }) => {
   };
 };
 
+/**
+ * Street tree pit: a 1.3 m square of dark soil with a low granite edging, centred on the tree (lies flat on the
+ * sidewalk, y = 0 = the sidewalk top). The sides run along X / Z (turned with the street).
+ */
+export const treePit: AssetBuilder = ({ seed }) => {
+  const rng = new Rng(seed);
+  const s = 1.3;
+  const e = 0.1;
+  const parts: BufferGeometry[] = [
+    box(s - 2 * e, 0.02, s - 2 * e, 0, 0.0, 0, '#3b2f24', rng),
+    box(s, 0.05, e, 0, 0.015, (s - e) / 2, '#9a9893'),
+    box(s, 0.05, e, 0, 0.015, -(s - e) / 2, '#9a9893'),
+    box(e, 0.05, s - 2 * e, (s - e) / 2, 0.015, 0, '#9a9893'),
+    box(e, 0.05, s - 2 * e, -(s - e) / 2, 0.015, 0, '#9a9893'),
+  ];
+  return {
+    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+  };
+};
 /** Maps a plane's UVs into the texture's top (v0 = 0.5) or bottom (v0 = 0) half. */
 function halfUv(g: BufferGeometry, v0: number): void {
   const uv = g.getAttribute('uv');

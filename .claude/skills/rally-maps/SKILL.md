@@ -172,6 +172,9 @@ temp `out` dir holding a copy of the current `data.json` (stable building ids) a
 `route`, unchanged heights near the road, old building rows unchanged. A newer bake also carries building `kind`s - strip
 them (`kinds: undefined`) to keep box buildings. Then run the water / side-road / junction tests: towns bring streets along
 drain banks and small bridges that rural stages never had.
+Terrain-only ring (no roads / buildings / scatter, the baked stage data untouched): config `extend: { cell, extent }` +
+`python scripts/realmap/extend.py <config>` adds a height grid, OSM water ways + lakes (with their lidar `level`) and a
+`paved` / `open` land cover ring (give both a `splat`); then widen `bounds`. Worked example `maps/jackie/` (DETAILS "Terrain ring").
 
 Buildings (real maps): the baker merges OSM + Microsoft ML footprints (`scripts/realmap/buildings.py`) into
 `data.buildings` (oriented boxes, type house / flat, wall height, floors) + `<map>/buildings.csv`; `World` places
@@ -191,9 +194,17 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 
 - `osm: { source: "overpass" }` (`scripts/realmap/overpass.py`): the plain OSM API refuses a city-sized box. Base query for the
   whole box, then buildings only within `buildings.corridor` m of the route (default 220: a wide map must not model
-  every building). Needs `curl` (TLS). `paths: { corridor, highwayCorridor }` limit the other roads the same way.
+  every building). Needs `curl` (TLS). `paths: { corridor, highwayCorridor }` limit the other roads the same way. To grow a
+  baked map without moving anything already there: `scripts/realmap/east.py` / `west.py` (a scratch bake with a second OSM box,
+  only the missing paths / buildings / land cover appended; `maps/jackie/DETAILS.md` "East / West extension").
   `osm.footpaths: { kinds: ["path", "footway"], corridor }` adds foot ways (own query, appended last: roads / buildings unchanged; Vodno).
 - `dem: { source: "3dep", cell: 5 }`: USGS 3DEP lidar bare earth (US only, public domain) - no `canopy` to subtract.
+  `scripts/realmap/regrid.py <config>` re-samples a baked map's heightmap grids from it in place (no re-bake). Check a new
+  map's grid against independent heights (USGS point service, city spot elevations) before tuning structures on it.
+- Surveyed data (worked example `maps/jackie/DETAILS.md` "Survey heights and retaining walls"): `road.heights` (spot elevations on
+  the stage road: decks / fills a bare-earth DEM drops), `streetHeights` (on the streets), `road.bridgeClearance` / a span's
+  `clearance`, `ramp`, `open` (measured structures), `retainingWalls` (wall lines: terrain step + wall mesh), a measured bridge
+  outline: `decksInOutline` (`maps/shared/deck-fit.ts`, every street inside is deck) + `deckStructures` (one plane through its spots).
 - `route: { highways: true, offHighwayCost: 5 }`: the stage may follow motorway / parkway carriageways (one-way respected);
   the bake prints the OSM roads the route follows. The other carriageway, ramps and cross streets become `paths`
   with `bridge` / `layer` / `lanes` / `oneway` / `name`.
@@ -209,15 +220,20 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - More city options (see the rally DETAILS.md "City maps"): `pathBarriers` (Jersey / guard rail along the opposite carriageway),
   `road.cutWalls` (sheer cuts with a stone retaining wall; `concreteFrom` = concrete + chain-link), `goreAreas` (hatched wedge between the road and a shallow ramp), `junctionPlazas` (outline of a big junction on a portal slab: one plain asphalt box, no crossing ribbons), `junctionAreas` +
   `plazaIslands` / `plazaCrosswalks` / `plazaSignals` / `plazaTrees` (the whole street space around a junction from open
-  surface data: height field, islands, markings, furniture; worked example `maps/jackie/DETAILS.md` "Kew Gardens junction"), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
+  surface data, ONE source per junction - never mix OSM ribbons and survey islands in one box: height field, islands, markings,
+  furniture; NYC intersection polygons -> cores: `plaza_islands.py --cores`; worked example `maps/jackie/DETAILS.md` "Kew Gardens
+  junction"), an opposite carriageway at its real distance from the stage road (`carriageway_offset.py`, `maps/shared/carriageway-shift.ts`), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
   `streetDressing` (parked cars, crowds, police / ambulance / fire vehicles, `village` street furniture: add `village` to the map's `models` in `maps/index.ts`), `overheadSigns` (green "EXIT n" gantries from the
   ramps + hand-placed boards), `road.trenchFills` (pad the land where the lidar has a void beside a sunken stretch). Streets
   crossing over a tunnelled parkway (`under` spans) become bridge decks automatically (`world/under-bridges.ts`) and the span
   becomes a portal structure (`world/portals.ts`: slab, headwalls with name / clearance plates, railings, median piers; the
   street grid on top is padded to the slab top). Overpass decks and junction plazas are drivable in free roam. Bridges / underpasses: see "Bridges and underpasses (city maps)" below.
 - Looking at a map in the preview pane (it renders one frame every few seconds): `window.__mapViewer.look(cx, cy, cz, lx, ly, lz, fov)`
-  parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Helpers to build camera
-  positions along the road: `world.road.at(d)` (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.
+  parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Right after a page load
+  call `window.__mapViewer.pump(5000)` in a loop until it returns true first (a single long `look()` gets cut off by the
+  tool's timeout and leaves the road job stuck: "Generator is already running"). `clean=1&road=0&labels=0` in the URL
+  hides the panel and debug layers for review shots. Helpers to build camera positions along the road: `world.road.at(d)`
+  (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.
 - Owner review of many spots: hand over one console line per spot instead of camera links - the owner opens the map viewer
   once, pastes `__mapViewer.look(cx,cy,cz, lx,ly,lz, fov) // what to check` lines in DevTools (Ctrl+Shift+J) and jumps
   between them without reloading. `__mapViewer.shell.camera.position` / `.controls.target` read the current view back.
@@ -249,8 +265,8 @@ Owner rules - a review fails on any of these:
 - Approved bridge tops are never touched; bridge walls run parallel unless the bridge curves; always check the bridge START and END.
 - Retaining walls are concrete, straight, continuous (also at OSM way joints), never on a road / shoulder, never through the deck above,
   never higher than the parkway beside them; no fence on underpass / approach walls; no tunnels in underpasses.
-- The street under a bridge is flat and unbroken (no ground through it); sidewalks continue under bridges; lamps under a deck go on the
-  wall (`wall_lamp`), never a pole; nothing scattered in a trench; no barrier / wall / sign post on another road; streets never overlap
+- The street under a bridge is flat and unbroken (no ground through it); sidewalks continue under bridges; lamps under a deck hang from the
+  ceiling (round `underpassLamps`), never a pole; nothing scattered in a trench; no barrier / wall / sign post on another road; streets never overlap
   a carriageway.
 - Fences / railings never cross a road: a rim fence keeps a street off the drop to the parkway, it never stands on a street, plaza or
   bridge deck, and never bridges a gap (one railing per run of fenced wall rows, `cut-wall-mesh.ts`). Where OSM puts a street's lane on
@@ -279,6 +295,24 @@ Fixing one: open the owner's camera link in your own preview (`__mapViewer.look(
 `bridges` / `cut-walls` / `paths` / `street-detail` / `barriers`) + `shell.renderer.render(...)` to name the culprit mesh, probe heights in
 the page (`gen.height` vs `world.analytic.height`, `pathHeight`, path ends near the point - indices shift, find ways by position), fix the
 rule (never a per-bridge offset), re-check start / end and the other underpasses, run `city-maps` / `bridges` / `side-roads` tests.
+
+## Road engine v2 maps (`MapDef.network`, worked example `maps/jackie-2/`)
+
+Every road comes from the network model (rally `DETAILS.md` "Road engine v2"): do not add v1 options (`paths`, spans, walls,
+plazas, shifts) to a v2 map - fix the rule in `world/v2/` or edit the data.
+
+1. Import: config `scripts/realmap/<id>.json` (`waypoints`, `osmBox`, `corridor`, `terrainFrom`) +
+   `python scripts/realmap/network.py <config>` -> `network.json`, `route.json`, `data.json`, `horizon.json` in the map folder.
+2. Map file: `network: { data, patches, pack }`, `road.points` = `network.stage.cps` (the stage road's alignment only).
+3. Hand edits = patch ops in `network-patches.json` by OSM id (`moveNode`, `dropEdge`, `setTemplate`, `pinHeight`, ...);
+   ids survive a re-import, unknown ones fail `tests/rally/network-v2.test.ts`.
+4. A road class looks / builds wrong everywhere: change its template (`world/v2/templates.ts`), not a site. A rule is wrong:
+   fix it in `network.ts` / `field.ts` and run `network-v2`, `world` and `stage -t <id>`. `Network.debug` (`base`, `dips`)
+   and `window.__mapViewer.world.gen.net` in the map viewer show what the solver did at a spot; review from 50-170 m up
+   with camera links (`cam`, `look`, `fov`), shots in `sources/maps/<map>/`.
+5. Debug in the viewer: `__mapViewer.world.gen.net` (ways, nodes, junctions, crossings), `gen.netField.top(x, z, y)` /
+   `ground(x, z)`; in node a scratch test that writes its findings to a file (sections at a point, walls on roads, tight
+   crossings, the autopilot's last steps before a crash) finds the rule that broke.
 
 ## Landmarks (hand-modelled streets / lots) and pads
 

@@ -1124,6 +1124,21 @@ void loadMap(state.map).then(async (map) => {
     return out.toDataURL('image/png');
   }
 
+  /**
+   * Test hook: build terrain round the camera for up to `ms` ms in one call (a hidden preview pane renders one frame a
+   * second). True when every terrain chunk is in; call again until it is, then `look()` is quick.
+   */
+  function pump(ms = 4000): boolean {
+    const focus = new Vector3(camera.position.x, 0, camera.position.z).lerp(
+      controls.target,
+      0.3,
+    );
+    const end = performance.now() + ms;
+    while (terrain.pending > 0 && performance.now() < end)
+      terrain.update(focus, 100, 0);
+    return terrain.pending === 0;
+  }
+
   (window as unknown as Record<string, unknown>).__mapViewer = {
     world,
     terrain,
@@ -1132,5 +1147,6 @@ void loadMap(state.map).then(async (map) => {
     shell,
     look,
     topDownShot,
+    pump,
   };
 });

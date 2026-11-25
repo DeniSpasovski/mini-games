@@ -73,6 +73,31 @@ const SLIDE_SOUND: Record<
     rumble: 0.4,
     squeal: 0.5,
   },
+  asphalt_city: {
+    scrub: 0.2,
+    freq: 1100,
+    freqSpeed: 20,
+    q: 1,
+    rumble: 0.18,
+    squeal: 0.9,
+  },
+  // Concrete: a higher, harsher squeal.
+  concrete: {
+    scrub: 0.15,
+    freq: 1450,
+    freqSpeed: 22,
+    q: 1.2,
+    rumble: 0.12,
+    squeal: 1.1,
+  },
+  paint: {
+    scrub: 0.1,
+    freq: 1300,
+    freqSpeed: 20,
+    q: 1.1,
+    rumble: 0.05,
+    squeal: 1.2,
+  },
   // Dull wet squelch.
   mud: { scrub: 0.8, freq: 350, freqSpeed: 8, q: 0.7, rumble: 1.6, squeal: 0 },
   // Muffled squeaky crunch.

@@ -16,6 +16,7 @@ import {
   type BarrierRun,
 } from './barriers';
 import type { TerrainSampler } from './heightfield';
+import { inArea, type MeshArea } from './mesh-area';
 import type { World } from './world';
 import { bridgeMaterials } from './bridge-mesh';
 import { ROAD_BROKEN_EDGE, ROAD_NOISE } from './road-wear';
@@ -53,7 +54,7 @@ const JERSEY: [number, number][] = [
  * (crests at o = 0, the middle valley and the edges 6-8 cm back), 0.31 m tall. Open polyline: one double-sided sheet,
  * each segment lit by its own slope so the ribs read in any light.
  */
-const RAIL: [number, number][] = [
+export const RAIL: [number, number][] = [
   [0.08, 0.47],
   [0.06, 0.476],
   [0.015, 0.51],
@@ -685,8 +686,24 @@ function convexNormal(prof: [number, number][], i: number): [number, number] {
   return [n[0] / l, n[1] / l];
 }
 
+/** Galvanised rail steel and its posts (weathered zinc gone grey-brown: a slim post, not a dark block), linear. */
+export const RAIL_STEEL: [number, number, number] = [0.52, 0.53, 0.53];
+export const RAIL_POST: [number, number, number] = [0.4, 0.37, 0.33];
+
+/** A galvanised guard rail's material: the grime map (`barrier_rail`, u = along / 8, v = height) over the vertex colour, duller than new zinc. */
+export function guardRailMaterial(): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    map: getTexture('barrier_rail'),
+    vertexColors: true,
+    roughness: 0.74,
+    metalness: 0.3,
+    side: DoubleSide,
+  });
+}
+
 export function* barrierMeshJob(
   world: World,
+  area?: MeshArea,
 ): Generator<void, Group | undefined> {
   const runs = world.barrierRuns;
   if (!runs.length) return undefined;
@@ -698,14 +715,7 @@ export function* barrierMeshJob(
     roughness: 0.93,
     metalness: 0,
   });
-  // Weathered: the grime map over the vertex colour, duller than new zinc.
-  const railMat = new MeshStandardMaterial({
-    map: getTexture('barrier_rail'),
-    vertexColors: true,
-    roughness: 0.74,
-    metalness: 0.3,
-    side: DoubleSide,
-  });
+  const railMat = guardRailMaterial();
   // Rusted rails are painted steel gone brown: not metallic (no sky-blue reflection).
   const rustMat = new MeshStandardMaterial({
     map: getTexture('barrier_rail'),
@@ -723,9 +733,8 @@ export function* barrierMeshJob(
   });
   const ctx: BarrierContext = { road: world.road, net: world.gen.paths };
   const white: [number, number, number] = [1, 1, 1];
-  const steel: [number, number, number] = [0.52, 0.53, 0.53];
-  // (weathered zinc gone grey-brown: a slim post, not a dark block)
-  const postCol: [number, number, number] = [0.4, 0.37, 0.33];
+  const steel = RAIL_STEEL;
+  const postCol = RAIL_POST;
   // (linear vertex colours: a weathered brown rust, the posts darker)
   const rustSteel: [number, number, number] = [0.26, 0.095, 0.04];
   const rustPost: [number, number, number] = [0.17, 0.065, 0.03];
@@ -744,6 +753,11 @@ export function* barrierMeshJob(
   for (const run of runs) {
     for (let from = run.from; from < run.to - 0.5; from += PIECE) {
       const to = Math.min(run.to, from + PIECE);
+      if (area) {
+        const a = frameAt(ctx, run, from);
+        const b = frameAt(ctx, run, to);
+        if (!inArea(area, a.x, a.z, b.x, b.z, PIECE / 2 + 20)) continue;
+      }
       const rows = rowsOf(ctx, world.analytic, run, from, to);
       if (run.rule.kind === 'kerb') {
         const fine: Row[] = [];

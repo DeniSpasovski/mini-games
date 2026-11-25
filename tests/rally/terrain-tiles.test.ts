@@ -10,6 +10,7 @@ rs.mock('../../src/games/rally/world/terrain-material', () => ({
   setGroundTint: () => {},
   setGroundMoisture: () => {},
   setCulvertHoles: () => {},
+  GRAVEL_SHARP: 0.5,
 }));
 
 interface Tile {

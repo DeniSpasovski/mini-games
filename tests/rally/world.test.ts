@@ -75,12 +75,15 @@ describe.each(ALL_MAPS.map((m) => [m.id, m] as const))('map %s', (_id, map) => {
       const hc = world.heightAt(c.x, c.z);
       const hl = world.heightAt(c.x + lx, c.z + lz);
       const hr = world.heightAt(c.x - lx, c.z - lz);
-      expect(Math.abs(hc - hl)).toBeLessThan(0.15);
-      expect(Math.abs(hc - hr)).toBeLessThan(0.15);
+      // (v2 roads are banked in bends: up to 4 % across the half width)
+      const tol = map.network ? 0.2 : 0.15;
+      expect(Math.abs(hc - hl)).toBeLessThan(tol);
+      expect(Math.abs(hc - hr)).toBeLessThan(tol);
       world.sampleGround(c.x, c.z, s);
-      expect((s.surface as { id: string }).id).toBe(
-        roadSurfaceAt(map.road, c.dist).surface,
-      );
+      const id = (s.surface as { id: string }).id;
+      // (v2: the centre of the parkway is its lane line - road paint)
+      if (!(map.network && id === 'paint'))
+        expect(id).toBe(roadSurfaceAt(map.road, c.dist).surface);
     }
   });
 
@@ -94,9 +97,11 @@ describe.each(ALL_MAPS.map((m) => [m.id, m] as const))('map %s', (_id, map) => {
       const n = world.queryColliders(c.x, c.z, 12, out);
       for (let i = 0; i < n; i++) {
         const col = out[i];
-        // Parapets of an overpass crossing above the road are solid up there, not on the road.
+        // Parapets of an overpass crossing above the road are solid up there, not on the road; walls of an underpass
+        // beneath a stage-road bridge are down there.
         world.road.query(col.x, col.z, q);
         if (q.found && col.y > q.height + 2.5) continue;
+        if (q.found && col.y + col.h < q.height - 0.5) continue;
         if (col.kind === 'box') {
           // Buildings: every point of the footprint outline must be off the road.
           const [hx, hz] = [col.hx ?? 0, col.hz ?? 0];

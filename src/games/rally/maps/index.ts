@@ -4,6 +4,7 @@ import { STAGES_LIST, released } from '../release';
 import { ajvatovciInfo } from './ajvatovci/info';
 import { galichicaInfo } from './galichica/info';
 import { jackieInfo } from './jackie/info';
+import { jackie2Info } from './jackie-2/info';
 import { petralicaInfo } from './petralica/info';
 import { testMap } from './test/map';
 import { vodnoInfo } from './vodno/info';
@@ -86,6 +87,11 @@ const ENTRIES: MapEntry[] = [
     info: jackieInfo,
     load: async () => (await import('./jackie/map')).jackieMap,
     models: ['park', 'yard'],
+  },
+  {
+    info: jackie2Info,
+    load: async () => (await import('./jackie-2/map')).jackie2Map,
+    models: ['yard'],
   },
 ];
 
