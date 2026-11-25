@@ -72,7 +72,10 @@ export const jackie2Map: MapDef = {
     pavement: [{ from: 7474, to: 8000, surface: 'concrete' }],
     // the Queens Blvd tunnel's built-up steel girders: 12'-8" / 12'-10" under them on its plates (lidar deck top less
     // the floor less the slab)
-    tunnels: [{ from: 7280, to: 7460, girder: 1.1, headwall: 'stone' }],
+    // (the hall is daylit from its portals and the open lanes beside it: girders and walls read grey, drive video s05)
+    tunnels: [
+      { from: 7280, to: 7460, girder: 1.1, headwall: 'stone', shade: 0.6 },
+    ],
     // the roads beside the parkway at its level are open to it, a barrier between (USGS lidar points: nothing over 0.9 m
     // between them at 290-342, 6 969-7 011 and 7 165-7 523 - the Union Tpke lanes at Kew)
     openBeside: [

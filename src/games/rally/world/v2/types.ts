@@ -168,6 +168,8 @@ export interface NetworkDef {
     girder: number;
     /** One straight headwall across all its bores at each end, on the stage road's portal line, in this material. */
     headwall?: 'stone' | 'concrete';
+    /** Share of the sky light its roof takes off (default TUNNEL_SHADE): less in a hall lit from its open sides. */
+    shade?: number;
   }[];
   /**
    * One street deck's look by its OSM way id, over the template's `deck` (drive videos): 'steel' = a painted plate-girder

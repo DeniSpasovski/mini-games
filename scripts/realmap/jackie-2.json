@@ -44,6 +44,7 @@
     "datum": 32.9,
     "retainingWalls": "src/games/rally/maps/jackie/retaining-walls.json",
     "wallsUntil": 6850,
+    "lidarWalls": 7620,
     "lidar": {
       "ept": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/NY_NewYorkCity/",
       "box": [1870, 3080, -2060, -1220],

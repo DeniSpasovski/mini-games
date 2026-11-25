@@ -440,6 +440,15 @@ const lat = (fr: Frame, t0: number): [number, number] => {
   return [fr.x + fr.tz * t, fr.z - fr.tx * t];
 };
 
+/** The verge between the foot and a cut wall on the surveyed line at frame fr (m, `Way.wallOut`). */
+function vergeAt(fr: Frame, side: 0 | 1): number {
+  const o = fr.w.wallOut?.[side];
+  if (!o) return 0;
+  const a = o[Math.min(o.length - 1, fr.i)];
+  const b = o[Math.min(o.length - 1, fr.i + 1)];
+  return a + (b - a) * fr.f;
+}
+
 /**
  * World shift of a side's section elements at frame fr (0 unless the pavement is narrowed: its edge and everything
  * beyond move in by pave * (1 - k)): one-sided strips sweep rows moved by it (`rowOf`).
@@ -2321,7 +2330,9 @@ function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
             Math.round(s / (w.al.length / (w.al.n - 1))),
           );
           const E = net.surfaceAt(w, fr.i, fr.f, sg * foot);
-          const [x, z] = lat(fr, tWall);
+          // (a cut wall out on the surveyed line past a verge, `wallOut`: the row moves out with it)
+          const v = kind === WALL_CUT ? sg * vergeAt(fr, side) : 0;
+          const [x, z] = lat(fr, tWall + v);
           if (kind === WALL_CUT) {
             const kk = Math.min(i1, Math.max(i0, k));
             // (the top between this row's samples, within the run: a stepped-down end reads as a slope, not stairs)
@@ -2341,7 +2352,7 @@ function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
             face.push({ x, z, bot: E - 0.3, top });
             // the back of the coping drops to the land it holds (a lane wall is a thin body in the gap)
             const back = w.wallLane[side][kk] ? LANE_WALL_W : WALL_BACK;
-            const [rx, rz] = lat(fr, tWall + sg * back);
+            const [rx, rz] = lat(fr, tWall + v + sg * back);
             rear.push({
               x: rx,
               z: rz,
@@ -2359,7 +2370,7 @@ function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
                   ) - 0.4,
               top,
             });
-            cap.push(rowOf(fr, top, sideShift(fr, side)));
+            cap.push(rowOf(fr, top, sideShift(fr, side) + v));
           } else {
             const top = E + PARAPET_H;
             const [ox, oz] = lat(fr, tWall + sg * 0.05);
@@ -2843,7 +2854,7 @@ export function tunnelRoofs(net: Network): DryZone[] {
           bz,
           radius: (edgeL + edgeR) / 2 + 0.6,
           top: top + w.tpl.clearance + 0.45,
-          shade: TUNNEL_SHADE,
+          shade: net.tunnelAt(w, fa.i)?.shade ?? TUNNEL_SHADE,
           ends: (k === 0 ? 1 : 0) + (k === n - 1 ? 2 : 0),
         });
       }

@@ -22,6 +22,8 @@ import {
   WALL_CUT,
   WALL_FILL,
   fillBedFrom,
+  maxVerge,
+  wallOff,
   type Way,
 } from './network';
 import { SINK_RAMP, SLAB_SINKS } from '../road-slab';
@@ -218,6 +220,7 @@ export class NetField {
           walled
             ? Math.max(w.sec.footL, w.sec.footR) +
                 w.tpl.daylight.wallOffset +
+                maxVerge(w) +
                 WALL_CELL
             : 0,
         ) + 1.5;
@@ -520,7 +523,8 @@ export class NetField {
       const k = p.f < 0.5 ? p.i : Math.min(w.al.n - 1, p.i + 1);
       if (w.st[k] === ST_TUNNEL) continue;
       const footW = p.t >= 0 ? w.sec.footL : w.sec.footR;
-      if (Math.abs(p.t) <= footW + w.tpl.daylight.wallOffset + 0.5) return true;
+      if (Math.abs(p.t) <= footW + wallOff(w, k, p.t >= 0 ? 0 : 1) + 0.5)
+        return true;
     }
     return false;
   }
@@ -940,7 +944,7 @@ export class NetField {
       // junction plaza far below it - a street junction tucked under a bridge end)
       if (
         st === ST_GROUND &&
-        u <= footW + w.tpl.daylight.wallOffset &&
+        u <= footW + wallOff(w, k, left ? 0 : 1) &&
         w.tpl.pave !== 'terrain' &&
         p.s >= w.cut0 &&
         p.s <= w.al.length - w.cut1
@@ -1009,6 +1013,8 @@ export class NetField {
       }
       const d = u - footW;
       const dl = w.tpl.daylight;
+      // (the wall line: the template's offset, out to the surveyed wall where a verge lies between, `wallOut`)
+      const wo = wallOff(w, k, left ? 0 : 1);
       const E = net.surfaceAt(w, p.i, p.f, left ? footW : -footW);
       const wt = w.wall[left ? 0 : 1][k];
       // in front of a higher road's fill wall (network `facedWalls`): this road's level up to that face
@@ -1040,7 +1046,7 @@ export class NetField {
       }
       if (wt === WALL_CUT) {
         held = true;
-        if (d < dl.wallOffset + WALL_SETBACK) {
+        if (d < wo + WALL_SETBACK) {
           cap = Math.min(cap, E);
           // up to the setback the land is this road's, whatever runs above (a street whose footprint reaches over the
           // wall line would pull terrain vertices up in front of the face: spikes at the wall foot)
@@ -1049,9 +1055,9 @@ export class NetField {
           // retained earth: level with the wall's top right behind it, eased to the land further back; above it the
           // land is a bank rising from the coping (a lowered wall, `wallStyles` maxHeight: no terrain cliff over it)
           const top = retainedTop(w, left ? 0 : 1, p) - 0.15;
-          const back = d - dl.wallOffset - WALL_SETBACK;
+          const back = d - wo - WALL_SETBACK;
           if (w.wallCarried[left ? 0 : 1][k]) behindCarried = true;
-          if (d < dl.wallOffset + WALL_HOLD)
+          if (d < wo + WALL_HOLD)
             floor = Math.max(
               floor,
               top - Math.max(0, back - WALL_GRADE_FLAT) * WALL_GRADE_FALL,
@@ -1059,7 +1065,7 @@ export class NetField {
           cap = Math.min(cap, top + 0.15 + back / dl.cut);
         }
       } else if (wt === WALL_FILL) {
-        if (d < dl.wallOffset) floor = Math.max(floor, E);
+        if (d < wo) floor = Math.max(floor, E);
       } else {
         dayCap = Math.min(dayCap, E + d / dl.cut);
         dayFloor = Math.max(dayFloor, E - d / dl.fill);
@@ -1429,7 +1435,7 @@ export class NetField {
       if (w.st[k] !== ST_GROUND) continue;
       const side = p.t >= 0 ? 0 : 1;
       if (w.wall[side][k] !== WALL_CUT || w.wallLane[side][k]) continue;
-      const wo = w.tpl.daylight.wallOffset;
+      const wo = wallOff(w, k, side);
       const d = Math.abs(p.t) - (side === 0 ? w.sec.footL : w.sec.footR);
       if (d < wo + WALL_CELL || d >= wo + WALL_SETBACK) continue;
       const top = retainedTop(w, side, p) - 0.15;
@@ -1466,7 +1472,7 @@ export class NetField {
       } else {
         const wt = w.wall[left ? 0 : 1][k];
         if (wt !== WALL_CUT && wt !== WALL_FILL) continue;
-        const tf = footW + w.tpl.daylight.wallOffset;
+        const tf = footW + wallOff(w, k, left ? 0 : 1);
         if (wt === WALL_CUT) {
           if (u < tf || u > tf + WALL_CELL) continue;
           low = this.net.surfaceAt(w, p.i, p.f, left ? footW : -footW);
