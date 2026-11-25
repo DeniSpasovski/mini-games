@@ -309,10 +309,12 @@ export const jackie2Map: MapDef = {
     }),
   ],
   roadside: [
-    // Chevron boards on the outside of the tight bends (drive videos: yellow on black, behind the barriers; rows of them in
-    // the cemetery curves 2 600-2 900 m, the same bends that get the double lane line, `solidLaneRadius`).
+    // Curve warning boards on the outside of the tight bends (drive videos: US black arrows on yellow, behind the barriers;
+    // rows of them in the cemetery curves 2 600-2 900 m, the same bends that get the double lane line, `solidLaneRadius`).
+    // The run-out's ramps past the finish (7 500 m) get none.
     {
-      asset: 'chevron_sign',
+      asset: 'chevron_sign_us',
+      to: 7500,
       every: 16,
       maxRadius: 130,
       side: 'outside',

@@ -6,6 +6,7 @@ import { canRequestPerson, materialOf, requestPerson } from './people-pool';
 import { crewSeated } from './builders/crew';
 import {
   chevronSign,
+  chevronSignUs,
   cobraLamp,
   twinLamp,
   fanFlag,
@@ -202,6 +203,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   road_barrier: roadBarrier,
   marker_post: markerPost,
   chevron_sign: chevronSign,
+  chevron_sign_us: chevronSignUs,
   house_door: houseDoor,
   house_windows: houseWindows,
   house_pitched: housePitched,

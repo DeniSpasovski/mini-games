@@ -602,47 +602,52 @@ export const markerPost: AssetBuilder = () => {
 
 /**
  * Corner chevron board: a 1.3 x 0.62 m aluminium sign plate with its edge folded back, riveted to two horizontal
- * omega rails that clamp to a pair of galvanised tube posts. Sheeting on the front only; the back is bare metal.
+ * omega rails that clamp to a pair of galvanised tube posts. Sheeting on the front only (`sheeting`: the European
+ * red / white chevrons, or the US yellow large-arrow board); the back is bare metal.
  */
-export const chevronSign: AssetBuilder = ({ variant, lod }) => {
-  const [W, H, Y] = [1.3, 0.62, 1.3];
-  const seg = lod === 0 ? 8 : 5;
-  const metal: BufferGeometry[] = [];
-  for (const x of [-0.42, 0.42]) {
-    const post = new CylinderGeometry(0.03, 0.03, 1.66, seg, 1);
-    post.translate(x, 0.83, -0.075);
-    metal.push(cylindricalUV(paint(post, '#a7abaf'), 0.3));
-    const cap = new CylinderGeometry(0.034, 0.034, 0.03, seg, 1);
-    cap.translate(x, 1.67, -0.075);
-    metal.push(paint(cap, '#3a3a3a'));
-    // U-bolt clamps round the post on each rail.
+const chevronBoard =
+  (sheeting: 'chevron' | 'chevron_us'): AssetBuilder =>
+  ({ variant, lod }) => {
+    const [W, H, Y] = [1.3, 0.62, 1.3];
+    const seg = lod === 0 ? 8 : 5;
+    const metal: BufferGeometry[] = [];
+    for (const x of [-0.42, 0.42]) {
+      const post = new CylinderGeometry(0.03, 0.03, 1.66, seg, 1);
+      post.translate(x, 0.83, -0.075);
+      metal.push(cylindricalUV(paint(post, '#a7abaf'), 0.3));
+      const cap = new CylinderGeometry(0.034, 0.034, 0.03, seg, 1);
+      cap.translate(x, 1.67, -0.075);
+      metal.push(paint(cap, '#3a3a3a'));
+      // U-bolt clamps round the post on each rail.
+      for (const y of [Y - 0.2, Y + 0.2])
+        metal.push(box(0.085, 0.05, 0.075, x, y, -0.075, '#8e9297'));
+    }
+    // Omega rails across the back, and the plate's back with its folded rim.
     for (const y of [Y - 0.2, Y + 0.2])
-      metal.push(box(0.085, 0.05, 0.075, x, y, -0.075, '#8e9297'));
-  }
-  // Omega rails across the back, and the plate's back with its folded rim.
-  for (const y of [Y - 0.2, Y + 0.2])
-    metal.push(box(W - 0.08, 0.06, 0.03, 0, y, -0.03, '#b9bcbf'));
-  metal.push(box(W, H, 0.004, 0, Y, -0.004, '#c4c6c8'));
-  for (const [w, h, x, y] of [
-    [W, 0.02, 0, Y + H / 2 - 0.01],
-    [W, 0.02, 0, Y - H / 2 + 0.01],
-    [0.02, H, -W / 2 + 0.01, Y],
-    [0.02, H, W / 2 - 0.01, Y],
-  ] as const)
-    metal.push(box(w, h, 0.018, x, y, -0.011, '#b2b5b8'));
-  const front = new PlaneGeometry(W, H);
-  if (variant === 1) {
-    const uv = front.getAttribute('uv');
-    for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
-  }
-  front.translate(0, Y, 0.001);
-  return {
-    parts: [
-      { geometry: merge(metal), material: getMaterial('props') },
-      { geometry: front.toNonIndexed(), material: getMaterial('chevron') },
-    ],
+      metal.push(box(W - 0.08, 0.06, 0.03, 0, y, -0.03, '#b9bcbf'));
+    metal.push(box(W, H, 0.004, 0, Y, -0.004, '#c4c6c8'));
+    for (const [w, h, x, y] of [
+      [W, 0.02, 0, Y + H / 2 - 0.01],
+      [W, 0.02, 0, Y - H / 2 + 0.01],
+      [0.02, H, -W / 2 + 0.01, Y],
+      [0.02, H, W / 2 - 0.01, Y],
+    ] as const)
+      metal.push(box(w, h, 0.018, x, y, -0.011, '#b2b5b8'));
+    const front = new PlaneGeometry(W, H);
+    if (variant === 1) {
+      const uv = front.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
+    }
+    front.translate(0, Y, 0.001);
+    return {
+      parts: [
+        { geometry: merge(metal), material: getMaterial('props') },
+        { geometry: front.toNonIndexed(), material: getMaterial(sheeting) },
+      ],
+    };
   };
-};
+export const chevronSign = chevronBoard('chevron');
+export const chevronSignUs = chevronBoard('chevron_us');
 
 /**
  * Village street lamp: a tapered galvanised pole on a base flange (service door at knee height), an arm bent out over

@@ -70,6 +70,7 @@ export type TextureId =
   | 'bark_pine'
   | 'bark_birch'
   | 'chevron'
+  | 'chevron_us'
   | 'water_normal'
   | FacadeId
   | LotTextureId;
@@ -1852,6 +1853,28 @@ const DEFS: Record<TextureId, TexDef> = {
           ctx.fillRect(px, py, rng.range(6, 26), rng.range(1, 3.5)),
         );
       }
+    },
+  },
+  chevron_us: {
+    name: 'US curve warning board (large arrow, black on yellow)',
+    size: [256, 128],
+    color: true,
+    draw(ctx, w, h) {
+      // retroreflective yellow, a thin black border inset from the edge, one black arrow pointing left
+      ctx.fillStyle = '#f4c20d';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 5;
+      ctx.strokeRect(8, 8, w - 16, h - 16);
+      ctx.fillStyle = '#111';
+      const y = h / 2;
+      ctx.fillRect(92, y - 11, 120, 22);
+      ctx.beginPath();
+      ctx.moveTo(40, y);
+      ctx.lineTo(100, y - 38);
+      ctx.lineTo(100, y + 38);
+      ctx.closePath();
+      ctx.fill();
     },
   },
   chevron: {
