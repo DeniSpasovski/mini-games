@@ -42,13 +42,20 @@ import {
   type Projection,
   sampleAt,
 } from './alignment';
-import { isLimited, type NetField, SLAB_REACH } from './field';
+import {
+  isLimited,
+  type NetField,
+  PLAZA_UNDER,
+  ROAD_UNDER,
+  SLAB_REACH,
+} from './field';
 import {
   DECK_DEPTH,
   goreAt,
   type Junction,
   type Network,
   type Plaza,
+  type Under,
   runsOf,
   scaleAt,
   ST_DECK,
@@ -142,6 +149,8 @@ export const JERSEY_END = 4;
 export const BARRIER_OFF = 0.45;
 /** Barrier pieces a sample apart (m) are one run; a run shorter than BARRIER_MIN m is dropped. */
 const BARRIER_JOIN = 2.6;
+/** A run of one kind ending this short (m) of the next kind's start runs on to it. */
+const BARRIER_KIND_JOIN = 4;
 const BARRIER_MIN = 6;
 export const PARAPET_H = 1.0;
 /** Deck parapet: inner face / outer face (= fascia) beyond the section's outer edge (m). */
@@ -302,8 +311,11 @@ class Tiles {
   build(group: Group): void {
     const m = materials();
     for (const [k, acc] of this.map) {
-      const mesh = acc.build(m[k.slice(0, k.indexOf(':')) as MatId]);
-      if (mesh) group.add(mesh);
+      const id = k.slice(0, k.indexOf(':')) as MatId;
+      const mesh = acc.build(m[id]);
+      if (!mesh) continue;
+      mesh.name = `net:${id}`;
+      group.add(mesh);
     }
   }
 }
@@ -533,12 +545,18 @@ export function* netMeshJob(world: World): Generator<void, Group | undefined> {
     if (++n % 20 === 0) yield;
   }
   for (const j of net.junctions) {
-    if (j.plaza) continue;
+    // (a junction inside a survey plaza: the plaza is its paving and has the crosswalks; its stop bars on the plaza)
+    if (j.plaza) {
+      crossings(net, field, j, tiles, true);
+      continue;
+    }
     junctionSurface(field, j, tiles, parts);
     crossings(net, field, j, tiles);
     if (++n % 20 === 0) yield;
   }
   for (const pl of net.plazas) plazaSurface(net, field, pl, tiles);
+  for (const u of net.under) underSurface(net, field, u, tiles);
+  underMedians(net, field, tiles);
   for (const pk of net.parks) parkMesh(field, pk, tiles, parts);
   bikeLanes(net, tiles);
   paintedMedians(net, field, tiles);
@@ -988,19 +1006,26 @@ function paintStrip(
   width: number,
   yellow: boolean | RGB,
   hidden?: (x: number, z: number, h: number) => boolean,
+  plaza?: NetField,
 ): void {
   if (sTo - sFrom < 0.3) return;
+  // (on a survey plaza: on its paving, none over its open cut)
+  const H = (fr: Frame, t: number, x: number, z: number) =>
+    plaza ? (plaza.plazaPaving(x, z) ?? NaN) : net.surfaceAt(w, fr.i, fr.f, t);
   const tint = yellow === true ? YELLOW : yellow || undefined;
   const n = Math.max(1, Math.ceil((sTo - sFrom) / 2));
   const fr0 = frameAt(w, sFrom);
   const acc = tiles.at('paint', fr0.x, fr0.z);
   const rows: number[][] = [];
+  const gaps = new Set<number>();
   for (let k = 0; k <= n; k++) {
     const fr = frameAt(w, sFrom + ((sTo - sFrom) * k) / n);
     const r: number[] = [];
     for (const dt of [-width / 2, width / 2]) {
       const [x, z] = lat(fr, t + dt);
-      const h = net.surfaceAt(w, fr.i, fr.f, t + dt) + PAINT_LIFT;
+      const h0 = H(fr, t + dt, x, z);
+      const h = (Number.isNaN(h0) ? 0 : h0) + PAINT_LIFT;
+      if (Number.isNaN(h0)) gaps.add(k);
       const v = acc.v(x, h, z, dt < 0 ? 0 : 1, fr.s / PAINT_TILE, WHITE);
       if (tint) acc.col.splice(v * 3, 3, ...tint);
       r.push(v);
@@ -1008,10 +1033,11 @@ function paintStrip(
     rows.push(r);
   }
   for (let k = 0; k < n; k++) {
+    if (gaps.has(k) || gaps.has(k + 1)) continue;
     if (hidden) {
       const fr = frameAt(w, sFrom + ((sTo - sFrom) * (k + 0.5)) / n);
       const [x, z] = lat(fr, t);
-      if (hidden(x, z, net.surfaceAt(w, fr.i, fr.f, t))) continue;
+      if (hidden(x, z, H(fr, t, x, z))) continue;
     }
     acc.quad(rows[k][0], rows[k][1], rows[k + 1][0], rows[k + 1][1]);
   }
@@ -1020,9 +1046,40 @@ function paintStrip(
 function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
   if (w.tpl.pave === 'terrain') return;
   const L = w.al.length;
-  const s0 = w.cut0 + (w.cut0 > 0 ? 1.5 : 0);
-  const s1 = L - w.cut1 - (w.cut1 > 0 ? 1.5 : 0);
+  wayLines(
+    net,
+    field,
+    w,
+    tiles,
+    w.cut0 + (w.cut0 > 0 ? 1.5 : 0),
+    L - w.cut1 - (w.cut1 > 0 ? 1.5 : 0),
+  );
+  // cut back to a survey plaza's rim: its lines run on over the plaza's paving to its own junctions (the survey has the
+  // lanes painted through)
+  if (!w.plazaCut) return;
+  const [p0, p1] = w.plazaCut;
+  const a0 = p0 + (p0 > 0 ? 1.5 : 0);
+  const b1 = L - p1 - (p1 > 0 ? 1.5 : 0);
+  if (w.cut0 >= L) {
+    wayLines(net, field, w, tiles, a0, b1, true);
+    return;
+  }
+  if (w.cut0 > p0) wayLines(net, field, w, tiles, a0, w.cut0, true);
+  if (w.cut1 > p1) wayLines(net, field, w, tiles, L - w.cut1, b1, true);
+}
+
+/** Way w's lines over [s0, s1]: on its pavement, or `onPlaza` on the survey plaza's paving it is cut back from. */
+function wayLines(
+  net: Network,
+  field: NetField,
+  w: Way,
+  tiles: Tiles,
+  s0: number,
+  s1: number,
+  onPlaza = false,
+): void {
   if (s1 - s0 < 2) return;
+  const pf = onPlaza ? field : undefined;
   // a merge end's lines stop where it runs under its host (only its outer edge stays, as the taper)
   const hidden =
     w.merge0 || w.merge1
@@ -1070,6 +1127,7 @@ function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
                 line.w,
                 line.color === 'yellow',
                 hidden,
+                pf,
               );
             if (Math.round(a / 3) % 3 === 0)
               paintStrip(
@@ -1082,6 +1140,7 @@ function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
                 line.w,
                 line.color === 'yellow',
                 hidden,
+                pf,
               );
             runFrom = b;
           }
@@ -1097,6 +1156,7 @@ function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
             line.w,
             line.color === 'yellow',
             hidden,
+            pf,
           );
         continue;
       }
@@ -1111,6 +1171,7 @@ function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
           line.w,
           line.color === 'yellow',
           hidden,
+          pf,
         );
         continue;
       }
@@ -1119,7 +1180,7 @@ function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
         line.color === 'white' ? solidLaneRuns(w, s0, s1, net.stage) : [];
       for (const [a, b] of solid)
         for (const d of [-SOLID_GAP / 2, SOLID_GAP / 2])
-          paintStrip(net, w, tiles, a, b, t + d, line.w, false, hidden);
+          paintStrip(net, w, tiles, a, b, t + d, line.w, false, hidden, pf);
       const inSolid = (a: number) => solid.some(([u, v]) => a + 3 > u && a < v);
       for (let a = Math.ceil(s0 / 12) * 12; a < s1; a += 12)
         if (!inSolid(a))
@@ -1133,6 +1194,7 @@ function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
             line.w,
             false,
             hidden,
+            pf,
           );
     }
   }
@@ -1220,8 +1282,10 @@ function turnArrows(net: Network, field: NetField, w: Way, tiles: Tiles): void {
   const { turnFwd, turnBack } = w.tags;
   if (w.stage || w.tpl.pave === 'terrain' || (!turnFwd && !turnBack)) return;
   const L = w.al.length;
-  const s0 = w.cut0;
-  const s1 = L - w.cut1;
+  // (cut back to a survey plaza's rim: out to its own junctions, on the plaza's paving)
+  const s0 = w.plazaCut ? w.plazaCut[0] : w.cut0;
+  const s1 = L - (w.plazaCut ? w.plazaCut[1] : w.cut1);
+  const onPlaza = (s: number) => s < w.cut0 || s > L - w.cut1;
   const sec = w.sec;
   const centre = sec.oneway
     ? sec.paveL
@@ -1257,13 +1321,18 @@ function turnArrows(net: Network, field: NetField, w: Way, tiles: Tiles): void {
           const fr = frameAt(w, sTail + dir * u);
           const t = t0 + dir * v;
           const [x, z] = lat(fr, t);
-          return {
-            x,
-            z,
-            h: net.surfaceAt(w, fr.i, fr.f, t) + PAINT_LIFT * 1.5,
-          };
+          const h = onPlaza(fr.s)
+            ? (field.plazaPaving(x, z) ?? NaN)
+            : net.surfaceAt(w, fr.i, fr.f, t);
+          return { x, z, h: h + PAINT_LIFT * 1.5 };
         };
         const mid = at(ARROW_L / 2, 0);
+        if (
+          Number.isNaN(mid.h) ||
+          Number.isNaN(at(0, 0).h) ||
+          Number.isNaN(at(ARROW_L, 0).h)
+        )
+          continue;
         const o = field.pavedByOther(mid.x, mid.z, mid.h, w, 0.5);
         if (o && o.tpl.rank > w.tpl.rank) continue;
         const acc = tiles.at('paint', mid.x, mid.z);
@@ -1341,7 +1410,9 @@ function crossings(
   field: NetField,
   j: Junction,
   tiles: Tiles,
+  onPlaza = false,
 ): void {
+  const pf = onPlaza ? field : undefined;
   for (const a of j.arms) {
     const w = a.way;
     if (w.tpl.kerbH <= 0 || w.tpl.sidewalkW <= 0) continue;
@@ -1351,15 +1422,18 @@ function crossings(
       return !!o && o.tpl.rank > w.tpl.rank;
     };
     const L = w.al.length;
-    const room = L - w.cut0 - w.cut1;
+    const room = onPlaza
+      ? L - (w.plazaCut?.[0] ?? w.cut0) - (w.plazaCut?.[1] ?? w.cut1)
+      : L - w.cut0 - w.cut1;
     if (room < 9) continue;
     const at = (d: number) => (a.atEnd ? L - a.cut - d : a.cut + d);
     const sec = w.sec;
     // ladder bars along the street, 0.6 m wide every 1.2 m across the pavement
     const s0 = Math.min(at(0.6), at(3.6));
     const s1 = Math.max(at(0.6), at(3.6));
-    for (let t = -sec.paveR + 0.45; t < sec.paveL - 0.3; t += 1.2)
-      paintStrip(net, w, tiles, s0, s1, t + 0.3, 0.6, false, hidden);
+    if (!onPlaza)
+      for (let t = -sec.paveR + 0.45; t < sec.paveL - 0.3; t += 1.2)
+        paintStrip(net, w, tiles, s0, s1, t + 0.3, 0.6, false, hidden);
     // stop bar across the lanes coming in
     let tIn0: number;
     let tIn1: number;
@@ -1391,6 +1465,7 @@ function crossings(
         (hi - lo) / pieces,
         false,
         hidden,
+        pf,
       );
   }
 }
@@ -1400,8 +1475,6 @@ function crossings(
 /** Triangulate a flat outline and split the triangles until no edge is longer than `max` m. */
 /** A raised plaza island's kerb over the paving (m, v1 plazas.ts `ISLAND_KERB`). */
 const PLAZA_KERB = 0.15;
-/** A survey plaza under a street end overlapping it: this far below the street's pavement (m). */
-const PLAZA_UNDER = 0.03;
 
 /**
  * A survey plaza (`NetworkDef.plazas`): one paved surface over its area on the plaza's height field (none over the open
@@ -1412,6 +1485,8 @@ const ISLAND_MIN_W = 1.2;
 const ISLAND_MIN_AREA = 10;
 /** An island's top keeps to its own level within this (m): no part of it follows the paving down a drop. */
 const ISLAND_STEP = 1;
+/** ... within this distance of the open cut (m); further away a long island follows the paving's slope. */
+const ISLAND_NEAR_CUT = 4;
 /** An island kerb face's step along its edge (m). */
 const KERB_STEP = 0.75;
 
@@ -1565,6 +1640,7 @@ function plazaSurface(
     up = false,
     under: number[][] = [],
     cut?: (x: number, z: number) => number,
+    edgeFill = CUT_EDGE_FILL,
   ) => {
     const acc = tiles.at(mat, cx, cz);
     const { pts, tris } = triangulate(poly, 1.5, holes);
@@ -1580,7 +1656,7 @@ function plazaSurface(
     const cm = cut ? pts.map(([x, z]) => cut(x, z)) : undefined;
     if (cm)
       for (let k = 0; k < pts.length; k++)
-        if (hs[k] === undefined && cm[k] < 0 && cm[k] > -CUT_EDGE_FILL)
+        if (hs[k] === undefined && cm[k] < 0 && cm[k] > -edgeFill)
           hs[k] = field.plazaNear(pts[k][0], pts[k][1]);
     const ids = pts.map(([x, z], k) =>
       hs[k] === undefined
@@ -1638,6 +1714,8 @@ function plazaSurface(
     raised.filter((il) => !holes.includes(il.pts)).map((il) => il.pts),
     // (its edge over the trench: straight along the portal line and the wall lines, not the field's 1 m cells)
     (x, z) => cutMargin(net, field, x, z),
+    // (and a vertex on its outline just past the field's cells: the plaza's nearest)
+    Infinity,
   );
   const kerb = tiles.at('kerb', cx, cz);
   for (const il of raised) {
@@ -1651,11 +1729,27 @@ function plazaSurface(
     }
     at.sort((a, b) => a - b);
     const ref = at[at.length >> 1];
+    // (clipped to the open cut's edge like the paving: an island never hangs out over the road down in the cut)
+    const cut = (x: number, z: number) => cutMargin(net, field, x, z);
+    // (a long island follows the paving's slope; only near the cut its top keeps the one level)
     const topH = (x: number, z: number) => {
       const h = islandH(x, z);
-      return h === undefined || Math.abs(h - ref) > ISLAND_STEP ? undefined : h;
+      return h === undefined ||
+        (Math.abs(h - ref) > ISLAND_STEP && cut(x, z) > -ISLAND_NEAR_CUT)
+        ? undefined
+        : h;
     };
-    fill(il.pts, 'island', PLAZA_KERB + 0.01, SIDEWALK_TEX, topH, [], true);
+    fill(
+      il.pts,
+      'island',
+      PLAZA_KERB + 0.01,
+      SIDEWALK_TEX,
+      topH,
+      [],
+      true,
+      [],
+      cut,
+    );
     // the kerb face: along each edge in short steps on the top's own heights (no teeth where the top's fill bends
     // between the outline's corners), its foot down under the paving beside it
     const foot = (x: number, z: number, h: number) => {
@@ -1683,7 +1777,7 @@ function plazaSurface(
       for (let e = 0; e <= n; e++) {
         const x = ax + ((bx - ax) * e) / n;
         const z = az + ((bz - az) * e) / n;
-        const h = topH(x, z);
+        const h = cut(x, z) > 0 ? undefined : topH(x, z);
         if (h === undefined) {
           prev = undefined;
           continue;
@@ -1702,6 +1796,143 @@ function plazaSurface(
     }
   }
   plazaPaint(field, pl, tiles);
+}
+
+// --- city street space -------------------------------------------------------------------------------------------------
+
+/** The street space's height at (x, z), or near it (within 2 m) at the open cut's edge. */
+function underNear(field: NetField, x: number, z: number): number | undefined {
+  const h = field.underDrawn(x, z, true);
+  if (h !== undefined) return h;
+  for (const r of [0.75, 1.5, 2.25])
+    for (let a = 0; a < 8; a++) {
+      const v = field.underDrawn(
+        x + r * Math.cos((a * Math.PI) / 4),
+        z + r * Math.sin((a * Math.PI) / 4),
+      );
+      if (v !== undefined) return v;
+    }
+  return undefined;
+}
+
+/**
+ * A piece of city street space (`NetworkDef.streetSpace`): one paved surface over it on NetField `underDrawn`, under
+ * the roads, sidewalks, junctions and plazas there and level between them; clipped to the open cut's edge.
+ */
+function underSurface(
+  net: Network,
+  field: NetField,
+  u: Under,
+  tiles: Tiles,
+): void {
+  const mat: MatId = u.kind === 'walk' ? 'sidewalk' : 'junction';
+  const tex = u.kind === 'walk' ? SIDEWALK_TEX : TEX;
+  const acc = tiles.at(mat, (u.minX + u.maxX) / 2, (u.minZ + u.maxZ) / 2);
+  const { pts, tris } = triangulate(u.area, 1, u.holes);
+  const cm = pts.map(([x, z]) => cutMargin(net, field, x, z));
+  // (a vertex on the outline can fall just outside the field's cells: the height next to it)
+  const hs = pts.map(([x, z], k) =>
+    cm[k] < 0 ? underNear(field, x, z) : field.underDrawn(x, z, true),
+  );
+  const ids = pts.map(([x, z], k) =>
+    hs[k] === undefined ? -1 : acc.v(x, hs[k] as number, z, x / tex, z / tex),
+  );
+  for (const i of ids) if (i >= 0) acc.up.push(i);
+  for (const [a, b, c] of tris) {
+    if (cm[a] > 0 || cm[b] > 0 || cm[c] > 0) {
+      clipToCut(acc, pts, hs, cm, [a, b, c], ids, 0, tex, true);
+      continue;
+    }
+    if (ids[a] < 0 || ids[b] < 0 || ids[c] < 0) continue;
+    const [ax, az] = pts[a];
+    const [bx, bz] = pts[b];
+    const [qx, qz] = pts[c];
+    const cross = (bx - ax) * (qz - az) - (bz - az) * (qx - ax);
+    if (cross < 0) acc.tri(ids[a], ids[b], ids[c]);
+    else acc.tri(ids[a], ids[c], ids[b]);
+  }
+}
+
+/**
+ * The street space's raised medians: a kerb high over its paving with a kerb face round them, never on a drawn road
+ * (an OSM carriageway lying over the surveyed median keeps its lane) nor over the open cut.
+ */
+function underMedians(net: Network, field: NetField, tiles: Tiles): void {
+  const free = (x: number, z: number) => {
+    if (cutMargin(net, field, x, z) > -0.3) return undefined;
+    const h = field.underDrawn(x, z);
+    if (h === undefined) return undefined;
+    const t = field.top(x, z, h + 0.5);
+    return t && t.surface !== 'grass' && t.h > h - 0.5 ? undefined : h;
+  };
+  for (const m of net.underMedians) {
+    let cx = 0;
+    let cz = 0;
+    for (let k = 0; k < m.length; k += 2) {
+      cx += m[k];
+      cz += m[k + 1];
+    }
+    cx /= m.length / 2;
+    cz /= m.length / 2;
+    const acc = tiles.at('island', cx, cz);
+    const { pts, tris } = triangulate(m, 1.5);
+    const hs = pts.map(([x, z]) => free(x, z));
+    const ids = pts.map(([x, z], k) =>
+      hs[k] === undefined
+        ? -1
+        : acc.v(
+            x,
+            (hs[k] as number) + ROAD_UNDER + PLAZA_KERB,
+            z,
+            x / SIDEWALK_TEX,
+            z / SIDEWALK_TEX,
+          ),
+    );
+    for (const i of ids) if (i >= 0) acc.up.push(i);
+    for (const [a, b, c] of tris) {
+      if (ids[a] < 0 || ids[b] < 0 || ids[c] < 0) continue;
+      const [ax, az] = pts[a];
+      const [bx, bz] = pts[b];
+      const [qx, qz] = pts[c];
+      const cross = (bx - ax) * (qz - az) - (bz - az) * (qx - ax);
+      if (cross < 0) acc.tri(ids[a], ids[b], ids[c]);
+      else acc.tri(ids[a], ids[c], ids[b]);
+    }
+    // the kerb face along the outline, both windings (the outline's direction is the survey's)
+    const kerb = tiles.at('kerb', cx, cz);
+    const n = m.length / 2;
+    for (let k = 0; k < n; k++) {
+      const [ax, az] = [m[k * 2], m[k * 2 + 1]];
+      const q = (k + 1) % n;
+      const [bx, bz] = [m[q * 2], m[q * 2 + 1]];
+      const L = Math.hypot(bx - ax, bz - az);
+      const steps = Math.max(1, Math.ceil(L / KERB_STEP));
+      let prev: [number, number] | undefined;
+      for (let e = 0; e <= steps; e++) {
+        const x = ax + ((bx - ax) * e) / steps;
+        const z = az + ((bz - az) * e) / steps;
+        const h = free(x, z);
+        if (h === undefined) {
+          prev = undefined;
+          continue;
+        }
+        const lo = kerb.v(x, h - 0.05, z, e / steps, 0, 0.9);
+        const hi = kerb.v(
+          x,
+          h + ROAD_UNDER + PLAZA_KERB,
+          z,
+          e / steps,
+          0.15,
+          0.95,
+        );
+        if (prev) {
+          const [p0, p1] = prev;
+          kerb.idx.push(p0, lo, hi, p0, hi, p1, p0, hi, lo, p0, p1, hi);
+        }
+        prev = [lo, hi];
+      }
+    }
+  }
 }
 
 // --- bike lanes ---------------------------------------------------------------------------------------------------------
@@ -1990,7 +2221,12 @@ function plazaPaint(field: NetField, pl: Plaza, tiles: Tiles): void {
     (il) => il.kind !== 'painted' && il.pts.length >= 6,
   );
   const surf = (x: number, z: number): number | undefined => {
-    if (!inPolygon(pl.area, x, z)) return undefined;
+    // (a crossing running on past the area: on the street there, or the city street space)
+    if (!inPolygon(pl.area, x, z)) {
+      const t = field.top(x, z);
+      if (t && t.surface !== 'grass') return t.h;
+      return field.underDrawn(x, z);
+    }
     if (raised.some((il) => inPolygon(il.pts, x, z))) return undefined;
     const h = field.plazaHeight(x, z) ?? field.top(x, z)?.h;
     // (no street paint on a parkway lane the survey area reaches over)
@@ -3718,7 +3954,39 @@ export function barrierPlan(
     const kept = runs.filter(([a, b]) => b - a >= BARRIER_MIN);
     if (kept.length) out.push({ kind: k, runs: kept });
   }
+  // where one kind ends just short of the next one's start (the outer rail up to the cut's Jersey): the earlier runs on
+  // to it, no gap between them
+  const starts = out.flatMap((p) => p.runs.map((r) => r[0]));
+  for (const p of out)
+    for (const r of p.runs) {
+      const next = starts.filter(
+        (a) => a > r[1] && a - r[1] <= BARRIER_KIND_JOIN,
+      );
+      if (next.length) r[1] = Math.min(...next);
+    }
   return out;
+}
+
+/**
+ * The world lateral (m, + = left of w's line, as `lat`) of the centre of w's barrier on `side` at arc length s, where a
+ * barrier stands there (`barrierPlan`), else undefined: a sign gantry's post stands on it (overhead-signs.ts).
+ */
+export function barrierLateral(
+  net: Network,
+  field: NetField,
+  w: Way,
+  s: number,
+  side: 0 | 1,
+): number | undefined {
+  for (const { runs } of barrierPlan(net, field, w, side))
+    for (const [a, b] of runs) {
+      if (s < a || s > b) continue;
+      const fr = frameAt(w, s);
+      const sg = side === 0 ? 1 : -1;
+      const t = sg * ((side === 0 ? w.sec.paveL : w.sec.paveR) + BARRIER_OFF);
+      return sideShift(fr, side) + t;
+    }
+  return undefined;
 }
 
 function barriers(net: Network, field: NetField, w: Way, parts: Parts): void {

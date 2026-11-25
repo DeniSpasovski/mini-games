@@ -19,6 +19,9 @@ import laneStart from '../jackie/junction-lane-start.json';
 import qbEast from './junction-qb-east.json';
 // The fountain park east of Kew Gardens: lawn, footpaths, fountain (scripts/realmap/park_block.py: NYC planimetrics + OSM)
 import parkKew from './park-kew.json';
+// The city street space by the stage road's last kilometre: roadbed, sidewalks, medians (scripts/realmap/street_space.py:
+// NYC planimetrics)
+import streetSpace from './street-space.json';
 // Protected bike lanes and painted medians (scripts/realmap/nyc_lanes.py: NYC DOT Bike Routes, NYC planimetrics)
 import markings from './markings.json';
 import patches from './network-patches.json';
@@ -110,14 +113,24 @@ export const jackie2Map: MapDef = {
     // Queens Blvd x Union Tpke over the Queens Blvd tunnel (the end zone): one paved plaza from the survey, the OSM
     // carriageways end on its rim (one source per junction)
     plazas: [
-      { area: kewGardens.area, islands: kewGardens.islands },
-      { area: laneStart.area, islands: laneStart.islands },
+      {
+        area: kewGardens.area,
+        islands: kewGardens.islands,
+        crosswalks: kewGardens.crosswalks,
+      },
+      {
+        area: laneStart.area,
+        islands: laneStart.islands,
+        crosswalks: laneStart.crosswalks,
+      },
       {
         area: qbEast.area,
         islands: qbEast.islands,
         crosswalks: qbEast.crosswalks,
       },
     ],
+    // ... and the rest of the street space beside it, paved under the street ribbons (none of it bare land)
+    streetSpace,
     parks: [parkKew],
     bikeLanes: markings.lanes,
     paintedMedians: markings.painted,

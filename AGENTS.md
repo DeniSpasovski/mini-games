@@ -119,7 +119,7 @@ into `DETAILS.md`, never up.
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py` (+ the NYC footprints a v2 map's bake lacks: `network.py --city-buildings`), `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `extend.py` (terrain + water ring around a baked map), `plaza_islands.py` (city junction
-  `junction.json`), `park_block.py` (a city park's lawn, paths, fountain), `nyc_lanes.py` (NYC DOT protected bike lanes), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
+  `junction.json`), `park_block.py` (a city park's lawn, paths, fountain), `nyc_lanes.py` (NYC DOT protected bike lanes), `street_space.py` (NYC planimetric roadbed, sidewalks and medians beside a stage road, paved under the v2 streets), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
   the DEM), `nyc_pull.py` (NYC open data for the Jackie maps: the end box and the west corridor), `east.py` (grows a baked map east with the full bake's roads / land cover / terrain), `west.py` (grows it west: streets,
   buildings, land cover), `regrid.py` (re-samples a baked map's heightmap grids from its DEM). Jackie v1's street model, parkway shift / width,
   opposite carriageway, spot heights, retaining walls and street trees are committed data (their one-off scripts were

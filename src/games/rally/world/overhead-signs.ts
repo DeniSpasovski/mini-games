@@ -26,7 +26,7 @@ export interface GantryPlan {
   /** Posts: lateral distance from the road centre (+ = left) and how far the ground there is below the road centre. */
   posts: { lateral: number; drop: number }[];
   /** Boards along the beam: lateral centre (+ = left) and content. */
-  boards: { lateral: number; def: SignBoardDef }[];
+  boards: { lateral: number; def: SignBoardDef; w?: number }[];
   /** Lattice legs + a braced box-truss beam (OverheadSignDef `lattice`) instead of round posts. */
   lattice?: boolean;
 }
@@ -110,6 +110,8 @@ export function overheadSigns(
   ground: TerrainSampler,
   net: PathNetwork | undefined,
   junctions: readonly Junction[],
+  /** On a road-network map: the lateral of the stage road's barrier at `along` on that side (+1 left), if one stands. */
+  barrierAt?: (along: number, side: 1 | -1) => number | undefined,
 ): OverheadSigns {
   const out: OverheadSigns = { gantries: [], colliders: [] };
   const def = map.overheadSigns;
@@ -194,21 +196,38 @@ export function overheadSigns(
       }
       return lat;
     };
-    const posts =
-      p.span === 'portal'
-        ? [clear(1), clear(-1)].map((lateral) => ({
-            lateral,
-            drop: drop(lateral),
-          }))
-        : [{ lateral: clear(-1), drop: drop(clear(-1)) }];
-    // Boards: a cantilever hangs its boards over the right half of the road; a portal spreads them across.
+    // (where the road has a barrier on that side the post stands on it: the median's or the outer one, never on the
+    // lanes beyond)
+    const postAt = (side: 1 | -1): number =>
+      (p.frame ? undefined : barrierAt?.(p.along, side)) ?? clear(side);
+    const posts = (
+      p.span === 'portal' ? [postAt(1), postAt(-1)] : [postAt(-1)]
+    ).map((lateral) => ({ lateral, drop: drop(lateral) }));
+    // Boards: a cantilever hangs its boards over the right half of the road; a portal spreads them across. Between
+    // posts on the barriers the boards fit the span between them (narrower boards where two do not fit).
+    const k = p.boards.length;
+    const onBarriers =
+      p.span === 'portal' &&
+      !p.frame &&
+      barrierAt?.(p.along, 1) !== undefined &&
+      barrierAt(p.along, -1) !== undefined;
+    const inner =
+      posts.length > 1
+        ? Math.abs(posts[0].lateral - posts[1].lateral) - 2 * BOARD_POST_GAP
+        : 0;
+    const pitch =
+      onBarriers && k * BOARD_PITCH > inner
+        ? inner / k
+        : Math.max(s.halfWidth * 1.1, BOARD_PITCH);
+    const mid = onBarriers ? (posts[0].lateral + posts[1].lateral) / 2 : 0;
     const boards = p.boards.map((def2, i) => {
-      const k = p.boards.length;
       const lateral =
         p.span === 'portal'
-          ? ((k - 1) / 2 - i) * Math.max(s.halfWidth * 1.1, BOARD_PITCH)
+          ? mid + ((k - 1) / 2 - i) * pitch
           : -s.halfWidth * 0.5 - i * 3.9;
-      return { lateral, def: def2 };
+      return pitch < BOARD_PITCH && p.span === 'portal'
+        ? { lateral, def: def2, w: pitch - (BOARD_PITCH - BOARD_W) }
+        : { lateral, def: def2 };
     });
     out.gantries.push({
       along: p.along,
@@ -239,6 +258,10 @@ const CARRIAGEWAY = /^(motorway|trunk)(_link)?$/;
 /** Boards on a portal sit at least this far apart (m): a board's width (gantry-mesh.ts BOARD_W 3.8) and a gap, side by
  * side over a narrow road too. */
 const BOARD_PITCH = 4.0;
+/** A board's full width (gantry-mesh.ts BOARD_W). */
+const BOARD_W = 3.8;
+/** Clear space between a post on a barrier and the nearest board edge (m). */
+const BOARD_POST_GAP = 0.35;
 
 /** A one-way carriageway / ramp way and its end points. */
 interface Way {
