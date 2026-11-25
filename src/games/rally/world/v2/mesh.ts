@@ -15,6 +15,7 @@ import { hash3, hashString } from '../../../../shared/rng';
 import {
   bridgeMaterials,
   Builder,
+  Plates,
   railing,
   type RGB,
   type Row,
@@ -26,6 +27,11 @@ import {
   RAIL_STEEL,
 } from '../barrier-mesh';
 import { chainLinkMaterial } from '../cut-wall-mesh';
+import {
+  clearancePlateTexture,
+  feetInches,
+  namePlateTexture,
+} from '../../engine/structure-textures';
 import { SKIRT_DEPTH, SKIRT_W } from '../road-slab';
 import type { World } from '../world';
 import {
@@ -343,6 +349,8 @@ class Parts {
       fence: Builder;
     }
   >();
+  /** Name / clearance plates on portal headwalls (one mesh per texture). */
+  readonly plates = new Plates();
   at(x: number, z: number) {
     const k = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`;
     let p = this.map.get(k);
@@ -385,6 +393,7 @@ class Parts {
         group.add(f);
       }
     }
+    this.plates.flush(group);
   }
 }
 
@@ -2705,7 +2714,65 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
         pts,
         w.tpl.deck === 'stone' ? STONE : CONC,
       );
+      portalPlates(net, w, i, i === i0, fr, y, midT, parts);
     }
+  }
+}
+
+/**
+ * The plates on a portal headwall, facing the drivers who enter the bore there (v1 `portals.ts` / bridge-mesh: drive
+ * video, Queens Blvd 5:26-5:27): the green name plate of the street over the portal over the left lane, the white
+ * clearance plate (to the girders) over the right one. A one-way bore has them at its entry end only.
+ */
+function portalPlates(
+  net: Network,
+  w: Way,
+  i: number,
+  entry: boolean,
+  fr: Frame,
+  y: number,
+  midT: number,
+  parts: Parts,
+): void {
+  if (!entry && (w.oneway || w.stage)) return;
+  const bot = y + w.tpl.clearance + 0.3;
+  const head = (w.slab?.[i] ?? bot) - bot;
+  if (head < 0.75) return;
+  const s = w.al.s[i];
+  let name: string | undefined;
+  let best = 40;
+  for (const c of net.crossings) {
+    if (c.lower !== w || !c.upper.name) continue;
+    const d = Math.abs(c.sL - s);
+    if (d < best) {
+      best = d;
+      name = c.upper.name;
+    }
+  }
+  // facing out of the bore, towards the drivers approaching this end
+  const out = entry ? -1 : 1;
+  const nx = fr.tx * out;
+  const nz = fr.tz * out;
+  const py = bot + Math.min(0.55, head / 2);
+  // the drivers' left / right: lateral +t is left of the way's direction (entry); the exit end is seen the other way
+  const side = (t: number) => {
+    const [x, z] = lat(fr, midT + t * -out);
+    return [x + nx * 0.09, z + nz * 0.09] as const;
+  };
+  const [cx, cz] = side(-1.7);
+  parts.plates.add(
+    clearancePlateTexture(feetInches(w.tpl.clearance - GIRDER_D + 0.4)),
+    cx,
+    py,
+    cz,
+    nx,
+    nz,
+    0.96,
+    0.6,
+  );
+  if (name) {
+    const [ax, az] = side(1.9);
+    parts.plates.add(namePlateTexture(name), ax, py, az, nx, nz, 2.2, 0.55);
   }
 }
 
