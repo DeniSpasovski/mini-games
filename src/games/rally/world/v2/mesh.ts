@@ -10,11 +10,13 @@ import {
   Vector2,
 } from 'three';
 import { plainDepthMaterial } from '../../engine/materials';
+import type { DryZone } from '../../engine/world-shading';
 import { getTexture, type TextureId } from '../../engine/textures';
 import { hash3, hashString } from '../../../../shared/rng';
 import {
   bridgeMaterials,
   Builder,
+  Plates,
   railing,
   type RGB,
   type Row,
@@ -26,6 +28,11 @@ import {
   RAIL_STEEL,
 } from '../barrier-mesh';
 import { chainLinkMaterial } from '../cut-wall-mesh';
+import {
+  clearancePlateTexture,
+  feetInches,
+  namePlateTexture,
+} from '../../engine/structure-textures';
 import { SKIRT_DEPTH, SKIRT_W } from '../road-slab';
 import type { World } from '../world';
 import {
@@ -140,8 +147,13 @@ const FILL_W = PARAPET_OUT - PARAPET_IN;
 const SOFFIT: RGB = [0.45, 0.44, 0.42];
 /** Tunnel ceiling girders: spacing (m), depth under the soffit (m), dark painted steel. */
 const GIRDER_EVERY = 2.6;
-const GIRDER_D = 0.42;
+/** A tunnel's built-up girders: deep enough that the clearance under them is the real one (Queens Blvd 12'-10", lidar
+ * deck top less the floor less the slab), m. */
+const TUNNEL_GIRDER_D = 1.1;
 const GIRDER: RGB = [0.2, 0.19, 0.18];
+/** A tunnel's steel columns: light grey paint, this far in from the bore's wall line (m). */
+const COLUMN: RGB = [0.5, 0.51, 0.5];
+const COLUMN_IN = 0.3;
 /**
  * A steel deck (`deckStyles` 'steel'): the fascia girders' dull grey-green paint (drive video 3:34-3:36, Myrtle Ave),
  * the slab's underside above its girders (m under the deck top) and the girder spacing across the deck (m).
@@ -343,6 +355,8 @@ class Parts {
       fence: Builder;
     }
   >();
+  /** Name / clearance plates on portal headwalls (one mesh per texture). */
+  readonly plates = new Plates();
   at(x: number, z: number) {
     const k = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`;
     let p = this.map.get(k);
@@ -385,6 +399,7 @@ class Parts {
         group.add(f);
       }
     }
+    this.plates.flush(group);
   }
 }
 
@@ -461,6 +476,7 @@ export function* netMeshJob(world: World): Generator<void, Group | undefined> {
     if (w.internal) continue;
     waySurface(net, field, w, tiles);
     wayPaint(net, field, w, tiles);
+    turnArrows(net, field, w, tiles);
     walls(net, field, w, parts);
     decks(net, field, w, parts);
     medianDecks(net, w, parts);
@@ -1072,6 +1088,159 @@ function wayPaint(net: Network, field: NetField, w: Way, tiles: Tiles): void {
           );
     }
   }
+}
+
+/** A turn arrow's length, its stem's width, the head's length and width (m; NYC street arrows). */
+const ARROW_L = 4.2;
+const ARROW_STEM = 0.22;
+const ARROW_HEAD_L = 1.3;
+const ARROW_HEAD_W = 0.95;
+/** Turn arrows stand this far before a way's end (the stop line), a second set ARROW_AGAIN further back (m). */
+const ARROW_BEFORE = 9;
+const ARROW_AGAIN = 30;
+
+/**
+ * One arrow glyph as convex pieces in (u along the lane, v to its left), m: a stem and a head per direction of
+ * `turn` (an OSM turn:lanes entry, e.g. "through;right"); empty for none.
+ */
+export function arrowGlyph(turn: string): [number, number][][] {
+  const out: [number, number][][] = [];
+  const st = ARROW_STEM / 2;
+  const head = (u: number, v: number, du: number, dv: number) => {
+    // a head at (u, v) pointing along (du, dv)
+    const n = Math.hypot(du, dv);
+    const ax = du / n;
+    const ay = dv / n;
+    const bu = u - ax * ARROW_HEAD_L;
+    const bv = v - ay * ARROW_HEAD_L;
+    out.push([
+      [u, v],
+      [bu - ay * (ARROW_HEAD_W / 2), bv + ax * (ARROW_HEAD_W / 2)],
+      [bu + ay * (ARROW_HEAD_W / 2), bv - ax * (ARROW_HEAD_W / 2)],
+    ]);
+    return [bu, bv] as const;
+  };
+  const kinds = turn.split(';').map((k) => k.trim());
+  const bend = ARROW_L - ARROW_HEAD_L - 0.9;
+  let stem = 0;
+  for (const k of kinds) {
+    if (k === 'through') {
+      head(ARROW_L, 0, 1, 0);
+      stem = Math.max(stem, ARROW_L - ARROW_HEAD_L);
+    } else if (k === 'left' || k === 'right') {
+      const sg = k === 'left' ? 1 : -1;
+      const [, bv] = head(bend + st, sg * 1.75, 0, sg);
+      out.push([
+        [bend - st, 0],
+        [bend + st, 0],
+        [bend + st, bv],
+        [bend - st, bv],
+      ]);
+      stem = Math.max(stem, bend + st);
+    } else if (
+      k === 'slight_left' ||
+      k === 'slight_right' ||
+      k.startsWith('merge_to')
+    ) {
+      const sg = k === 'slight_left' || k === 'merge_to_left' ? 1 : -1;
+      const [bu, bv] = head(ARROW_L - 0.2, sg * 0.9, 1, sg * 0.6);
+      out.push([
+        [bend - 0.6, -st],
+        [bend - 0.6, st],
+        [bu, bv + st],
+        [bu, bv - st],
+      ]);
+      stem = Math.max(stem, bend - 0.6);
+    }
+  }
+  if (stem > 0)
+    out.push([
+      [0, -st],
+      [stem, -st],
+      [stem, st],
+      [0, st],
+    ]);
+  return out;
+}
+
+/**
+ * Turn arrows from OSM `turn:lanes` (`TagSet.turnFwd` / `turnBack`) in each lane before a way's ends at a junction:
+ * one set ARROW_BEFORE m before the stop line, a second ARROW_AGAIN m further back on a long approach (drive videos,
+ * the Kew Gardens streets). Lanes from the way's own lane lines, counted from the centre (one-way: from its left).
+ */
+function turnArrows(net: Network, field: NetField, w: Way, tiles: Tiles): void {
+  const { turnFwd, turnBack } = w.tags;
+  if (w.stage || w.tpl.pave === 'terrain' || (!turnFwd && !turnBack)) return;
+  const L = w.al.length;
+  const s0 = w.cut0;
+  const s1 = L - w.cut1;
+  const sec = w.sec;
+  const centre = sec.oneway
+    ? sec.paveL
+    : (sec.paint.find((p) => p.color === 'yellow')?.t ?? 0);
+  const bounds = [...new Set(sec.paint.map((p) => +p.t.toFixed(2)))];
+  const lanesOf = (dir: 1 | -1, n: number): number[] => {
+    // the lane line laterals on this direction's side, from its left (the centre) outwards
+    const edges = [centre, ...bounds.filter((t) => (t - centre) * dir < -0.3)]
+      .concat(dir === 1 ? [-sec.paveR] : [sec.paveL])
+      .sort((a, b) => (b - a) * dir);
+    const uniq = edges.filter(
+      (t, i) => i === 0 || Math.abs(t - edges[i - 1]) > 1.5,
+    );
+    const out: number[] = [];
+    for (let i = 0; i + 1 < uniq.length && out.length < n; i++)
+      out.push((uniq[i] + uniq[i + 1]) / 2);
+    return out;
+  };
+  const place = (turns: string, dir: 1 | -1, end: number) => {
+    const list = turns.split('|');
+    const lanes = lanesOf(dir, list.length);
+    if (lanes.length < list.length) return;
+    for (const back of [ARROW_BEFORE, ARROW_BEFORE + ARROW_AGAIN]) {
+      const sTip = end - dir * back;
+      const sTail = sTip - dir * ARROW_L;
+      if (sTail < s0 + 2 || sTail > s1 - 2 || sTip < s0 + 2 || sTip > s1 - 2)
+        continue;
+      for (let i = 0; i < list.length; i++) {
+        const glyph = arrowGlyph(list[i]);
+        if (!glyph.length) continue;
+        const t0 = lanes[i];
+        const at = (u: number, v: number) => {
+          const fr = frameAt(w, sTail + dir * u);
+          const t = t0 + dir * v;
+          const [x, z] = lat(fr, t);
+          return {
+            x,
+            z,
+            h: net.surfaceAt(w, fr.i, fr.f, t) + PAINT_LIFT * 1.5,
+          };
+        };
+        const mid = at(ARROW_L / 2, 0);
+        const o = field.pavedByOther(mid.x, mid.z, mid.h, w, 0.5);
+        if (o && o.tpl.rank > w.tpl.rank) continue;
+        const acc = tiles.at('paint', mid.x, mid.z);
+        for (const poly of glyph) {
+          const vs = poly.map(([u, v]) => {
+            const p = at(u, v);
+            return acc.v(p.x, p.h, p.z, v, u / PAINT_TILE, WHITE);
+          });
+          // (front faces up: a piece counter-clockwise in (u, v) is so seen from above, either direction - a turn of
+          // 180 degrees; a clockwise one is wound the other way)
+          let area = 0;
+          for (let k = 0; k < poly.length; k++) {
+            const [u0, v0] = poly[k];
+            const [u1, v1] = poly[(k + 1) % poly.length];
+            area += u0 * v1 - u1 * v0;
+          }
+          for (let k = 1; k + 1 < vs.length; k++)
+            if (area > 0) acc.tri(vs[0], vs[k], vs[k + 1]);
+            else acc.tri(vs[0], vs[k + 1], vs[k]);
+        }
+      }
+    }
+  };
+  if (turnFwd && !w.merge1) place(turnFwd, 1, s1);
+  if (turnBack && !sec.oneway && !w.merge0) place(turnBack, -1, s0);
 }
 
 /** The two lines of a double solid lane line, centre to centre (m). */
@@ -2563,6 +2732,112 @@ function medianDecks(net: Network, w: Way, parts: Parts): void {
   flush();
 }
 
+/** Share of the sky light under a tunnel roof (dark inside, the lamps and the portals' daylight only: drive videos). */
+export const TUNNEL_SHADE = 0.8;
+/** Length of one roof zone along a bore (m). */
+const ROOF_STEP = 12;
+
+/**
+ * Every bore's roof as zones for the world shading (`setDryZones`: dry in the rain, dark under the slab): capsules
+ * ROOF_STEP m long over the bore's width, below its soffit, the first and last marked as portals.
+ */
+export function tunnelRoofs(net: Network): DryZone[] {
+  const out: DryZone[] = [];
+  for (const w of net.ways) {
+    if (!w.slab) continue;
+    const off = w.tpl.daylight.wallOffset;
+    const edgeL = w.sec.footL + off;
+    const edgeR = w.sec.footR + off;
+    const midT = (edgeL - edgeR) / 2;
+    for (const [i0, i1] of runsOf(w.st, ST_TUNNEL)) {
+      const s0 = w.al.s[i0];
+      const s1 = w.al.s[i1];
+      const n = Math.max(1, Math.round((s1 - s0) / ROOF_STEP));
+      for (let k = 0; k < n; k++) {
+        const fa = frameAt(w, s0 + ((s1 - s0) * k) / n);
+        const fb = frameAt(w, s0 + ((s1 - s0) * (k + 1)) / n);
+        const [ax, az] = lat(fa, midT);
+        const [bx, bz] = lat(fb, midT);
+        const top = Math.max(
+          net.surfaceAt(w, fa.i, fa.f, 0),
+          net.surfaceAt(w, fb.i, fb.f, 0),
+        );
+        out.push({
+          ax,
+          az,
+          bx,
+          bz,
+          radius: (edgeL + edgeR) / 2 + 0.6,
+          top: top + w.tpl.clearance + 0.45,
+          shade: TUNNEL_SHADE,
+          ends: (k === 0 ? 1 : 0) + (k === n - 1 ? 2 : 0),
+        });
+      }
+    }
+  }
+  return mergeHalls(out);
+}
+
+/**
+ * Bores side by side under one roof (the Queens Blvd hall: both carriageways and the service lanes) become one row of
+ * zones over the hall's whole width: the shading takes only the nearest DRY_ZONES, and four bores' worth would leave
+ * lit blocks inside. A zone takes in its neighbour from another bore when they run parallel (|cos| > HALL_COS), their
+ * middles lie within ROOF_STEP m along and their edges within HALL_GAP m across.
+ */
+const HALL_COS = 0.9;
+const HALL_GAP = 3;
+function mergeHalls(zones: DryZone[]): DryZone[] {
+  const out = zones.slice();
+  for (let merged = true; merged;) {
+    merged = false;
+    for (let i = 0; i < out.length && !merged; i++)
+      for (let j = i + 1; j < out.length && !merged; j++) {
+        const a = out[i];
+        const b = out[j];
+        const ux = a.bx - a.ax;
+        const uz = a.bz - a.az;
+        const la = Math.hypot(ux, uz) || 1;
+        const tx = ux / la;
+        const tz = uz / la;
+        const vx = b.bx - b.ax;
+        const vz = b.bz - b.az;
+        const lb = Math.hypot(vx, vz) || 1;
+        const cos = (tx * vx + tz * vz) / lb;
+        if (Math.abs(cos) < HALL_COS) continue;
+        const dx = (b.ax + b.bx) / 2 - (a.ax + a.bx) / 2;
+        const dz = (b.az + b.bz) / 2 - (a.az + a.bz) / 2;
+        const along = dx * tx + dz * tz;
+        const across = dx * tz - dz * tx;
+        if (Math.abs(along) > ROOF_STEP * 0.75) continue;
+        if (Math.abs(across) > a.radius + b.radius + HALL_GAP) continue;
+        // the union across (a's frame: + = a's left), centred, over a's length
+        const lo = Math.min(-a.radius, across - b.radius);
+        const hi = Math.max(a.radius, across + b.radius);
+        const mid = (lo + hi) / 2;
+        const ox = tz * mid;
+        const oz = -tx * mid;
+        out[i] = {
+          ax: a.ax + ox,
+          az: a.az + oz,
+          bx: a.bx + ox,
+          bz: a.bz + oz,
+          radius: (hi - lo) / 2,
+          top: Math.max(a.top, b.top),
+          shade: Math.max(a.shade ?? 0, b.shade ?? 0),
+          // (b's ends in a's direction)
+          ends:
+            (a.ends ?? 0) |
+            (cos >= 0
+              ? (b.ends ?? 0)
+              : (((b.ends ?? 0) & 1) << 1) | (((b.ends ?? 0) & 2) >> 1)),
+        };
+        out.splice(j, 1);
+        merged = true;
+      }
+  }
+  return out;
+}
+
 function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
   if (!w.slab) return;
   const off = w.tpl.daylight.wallOffset;
@@ -2598,14 +2873,14 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
       const fr = frameAt(w, s);
       const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
       const [cx, cz] = lat(fr, midT);
-      p.metal.box(
+      p.paint.box(
         cx,
         cz,
         fr.tx,
         fr.tz,
         0.12,
         span / 2,
-        ceil - GIRDER_D,
+        ceil - TUNNEL_GIRDER_D,
         ceil,
         GIRDER,
       );
@@ -2613,7 +2888,24 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
       if (n % 3 === 0)
         for (const t of [edgeL - 1.1, -(edgeR - 1.1)]) {
           const [lx, lz] = lat(fr, t);
-          p.light.lamp(lx, lz, ceil - GIRDER_D);
+          p.light.lamp(lx, lz, ceil - TUNNEL_GIRDER_D);
+        }
+      // steel columns under every third girder along both sides of the bore (painted H posts behind the Jerseys)
+      if (n % 3 === 1)
+        for (const t of [edgeL - COLUMN_IN, -(edgeR - COLUMN_IN)]) {
+          const [px, pz] = lat(fr, t);
+          const foot = net.surfaceAt(w, fr.i, fr.f, t) - 0.2;
+          p.paint.box(
+            px,
+            pz,
+            fr.tx,
+            fr.tz,
+            0.16,
+            0.17,
+            foot,
+            ceil - TUNNEL_GIRDER_D,
+            COLUMN,
+          );
         }
     }
     p.conc.strip(
@@ -2676,7 +2968,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
         pts.push({
           x,
           z,
-          bot: y + w.tpl.clearance + 0.3,
+          bot: y + w.tpl.clearance + 0.4 - TUNNEL_GIRDER_D,
           top: under(x, z, w.slab[i]),
         });
         const over = field.top(x, z);
@@ -2705,7 +2997,68 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
         pts,
         w.tpl.deck === 'stone' ? STONE : CONC,
       );
+      portalPlates(net, w, i, i0, i1, fr, y, midT, parts);
     }
+  }
+}
+
+/**
+ * The plates on a portal headwall, facing the drivers who enter the bore there (v1 `portals.ts` / bridge-mesh: drive
+ * video, Queens Blvd 5:26-5:27): the green name plate of the street over the portal over the left lane, the white
+ * clearance plate (to the girders) over the right one. A one-way bore has them at its entry end only.
+ */
+function portalPlates(
+  net: Network,
+  w: Way,
+  i: number,
+  i0: number,
+  i1: number,
+  fr: Frame,
+  y: number,
+  midT: number,
+  parts: Parts,
+): void {
+  const entry = i === i0;
+  if (!entry && (w.oneway || w.stage)) return;
+  const bot = y + w.tpl.clearance + 0.4 - TUNNEL_GIRDER_D;
+  const head = (w.slab?.[i] ?? bot) - bot;
+  if (head < 0.75) return;
+  // the street the structure carries: the widest named one over the bore (Queens Blvd, not a side street at a portal)
+  let name: string | undefined;
+  let best = 0;
+  for (const c of net.crossings) {
+    if (c.lower !== w || !c.upper.name) continue;
+    if (c.sL < w.al.s[i0] - 10 || c.sL > w.al.s[i1] + 10) continue;
+    const wide = c.upper.sec.footL + c.upper.sec.footR;
+    if (wide > best) {
+      best = wide;
+      name = c.upper.name;
+    }
+  }
+  // facing out of the bore, towards the drivers approaching this end
+  const out = entry ? -1 : 1;
+  const nx = fr.tx * out;
+  const nz = fr.tz * out;
+  const py = bot + Math.min(0.55, head / 2);
+  // the drivers' left / right: lateral +t is left of the way's direction (entry); the exit end is seen the other way
+  const side = (t: number) => {
+    const [x, z] = lat(fr, midT + t * -out);
+    return [x + nx * 0.09, z + nz * 0.09] as const;
+  };
+  const [cx, cz] = side(-1.7);
+  parts.plates.add(
+    clearancePlateTexture(feetInches(w.tpl.clearance - TUNNEL_GIRDER_D + 0.4)),
+    cx,
+    py,
+    cz,
+    nx,
+    nz,
+    0.96,
+    0.6,
+  );
+  if (name) {
+    const [ax, az] = side(1.9);
+    parts.plates.add(namePlateTexture(name), ax, py, az, nx, nz, 2.2, 0.55);
   }
 }
 

@@ -1,13 +1,23 @@
 import { describe, expect, test } from '@rstest/core';
 import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import tunnelFixture from './fixtures/jackie2-tunnel.json';
+import {
+  DRY_ZONES,
+  type DryZone,
+} from '../../src/games/rally/engine/world-shading';
+import { nearestZones } from '../../src/games/rally/game/rain';
 import { World } from '../../src/games/rally/world/world';
 import {
   inPolygon,
   pointAt,
   valueAt,
 } from '../../src/games/rally/world/v2/alignment';
-import { barrierPlan, skirtRow } from '../../src/games/rally/world/v2/mesh';
+import {
+  arrowGlyph,
+  barrierPlan,
+  skirtRow,
+  tunnelRoofs,
+} from '../../src/games/rally/world/v2/mesh';
 import {
   netColliders,
   netInstances,
@@ -590,5 +600,102 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
       );
       expect(worst).toBeLessThan(0.1);
     });
+
+    test('every bore is a dark roof zone over its own floor, eased in at both portals', () => {
+      const zones = tunnelRoofs(net);
+      let bores = 0;
+      for (const w of net.ways) {
+        if (!w.slab) continue;
+        for (const [i0, i1] of runsOf(w.st, ST_TUNNEL)) {
+          bores++;
+          const im = Math.round((i0 + i1) / 2);
+          const p = { x: w.al.x[im], z: w.al.z[im] };
+          const y = net.surfaceAt(w, im, 0, 0);
+          const over = zones.filter((z) => {
+            const abx = z.bx - z.ax;
+            const abz = z.bz - z.az;
+            const t = Math.min(
+              1,
+              Math.max(
+                0,
+                ((p.x - z.ax) * abx + (p.z - z.az) * abz) /
+                  (abx * abx + abz * abz),
+              ),
+            );
+            return (
+              Math.hypot(p.x - z.ax - abx * t, p.z - z.az - abz * t) <
+                z.radius && y < z.top
+            );
+          });
+          expect(over.length).toBeGreaterThan(0);
+          for (const z of over) expect(z.shade).toBeGreaterThan(0.5);
+        }
+      }
+      // (bores side by side share one row of zones: one portal zone per hall end at least)
+      const a = zones.filter((z) => (z.ends ?? 0) & 1).length;
+      const b = zones.filter((z) => (z.ends ?? 0) & 2).length;
+      expect(a).toBeGreaterThan(0);
+      expect(a).toBeLessThanOrEqual(bores);
+      expect(b).toBeGreaterThan(0);
+      expect(b).toBeLessThanOrEqual(bores);
+    });
+
+    test('inside any bore the nearest DRY_ZONES zones roof every bore floor around (no lit block)', () => {
+      const zones = tunnelRoofs(net);
+      const near: DryZone[] = [];
+      const covered = (z: DryZone, x: number, zz: number, y: number) => {
+        const abx = z.bx - z.ax;
+        const abz = z.bz - z.az;
+        const t = Math.min(
+          1,
+          Math.max(
+            0,
+            ((x - z.ax) * abx + (zz - z.az) * abz) /
+              (abx * abx + abz * abz || 1),
+          ),
+        );
+        return (
+          Math.hypot(x - z.ax - abx * t, zz - z.az - abz * t) < z.radius &&
+          y < z.top
+        );
+      };
+      const floors: [number, number, number][] = [];
+      for (const w of net.ways) {
+        if (!w.slab) continue;
+        for (const [i0, i1] of runsOf(w.st, ST_TUNNEL))
+          for (let i = i0 + 2; i <= i1 - 2; i += 2)
+            floors.push([w.al.x[i], w.al.z[i], net.surfaceAt(w, i, 0, 0)]);
+      }
+      let lit = 0;
+      for (const [cx, cz] of floors) {
+        nearestZones(zones, cx, cz, DRY_ZONES, near);
+        for (const [x, z, y] of floors)
+          if (
+            Math.hypot(x - cx, z - cz) < 40 &&
+            !near.some((q) => covered(q, x, z, y))
+          )
+            lit++;
+      }
+      expect(lit).toBe(0);
+    });
   },
 );
+
+describe('turn arrows', () => {
+  test('one glyph per OSM turn:lanes entry: a stem and a head per direction, pointing that way', () => {
+    expect(arrowGlyph('')).toEqual([]);
+    expect(arrowGlyph('none')).toEqual([]);
+    const through = arrowGlyph('through');
+    expect(through.length).toBe(2);
+    const tip = Math.max(...through.flat().map(([u]) => u));
+    expect(tip).toBeGreaterThan(3.5);
+    // a left arrow's head lies left of the stem (+v), a right one's right
+    const maxV = (g: [number, number][][]) =>
+      Math.max(...g.flat().map(([, v]) => v));
+    const minV = (g: [number, number][][]) =>
+      Math.min(...g.flat().map(([, v]) => v));
+    expect(maxV(arrowGlyph('left'))).toBeGreaterThan(1.5);
+    expect(minV(arrowGlyph('right'))).toBeLessThan(-1.5);
+    expect(arrowGlyph('left;through').length).toBe(4);
+  });
+});

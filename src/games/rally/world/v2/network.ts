@@ -90,8 +90,10 @@ const SPOT_TRUST = 3;
 const SPOT_ROOF = 0.5;
 /** A survey plaza's level also takes the spots this far outside its rim (the street ends it meets, m). */
 const PLAZA_RIM = 8;
-/** The surveyed widths hold off this far from a tunnel: the Queens Blvd tunnel's bores stay at the template (m). */
+/** The stage's surveyed width holds off this far along from its own tunnel: the Queens Blvd bores keep the section (m). */
 const TUNNEL_HOLD = 150;
+/** A street's surveyed width holds off this far from a tunnel's line: the bores and their portals keep the template (m). */
+const WIDTH_HOLD = 25;
 /** A survey spot this near a tunnel's line (and over the land) lies on its roof (m). */
 const TUNNEL_ROOF = 12;
 /**
@@ -107,6 +109,39 @@ const WIDTH_MIN_K = 0.6;
 const WIDTH_EASE = 100;
 /** ... and held where another way's pavement lies within this many m past the stage's template edge. */
 const WIDTH_CONTACT = 0.3;
+/** A mainline's surveyed width eases back to its template over this many m into an end at a junction / bore (m). */
+const WIDTH_END_EASE = 40;
+
+/** Pavement scale of way `w` at s m along from its surveyed widths per station (1 = template / none). */
+function widthK(w: Way, s: number): number {
+  const wd = w.widths;
+  if (!wd?.st.length) return 1;
+  if (wd.pre) return valueAt(w.al, wd.pre, s);
+  const raw = surveyK(w, s * wd.scale);
+  const L = w.al.length;
+  let e = 1;
+  if (wd.ease?.[0]) e = Math.min(e, smoothstep(0, WIDTH_END_EASE, s));
+  if (wd.ease?.[1]) e = Math.min(e, smoothstep(0, WIDTH_END_EASE, L - s));
+  return 1 + (raw - 1) * e;
+}
+
+/** The raw scale of way `w`'s surveyed width at station m (its own metres), clamped. */
+function surveyK(w: Way, m: number): number {
+  const ws = w.widths!.st;
+  let width: number;
+  if (m <= ws[0][0]) width = ws[0][1];
+  else if (m >= ws[ws.length - 1][0]) width = ws[ws.length - 1][1];
+  else {
+    let j = 0;
+    while (j + 1 < ws.length && ws[j + 1][0] < m) j++;
+    const t = (m - ws[j][0]) / (ws[j + 1][0] - ws[j][0] || 1);
+    width = ws[j][1] + (ws[j + 1][1] - ws[j][1]) * t;
+  }
+  return Math.min(
+    1,
+    Math.max(WIDTH_MIN_K, width / (w.sec.paveL + w.sec.paveR)),
+  );
+}
 
 /**
  * An edge's tag set with its surveyed width (curb to curb) in place of OSM's, except on the parkway classes
@@ -120,7 +155,7 @@ function surveyed(e: EdgeData, t: TagSet, sets: TagSet[]): TagSet {
     e.tags.some(([, ti]) => sets[ti]?.tunnel)
   )
     return t;
-  return { ...t, width: e.surveyWidth };
+  return { ...t, width: e.surveyWidth, widthSurveyed: true };
 }
 /** A merging ramp's taper (m before its merge node) and its overlap under the host's edge where alongside. */
 const MERGE_TAPER = 55;
@@ -271,6 +306,18 @@ export interface Way {
    * lies on. The pavement reaches out to it (`goreAt`): the wedge between ramp and host is paved, no verge, no slab side.
    */
   gore?: { t: Float64Array; h: Float64Array; side: Int8Array };
+  /**
+   * Surveyed width per station (the stage: `stage.widths`; a parkway mainline: its edge's `widths`), m along = s * scale
+   * (`widthK`): the right-of-way pass keeps neighbours apart at these widths, `stageScale` / `mainlineScale` narrow to them.
+   */
+  widths?: {
+    st: [number, number][];
+    scale: number;
+    /** The stage: its scale per sample before the contact holds (`stageScale` with the tunnel holds only). */
+    pre?: Float64Array;
+    /** A mainline: its ends that ease back to the template (a junction, a bore, a way without survey widths). */
+    ease?: [boolean, boolean];
+  };
 }
 
 /**
@@ -550,6 +597,21 @@ export class Network {
     if (road.runoutFrom < road.length)
       this.runoutFrom = Math.max(1, sampleAt(this.stage.al, road.runoutFrom));
     this.holdTunnels(data, road);
+    if (data.stage.widths?.length) {
+      const w = this.stage;
+      w.widths = {
+        st: data.stage.widths,
+        scale: data.stage.length / Math.max(1, road.runoutFrom),
+      };
+      const d = this.heldDistance(this.stageTunnelHeld(data, road));
+      const pre = new Float64Array(w.al.n);
+      for (let i = 0; i < w.al.n; i++)
+        pre[i] =
+          1 +
+          (surveyK(w, w.al.s[i] * w.widths.scale) - 1) *
+            smoothstep(0, WIDTH_EASE, d[i]);
+      w.widths.pre = pre;
+    }
     for (const e of data.edges) {
       if (e.pts.length < 4) continue;
       this.addWay(e, data.tagSets, def);
@@ -573,6 +635,16 @@ export class Network {
       this.nodes.get(w.nodes[0])?.ends.push({ way: w, atEnd: false });
       this.nodes.get(w.nodes[1])?.ends.push({ way: w, atEnd: true });
     }
+    // a mainline's surveyed width carries on only through a joint with another surveyed one
+    for (const w of this.ways)
+      if (!w.stage && w.widths)
+        w.widths.ease = [0, 1].map((k) => {
+          const nd = this.nodes.get(w.nodes[k]);
+          const other = nd?.ends.filter((e) => e.way !== w) ?? [];
+          return (
+            !nd || nd.stage >= 0 || other.length !== 1 || !other[0].way.widths
+          );
+        }) as [boolean, boolean];
     // --- sections (templates, divided-road sides) ------------------------------------------------------------------
     this.assignRoles();
     this.buildSections();
@@ -585,7 +657,9 @@ export class Network {
       this.indexLines();
     }
     this.buildSections();
-    // the stage pavement at its surveyed width (after the layout passes: every alignment stays where it was)
+    // the stage pavement and the parkway mainlines at their surveyed widths (after the layout passes: every alignment
+    // stays where it was)
+    this.mainlineScale();
     this.stageScale(data, road);
     // --- 2. junctions ---------------------------------------------------------------------------------------------
     this.buildJunctions();
@@ -1178,6 +1252,7 @@ export class Network {
       e.name,
     );
     (w as Way & { edge: EdgeData }).edge = e;
+    if (e.widths?.length) w.widths = { st: e.widths, scale: 1 };
   }
 
   private indexLines(): void {
@@ -1375,10 +1450,12 @@ export class Network {
       let rank = -Infinity;
       for (const e of node.ends) {
         const kerbed = e.way.tpl.kerbH > 0;
+        // (a surveyed mainline at its surveyed width there)
+        const k = kerbed ? 1 : widthK(e.way, e.atEnd ? e.way.al.length : 0);
         hw = Math.max(
           hw,
-          kerbed ? e.way.sec.footL : e.way.sec.paveL,
-          kerbed ? e.way.sec.footR : e.way.sec.paveR,
+          kerbed ? e.way.sec.footL : e.way.sec.paveL * k,
+          kerbed ? e.way.sec.footR : e.way.sec.paveR * k,
         );
         rank = Math.max(rank, effRank(e.way));
       }
@@ -1423,7 +1500,7 @@ export class Network {
           if (cnt && Math.abs(sum / cnt) > Math.abs(side)) side = sum / cnt;
         }
         const sg = side !== 0 ? Math.sign(side) : p.t >= 0 ? 1 : -1;
-        const qSide = sg > 0 ? q.sec.paveL : q.sec.paveR;
+        const qSide = (sg > 0 ? q.sec.paveL : q.sec.paveR) * widthK(q, p.s);
         // a street junction keeps slack for its corner fans; a lane's joint only the gap
         const slack = node.ends.every((e) => e.way.tpl.kerbH === 0)
           ? 0
@@ -1905,8 +1982,8 @@ export class Network {
               wSide * (2 * smoothstep(0, MERGE_TAPER, dEnd) - 1) -
               MERGE_OVERLAP
             : roadways
-              ? (qLeft ? q.sec.paveL : q.sec.paveR) +
-                (wLeft ? w.sec.paveL : w.sec.paveR) +
+              ? (qLeft ? q.sec.paveL : q.sec.paveR) * widthK(q, p.s) +
+                (wLeft ? w.sec.paveL : w.sec.paveR) * widthK(w, s) +
                 NEIGHBOUR_GAP
               : qSide + wSide + 0.9;
           const cur = p.t * sgn;
@@ -1973,7 +2050,9 @@ export class Network {
         for (const e of nd.ends)
           if (e.way !== w) this.shiftEnd(e.way, e.atEnd, dx, dz);
       }
+      const len0 = w.al.length;
       w.al = alignPolyline(pts);
+      if (w.widths) w.widths.scale *= len0 / Math.max(1, w.al.length);
       const nn = w.al.n;
       w.y = new Float64Array(nn);
       w.a = new Float64Array(nn);
@@ -2986,6 +3065,48 @@ export class Network {
             add(al.x[i], al.z[i]);
   }
 
+  /** The stage's samples within TUNNEL_HOLD m along of its own tunnel stretches (the bores are sized by the section). */
+  private stageTunnelHeld(data: NetworkData, road: Road): Uint8Array {
+    const { n, s } = this.stage.al;
+    const scale = road.runoutFrom / Math.max(1, data.stage.length);
+    const held = new Uint8Array(n);
+    for (const sp of data.stage.spans)
+      if (sp.kind !== 'bridge' && (sp.to - sp.from) * scale >= TUNNEL_MIN)
+        for (let i = 0; i < n; i++)
+          if (
+            s[i] >= sp.from * scale - TUNNEL_HOLD &&
+            s[i] <= sp.to * scale + TUNNEL_HOLD
+          )
+            held[i] = 1;
+    return held;
+  }
+
+  /** Distance along the stage (m) from each sample to the nearest held one (both ways; Infinity = none). */
+  private heldDistance(held: Uint8Array): Float64Array {
+    const { n, s } = this.stage.al;
+    const d = new Float64Array(n).fill(Infinity);
+    for (let i = 0; i < n; i++)
+      d[i] = held[i] ? 0 : i > 0 ? d[i - 1] + (s[i] - s[i - 1]) : Infinity;
+    for (let i = n - 2; i >= 0; i--)
+      d[i] = Math.min(d[i], d[i + 1] + (s[i + 1] - s[i]));
+    return d;
+  }
+
+  /** Parkway mainlines at their surveyed width per station (`widthK`: eased back to the template into a junction). */
+  private mainlineScale(): void {
+    for (const w of this.ways) {
+      if (w.stage || !w.widths) continue;
+      const { n, s } = w.al;
+      const k = new Float64Array(n);
+      let narrowed = false;
+      for (let i = 0; i < n; i++) {
+        k[i] = widthK(w, s[i]);
+        if (k[i] < 0.999) narrowed = true;
+      }
+      if (narrowed) w.k = k;
+    }
+  }
+
   /**
    * The stage pavement at its surveyed width per station (`stage.widths`, network_survey.py): scale k = width / the
    * template's pavement (WIDTH_MIN_K..1, never wider than the template), 1 within TUNNEL_HOLD m along of the stage's own
@@ -2998,26 +3119,12 @@ export class Network {
     const { n, s } = w.al;
     const scale = road.runoutFrom / Math.max(1, data.stage.length);
     const tpl = w.sec.paveL + w.sec.paveR;
-    const widthAt = (m: number): number => {
-      if (m <= ws[0][0]) return ws[0][1];
-      let j = 0;
-      while (j + 1 < ws.length && ws[j + 1][0] < m) j++;
-      if (j + 1 >= ws.length) return ws[ws.length - 1][1];
-      const t = (m - ws[j][0]) / (ws[j + 1][0] - ws[j][0] || 1);
-      return ws[j][1] + (ws[j + 1][1] - ws[j][1]) * t;
-    };
-    // held: within TUNNEL_HOLD m along of the stage's own tunnel stretches (the bores are sized by the section)
-    const held = new Uint8Array(n);
-    for (const sp of data.stage.spans)
-      if (sp.kind !== 'bridge' && (sp.to - sp.from) * scale >= TUNNEL_MIN)
-        for (let i = 0; i < n; i++)
-          if (
-            s[i] >= sp.from * scale - TUNNEL_HOLD &&
-            s[i] <= sp.to * scale + TUNNEL_HOLD
-          )
-            held[i] = 1;
+    const widthAt = (m: number): number =>
+      surveyK(w, m) * (w.sec.paveL + w.sec.paveR);
+    const held = this.stageTunnelHeld(data, road);
     // held too: where another way's pavement runs alongside the stage's template edge (a merging ramp, a gore, the
-    // other carriageway in contact): the shared edge stays put, no strip of land opens between them
+    // other carriageway in contact): the shared edge stays put, no strip of land opens between them (a mainline with
+    // surveyed widths kept its gap at the stage's surveyed width, `separate`: not held for it)
     const near = new Map<number, Projection>();
     const { x, z, tx, tz } = w.al;
     for (let i = 0; i < n && w.sec; i++) {
@@ -3027,7 +3134,7 @@ export class Network {
           side * ((side > 0 ? w.sec.paveL : w.sec.paveR) + WIDTH_CONTACT);
         const px = x[i] + tz[i] * t;
         const pz = z[i] - tx[i] * t;
-        this.nearLines(px, pz, 30, near, (q) => q.stage);
+        this.nearLines(px, pz, 30, near, (q) => q.stage || !!q.widths);
         for (const [qi, p] of near) {
           const q = this.ways[qi];
           if (!q.sec) continue;
@@ -3038,12 +3145,7 @@ export class Network {
         }
       }
     }
-    // distance along to the nearest held sample (both ways)
-    const d = new Float64Array(n).fill(Infinity);
-    for (let i = 0; i < n; i++)
-      d[i] = held[i] ? 0 : i > 0 ? d[i - 1] + (s[i] - s[i - 1]) : Infinity;
-    for (let i = n - 2; i >= 0; i--)
-      d[i] = Math.min(d[i], d[i + 1] + (s[i + 1] - s[i]));
+    const d = this.heldDistance(held);
     this.debug.widthHeld = d;
     const k = new Float64Array(n);
     let narrowed = false;
@@ -3225,13 +3327,14 @@ export class Network {
     return out;
   }
 
-  /** Any of the flat [x, z, ...] points within TUNNEL_HOLD m of a tunnel. */
+  /** Any of the flat [x, z, ...] points within WIDTH_HOLD m of a bore (not an OSM `tunnel` stub under an overpass). */
   private nearTunnel(pts: ArrayLike<number>): boolean {
     const t = this.tunnelPts;
     for (let i = 0; i < pts.length; i += 2)
       for (const k of this.tunnelGrid.at(pts[i], pts[i + 1]))
         if (
-          Math.hypot(t[k * 2] - pts[i], t[k * 2 + 1] - pts[i + 1]) < TUNNEL_HOLD
+          this.tunnelLong[k] &&
+          Math.hypot(t[k * 2] - pts[i], t[k * 2 + 1] - pts[i + 1]) < WIDTH_HOLD
         )
           return true;
     return false;
@@ -3239,7 +3342,7 @@ export class Network {
 
   /**
    * The surveyed spot heights on a way's pavement replace the DEM's land in its raw profile (the design fit follows them):
-   * the mean of the spots within the pavement and SPOT_ALONG m of each sample, those within SPOT_TRUST m of the land
+   * the median of the spots within the pavement and SPOT_ALONG m of each sample, those within SPOT_TRUST m of the land
    * (none over a tunnel and over the land: those lie on its roof).
    */
   private surveyHeights(w: Way, raw: Float64Array, valid: boolean[]): void {
@@ -3261,8 +3364,7 @@ export class Network {
           bored[i] = true;
     for (let i = 0; i < n; i++) {
       if (!valid[i]) continue;
-      let sum = 0;
-      let cnt = 0;
+      const ys: number[] = [];
       for (const k of spots.grid.at(x[i], z[i])) {
         const dx = spots.pts[k * 3] - x[i];
         const dz = spots.pts[k * 3 + 2] - z[i];
@@ -3279,11 +3381,13 @@ export class Network {
           this.overTunnel(spots.pts[k * 3], spots.pts[k * 3 + 2], !bored[i])
         )
           continue;
-        sum += y;
-        cnt++;
+        ys.push(y);
       }
-      if (cnt) {
-        raw[i] = sum / cnt;
+      if (ys.length) {
+        // the median: a lidar spot on a street or a wall top beside the pavement's edge is one of many, not a step
+        ys.sort((a, b) => a - b);
+        const m = ys.length >> 1;
+        raw[i] = ys.length % 2 ? ys[m] : (ys[m - 1] + ys[m]) / 2;
         this.debug.surveyed++;
       }
     }
@@ -3486,7 +3590,8 @@ export class Network {
       const valid: boolean[] = [];
       for (let i = 0; i < n; i++) {
         raw[i] = this.natural(x[i], z[i]);
-        valid.push(w.st[i] !== ST_DECK);
+        // (the land over a bore - the street on its roof - is not its floor either: the floor joins the open ends)
+        valid.push(w.st[i] !== ST_DECK && w.st[i] !== ST_TUNNEL);
       }
       // the land under the lower way's footprint at a crossing is not this way's ground either (the bare-earth DEM
       // has no bridges: an upper way sagged into the cut it spans)

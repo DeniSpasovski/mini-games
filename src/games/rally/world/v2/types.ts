@@ -14,6 +14,8 @@ export interface TagSet {
   lanesBack?: number;
   /** Curb to curb (m). */
   width?: number;
+  /** `width` is the city survey's measured roadbed (network_survey.py), not an OSM tag: trusted further. */
+  widthSurveyed?: boolean;
   sidewalk?: string;
   /** Parking lane left / right of the way direction (1 = yes). */
   parking?: [number, number];
@@ -43,6 +45,8 @@ export interface EdgeData {
   template?: string;
   /** Surveyed curb-to-curb width (m, network_survey.py): scales the template's pavement (beats the OSM `width`). */
   surveyWidth?: number;
+  /** Parkway mainline: surveyed width per station [m along, carriageway width m] (network_survey.py `centre`). */
+  widths?: [number, number][];
 }
 
 export interface StageSpanData {

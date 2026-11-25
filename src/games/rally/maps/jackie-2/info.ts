@@ -14,8 +14,8 @@ export const jackie2Info: MapInfo = {
   seed: 4041,
   geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
   credits: [
-    'Roads, bridges, land use, buildings: (c) OpenStreetMap contributors (ODbL)',
-    'Elevation: USGS 3D Elevation Program (3DEP) bare-earth DEM, public domain; horizon: AWS Terrain Tiles (Terrarium)',
+    'Roads, bridges, land use, buildings: (c) OpenStreetMap contributors (ODbL); Kew Gardens buildings OpenStreetMap lacks: NYC Building Footprints (NYC Open Data)',
+    'Elevation: USGS 3D Elevation Program (3DEP) bare-earth DEM and NYC lidar point cloud, public domain; horizon: AWS Terrain Tiles (Terrarium)',
     'Land cover: ESA WorldCover 10 m 2021 v200 (CC BY 4.0)',
     'Roadside look: YouTube drive videos of the parkway - reference only, nothing copied',
   ],
@@ -34,7 +34,7 @@ export const jackie2Info: MapInfo = {
     {
       label: 'USGS 3D Elevation Program (3DEP)',
       url: 'https://www.usgs.gov/3d-elevation-program',
-      note: 'bare-earth lidar elevation - US public domain',
+      note: 'bare-earth lidar elevation; at the Kew Gardens end 1 m ground and road heights from the 2013-14 New York City lidar point cloud - US public domain',
     },
     {
       label: 'AWS Terrain Tiles (Terrarium)',
@@ -50,6 +50,11 @@ export const jackie2Info: MapInfo = {
       label: 'NYC Planimetric Database (NYC Open Data)',
       url: 'https://opendata.cityofnewyork.us/',
       note: 'street widths (roadbed, medians), surveyed spot heights, Kew Gardens islands, painted medians and park - NYC Office of Technology and Innovation',
+    },
+    {
+      label: 'NYC Building Footprints (NYC Open Data)',
+      url: 'https://data.cityofnewyork.us/d/5zhs-2jue',
+      note: 'Kew Gardens buildings missing from OpenStreetMap (outline, roof height) - NYC Office of Technology and Innovation',
     },
     {
       label: 'NYC DOT Bike Routes (NYC Open Data)',

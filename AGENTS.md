@@ -118,7 +118,7 @@ into `DETAILS.md`, never up.
 - `scripts/plants/bake-seasons.py` - the rally reed / weed season sheets (`engine/plants/reeds-autumn.webp`, `reeds-winter.webp`, `weeds-rust.webp` + `season-sheets.data.ts`) recoloured per texel from `reeds.webp` / `weeds.webp`: `python3 -I scripts/plants/bake-seasons.py`
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
-  `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `extend.py` (terrain + water ring around a baked map), `plaza_islands.py` (city junction
+  `buildings.py` (+ the NYC footprints a v2 map's bake lacks: `network.py --city-buildings`), `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `extend.py` (terrain + water ring around a baked map), `plaza_islands.py` (city junction
   `junction.json`), `park_block.py` (a city park's lawn, paths, fountain), `nyc_lanes.py` (NYC DOT protected bike lanes), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
   the DEM), `nyc_pull.py` + `streets.py` + `endbox.py` (NYC open data -> real street widths / lanes / sidewalks of the Jackie
   end box + `corridor.py` the west corridor, `maps/jackie/DETAILS.md` "Street model"), `east.py` (grows a baked map east with the full bake's roads / land cover / terrain), `west.py` (grows it west: streets,

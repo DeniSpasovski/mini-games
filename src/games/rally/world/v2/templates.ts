@@ -576,6 +576,9 @@ export interface SectionOpts {
 }
 
 /** The section of a way: lanes from its tags (else the template's), parking / sidewalks unless a side faces a road. */
+/** The most a surveyed curb-to-curb width may widen a template's pavement (an OSM width tag: 1.4). */
+const WIDTH_SURVEY_MAX = 1.6;
+
 export function buildSection(tpl: Template, o: SectionOpts): Section {
   const tg = o.tags;
   let lanesF: number;
@@ -604,7 +607,8 @@ export function buildSection(tpl: Template, o: SectionOpts): Section {
     laneL = lanesB * lw;
     laneR = lanesF * lw;
   }
-  // A street width tag (curb to curb) wins when it is plausible: the lanes are scaled to it.
+  // A street width tag (curb to curb) wins when it is plausible: the lanes are scaled to it (a surveyed width up to
+  // WIDTH_SURVEY_MAX: a deck carrying the street's full roadbed, its turn lanes, no parking).
   const parkTag = tg.parking;
   const sideParking = (side: 0 | 1): boolean =>
     tpl.parkW > 0 &&
@@ -619,7 +623,7 @@ export function buildSection(tpl: Template, o: SectionOpts): Section {
   let paveR = laneR + parkR + tpl.shoulder[1];
   if (tg.width && tg.width > 4 && tg.width < 40) {
     const k = tg.width / (paveL + paveR);
-    if (k > 0.75 && k < 1.4) {
+    if (k > 0.75 && k < (tg.widthSurveyed ? WIDTH_SURVEY_MAX : 1.4)) {
       paveL *= k;
       paveR *= k;
     }

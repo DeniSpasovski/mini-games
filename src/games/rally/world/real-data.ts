@@ -169,22 +169,72 @@ function crWeight(m: number, t: number): number {
   }
 }
 
-/** Real elevation: fine grid blended into the coarse horizon grid. */
+/** Bucket size (m) of RealHeight's grid index. */
+const GRID_BUCKET = 128;
+
+/**
+ * Real elevation: the grids in order, each blended into the ones after it over its edge (the last, the coarse horizon
+ * grid, everywhere). Many small grids (lidar tiles, scripts/realmap/network_survey.py) are looked up through a bucket
+ * index: a point only visits the grids whose box holds it.
+ */
 export class RealHeight {
   private grids: HeightGrid[];
   private offset: number;
+  /** Bucket key -> the grids (in order, the last one always) whose box reaches into the bucket. */
+  private index = new Map<number, HeightGrid[]>();
+  private all: HeightGrid[];
 
   constructor(def: HeightmapDef) {
     this.grids = def.grids.map((g) => new HeightGrid(g, def.base, def.step));
     this.offset = def.offset ?? 0;
+    this.all = this.grids;
+    const big = this.grids.filter(
+      (g) => g.def.cols * g.def.cell > GRID_BUCKET * 8,
+    );
+    if (this.grids.length - big.length < 4) return;
+    // small grids: indexed by bucket; big ones (and the last) are in every list
+    for (const g of this.grids) {
+      if (big.includes(g) || g === this.grids[this.grids.length - 1]) continue;
+      const d = g.def;
+      for (
+        let bz = Math.floor(d.originZ / GRID_BUCKET);
+        bz <= Math.floor(g.z1 / GRID_BUCKET);
+        bz++
+      )
+        for (
+          let bx = Math.floor(d.originX / GRID_BUCKET);
+          bx <= Math.floor(g.x1 / GRID_BUCKET);
+          bx++
+        ) {
+          const k = bucketKey(bx, bz);
+          if (!this.index.has(k)) this.index.set(k, []);
+          this.index.get(k)!.push(g);
+        }
+    }
+    const order = new Map(this.grids.map((g, i) => [g, i]));
+    const rest = this.grids.filter(
+      (g) => big.includes(g) || g === this.grids[this.grids.length - 1],
+    );
+    for (const [k, list] of this.index)
+      this.index.set(
+        k,
+        [...list, ...rest].sort((a, b) => order.get(a)! - order.get(b)!),
+      );
+    this.all = rest;
   }
 
   height(x: number, z: number): number {
+    const grids =
+      this.index.size > 0
+        ? (this.index.get(
+            bucketKey(Math.floor(x / GRID_BUCKET), Math.floor(z / GRID_BUCKET)),
+          ) ?? this.all)
+        : this.all;
     let h = 0;
     let wLeft = 1;
-    for (let k = 0; k < this.grids.length && wLeft > 0; k++) {
-      const g = this.grids[k];
-      const last = k === this.grids.length - 1;
+    for (let k = 0; k < grids.length && wLeft > 0; k++) {
+      const g = grids[k];
+      const last = k === grids.length - 1;
       const w = last ? 1 : g.weight(x, z, 6);
       if (w <= 0) continue;
       h += g.sample(x, z) * w * wLeft;
@@ -192,6 +242,10 @@ export class RealHeight {
     }
     return h - this.offset;
   }
+}
+
+function bucketKey(bx: number, bz: number): number {
+  return (bx + 32768) * 65536 + (bz + 32768);
 }
 
 /** Land cover zone raster (nearest cell) with bilinear helpers. */

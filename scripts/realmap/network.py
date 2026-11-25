@@ -1,10 +1,11 @@
 """
 Road network importer for the v2 road engine (maps with `MapDef.network`, world/v2/): OpenStreetMap ways -> a graph.
 
-    python scripts/realmap/network.py scripts/realmap/jackie-2.json [--stats] [--survey-only [--runout-only]]
+    python scripts/realmap/network.py scripts/realmap/jackie-2.json [--stats] [--survey-only [--runout-only] [--no-terrain]] [--city-buildings]
 
+--city-buildings  re-runs only the city footprints step (config `cityBuildings`, see data.json below); --dry: counts only
 --survey-only  re-applies the config's `survey` to the existing network.json (no OSM fetch: the graph stays as baked),
-               then the `runout` (once); with --runout-only too, only the run-out
+               then the `runout` (once); with --runout-only too, only the run-out; --no-terrain: not the lidar terrain
 
 Writes into the config's `folder`:
 
@@ -23,6 +24,7 @@ Writes into the config's `folder`:
                 network-patches.json survives one.
   data.json     terrain (height grids), land cover, lakes and the buildings within `buildingsCorridor` m of the route,
                 copied from the map named by `terrainFrom` (its bake: scripts/realmap/bake.py + extend.py / regrid.py)
+                + config `cityBuildings`: the city footprints the bake has no building for (buildings.city_buildings; alone: --city-buildings [--dry])
   horizon.json  copied from `horizonFrom`
   route.json    the stage route's control points (the menus' outline, `info.ts`)
 
@@ -45,6 +47,7 @@ from scipy.spatial import cKDTree
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bake  # noqa: E402
+import buildings  # noqa: E402
 import network_survey  # noqa: E402
 import overpass as ovp  # noqa: E402
 
@@ -165,6 +168,9 @@ def main():
     proj = bake.Proj(*cfg['origin'])
     folder = os.path.join(ROOT, cfg['folder'])
     os.makedirs(folder, exist_ok=True)
+    if '--city-buildings' in sys.argv:
+        buildings.city_buildings(cfg_path, '--dry' in sys.argv)
+        return
     if '--survey-only' in sys.argv:
         fn = os.path.join(folder, 'network.json')
         network = json.load(open(fn))
@@ -173,6 +179,8 @@ def main():
         extend_stage(network, cfg.get('runout', 0))
         with open(fn, 'w') as f:
             json.dump(network, f, separators=(',', ':'))
+        if '--runout-only' not in sys.argv and '--no-terrain' not in sys.argv:
+            network_survey.lidar_terrain(cfg, ROOT, proj, network, os.path.join(folder, 'data.json'))
         return
 
     def ll_box(ext, pad=0):
@@ -432,6 +440,9 @@ def main():
     with open(os.path.join(folder, 'data.json'), 'w') as f:
         json.dump(data, f, separators=(',', ':'))
     print(f'  data.json: {len(rows)} of {len(b["rows"])} buildings')
+    if cfg.get('cityBuildings'):
+        buildings.city_buildings(cfg_path)
+    network_survey.lidar_terrain(cfg, ROOT, proj, network, os.path.join(folder, 'data.json'))
     if cfg.get('horizonFrom'):
         with open(os.path.join(ROOT, cfg['horizonFrom'])) as f:
             hz = f.read()

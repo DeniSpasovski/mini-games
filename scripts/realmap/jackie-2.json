@@ -30,12 +30,27 @@
   "terrainFrom": "src/games/rally/maps/jackie/data.json",
   "horizonFrom": "src/games/rally/maps/jackie/horizon.json",
   "buildingsCorridor": 320,
+  "cityBuildings": {
+    "footprints": "sources/maps/jackie/nyc-planimetrics/endbox-footprints.geojson",
+    "roadbed": "sources/maps/jackie/nyc-planimetrics/endbox-roadbed.geojson",
+    "corridor": 480,
+    "corridorFrom": 6500
+  },
   "runout": 90,
   "survey": {
     "planimetrics": "sources/maps/jackie/nyc-planimetrics",
+    "centre": true,
     "spotHeights": "src/games/rally/maps/jackie/spot-heights.json",
     "datum": 32.9,
     "retainingWalls": "src/games/rally/maps/jackie/retaining-walls.json",
-    "wallsUntil": 6850
+    "wallsUntil": 6850,
+    "lidar": {
+      "ept": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/NY_NewYorkCity/",
+      "box": [1870, 3080, -2060, -1220],
+      "corridor": 60,
+      "from": 6450,
+      "tile": 64,
+      "cache": "sources/maps/jackie-2/lidar"
+    }
   }
 }

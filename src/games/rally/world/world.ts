@@ -778,9 +778,34 @@ export class World implements GroundProvider {
     return limit === Infinity ? h >= ground - 1 : h >= limit - 3;
   }
 
-  /** v2: a building (centre or a corner) standing on a road section / junction of the network. */
+  /**
+   * v2: a building (centre or a corner) standing on a road section / junction of the network. A real outline is
+   * tested at its own corners (pulled in a fifth towards their middle): the box around an L- or U-shaped block reaches
+   * over the street or yard road in its notch.
+   */
   private onNetRoad(b: BuildingDef): boolean {
     const f = this.gen.netField!;
+    const p = b.poly;
+    if (p && p.length >= 6) {
+      let mx = 0;
+      let mz = 0;
+      for (let i = 0; i < p.length; i += 2) {
+        mx += p[i];
+        mz += p[i + 1];
+      }
+      mx /= p.length / 2;
+      mz /= p.length / 2;
+      for (let i = 0; i < p.length; i += 2)
+        if (
+          f.occupied(
+            b.x + mx + (p[i] - mx) * 0.8,
+            b.z + mz + (p[i + 1] - mz) * 0.8,
+            0.3,
+          )
+        )
+          return true;
+      return false;
+    }
     const c = Math.cos(b.angle);
     const s = Math.sin(b.angle);
     for (const [u, v] of [
