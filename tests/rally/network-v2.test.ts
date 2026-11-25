@@ -7,7 +7,11 @@ import {
   pointAt,
   valueAt,
 } from '../../src/games/rally/world/v2/alignment';
-import { barrierPlan, skirtRow } from '../../src/games/rally/world/v2/mesh';
+import {
+  barrierPlan,
+  skirtRow,
+  tunnelRoofs,
+} from '../../src/games/rally/world/v2/mesh';
 import {
   netColliders,
   netInstances,
@@ -589,6 +593,40 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
         `[${map.id}] stage centre vs surface: ${worst.toFixed(3)} m`,
       );
       expect(worst).toBeLessThan(0.1);
+    });
+
+    test('every bore is a dark roof zone over its own floor, eased in at both portals', () => {
+      const zones = tunnelRoofs(net);
+      let bores = 0;
+      for (const w of net.ways) {
+        if (!w.slab) continue;
+        for (const [i0, i1] of runsOf(w.st, ST_TUNNEL)) {
+          bores++;
+          const im = Math.round((i0 + i1) / 2);
+          const p = { x: w.al.x[im], z: w.al.z[im] };
+          const y = net.surfaceAt(w, im, 0, 0);
+          const over = zones.filter((z) => {
+            const abx = z.bx - z.ax;
+            const abz = z.bz - z.az;
+            const t = Math.min(
+              1,
+              Math.max(
+                0,
+                ((p.x - z.ax) * abx + (p.z - z.az) * abz) /
+                  (abx * abx + abz * abz),
+              ),
+            );
+            return (
+              Math.hypot(p.x - z.ax - abx * t, p.z - z.az - abz * t) <
+                z.radius && y < z.top
+            );
+          });
+          expect(over.length).toBeGreaterThan(0);
+          for (const z of over) expect(z.shade).toBeGreaterThan(0.5);
+        }
+      }
+      expect(zones.filter((z) => (z.ends ?? 0) & 1).length).toBe(bores);
+      expect(zones.filter((z) => (z.ends ?? 0) & 2).length).toBe(bores);
     });
   },
 );

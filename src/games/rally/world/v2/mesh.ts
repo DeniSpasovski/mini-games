@@ -10,6 +10,7 @@ import {
   Vector2,
 } from 'three';
 import { plainDepthMaterial } from '../../engine/materials';
+import type { DryZone } from '../../engine/world-shading';
 import { getTexture, type TextureId } from '../../engine/textures';
 import { hash3, hashString } from '../../../../shared/rng';
 import {
@@ -146,8 +147,13 @@ const FILL_W = PARAPET_OUT - PARAPET_IN;
 const SOFFIT: RGB = [0.45, 0.44, 0.42];
 /** Tunnel ceiling girders: spacing (m), depth under the soffit (m), dark painted steel. */
 const GIRDER_EVERY = 2.6;
-const GIRDER_D = 0.42;
+/** A tunnel's built-up girders: deep enough that the clearance under them is the real one (Queens Blvd 12'-10", lidar
+ * deck top less the floor less the slab), m. */
+const TUNNEL_GIRDER_D = 1.1;
 const GIRDER: RGB = [0.2, 0.19, 0.18];
+/** A tunnel's steel columns: light grey paint, this far in from the bore's wall line (m). */
+const COLUMN: RGB = [0.5, 0.51, 0.5];
+const COLUMN_IN = 0.3;
 /**
  * A steel deck (`deckStyles` 'steel'): the fascia girders' dull grey-green paint (drive video 3:34-3:36, Myrtle Ave),
  * the slab's underside above its girders (m under the deck top) and the girder spacing across the deck (m).
@@ -2572,6 +2578,52 @@ function medianDecks(net: Network, w: Way, parts: Parts): void {
   flush();
 }
 
+/** Share of the sky light under a tunnel roof (dark inside, the lamps and the portals' daylight only: drive videos). */
+export const TUNNEL_SHADE = 0.8;
+/** Length of one roof zone along a bore (m). */
+const ROOF_STEP = 12;
+
+/**
+ * Every bore's roof as zones for the world shading (`setDryZones`: dry in the rain, dark under the slab): capsules
+ * ROOF_STEP m long over the bore's width, below its soffit, the first and last marked as portals.
+ */
+export function tunnelRoofs(net: Network): DryZone[] {
+  const out: DryZone[] = [];
+  for (const w of net.ways) {
+    if (!w.slab) continue;
+    const off = w.tpl.daylight.wallOffset;
+    const edgeL = w.sec.footL + off;
+    const edgeR = w.sec.footR + off;
+    const midT = (edgeL - edgeR) / 2;
+    for (const [i0, i1] of runsOf(w.st, ST_TUNNEL)) {
+      const s0 = w.al.s[i0];
+      const s1 = w.al.s[i1];
+      const n = Math.max(1, Math.round((s1 - s0) / ROOF_STEP));
+      for (let k = 0; k < n; k++) {
+        const fa = frameAt(w, s0 + ((s1 - s0) * k) / n);
+        const fb = frameAt(w, s0 + ((s1 - s0) * (k + 1)) / n);
+        const [ax, az] = lat(fa, midT);
+        const [bx, bz] = lat(fb, midT);
+        const top = Math.max(
+          net.surfaceAt(w, fa.i, fa.f, 0),
+          net.surfaceAt(w, fb.i, fb.f, 0),
+        );
+        out.push({
+          ax,
+          az,
+          bx,
+          bz,
+          radius: (edgeL + edgeR) / 2 + 0.6,
+          top: top + w.tpl.clearance + 0.45,
+          shade: TUNNEL_SHADE,
+          ends: (k === 0 ? 1 : 0) + (k === n - 1 ? 2 : 0),
+        });
+      }
+    }
+  }
+  return out;
+}
+
 function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
   if (!w.slab) return;
   const off = w.tpl.daylight.wallOffset;
@@ -2607,14 +2659,14 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
       const fr = frameAt(w, s);
       const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
       const [cx, cz] = lat(fr, midT);
-      p.metal.box(
+      p.paint.box(
         cx,
         cz,
         fr.tx,
         fr.tz,
         0.12,
         span / 2,
-        ceil - GIRDER_D,
+        ceil - TUNNEL_GIRDER_D,
         ceil,
         GIRDER,
       );
@@ -2622,7 +2674,24 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
       if (n % 3 === 0)
         for (const t of [edgeL - 1.1, -(edgeR - 1.1)]) {
           const [lx, lz] = lat(fr, t);
-          p.light.lamp(lx, lz, ceil - GIRDER_D);
+          p.light.lamp(lx, lz, ceil - TUNNEL_GIRDER_D);
+        }
+      // steel columns under every third girder along both sides of the bore (painted H posts behind the Jerseys)
+      if (n % 3 === 1)
+        for (const t of [edgeL - COLUMN_IN, -(edgeR - COLUMN_IN)]) {
+          const [px, pz] = lat(fr, t);
+          const foot = net.surfaceAt(w, fr.i, fr.f, t) - 0.2;
+          p.paint.box(
+            px,
+            pz,
+            fr.tx,
+            fr.tz,
+            0.16,
+            0.17,
+            foot,
+            ceil - TUNNEL_GIRDER_D,
+            COLUMN,
+          );
         }
     }
     p.conc.strip(
@@ -2685,7 +2754,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
         pts.push({
           x,
           z,
-          bot: y + w.tpl.clearance + 0.3,
+          bot: y + w.tpl.clearance + 0.4 - TUNNEL_GIRDER_D,
           top: under(x, z, w.slab[i]),
         });
         const over = field.top(x, z);
@@ -2714,7 +2783,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
         pts,
         w.tpl.deck === 'stone' ? STONE : CONC,
       );
-      portalPlates(net, w, i, i === i0, fr, y, midT, parts);
+      portalPlates(net, w, i, i0, i1, fr, y, midT, parts);
     }
   }
 }
@@ -2728,24 +2797,27 @@ function portalPlates(
   net: Network,
   w: Way,
   i: number,
-  entry: boolean,
+  i0: number,
+  i1: number,
   fr: Frame,
   y: number,
   midT: number,
   parts: Parts,
 ): void {
+  const entry = i === i0;
   if (!entry && (w.oneway || w.stage)) return;
-  const bot = y + w.tpl.clearance + 0.3;
+  const bot = y + w.tpl.clearance + 0.4 - TUNNEL_GIRDER_D;
   const head = (w.slab?.[i] ?? bot) - bot;
   if (head < 0.75) return;
-  const s = w.al.s[i];
+  // the street the structure carries: the widest named one over the bore (Queens Blvd, not a side street at a portal)
   let name: string | undefined;
-  let best = 40;
+  let best = 0;
   for (const c of net.crossings) {
     if (c.lower !== w || !c.upper.name) continue;
-    const d = Math.abs(c.sL - s);
-    if (d < best) {
-      best = d;
+    if (c.sL < w.al.s[i0] - 10 || c.sL > w.al.s[i1] + 10) continue;
+    const wide = c.upper.sec.footL + c.upper.sec.footR;
+    if (wide > best) {
+      best = wide;
       name = c.upper.name;
     }
   }
@@ -2761,7 +2833,7 @@ function portalPlates(
   };
   const [cx, cz] = side(-1.7);
   parts.plates.add(
-    clearancePlateTexture(feetInches(w.tpl.clearance - GIRDER_D + 0.4)),
+    clearancePlateTexture(feetInches(w.tpl.clearance - TUNNEL_GIRDER_D + 0.4)),
     cx,
     py,
     cz,
