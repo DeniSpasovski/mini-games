@@ -10,7 +10,7 @@ import {
 } from 'three';
 import { worldUniforms, type DryZone } from '../engine/world-shading';
 import type { World } from '../world/world';
-import { TUNNEL_SHADE, tunnelRoofs } from '../world/v2/mesh';
+import { tunnelRoofs } from '../world/v2/mesh';
 import type { QualityName } from '../engine/quality';
 import { Rng } from '../../../shared/rng';
 
@@ -314,9 +314,10 @@ function curtainMaterial(
 }
 
 /**
- * The roofed stretches (engine/world-shading.ts `setDryZones`): no rain falls there, and a tunnel is dark inside. The
- * stage road's tunnels (the slab over it, dry and dark below the slab), the ground under its bridge decks (dry below
- * the deck, still lit) and on a road-network map every bore (world/v2/mesh.ts `tunnelRoofs`). Capsules ~12 m long.
+ * The roofed stretches (engine/world-shading.ts `setDryZones`): no rain falls there. The stage road's tunnels (the slab
+ * over it, dry below the slab - still lit: a zone covers the stage carriageway only, the other one under the same roof
+ * would stay lit) and the ground under its bridge decks (dry below the deck), and on a road-network map every bore, dark
+ * inside too (world/v2/mesh.ts `tunnelRoofs`). Capsules ~12 m long.
  */
 export function roofZones(world: World): DryZone[] {
   const out: DryZone[] = [];
@@ -326,7 +327,6 @@ export function roofZones(world: World): DryZone[] {
     to: number,
     roof: (along: number) => number,
     widen: number,
-    shade = 0,
   ) => {
     for (let d = from; d < to; d += STEP) {
       const a = world.road.at(d);
@@ -338,8 +338,6 @@ export function roofZones(world: World): DryZone[] {
         bz: b.z,
         radius: Math.max(a.halfWidth, b.halfWidth) + widen,
         top: roof(d),
-        shade,
-        ends: shade ? (d === from ? 1 : 0) + (d + STEP >= to ? 2 : 0) : 0,
       });
     }
   };
@@ -359,7 +357,6 @@ export function roofZones(world: World): DryZone[] {
         return rows[i].top - 0.3;
       },
       1.5,
-      TUNNEL_SHADE,
     );
   }
   for (const sp of world.road.bridges)

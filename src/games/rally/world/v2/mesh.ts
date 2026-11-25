@@ -82,6 +82,10 @@ const MERGE_LINE_GAP = 1;
  * (field.ts WALL_CELL) by more than a 1 m cell's diagonal, so no mesh triangle dips into that band beyond it (stairs).
  */
 const WALL_BACK = 3.1;
+/** The stone coping on top of a cut wall (m back from its face). */
+const WALL_COPING = 0.6;
+/** A bore wall past its headwall takes the top of the cut wall within this many samples (else the land's). */
+const PAST_REACH = 6;
 /** A tunnel lane wall's thickness (m). */
 const LANE_WALL_W = 0.25;
 /** A tunnel's slab top is drawn this far under the street surfaces on it. */
@@ -136,6 +140,9 @@ function jerseyColor(w: Way, side: number, seg: number, y: number): RGB {
 export const JERSEY_END = 4;
 /** Barrier centre beyond the pavement edge (m). */
 export const BARRIER_OFF = 0.45;
+/** Barrier pieces a sample apart (m) are one run; a run shorter than BARRIER_MIN m is dropped. */
+const BARRIER_JOIN = 2.6;
+const BARRIER_MIN = 6;
 export const PARAPET_H = 1.0;
 /** Deck parapet: inner face / outer face (= fascia) beyond the section's outer edge (m). */
 export const PARAPET_IN = 0.12;
@@ -147,11 +154,14 @@ const FILL_W = PARAPET_OUT - PARAPET_IN;
 const SOFFIT: RGB = [0.45, 0.44, 0.42];
 /** Tunnel ceiling girders: spacing (m), depth under the soffit (m), dark painted steel. */
 const GIRDER_EVERY = 2.6;
-const GIRDER: RGB = [0.2, 0.19, 0.18];
+const GIRDER: RGB = [0.3, 0.28, 0.26];
 /** A tunnel's steel columns: light grey paint, this far in from the bore's wall line (m). */
 const COLUMN: RGB = [0.5, 0.51, 0.5];
 /** The hall's outer barrier (`hallColumns`): low wall height (m) and the column spacing along it (m). */
 const HALL_WALL_H = 1.1;
+/** How far from a lane wall the carriageway alongside is looked for (m), and the columns' centre behind its barrier. */
+const HALL_REACH = 15;
+const HALL_COLUMN_BACK = 0.55;
 const HALL_COLUMN_EVERY = 3 * GIRDER_EVERY;
 /** A bore's end this far along from the stage road's portal shares its headwall line (`portalLine`, m). */
 const PORTAL_LINE_REACH = 8;
@@ -165,6 +175,10 @@ const STEEL_GIRDER_GAP = 2.2;
 /** Top of a tunnel slab (weathered concrete paving). */
 const SLAB_TOP: RGB = [0.62, 0.61, 0.59];
 const CONC: RGB = [0.8, 0.78, 0.75];
+/** The sidewalk behind a cut wall's coping where it carries a street's edge. */
+const WALK: RGB = [0.74, 0.73, 0.7];
+/** ... found by a road surface this far behind the cap's back edge (m). */
+const WALK_PROBE = 1.5;
 const STONE: RGB = [0.95, 0.92, 0.86];
 
 class Acc {
@@ -2193,6 +2207,8 @@ const FENCE_TS = 1.6;
 const STEEL: RGB = [0.52, 0.54, 0.55];
 /** Chain-link on the parapets of a bridge over the parkway (m over the parapet cap). */
 const PARAPET_FENCE_H = 1.8;
+/** Chain-link on the median barrier (m over the barrier's top). */
+const MEDIAN_FENCE_H = 1.8;
 
 /** Chain-link mesh on posts along `rows` at lateral `off`, from `base` m over the rows' height, `h` m tall. */
 function chainLink(
@@ -2223,7 +2239,26 @@ function chainLink(
   }
 }
 
+/** The wall look of way `w` at sample i (`Network.wallStyle`): past a tunnel's own headwall, the cut's beside it. */
+function wallLook(
+  net: Network,
+  w: Way,
+  i: number,
+): ReturnType<Network['wallStyle']> {
+  if (pastHeadwall(net, w, i))
+    for (let d = 1; d <= PAST_REACH; d++)
+      for (const j of [i - d, i + d])
+        if (j >= 0 && j < w.al.n && w.st[j] !== ST_TUNNEL)
+          return net.wallStyle(w, j);
+  return net.wallStyle(w, i);
+}
+
 /** Runs of one wall kind on a side, split where the wall look (`Network.wallStyle`) changes. */
+/** A lane wall in a hall (a tunnel wall between a lane and the carriageway alongside): not built, `hallColumns`. */
+export function hallLane(w: Way, side: 0 | 1, i: number): boolean {
+  return w.st[i] === ST_TUNNEL && w.wallLane[side][i] === 1;
+}
+
 function styledRuns(
   net: Network,
   w: Way,
@@ -2231,11 +2266,13 @@ function styledRuns(
   kind: number,
 ): [number, number][] {
   const out: [number, number][] = [];
+  const keyOf = (i: number) =>
+    JSON.stringify(wallLook(net, w, i)) + +hallLane(w, side, i);
   for (const [i0, i1] of runsOf(w.wall[side], kind)) {
     let a = i0;
-    let key = JSON.stringify(net.wallStyle(w, i0));
+    let key = keyOf(i0);
     for (let i = i0 + 1; i <= i1; i++) {
-      const k = JSON.stringify(net.wallStyle(w, i));
+      const k = keyOf(i);
       if (k === key) continue;
       out.push([a, i - 1]);
       a = i - 1;
@@ -2247,12 +2284,51 @@ function styledRuns(
 }
 
 /**
- * One hall over side-by-side bores (Queens Blvd, drive frames: the carriageways split by a barrier only, each outer lane
- * behind a low wall with a column row on it): along a tunnel lane wall a steel column every HALL_COLUMN_EVERY m from the
- * wall's top up to a long beam under the soffit.
+ * One hall over side-by-side bores (Queens Blvd, drive frames: the carriageways split by a barrier only, each
+ * carriageway's outer barrier running on unbroken through the hall with a column row right behind it, the outer lanes
+ * seen between the columns): along a tunnel lane wall a steel column every HALL_COLUMN_EVERY m, standing on the floor
+ * just behind the carriageway's barrier, up to a long beam under the soffit. The lane wall itself is not built.
  */
 function hallColumns(net: Network, w: Way, parts: Parts): void {
   if (!w.slab) return;
+  const near = new Map<number, Projection>();
+  // the column line in w's frame at frame fr (raw lateral, m) and the floor there: just behind the barrier of the
+  // carriageway alongside, on the side facing w
+  const columnAt = (
+    fr: Frame,
+    t: number,
+  ): { t: number; floor: number } | undefined => {
+    const [px, pz] = lat(fr, t);
+    let q: Way | undefined;
+    let p: Projection | undefined;
+    for (const [qi, pr] of net.nearLines(
+      px,
+      pz,
+      HALL_REACH,
+      near,
+      (o) => o === w || !(o.stage || o.corr),
+    ))
+      if (!p || pr.d < p.d) {
+        p = pr;
+        q = net.ways[qi];
+      }
+    if (!q || !p) return undefined;
+    const qside = p.t > 0 ? 0 : 1;
+    const qsg = qside === 0 ? 1 : -1;
+    const qfr = frameAt(q, p.s);
+    const tq =
+      qsg *
+      ((qside === 0 ? q.sec.paveL : q.sec.paveR) +
+        BARRIER_OFF +
+        HALL_COLUMN_BACK);
+    const shift = sideShift(qfr, qside);
+    const cx = qfr.x + qfr.tz * (shift + tq);
+    const cz = qfr.z - qfr.tx * (shift + tq);
+    return {
+      t: (cx - fr.x) * fr.tz - (cz - fr.z) * fr.tx,
+      floor: net.surfaceAt(q, qfr.i, qfr.f, tq),
+    };
+  };
   for (const side of [0, 1] as const) {
     const sg = side === 0 ? 1 : -1;
     const foot = side === 0 ? w.sec.footL : w.sec.footR;
@@ -2272,16 +2348,18 @@ function hallColumns(net: Network, w: Way, parts: Parts): void {
       const beam: Row[] = [];
       for (const s of rowsBetween(w, s0, s1)) {
         const fr = frameAt(w, s);
+        const c = columnAt(fr, t);
         const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
-        beam.push(rowOf(fr, ceil - net.girderAt(w, fr.i), 0));
+        beam.push(rowOf(fr, ceil - net.girderAt(w, fr.i), (c?.t ?? t) - t));
       }
       const p = parts.at(beam[0].x, beam[0].z);
-      // the long beam: a box section along the wall line under the girders
+      // the long beam: a box section along the column line under the girders
       p.paint.strip(beam, [t - 0.25, 0, 0], [t + 0.25, 0, 0], GIRDER, false);
       for (let s = s0 + HALL_COLUMN_EVERY / 2; s < s1; s += HALL_COLUMN_EVERY) {
         const fr = frameAt(w, s);
-        const [px, pz] = lat(fr, t);
-        const E = net.surfaceAt(w, fr.i, fr.f, sg * foot);
+        const c = columnAt(fr, t);
+        const [px, pz] = lat(fr, c?.t ?? t);
+        const E = c?.floor ?? net.surfaceAt(w, fr.i, fr.f, sg * foot);
         const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
         p.paint.box(
           px,
@@ -2290,7 +2368,7 @@ function hallColumns(net: Network, w: Way, parts: Parts): void {
           fr.tz,
           0.17,
           0.16,
-          E + HALL_WALL_H,
+          E,
           ceil - net.girderAt(w, fr.i),
           COLUMN,
         );
@@ -2310,7 +2388,24 @@ function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
       const tWall = kind === WALL_FILL ? sg * (foot + PARAPET_OUT) : tCut;
       for (const [i0, i1] of styledRuns(net, w, side, kind)) {
         if (i1 - i0 < 1) continue;
-        const style = net.wallStyle(w, (i0 + i1) >> 1);
+        // (a lane wall in the hall is not built: the carriageway's barrier runs on there, `hallColumns`)
+        if (hallLane(w, side, (i0 + i1) >> 1)) continue;
+        const style = wallLook(net, w, (i0 + i1) >> 1);
+        // (a bore running on past its tunnel's own headwall: the wall there is the cut's, not the tunnel's up to the
+        // slab - no block of it standing out of the portal)
+        const past = new Uint8Array(w.al.n);
+        if (kind === WALL_CUT)
+          for (let i = i0; i <= i1; i++) past[i] = +pastHeadwall(net, w, i);
+        const pastTop = (k: number) => {
+          for (let d = 1; d <= PAST_REACH; d++)
+            for (const j of [k - d, k + d])
+              if (j >= i0 && j <= i1 && w.st[j] !== ST_TUNNEL)
+                return w.wallTop[side][j];
+          // (else the land it holds, just behind its body)
+          const fr = frameAt(w, w.al.s[k]);
+          const [bx, bz] = lat(fr, tCut + sg * (WALL_BACK + 1));
+          return field.ground(bx, bz) + 0.15;
+        };
         const face: { x: number; z: number; bot: number; top: number }[] = [];
         const inner: { x: number; z: number; bot: number; top: number }[] = [];
         const rear: { x: number; z: number; bot: number; top: number }[] = [];
@@ -2344,11 +2439,14 @@ function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
             // a little above the land it holds
             // (a lane wall in a tunnel is the hall's outer barrier: a low wall under a column row, `hallColumns`)
             const top =
-              w.st[kk] === ST_TUNNEL && w.slab
+              w.st[kk] === ST_TUNNEL && w.slab && !past[kk]
                 ? w.wallLane[side][kk]
                   ? E + HALL_WALL_H
                   : w.slab[kk] - 0.03
-                : Math.max(wt[ka] + (wt[kb] - wt[ka]) * tf, E + 0.6) + 0.12;
+                : Math.max(
+                    past[kk] ? pastTop(kk) : wt[ka] + (wt[kb] - wt[ka]) * tf,
+                    E + 0.6,
+                  ) + 0.12;
             face.push({ x, z, bot: E - 0.3, top });
             // the back of the coping drops to the land it holds (a lane wall is a thin body in the gap)
             const back = w.wallLane[side][kk] ? LANE_WALL_W : WALL_BACK;
@@ -2431,13 +2529,51 @@ function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
           kind === WALL_CUT
             ? sg * (w.wallLane[side][i0] ? LANE_WALL_W : WALL_BACK)
             : -sg * FILL_W;
-        b.strip(
-          cap,
-          [kind === WALL_FILL ? tWall : tWall - sg * 0.08, 0, 0],
-          [tWall + back, 0, 0],
-          color,
-          false,
-        );
+        if (kind === WALL_CUT && !w.wallLane[side][i0]) {
+          // the coping in the wall's stone; behind it, over a wall carrying a street's edge or with one right behind, the sidewalk
+          // (drive videos s06 0:55-0:59: a thin coping, the railing, then the pavement - no band of stone)
+          const tc = tWall + sg * WALL_COPING;
+          b.strip(cap, [tWall - sg * 0.08, 0, 0], [tc, 0, 0], color, false);
+          // (a street or its sidewalk just behind the cap, at the cap's level: the cap is that pavement)
+          const paved = cap.map((r, k) => {
+            const kk = Math.min(
+              i1,
+              Math.max(
+                i0,
+                i0 + Math.round((k / Math.max(1, cap.length - 1)) * (i1 - i0)),
+              ),
+            );
+            if (w.wallCarried[side][kk]) return true;
+            const off = tWall + back + sg * WALK_PROBE;
+            const hit = field.top(r.x + r.tz * off, r.z - r.tx * off);
+            return !!hit && Math.abs(hit.h - r.y) < 1;
+          });
+          const carriedAt = (k: number) => paved[k];
+          let a = 0;
+          for (let k = 1; k <= cap.length; k++) {
+            if (k < cap.length && carriedAt(k) === carriedAt(a)) continue;
+            const run = cap.slice(a, Math.min(cap.length, k + 1));
+            if (run.length >= 2) {
+              if (carriedAt(a))
+                p.conc.strip(
+                  run,
+                  [tc, 0, 0],
+                  [tWall + back, 0, 0],
+                  WALK,
+                  false,
+                );
+              else b.strip(run, [tc, 0, 0], [tWall + back, 0, 0], color, false);
+            }
+            a = k;
+          }
+        } else
+          b.strip(
+            cap,
+            [kind === WALL_FILL ? tWall : tWall - sg * 0.08, 0, 0],
+            [tWall + back, 0, 0],
+            color,
+            false,
+          );
         // end faces close the body (a wall is an object, not a skin)
         const other = kind === WALL_CUT ? rear : inner;
         for (const k of [0, face.length - 1]) {
@@ -2725,6 +2861,8 @@ function jerseyParapet(
       [prof[k][0], prof[k][1], 0],
       [prof[k + 1][0], prof[k + 1][1], 0],
       jerseyColor(w, side, n, Math.min(prof[k][1], prof[k + 1][1])),
+      true,
+      true,
     );
   // end faces close the parapet body, seen from either side
   for (const r of [rows[0], rows[rows.length - 1]]) {
@@ -2929,7 +3067,31 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
   const edgeL = w.sec.footL + off;
   const edgeR = w.sec.footR + off;
   for (const [i0, i1] of runsOf(w.st, ST_TUNNEL)) {
-    const ss = rowsBetween(w, w.al.s[i0], w.al.s[i1]);
+    // (a tunnel with its own headwall: the slab ends on the portal line, never a strip of it past the headwall)
+    let sa = w.al.s[i0];
+    let sb = w.al.s[i1];
+    for (const [i, dir] of [
+      [i0, 1],
+      [i1, -1],
+    ] as const) {
+      if (!net.tunnelAt(w, i)?.headwall) continue;
+      const line = portalLine(net, w.al.x[i], w.al.z[i]);
+      if (!line) continue;
+      const side = (s: number) => {
+        const fr = frameAt(w, s);
+        return (fr.x - line.x) * line.tx + (fr.z - line.z) * line.tz;
+      };
+      const s0 = dir > 0 ? sa : sb;
+      const d0 = side(s0);
+      // (this end lies outside the line when walking inwards crosses it)
+      for (let s = s0 + dir; dir > 0 ? s < sb : s > sa; s += dir) {
+        if (Math.sign(side(s)) === Math.sign(d0)) continue;
+        if (dir > 0) sa = s;
+        else sb = s;
+        break;
+      }
+    }
+    const ss = rowsBetween(w, sa, sb);
     const roof: Row[] = [];
     const mid = frameAt(w, (w.al.s[i0] + w.al.s[i1]) / 2);
     const p = parts.at(mid.x, mid.z);
@@ -2950,11 +3112,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
     // steel) with a lamp row along each side hung from the girders
     const span = edgeL + edgeR + 1.2;
     const midT = (edgeL - edgeR) / 2;
-    for (
-      let s = w.al.s[i0] + GIRDER_EVERY / 2;
-      s < w.al.s[i1];
-      s += GIRDER_EVERY
-    ) {
+    for (let s = sa + GIRDER_EVERY / 2; s < sb; s += GIRDER_EVERY) {
       const fr = frameAt(w, s);
       const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
       const girder = net.girderAt(w, fr.i);
@@ -2970,7 +3128,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
         ceil,
         GIRDER,
       );
-      const n = Math.round((s - w.al.s[i0]) / GIRDER_EVERY);
+      const n = Math.round((s - sa) / GIRDER_EVERY);
       if (n % 3 === 0)
         for (const t of [edgeL - 1.1, -(edgeR - 1.1)]) {
           const [lx, lz] = lat(fr, t);
@@ -3054,7 +3212,8 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
           top: under(x, z, slabTop),
         });
         const over = field.top(x, z);
-        const open = !over || Math.abs(over.h - slabTop) > 0.6;
+        // (a tunnel's own headwall is one straight coping across its bores, nothing on top: drive video s05 0:45-0:48)
+        const open = !line && (!over || Math.abs(over.h - slabTop) > 0.6);
         if (open)
           para.push({
             x,
@@ -3074,6 +3233,15 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
   }
 }
 
+/** Sample i of bore `w` lies past its tunnel's own headwall line (the bore runs on beyond the portal in OSM). */
+function pastHeadwall(net: Network, w: Way, i: number): boolean {
+  if (w.st[i] !== ST_TUNNEL || !net.tunnelAt(w, i)?.headwall) return false;
+  const line = portalLine(net, w.al.x[i], w.al.z[i]);
+  if (!line) return false;
+  const d = (w.al.x[i] - line.x) * line.tx + (w.al.z[i] - line.z) * line.tz;
+  return d * line.inward < 0;
+}
+
 /**
  * The stage road's portal nearest to (x, z) within PORTAL_LINE_REACH m along: the point and direction of the line a
  * tunnel's own headwall stands on, and its coping level (the stage bore's slab top there).
@@ -3082,11 +3250,29 @@ function portalLine(
   net: Network,
   x: number,
   z: number,
-): { x: number; z: number; tx: number; tz: number; top: number } | undefined {
+):
+  | {
+      x: number;
+      z: number;
+      tx: number;
+      tz: number;
+      top: number;
+      /** +1 / -1: the bore lies ahead of / behind the line along (tx, tz). */
+      inward: number;
+    }
+  | undefined {
   const st = net.stage;
   if (!st.slab) return undefined;
   let best:
-    { x: number; z: number; tx: number; tz: number; top: number } | undefined;
+    | {
+        x: number;
+        z: number;
+        tx: number;
+        tz: number;
+        top: number;
+        inward: number;
+      }
+    | undefined;
   let bestD = PORTAL_LINE_REACH;
   for (const run of runsOf(st.st, ST_TUNNEL))
     for (const j of run) {
@@ -3102,6 +3288,7 @@ function portalLine(
         tx: st.al.tx[j],
         tz: st.al.tz[j],
         top: st.slab[j],
+        inward: j === run[0] ? 1 : -1,
       };
     }
   return best;
@@ -3254,6 +3441,7 @@ export function barrierRuns(
   w: Way,
   side: 0 | 1,
   atCutWall = false,
+  minLen = 6,
 ): [number, number][] {
   const kind = atCutWall ? w.tpl.cutBarrier : w.sec.barrier[side];
   if (!kind || w.internal) return [];
@@ -3262,6 +3450,9 @@ export function barrierRuns(
   const L = w.al.length;
   const ok: boolean[] = [];
   const foot = side === 0 ? w.sec.footL : w.sec.footR;
+  // (where the way carries straight on into the next piece the run goes up to its end: one line across the joint)
+  const joint0 = net.nodes.get(w.nodes[0])?.kind === 'joint' && !w.merge0;
+  const joint1 = net.nodes.get(w.nodes[1])?.kind === 'joint' && !w.merge1;
   for (let i = 0; i < w.al.n; i++) {
     const s = w.al.s[i];
     // on a deck the parapet is the barrier - except where another road runs alongside (the parapet opens there: two
@@ -3285,8 +3476,8 @@ export function barrierRuns(
     let good =
       deckOk &&
       (atCutWall ? w.wall[side][i] === WALL_CUT : w.wall[side][i] === 0) &&
-      s > w.cut0 + 1 &&
-      s < L - w.cut1 - 1 &&
+      (joint0 || s > w.cut0 + 1) &&
+      (joint1 || s < L - w.cut1 - 1) &&
       !(w.merge0 && s < 80) &&
       !(w.merge1 && L - s < 80);
     if (good) {
@@ -3294,18 +3485,18 @@ export function barrierRuns(
       const z = w.al.z[i] - w.al.tx[i] * worldT(w, i, 0, t);
       const h = net.surfaceAt(w, i, 0, t);
       // open where a ramp merges in / out, or where the roadway alongside outranks this one (its barrier stands in
-      // the gap), or where that roadway's lane wall does; a painted gore alongside keeps the barrier up to its nose
+      // the gap); a painted gore alongside keeps the barrier up to its nose (in a hall the lane wall beside it is not
+      // built: the barrier runs on through, `hallLane`)
       const o = field.pavedByOther(x, z, h, w, 1.2, 3, false);
       // never across another road's pavement (a street crossing it at grade, a ramp's end under it): it would block
-      // the lanes
-      if (field.pavedByOther(x, z, h, w, 0, 3, false)) good = false;
+      // the lanes - a street running alongside whose edge only grazes the line keeps it (Union Tpke beside the
+      // parkway west of Queens Blvd: one barrier between the two)
+      const on = field.pavedByOther(x, z, h, w, 0, 3, false);
+      if (on && !alongside(net, w, i, on, x, z)) good = false;
       else if (o) {
         const merging = o.into.includes(w) || w.into.includes(o);
         const outranked = o.tpl.rank > w.tpl.rank;
-        const laneWall =
-          w.st[i] === ST_TUNNEL &&
-          (o.wallLane[0].includes(1) || o.wallLane[1].includes(1));
-        if (merging || outranked || laneWall) good = false;
+        if (merging || outranked) good = false;
       }
     }
     ok.push(good);
@@ -3318,12 +3509,30 @@ export function barrierRuns(
     } else if (a >= 0) {
       const s0 = w.al.s[a];
       const s1 = w.al.s[i - 1];
-      if (s1 - s0 >= 6) out.push([s0, s1]);
+      if (s1 - s0 >= minLen) out.push([s0, s1]);
       a = -1;
     }
   }
   return out;
 }
+
+/** Way o runs alongside w at w's sample i (near (x, z)): parallel to it and not merging into or out of it. */
+function alongside(
+  net: Network,
+  w: Way,
+  i: number,
+  o: Way,
+  x: number,
+  z: number,
+): boolean {
+  if (o.into.includes(w) || w.into.includes(o)) return false;
+  const p = net.nearLines(x, z, 40, ALONGSIDE_NEAR).get(o.index);
+  if (!p) return false;
+  const dot = w.al.tx[i] * o.al.tx[p.i] + w.al.tz[i] * o.al.tz[p.i];
+  return Math.abs(dot) > ALONGSIDE_COS;
+}
+const ALONGSIDE_NEAR = new Map<number, Projection>();
+const ALONGSIDE_COS = 0.97;
 
 /**
  * The barrier runs of a way's side and their kind: the section's barrier where no wall stands, and the template's
@@ -3335,17 +3544,16 @@ export function barrierPlan(
   w: Way,
   side: 0 | 1,
 ): { kind: string; runs: [number, number][] }[] {
-  const out: { kind: string; runs: [number, number][] }[] = [];
+  const byKind = new Map<string, [number, number][]>();
+  const add = (k: string, a: number, b: number) => {
+    if (b - a <= 0) return;
+    if (!byKind.has(k)) byKind.set(k, []);
+    byKind.get(k)!.push([a, b]);
+  };
   const kind = w.sec.barrier[side];
-  if (kind) {
+  if (kind)
     // the outer side: the map's barrier for that stretch (`wallStyles` barrier), split where it changes
-    const byKind = new Map<string, [number, number][]>();
-    const add = (k: string, a: number, b: number) => {
-      if (b - a < 2) return;
-      if (!byKind.has(k)) byKind.set(k, []);
-      byKind.get(k)!.push([a, b]);
-    };
-    for (const [s0, s1] of barrierRuns(net, field, w, side)) {
+    for (const [s0, s1] of barrierRuns(net, field, w, side, false, 0)) {
       const kindAt = (s: number) =>
         (side === 1 ? net.outerBarrier(w, sampleAt(w.al, s)) : undefined) ??
         kind;
@@ -3360,14 +3568,23 @@ export function barrierPlan(
       }
       add(k, a, s1);
     }
-    for (const [k, runs] of byKind)
-      if (k !== 'none') out.push({ kind: k, runs });
-  }
   if (w.tpl.cutBarrier)
-    out.push({
-      kind: w.tpl.cutBarrier,
-      runs: barrierRuns(net, field, w, side, true),
-    });
+    for (const [s0, s1] of barrierRuns(net, field, w, side, true, 0))
+      add(w.tpl.cutBarrier, s0, s1);
+  // one line where a run along a wall and one past it meet (a sample apart): no hole and no two ends between them
+  const out: { kind: string; runs: [number, number][] }[] = [];
+  for (const [k, pieces] of byKind) {
+    if (k === 'none') continue;
+    pieces.sort((p, q) => p[0] - q[0]);
+    const runs: [number, number][] = [];
+    for (const [a, b] of pieces) {
+      const last = runs[runs.length - 1];
+      if (last && a - last[1] <= BARRIER_JOIN) last[1] = Math.max(last[1], b);
+      else runs.push([a, b]);
+    }
+    const kept = runs.filter(([a, b]) => b - a >= BARRIER_MIN);
+    if (kept.length) out.push({ kind: k, runs: kept });
+  }
   return out;
 }
 
@@ -3397,12 +3614,11 @@ function barriers(net: Network, field: NetField, w: Way, parts: Parts): void {
             );
           };
           let j = 0;
-          for (
-            let a = Math.ceil(s0 / JERSEY_SEG) * JERSEY_SEG - JERSEY_SEG;
-            a < s1;
-            a += JERSEY_SEG
-          ) {
-            const lo = Math.max(s0, a);
+          // (the sections start at the run's start: where it carries on from the previous way piece, a joint there -
+          // a colour changes only at a section's joint, never part way along one)
+          const joined0 = s0 <= w.cut0 + 1;
+          for (let a = s0; a < s1; a += JERSEY_SEG) {
+            const lo = a === s0 && joined0 ? a + JERSEY_GAP : a;
             const hi = Math.min(s1, a + JERSEY_SEG - JERSEY_GAP);
             if (hi - lo < 0.3) continue;
             const seg: Row[] = [row(lo)];
@@ -3427,8 +3643,26 @@ function barriers(net: Network, field: NetField, w: Way, parts: Parts): void {
                 [t + pa, ya, 0],
                 [t + pb, yb, 0],
                 jerseyColor(w, side, n, Math.min(ya, yb)),
+                true,
+                true,
               );
             }
+          }
+          // the chain-link on the median barrier where the map has one (`medianFences`)
+          if (side === 0 && w.stage) {
+            let run: Row[] = [];
+            const flush = () => {
+              if (run.length >= 2)
+                chainLink(p, run, t, JERSEY_H, MEDIAN_FENCE_H);
+              run = [];
+            };
+            for (const r of rows) {
+              const fr = frameAt(w, r.d);
+              if (net.medianFenceAt(w, fr.f < 0.5 ? fr.i : fr.i + 1))
+                run.push(r);
+              else flush();
+            }
+            flush();
           }
         } else {
           // the galvanised W-beam on posts every 2 m of the hand-placed rails (barrier-mesh.ts `RAIL`, its grime map:

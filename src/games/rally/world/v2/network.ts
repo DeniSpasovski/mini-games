@@ -383,6 +383,12 @@ const UNDER_STOREY = 3;
 const DECK_WALL_CLEAR = 1;
 /** A cut wall at most this far (m) in front of a higher road's fill wall gives way to it (`facedWalls`). */
 const FACE_GAP = 6;
+// a surveyed wall line within this of a road's own wall line keeps that wall (facedWalls)
+const WALL_SURVEY_HOLD = 2;
+// ... and nearer to it than the street's face by this much
+const WALL_SURVEY_PICK = 0.5;
+// (a break in the surveyed line up to twice this long counts as the line)
+const WALL_SURVEY_BRIDGE = 8;
 /** Lateral offsets beyond the wall line where another road at this level makes one platform (no wall). */
 const PLATFORM_PROBES = [0.3, 1.6, 3.2];
 /**
@@ -680,6 +686,7 @@ export class Network {
   private readonly pavement: NonNullable<NetworkDef['pavement']>;
   private readonly tunnelDefs: NonNullable<NetworkDef['tunnels']>;
   private readonly openBeside: NonNullable<NetworkDef['openBeside']>;
+  private readonly medianFences: NonNullable<NetworkDef['medianFences']>;
   private readonly paveNear = new Map<number, Projection>();
   /** Wall samples beside another, unrelated road at their level (`dividingWalls`): way, side, sample, that road. */
   private divides: [Way, 0 | 1, number, Way][] = [];
@@ -708,6 +715,7 @@ export class Network {
     this.pavement = def.pavement ?? [];
     this.tunnelDefs = def.tunnels ?? [];
     this.openBeside = def.openBeside ?? [];
+    this.medianFences = def.medianFences ?? [];
     const sw = def.data.survey;
     if (sw?.walls?.length && sw.wallsUntil) {
       const segs: number[] = [];
@@ -1155,8 +1163,7 @@ export class Network {
             // (only the higher-ranked road's wall stands: the stage road keeps its own walls)
             // (the stage road's carriageways: the parkway's wall is the one face; elsewhere the street's fill wall
             // stays and a lower road's own wall stays in front of it)
-            const mine = effRank(q) <= effRank(w);
-            if (mine && !w.stage && Number.isNaN(w.corr?.[i] ?? NaN)) continue;
+            let mine = effRank(q) <= effRank(w);
             if (
               Math.abs(w.al.tx[i] * q.al.tx[k] + w.al.tz[i] * q.al.tz[k]) < 0.7
             )
@@ -1172,6 +1179,20 @@ export class Network {
             );
             const gap = Math.abs(p.t) - face;
             if (gap < 0 || gap > FACE_GAP) continue;
+            // (the survey's wall line at this road's own wall, nearer than at the street's face: this road's wall
+            // holds the street's edge, whichever ranks higher - one face, never two with a strip between)
+            const sl = bare
+              ? undefined
+              : this.surveyWallLat(w, i, side, WALL_SURVEY_BRIDGE);
+            const own = Math.abs(lw);
+            if (
+              sl !== undefined &&
+              Math.abs(sl - own) <= WALL_SURVEY_HOLD &&
+              Math.abs(own + gap - sl) > Math.abs(sl - own) + WALL_SURVEY_PICK
+            )
+              mine = true;
+            else if (mine && !w.stage && Number.isNaN(w.corr?.[i] ?? NaN))
+              continue;
             const rise =
               this.surfaceAt(q, p.i, p.f, (qs === 0 ? 1 : -1) * qFoot) - E;
             if (rise < 1) continue;
@@ -3471,7 +3492,12 @@ export class Network {
   }
 
   /** The nearest surveyed wall line on that side of way `w` at sample i: its distance from the line (m), if any. */
-  private surveyWallLat(w: Way, i: number, side: 0 | 1): number | undefined {
+  private surveyWallLat(
+    w: Way,
+    i: number,
+    side: 0 | 1,
+    along = 0,
+  ): number | undefined {
     const sv = this.surveyWalls;
     if (!sv) return undefined;
     const { x, z, tx, tz } = w.al;
@@ -3484,9 +3510,10 @@ export class Network {
       const l = Math.hypot(ex, ez) || 1;
       if (Math.abs((ex * tx[i] + ez * tz[i]) / l) < WALL_SURVEY_SKEW) continue;
       const f = ((x[i] - x0) * ex + (z[i] - z0) * ez) / (l * l);
-      if (f < 0 || f > 1) continue;
-      const px = x0 + ex * f - x[i];
-      const pz = z0 + ez * f - z[i];
+      if (f * l < -along || f * l > l + along) continue;
+      const fc = Math.min(1, Math.max(0, f));
+      const px = x0 + ex * fc - x[i];
+      const pz = z0 + ez * fc - z[i];
       const lat = (px * tz[i] - pz * tx[i]) * sg;
       if (lat <= 0 || Math.hypot(px, pz) > WALL_SURVEY_REACH) continue;
       if (best === undefined || lat < best) best = lat;
@@ -3598,6 +3625,12 @@ export class Network {
       if (r.maxHeight && st >= r.from && st <= r.to)
         out = Math.min(out, r.maxHeight);
     return out;
+  }
+
+  /** A chain-link fence stands on the median barrier of way `w` at sample i (map `medianFences`, by stage station). */
+  medianFenceAt(w: Way, i: number): boolean {
+    const st = this.stationOf(w, i);
+    return this.medianFences.some((r) => st >= r.from && st <= r.to);
   }
 
   /** The outer barrier of way `w` at sample i where the map's `wallStyles` set one for that stage station. */
@@ -4799,7 +4832,12 @@ export class Network {
             // (a road at its level or below right behind the face: the land there is that road, no cut to hold -
             // except the bore this street leads into: a street's portal cut keeps its walls beside its own tunnel)
             const kq = Math.min(q.al.n - 1, p.f < 0.5 ? p.i : p.i + 1);
-            if (Math.abs(p.t) <= qFoot + WALL_ROAD_BACK && h < top[i]) {
+            // (beyond that road's end - the same road running on from a joint - it is not behind the face)
+            if (
+              Math.abs(p.t) <= qFoot + WALL_ROAD_BACK &&
+              p.d <= qFoot + WALL_ROAD_BACK &&
+              h < top[i]
+            ) {
               if (q.st[kq] === ST_TUNNEL && this.sharesNode(w, q))
                 boreKept[i] = 1;
               else type[i] = WALL_NONE;
