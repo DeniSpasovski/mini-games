@@ -1448,15 +1448,13 @@ function wetShading(on: boolean): void {
  * Ground: the sky light the terrain round it leaves in view (valleys, the foot of a slope; `setTerrainLight`). A
  * constant chunk so every rebuild of `lights_fragment_end` (`wetShading`, each `setWet`) keeps it.
  */
-/** Under a tunnel roof (\`wsRoofAt\`): the sky light drops (the car has its own, CAR_SURROUND_DIFFUSE). */
+/** Under a tunnel roof (\`wsRoofAt\`): the sky light drops, on the car too (its paint and glass mirror no sky in a bore). */
 const ROOF_SKY = /* glsl */ `
-#ifndef RALLY_CAR_ENV
 	if ( wsDryN > 0 ) {
 		float wsRoof = wsRoofAt( wsWorldPos( geometryPosition ), 0.0 );
 		reflectedLight.indirectDiffuse *= 1.0 - wsRoof;
 		reflectedLight.indirectSpecular *= 1.0 - wsRoof;
 	}
-#endif
 `;
 
 const TERRAIN_SKY = /* glsl */ `

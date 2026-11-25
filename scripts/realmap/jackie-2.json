@@ -39,7 +39,7 @@
   "runout": 90,
   "survey": {
     "planimetrics": "sources/maps/jackie/nyc-planimetrics",
-    "centre": true,
+    "centre": { "bores": true, "alongside": 25, "lanes": [[7100, 7600]] },
     "spotHeights": "src/games/rally/maps/jackie/spot-heights.json",
     "datum": 32.9,
     "retainingWalls": "src/games/rally/maps/jackie/retaining-walls.json",

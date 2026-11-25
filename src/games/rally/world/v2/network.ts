@@ -192,6 +192,10 @@ const effRank = (w: Way) =>
 const CORRIDOR = 18;
 /** A highway ramp takes the pavement of the stage road within this distance (m, `NetworkDef.pavement`). */
 const PAVEMENT_REACH = 120;
+/** A bore's soffit where the map's `tunnels` name none: plain beams this deep (m), and how far from the stage road a
+ * bore takes the stage's stretch (m, `girderAt`). */
+export const TUNNEL_GIRDER_DEFAULT = 0.5;
+const TUNNEL_REACH = 40;
 /**
  * A street running alongside the stage road in its cut (within this, m; parallel, at its level within SIDE_LEVEL m)
  * takes the stage's wall look there: one cut, one wall (drive video 5:22-5:24, the ashlar cut before Queens Blvd).
@@ -505,6 +509,7 @@ export class Network {
   private readonly wallStyles: NonNullable<NetworkDef['wallStyles']>;
   private readonly deckStyles: NonNullable<NetworkDef['deckStyles']>;
   private readonly pavement: NonNullable<NetworkDef['pavement']>;
+  private readonly tunnelDefs: NonNullable<NetworkDef['tunnels']>;
   private readonly paveNear = new Map<number, Projection>();
   /** Wall samples beside another, unrelated road at their level (`dividingWalls`): way, side, sample, that road. */
   private divides: [Way, 0 | 1, number, Way][] = [];
@@ -531,6 +536,7 @@ export class Network {
     this.wallStyles = def.wallStyles ?? [];
     this.deckStyles = def.deckStyles ?? [];
     this.pavement = def.pavement ?? [];
+    this.tunnelDefs = def.tunnels ?? [];
     const sw = def.data.survey;
     if (sw?.walls?.length && sw.wallsUntil) {
       const segs: number[] = [];
@@ -3065,11 +3071,15 @@ export class Network {
             add(al.x[i], al.z[i]);
   }
 
-  /** The stage's samples within TUNNEL_HOLD m along of its own tunnel stretches (the bores are sized by the section). */
+  /**
+   * The stage's samples within TUNNEL_HOLD m along of its own tunnel stretches (the bores are sized by the section);
+   * none when its widths apply in the bores too (`stage.boreWidths`).
+   */
   private stageTunnelHeld(data: NetworkData, road: Road): Uint8Array {
     const { n, s } = this.stage.al;
     const scale = road.runoutFrom / Math.max(1, data.stage.length);
     const held = new Uint8Array(n);
+    if (data.stage.boreWidths) return held;
     for (const sp of data.stage.spans)
       if (sp.kind !== 'bridge' && (sp.to - sp.from) * scale >= TUNNEL_MIN)
         for (let i = 0; i < n; i++)
@@ -3273,6 +3283,26 @@ export class Network {
     for (const r of this.pavement)
       if (st >= r.from && st <= r.to) return r.surface;
     return undefined;
+  }
+
+  /** The ceiling girder depth of bore `w` at sample i (map `tunnels` by its nearest stage station), m. */
+  girderAt(w: Way, i: number): number {
+    if (!this.tunnelDefs.length) return TUNNEL_GIRDER_DEFAULT;
+    let st = this.stationOf(w, i);
+    if (Number.isNaN(st)) {
+      this.nearLines(
+        w.al.x[i],
+        w.al.z[i],
+        TUNNEL_REACH,
+        this.paveNear,
+        (q) => !q.stage,
+      );
+      st = this.paveNear.get(0)?.s ?? NaN;
+    }
+    if (Number.isNaN(st)) return TUNNEL_GIRDER_DEFAULT;
+    for (const r of this.tunnelDefs)
+      if (st >= r.from && st <= r.to) return r.girder;
+    return TUNNEL_GIRDER_DEFAULT;
   }
 
   /** The cut wall height limit of way `w` at sample i (map `wallStyles` maxHeight), Infinity where none. */

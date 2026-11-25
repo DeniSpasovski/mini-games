@@ -147,13 +147,12 @@ const FILL_W = PARAPET_OUT - PARAPET_IN;
 const SOFFIT: RGB = [0.45, 0.44, 0.42];
 /** Tunnel ceiling girders: spacing (m), depth under the soffit (m), dark painted steel. */
 const GIRDER_EVERY = 2.6;
-/** A tunnel's built-up girders: deep enough that the clearance under them is the real one (Queens Blvd 12'-10", lidar
- * deck top less the floor less the slab), m. */
-const TUNNEL_GIRDER_D = 1.1;
 const GIRDER: RGB = [0.2, 0.19, 0.18];
 /** A tunnel's steel columns: light grey paint, this far in from the bore's wall line (m). */
 const COLUMN: RGB = [0.5, 0.51, 0.5];
-const COLUMN_IN = 0.3;
+/** The hall's outer barrier (`hallColumns`): low wall height (m) and the column spacing along it (m). */
+const HALL_WALL_H = 1.1;
+const HALL_COLUMN_EVERY = 3 * GIRDER_EVERY;
 /**
  * A steel deck (`deckStyles` 'steel'): the fascia girders' dull grey-green paint (drive video 3:34-3:36, Myrtle Ave),
  * the slab's underside above its girders (m under the deck top) and the girder spacing across the deck (m).
@@ -478,6 +477,7 @@ export function* netMeshJob(world: World): Generator<void, Group | undefined> {
     wayPaint(net, field, w, tiles);
     turnArrows(net, field, w, tiles);
     walls(net, field, w, parts);
+    hallColumns(net, w, parts);
     decks(net, field, w, parts);
     medianDecks(net, w, parts);
     tunnel(net, field, w, parts);
@@ -2235,6 +2235,59 @@ function styledRuns(
   return out;
 }
 
+/**
+ * One hall over side-by-side bores (Queens Blvd, drive frames: the carriageways split by a barrier only, each outer lane
+ * behind a low wall with a column row on it): along a tunnel lane wall a steel column every HALL_COLUMN_EVERY m from the
+ * wall's top up to a long beam under the soffit.
+ */
+function hallColumns(net: Network, w: Way, parts: Parts): void {
+  if (!w.slab) return;
+  for (const side of [0, 1] as const) {
+    const sg = side === 0 ? 1 : -1;
+    const foot = side === 0 ? w.sec.footL : w.sec.footR;
+    const lane = new Uint8Array(w.al.n);
+    for (let i = 0; i < w.al.n; i++)
+      lane[i] =
+        w.st[i] === ST_TUNNEL &&
+        w.wall[side][i] === WALL_CUT &&
+        w.wallLane[side][i]
+          ? 1
+          : 0;
+    for (const [i0, i1] of runsOf(lane, 1)) {
+      const s0 = w.al.s[i0];
+      const s1 = w.al.s[i1];
+      if (s1 - s0 < HALL_COLUMN_EVERY) continue;
+      const t = sg * (foot + w.tpl.daylight.wallOffset + LANE_WALL_W / 2);
+      const beam: Row[] = [];
+      for (const s of rowsBetween(w, s0, s1)) {
+        const fr = frameAt(w, s);
+        const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
+        beam.push(rowOf(fr, ceil - net.girderAt(w, fr.i), 0));
+      }
+      const p = parts.at(beam[0].x, beam[0].z);
+      // the long beam: a box section along the wall line under the girders
+      p.paint.strip(beam, [t - 0.25, 0, 0], [t + 0.25, 0, 0], GIRDER, false);
+      for (let s = s0 + HALL_COLUMN_EVERY / 2; s < s1; s += HALL_COLUMN_EVERY) {
+        const fr = frameAt(w, s);
+        const [px, pz] = lat(fr, t);
+        const E = net.surfaceAt(w, fr.i, fr.f, sg * foot);
+        const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
+        p.paint.box(
+          px,
+          pz,
+          fr.tx,
+          fr.tz,
+          0.17,
+          0.16,
+          E + HALL_WALL_H,
+          ceil - net.girderAt(w, fr.i),
+          COLUMN,
+        );
+      }
+    }
+  }
+}
+
 function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
   const dl = w.tpl.daylight;
   for (const side of [0, 1] as const) {
@@ -2276,9 +2329,12 @@ function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
             const tf = ka === fr.i && kb === fr.i + 1 ? fr.f : 0;
             // a tunnel wall stops just under the slab (the road on top is drawn over it); elsewhere the coping stands
             // a little above the land it holds
+            // (a lane wall in a tunnel is the hall's outer barrier: a low wall under a column row, `hallColumns`)
             const top =
               w.st[kk] === ST_TUNNEL && w.slab
-                ? w.slab[kk] - 0.03
+                ? w.wallLane[side][kk]
+                  ? E + HALL_WALL_H
+                  : w.slab[kk] - 0.03
                 : Math.max(wt[ka] + (wt[kb] - wt[ka]) * tf, E + 0.6) + 0.12;
             face.push({ x, z, bot: E - 0.3, top });
             // the back of the coping drops to the land it holds (a lane wall is a thin body in the gap)
@@ -2872,6 +2928,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
     ) {
       const fr = frameAt(w, s);
       const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
+      const girder = net.girderAt(w, fr.i);
       const [cx, cz] = lat(fr, midT);
       p.paint.box(
         cx,
@@ -2880,7 +2937,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
         fr.tz,
         0.12,
         span / 2,
-        ceil - TUNNEL_GIRDER_D,
+        ceil - girder,
         ceil,
         GIRDER,
       );
@@ -2888,24 +2945,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
       if (n % 3 === 0)
         for (const t of [edgeL - 1.1, -(edgeR - 1.1)]) {
           const [lx, lz] = lat(fr, t);
-          p.light.lamp(lx, lz, ceil - TUNNEL_GIRDER_D);
-        }
-      // steel columns under every third girder along both sides of the bore (painted H posts behind the Jerseys)
-      if (n % 3 === 1)
-        for (const t of [edgeL - COLUMN_IN, -(edgeR - COLUMN_IN)]) {
-          const [px, pz] = lat(fr, t);
-          const foot = net.surfaceAt(w, fr.i, fr.f, t) - 0.2;
-          p.paint.box(
-            px,
-            pz,
-            fr.tx,
-            fr.tz,
-            0.16,
-            0.17,
-            foot,
-            ceil - TUNNEL_GIRDER_D,
-            COLUMN,
-          );
+          p.light.lamp(lx, lz, ceil - girder);
         }
     }
     p.conc.strip(
@@ -2968,7 +3008,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
         pts.push({
           x,
           z,
-          bot: y + w.tpl.clearance + 0.4 - TUNNEL_GIRDER_D,
+          bot: y + w.tpl.clearance + 0.4 - net.girderAt(w, i),
           top: under(x, z, w.slab[i]),
         });
         const over = field.top(x, z);
@@ -3003,6 +3043,37 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
 }
 
 /**
+ * What the plates on bore `w`'s headwall at sample i (i0 or i1 of its run) say, undefined where it has none (a one-way
+ * bore's exit end, a headwall too low): the street the structure carries - the widest named one over the bore (Queens
+ * Blvd, not a side street at a portal) - and the clearance under the girders (feet-inches).
+ */
+export function portalPlateText(
+  net: Network,
+  w: Way,
+  i: number,
+  i0: number,
+  i1: number,
+): { name?: string; clearance: string } | undefined {
+  if (i !== i0 && (w.oneway || w.stage)) return undefined;
+  const y = net.surfaceAt(w, i, 0, 0);
+  const girder = net.girderAt(w, i);
+  const bot = y + w.tpl.clearance + 0.4 - girder;
+  if ((w.slab?.[i] ?? bot) - bot < 0.75) return undefined;
+  let name: string | undefined;
+  let best = 0;
+  for (const c of net.crossings) {
+    if (c.lower !== w || !c.upper.name) continue;
+    if (c.sL < w.al.s[i0] - 10 || c.sL > w.al.s[i1] + 10) continue;
+    const wide = c.upper.sec.footL + c.upper.sec.footR;
+    if (wide > best) {
+      best = wide;
+      name = c.upper.name;
+    }
+  }
+  return { name, clearance: feetInches(w.tpl.clearance - girder + 0.4) };
+}
+
+/**
  * The plates on a portal headwall, facing the drivers who enter the bore there (v1 `portals.ts` / bridge-mesh: drive
  * video, Queens Blvd 5:26-5:27): the green name plate of the street over the portal over the left lane, the white
  * clearance plate (to the girders) over the right one. A one-way bore has them at its entry end only.
@@ -3019,22 +3090,11 @@ function portalPlates(
   parts: Parts,
 ): void {
   const entry = i === i0;
-  if (!entry && (w.oneway || w.stage)) return;
-  const bot = y + w.tpl.clearance + 0.4 - TUNNEL_GIRDER_D;
+  const text = portalPlateText(net, w, i, i0, i1);
+  if (!text) return;
+  const { name, clearance } = text;
+  const bot = y + w.tpl.clearance + 0.4 - net.girderAt(w, i);
   const head = (w.slab?.[i] ?? bot) - bot;
-  if (head < 0.75) return;
-  // the street the structure carries: the widest named one over the bore (Queens Blvd, not a side street at a portal)
-  let name: string | undefined;
-  let best = 0;
-  for (const c of net.crossings) {
-    if (c.lower !== w || !c.upper.name) continue;
-    if (c.sL < w.al.s[i0] - 10 || c.sL > w.al.s[i1] + 10) continue;
-    const wide = c.upper.sec.footL + c.upper.sec.footR;
-    if (wide > best) {
-      best = wide;
-      name = c.upper.name;
-    }
-  }
   // facing out of the bore, towards the drivers approaching this end
   const out = entry ? -1 : 1;
   const nx = fr.tx * out;
@@ -3047,7 +3107,7 @@ function portalPlates(
   };
   const [cx, cz] = side(-1.7);
   parts.plates.add(
-    clearancePlateTexture(feetInches(w.tpl.clearance - TUNNEL_GIRDER_D + 0.4)),
+    clearancePlateTexture(clearance),
     cx,
     py,
     cz,

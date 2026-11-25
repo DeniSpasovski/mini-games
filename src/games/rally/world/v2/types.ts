@@ -68,6 +68,8 @@ export interface NetworkData {
     surveyWidth?: number;
     /** Surveyed width per station [m along, carriageway width m] (network_survey.py, smoothed over 200 m). */
     widths?: [number, number][];
+    /** The widths apply in the stage's bores too (survey `centre.bores`: a hall laid out on the survey). */
+    boreWidths?: boolean;
     /** The run-out past the route's end (network.py `extend_stage`): RoadDef.runout points + their length (m). */
     runout?: { pts: [number, number][]; length: number };
   };
@@ -148,6 +150,11 @@ export interface NetworkDef {
    * 'concrete' = pale cement-concrete slabs with sealed joints (drive videos: from the Queens Blvd tunnel portal on).
    */
   pavement?: { from: number; to: number; surface: 'concrete' }[];
+  /**
+   * One tunnel's soffit per stretch of the stage road (m along; every bore there by its nearest stage station): the depth
+   * of its ceiling girders (m), so the clearance under them is the one on its plates. Elsewhere TUNNEL_GIRDER_DEFAULT.
+   */
+  tunnels?: { from: number; to: number; girder: number }[];
   /**
    * One street deck's look by its OSM way id, over the template's `deck` (drive videos): 'steel' = a painted plate-girder
    * bridge, steel girders under a slab, stone abutments ('concrete': `abutment`).

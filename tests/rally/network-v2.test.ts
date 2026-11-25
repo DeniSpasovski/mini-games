@@ -15,6 +15,7 @@ import {
 import {
   arrowGlyph,
   barrierPlan,
+  portalPlateText,
   skirtRow,
   tunnelRoofs,
 } from '../../src/games/rally/world/v2/mesh';
@@ -259,6 +260,8 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
       const ws = map.network!.data.stage.widths;
       if (!ws?.length) return;
       const tpl = w.sec.paveL + w.sec.paveR;
+      // (`stage.boreWidths`: the survey's widths run on through the bores, no hold)
+      const bore = !!map.network!.data.stage.boreWidths;
       // (the route's metres: the run-out past its end has no survey stations, it keeps the template)
       const scale = world.road.runoutFrom / map.network!.data.stage.length;
       let n = 0;
@@ -277,12 +280,12 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
             );
       for (let i = 0; i < w.al.n; i++) {
         const width = tpl * scaleAt(w, i);
-        if (w.st[i] === ST_TUNNEL) {
+        if (w.st[i] === ST_TUNNEL && !bore) {
           tunnel++;
           if (Math.abs(width - tpl) > 1e-9) tunnelWide++;
           continue;
         }
-        if (toTunnel[i] < 260) continue; // held near the tunnel, easing back
+        if (toTunnel[i] < 260 && !bore) continue; // held near the tunnel, easing back
         if (w.al.s[i] > world.road.runoutFrom) continue;
         // held where another pavement touches the stage edge (a ramp, a gore), easing back
         if ((net.debug.widthHeld?.[i] ?? Infinity) < 100) continue;
@@ -344,9 +347,12 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
           // (or a step: land 0.6 m further out lies STEP_MIN lower, the drawn land drops to it - NetField.stepCut)
           const [xo, zo] = at(w.sec.paveL + 0.7);
           const step = field.ground(xe, ze) - field.ground(xo, zo) > 0.3;
+          // (or a wall face's cut: a median barrier beside the edge, the land at its foot drops to the low side)
+          const held = field.wallCut(xe, ze) >= se - 1e-6;
           if (
             se > 0.0401 &&
             !step &&
+            !held &&
             !inJunction &&
             !field.pavedByOther(xe, ze, w.y[i], w, 0.2, 3)
           ) {
@@ -468,6 +474,71 @@ describe.each(NET_MAPS.map((m) => [m.id, m] as const))(
         });
         expect(worst).toBeLessThan(0.02);
       }
+    });
+
+    test('the Queens Blvd hall: low walls and columns on the outer barriers only, the median a barrier; its plates', () => {
+      if (map.id !== 'jackie_2') return;
+      // (Deni: no pillars in the middle; pillars and lowered walls on the outer barriers, the outer lanes seen through):
+      // the low wall + column row is the lane's wall on its parkway side (`hallColumns`), none on the parkway bores
+      const parkway = [
+        net.stage,
+        ...net.ways.filter(
+          (q) => q.tpl.id === 'nyc_parkway_twin' && q.st.includes(ST_TUNNEL),
+        ),
+      ];
+      const nearParkway = (x: number, z: number, r = 6) =>
+        parkway.some((q) => {
+          for (let k = 0; k < q.al.n; k++)
+            if (Math.hypot(q.al.x[k] - x, q.al.z[k] - z) < r) return true;
+          return false;
+        });
+      for (const w of parkway)
+        for (const side of [0, 1])
+          expect(
+            w.wallLane[side].some((v, i) => v && w.st[i] === ST_TUNNEL),
+          ).toBe(false);
+      // (Union Tpke's lanes under Queens Blvd, one beside each carriageway)
+      const lanes = net.ways.filter((q) =>
+        ['473006783.0', '608343130.0'].includes(q.id),
+      );
+      expect(lanes.length).toBe(2);
+      for (const w of lanes) {
+        const [a, b] = runsOf(w.st, ST_TUNNEL)[0];
+        const n = b - a + 1;
+        const sides = [0, 1].map((side) => {
+          let lane = 0;
+          let toParkway = 0;
+          for (let i = a; i <= b; i++) {
+            if (!w.wallLane[side][i]) continue;
+            lane++;
+            const sg = side === 0 ? 1 : -1;
+            const foot = side === 0 ? w.sec.footL : w.sec.footR;
+            const t = worldT(w, i, 0, sg * (foot + 2));
+            if (
+              nearParkway(
+                w.al.x[i] + w.al.tz[i] * t,
+                w.al.z[i] - w.al.tx[i] * t,
+              )
+            )
+              toParkway++;
+          }
+          return { lane, toParkway };
+        });
+        console.info(
+          `[hall] ${w.id}: lane walls ${sides.map((v) => v.lane).join(' / ')} of ${n}`,
+        );
+        // one side is the hall's outer barrier (to the parkway), the other the cut wall
+        const inner = sides[0].lane > sides[1].lane ? 0 : 1;
+        expect(sides[inner].lane).toBeGreaterThan(n * 0.6);
+        expect(sides[inner].toParkway).toBeGreaterThan(sides[inner].lane * 0.9);
+        expect(sides[1 - inner].lane).toBe(0);
+      }
+      // the stage's entry plates: the street over it and the clearance under its girders (12'-10", map `tunnels`)
+      const [i0, i1] = runsOf(net.stage.st, ST_TUNNEL)[0];
+      const text = portalPlateText(net, net.stage, i0, i0, i1);
+      expect(text?.clearance).toBe(`12'-10"`);
+      expect(text?.name).toMatch(/Queens/);
+      expect(portalPlateText(net, net.stage, i1, i0, i1)).toBeUndefined();
     });
 
     test('parkway lamps: right side only, set back on the land (drive videos)', () => {

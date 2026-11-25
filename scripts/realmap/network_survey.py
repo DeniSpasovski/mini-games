@@ -175,6 +175,8 @@ STATION_CLAMP = (5.6, 7.0)
 # over CENTRE_EASE m. Mainline edges also get their width per station (`widths`, as the stage's: the engine narrows
 # their pavement to it). Applied once (a full import starts from OSM again; --survey-only skips a centred network).
 CENTRE_KINDS = ('motorway', 'trunk')
+LANE_TEMPLATE = 'nyc_tunnel_lane'  # a street running as a lane in the parkway's cut (config centre.lanes)
+LANE_KINDS = ('primary',)  # (the cut's outer lanes; the service roads at street level above it stay streets)
 CENTRE_STEP = 10.0
 CENTRE_CLEAN = (4.2, 9.0)
 CENTRE_SMOOTH = 120.0
@@ -297,9 +299,13 @@ def bore_keep(network, line, hold=None, reach=CENTRE_BORE_R, ease=CENTRE_HOLD, e
     return keep
 
 
-def centre(network, parts, tree, stage_line):
+def centre(network, parts, tree, stage_line, opts=None):
     """Moves the stage route and the mainline edges onto their roadbed centres (see above). Returns the moved stage
-    line (or the given one)."""
+    line (or the given one). opts (config `centre` as an object): `bores` true = the bores move too (a hall laid out
+    on the survey: its widths too, `mainline_widths`), `alongside` m = also every other edge running alongside the stage
+    within that distance (the lanes beside the parkway); `lanes` [[from, to], ...] stage m: there those are roadways
+    in the parkway's cut (the outer lanes of a hall: LANE_TEMPLATE, kerbless, their width per station too)."""
+    opts = opts if isinstance(opts, dict) else {}
     sv = network.setdefault('survey', {})
     if sv.get('centred'):
         print('  survey: lines already centred (a full import re-centres)')
@@ -313,10 +319,38 @@ def centre(network, parts, tree, stage_line):
     spans = stage_tunnels(network)
 
     def stage_hold(m):
-        return any(a <= m * scale <= b for a, b in spans)
+        return not opts.get('bores') and any(a <= m * scale <= b for a, b in spans)
 
     so = centre_profile(line, parts, tree, stage_hold)
-    keep = bore_keep(network, line, stage_hold)
+    if opts.get('bores'):
+        def keep(pts):
+            return np.ones(len(np.asarray(pts).reshape(-1, 2)))
+    else:
+        keep = bore_keep(network, line, stage_hold)
+    from scipy.spatial import cKDTree
+
+    stage_kd = cKDTree(line)
+    reach = opts.get('alongside', 0)
+
+    lane_m = opts.get('lanes', [])
+
+    def alongside(p):
+        """Most of the edge within `reach` m of the stage line and parallel to it: False, True, or 'lane' (in a
+        `lanes` stretch)."""
+        if not reach or len(p) < 2:
+            return False
+        dense = np.vstack([np.linspace(p[i], p[i + 1], max(2, int(np.hypot(*(p[i + 1] - p[i])) / 4)))
+                           for i in range(len(p) - 1)])  # fmt: skip
+        dd, ii = stage_kd.query(dense)
+        tg = np.gradient(dense, axis=0)
+        tg /= np.maximum(np.linalg.norm(tg, axis=1, keepdims=True), 1e-9)
+        ts = np.gradient(line, axis=0)[ii]
+        ts /= np.maximum(np.linalg.norm(ts, axis=1, keepdims=True), 1e-9)
+        par = np.abs((tg * ts).sum(1)) > 0.9
+        if float(np.mean((dd <= reach) & par)) < 0.6:
+            return False
+        m = dl[ii] * scale
+        return 'lane' if float(np.mean([any(a <= v <= b for a, b in lane_m) for v in m])) >= 0.6 else True
 
     moved_line = line if so is None else line + normals(line) * so[:, None]
 
@@ -335,17 +369,24 @@ def centre(network, parts, tree, stage_line):
     st['cps'] = [[round(float(x), 2), round(float(z), 2)] for x, z in cps + dv]
     # mainline edges' own offsets
     own = {}
+    lanes = 0
     for e in network['edges']:
-        if e['kind'] not in CENTRE_KINDS:
-            continue
         p = np.array(e['pts'], float).reshape(-1, 2)
+        if e['kind'] not in CENTRE_KINDS:
+            how = alongside(p)
+            if not how:
+                continue
+            lanes += 1
+            if how == 'lane' and e['kind'] in LANE_KINDS:
+                e['template'] = LANE_TEMPLATE
+                e['lane'] = True
         seg_st = []
         for k, (s0, ti) in enumerate(e['tags']):
             s1 = e['tags'][k + 1][0] if k + 1 < len(e['tags']) else len(p) - 1
             seg_st += [bool(sets[ti].get('tunnel'))] * (s1 - s0)
         d = arc(p)
         ranges = [(d[i], d[i + 1]) for i, s in enumerate(seg_st) if s]
-        if sum(b - a for a, b in ranges) < CENTRE_BORE:
+        if sum(b - a for a, b in ranges) < CENTRE_BORE or opts.get('bores'):
             ranges = []
         o = centre_profile(p, parts, tree, lambda m, r=ranges: any(a - 1 <= m <= b + 1 for a, b in r))
         if o is not None:
@@ -399,9 +440,11 @@ def centre(network, parts, tree, stage_line):
         st['runout']['pts'] = [[round(float(x), 2), round(float(z), 2)]
                                for x, z in rp + v0[None, :] * (1 - np.clip(d / max(1e-6, rl), 0, 1))[:, None]]
     sv['centred'] = moved
+    if opts.get('bores'):
+        st['boreWidths'] = True  # (the engine narrows the stage to its surveyed width in its bores too)
     shift = np.abs(so) if so is not None else np.zeros(1)
     print(f'  survey: centred the stage (median {np.median(shift):.2f} m, max {shift.max():.2f} m) and {len(own)} '
-          f'mainline edges; {moved} edges moved')
+          f'mainline edges and lanes alongside ({lanes}); {moved} edges moved')
     return moved_line
 
 
@@ -413,13 +456,18 @@ WIDTH_BORE_EASE = 100.0
 WIDTH_TEMPLATE = 99.0
 
 
-def mainline_widths(network, parts, tree, stage_line):
-    """Width per station on the mainline edges (`edge.widths`, m along the edge), as the stage's; tunnel edges none."""
-    keep = bore_keep(network, stage_line, reach=WIDTH_BORE_R, ease=WIDTH_BORE_EASE, edges=False)
+def mainline_widths(network, parts, tree, stage_line, bores=False):
+    """Width per station on the mainline edges (`edge.widths`, m along the edge), as the stage's; tunnel edges none
+    (unless `bores`: a hall laid out on the survey)."""
+    if bores:
+        def keep(pts):
+            return np.ones(len(np.asarray(pts).reshape(-1, 2)))
+    else:
+        keep = bore_keep(network, stage_line, reach=WIDTH_BORE_R, ease=WIDTH_BORE_EASE, edges=False)
     sets = network['tagSets']
     n = 0
     for e in network['edges']:
-        if e['kind'] not in CENTRE_KINDS:
+        if e['kind'] not in CENTRE_KINDS and not e.get('lane'):
             continue
         p = np.array(e['pts'], float).reshape(-1, 2)
         L = arc(p)[-1]
@@ -428,7 +476,7 @@ def mainline_widths(network, parts, tree, stage_line):
         d = arc(p)
         bore = any(sets[ti].get('tunnel') and d[e['tags'][k + 1][0] if k + 1 < len(e['tags']) else -1] - d[s0]
                    >= CENTRE_BORE for k, (s0, ti) in enumerate(e['tags']))  # fmt: skip
-        st = None if bore else station_widths(p, parts, tree, L)
+        st = None if bore and not bores else station_widths(p, parts, tree, L)
         if st:
             at = np.stack([np.interp([m for m, _ in st], d, p[:, 0]), np.interp([m for m, _ in st], d, p[:, 1])], 1)
             kw = keep(at)
@@ -444,7 +492,7 @@ def mainline_widths(network, parts, tree, stage_line):
         for at, nid in enumerate(e['nodes']):
             ends.setdefault(nid, []).append((e, at))
     for e in network['edges']:
-        if e['kind'] not in CENTRE_KINDS or e.get('widths'):
+        if (e['kind'] not in CENTRE_KINDS and not e.get('lane')) or e.get('widths'):
             continue
         p = np.array(e['pts'], float).reshape(-1, 2)
         L = arc(p)[-1]
@@ -453,7 +501,7 @@ def mainline_widths(network, parts, tree, stage_line):
         ws = []
         for at, nid in enumerate(e['nodes']):
             o = [(f, a) for f, a in ends.get(nid, []) if f is not e]
-            if len(o) == 1 and o[0][0].get('widths') and o[0][0]['kind'] in CENTRE_KINDS:
+            if len(o) == 1 and o[0][0].get('widths'):
                 st = o[0][0]['widths']
                 ws.append(st[-1][1] if o[0][1] else st[0][1])
         if len(ws) == 2:
@@ -470,7 +518,7 @@ def apply(cfg, root, proj, network, stage_line):
     if folder:
         parts, tree = carriageways(folder, proj)
         if sv.get('centre'):
-            stage_line = centre(network, parts, tree, stage_line)
+            stage_line = centre(network, parts, tree, stage_line, sv['centre'])
         n = 0
         for e in network['edges']:
             w = line_width(np.array(e['pts'], float).reshape(-1, 2), parts, tree)
@@ -485,7 +533,7 @@ def apply(cfg, root, proj, network, stage_line):
             network['stage']['widths'] = st
         print(f'  survey: widths on {n} of {len(network["edges"])} edges, stage {sw} m, {len(st or [])} stations')
         if sv.get('centre'):
-            print(f'  survey: widths per station on {mainline_widths(network, parts, tree, stage_line)} mainline edges')
+            print(f'  survey: widths per station on {mainline_widths(network, parts, tree, stage_line, bool(isinstance(sv['centre'], dict) and sv['centre'].get('bores')))} mainline edges')
     else:
         print(f'  survey: {sv["planimetrics"]} not found, no widths')
     if sv.get('spotHeights'):
