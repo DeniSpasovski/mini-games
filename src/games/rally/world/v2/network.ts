@@ -665,8 +665,6 @@ export class Network {
   readonly bikeLanes: number[][];
   /** Red bus lanes (`NetworkDef.busLanes`). */
   readonly busLanes: number[][];
-  /** OSM ways on a survey plaza's level though they meet a bore's way (`NetworkDef.plazaStreets`). */
-  readonly plazaStreets: Set<string>;
   /** Painted median outlines (`NetworkDef.paintedMedians`). */
   readonly paintedMedians: number[][];
   /** The roads in the trench under a plaza (`trimToPlazas`): their open cut is never paved over. */
@@ -756,7 +754,6 @@ export class Network {
     this.parks = def.parks ?? [];
     this.bikeLanes = def.bikeLanes ?? [];
     this.busLanes = def.busLanes ?? [];
-    this.plazaStreets = new Set(def.plazaStreets ?? []);
     this.paintedMedians = def.paintedMedians ?? [];
     this.wallStyles = def.wallStyles ?? [];
     this.deckStyles = def.deckStyles ?? [];
@@ -2708,9 +2705,6 @@ export class Network {
     for (const w of this.ways)
       if (!trench.has(w) && [...trench].some((q) => this.sharesNode(w, q)))
         trench.add(w);
-    // (and not a street the map says runs on the plaza's level where it meets a bore's way: the plaza's)
-    for (const w of [...trench])
-      if (this.plazaStreets.has(w.id.split('.')[0])) trench.delete(w);
     const inside = (pl: Plaza, x: number, z: number) =>
       x >= pl.minX &&
       x <= pl.maxX &&
