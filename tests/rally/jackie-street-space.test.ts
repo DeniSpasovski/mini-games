@@ -1,6 +1,6 @@
 import { describe, expect, rs, test } from '@rstest/core';
 import { appendFileSync, writeFileSync } from 'node:fs';
-import type { BufferGeometry, Mesh } from 'three';
+import type { BufferGeometry, InstancedMesh, Mesh } from 'three';
 import { jackie2Map } from '../../src/games/rally/maps/jackie-2/map';
 import { inPolygon } from '../../src/games/rally/world/v2/alignment';
 import { barrierPlan, netMeshJob } from '../../src/games/rally/world/v2/mesh';
@@ -59,22 +59,30 @@ const sb = [...net.under, ...net.plazas].reduce(
   [Infinity, -Infinity, Infinity, -Infinity],
 );
 
-/** Cell key of a point (1 m cells). */
 /** Highest drawn paving per cell (any surface but paint and kerb faces), and the cells of each material. */
 const top = new Map<string, number>();
 const byMat = new Map<string, Set<string>>();
 /** Paint on 0.25 m cells. */
 const fine = new Set<string>();
-for (const o of group.children) {
-  const id = o.name.startsWith('net:') ? o.name.slice(4) : undefined;
-  if (!id) continue;
-  const g = (o as Mesh).geometry as BufferGeometry;
+group.updateMatrixWorld(true);
+const meshes: Mesh[] = [];
+group.traverse((o) => {
+  if ((o as Mesh).isMesh && !(o as InstancedMesh).isInstancedMesh)
+    meshes.push(o as Mesh);
+});
+for (const o of meshes) {
+  // (the paving by material; the structures - walls, slabs, decks - as 'part')
+  const id = o.name.startsWith('net:') ? o.name.slice(4) : 'part';
+  const g = (o.geometry as BufferGeometry).clone().applyMatrix4(o.matrixWorld);
   const pos = g.getAttribute('position');
-  const idx = g.getIndex()!;
+  const idx = g.getIndex();
   const cells = byMat.get(id) ?? new Set<string>();
   byMat.set(id, cells);
-  for (let t = 0; t < idx.count; t += 3) {
-    const [a, b, c] = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+  const n = idx ? idx.count : pos.count;
+  for (let t = 0; t < n; t += 3) {
+    const [a, b, c] = idx
+      ? [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)]
+      : [t, t + 1, t + 2];
     const ax = pos.getX(a);
     const az = pos.getZ(a);
     const bx = pos.getX(b);
@@ -122,7 +130,7 @@ for (const o of group.children) {
         if (l1 < -1e-6 || l2 < -1e-6 || l3 < -1e-6) continue;
         const k = `${x},${z}`;
         cells.add(k);
-        if (id === 'paint' || id === 'kerb') continue;
+        if (id === 'paint' || id === 'kerb' || id === 'part') continue;
         const y = l1 * pos.getY(a) + l2 * pos.getY(b) + l3 * pos.getY(c);
         if (y > (top.get(k) ?? -Infinity)) top.set(k, y);
       }
@@ -189,12 +197,27 @@ describe('jackie 2: street space self-checks', () => {
         (per.get(Math.floor(c.along / 100) * 100) ?? 0) + 1,
       );
     const rows = [...per.entries()].sort((a, b) => a[0] - b[0]);
+    // (over the open cut: nothing drawn at any height there - no road below, no paving - is bare too)
+    const cutBare = [...space.entries()].filter(
+      ([k, c]) =>
+        overCut(c) &&
+        !top.has(k) &&
+        !mat('part').has(k) &&
+        // (a trench street's verge: the terrain draws it, on purpose)
+        field.top(c.x, c.z)?.surface !== 'grass',
+    );
+    if (process.env.JACKIE_CELLS)
+      writeFileSync(
+        `${process.env.JACKIE_CELLS}.cut`,
+        JSON.stringify(cutBare.map(([, c]) => [c.x, c.z, Math.round(c.along)])),
+      );
     const tp = cells.filter(([, c]) => topPlaza(c));
     const tpBare = tp.filter(([k]) => !top.has(k)).length;
     report(
       `[jackie2 street] ${cells.length} m2 city street space (${space.size - cells.length} over the cut): bare ${bare.length} m2` +
         ` (road ${bare.filter(([, c]) => c.kind === 'road').length}, walk ${bare.filter(([, c]) => c.kind === 'walk').length});` +
-        ` top plaza ${tp.length} m2, bare ${tpBare}; per 100 m: ${rows.map(([a, n]) => `${a}:${n}`).join(' ')}`,
+        ` top plaza ${tp.length} m2, bare ${tpBare}; per 100 m: ${rows.map(([a, n]) => `${a}:${n}`).join(' ')};` +
+        ` over the cut nothing drawn on ${cutBare.length} m2 (top plaza ${cutBare.filter(([, c]) => topPlaza(c)).length})`,
     );
     if (process.env.JACKIE_CELLS)
       writeFileSync(

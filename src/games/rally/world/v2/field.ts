@@ -784,7 +784,7 @@ export class NetField {
       if (!this.net.trench.has(w) || this.beyondEnds(w, p, x, z)) continue;
       const k = p.f < 0.5 ? p.i : Math.min(w.al.n - 1, p.i + 1);
       // (a road in its tunnel under the paving: roofed, no open cut there)
-      if (w.st[k] === ST_TUNNEL) continue;
+      if (w.st[k] === ST_TUNNEL || this.pavedOver(w, p, k, x, z)) continue;
       const side = p.t >= 0 ? 0 : 1;
       // (where it runs at the plaza's level, the paving meets its pavement edge - its verge, kerb and sidewalk are
       // the plaza's there, a strip left out would show the earth; down in its cut, the wall line)
@@ -826,12 +826,29 @@ export class NetField {
       const w = this.net.ways[wi];
       if (!this.net.trench.has(w) || this.beyondEnds(w, p, x, z)) continue;
       const k = p.f < 0.5 ? p.i : Math.min(w.al.n - 1, p.i + 1);
-      if (w.st[k] === ST_TUNNEL) continue;
+      if (w.st[k] === ST_TUNNEL || this.pavedOver(w, p, k, x, z)) continue;
       const footW = p.t >= 0 ? w.sec.footL : w.sec.footR;
       if (Math.abs(p.t) <= footW + wallOff(w, k, p.t >= 0 ? 0 : 1) + 0.5)
         return true;
     }
     return false;
+  }
+
+  /**
+   * Trench way w is cut back from (x, z) (its end on a plaza: `trimToPlazas`) and runs at the paving's level there: the
+   * paving covers it, no open cut (else neither the road nor the paving would be drawn there).
+   */
+  private pavedOver(
+    w: Way,
+    p: Projection,
+    k: number,
+    x: number,
+    z: number,
+  ): boolean {
+    // (not while the plaza fields are being built)
+    if (!this.plazaFields) return false;
+    if (p.s >= w.cut0 && p.s <= w.al.length - w.cut1) return false;
+    return this.plazaGrade(w, p, k, x, z);
   }
 
   /** (x, z) within a drawn way's foot (pavement + kerb / sidewalk / shoulder): not internal, not on a cut-back end. */
