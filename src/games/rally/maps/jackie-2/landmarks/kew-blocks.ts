@@ -6,6 +6,7 @@ import type { Landmark } from '../../../world/landmarks';
 import type { World } from '../../../world/world';
 import { Bucket, Frame } from '../../ajvatovci/start-row/build/kit';
 import type { MatKey } from '../../ajvatovci/start-row/build/materials';
+import network from '../network.json';
 import shapes from './kew-shapes.json';
 import {
   KEW_STYLES,
@@ -1641,9 +1642,24 @@ function* build(_world: World): Generator<void, Group> {
 }
 
 /** Solid parts: a 0.6 m slab behind every wall piece standing on the ground (yards and streets stay open). */
+/** Metres from the stage road beyond which a building gets no solid walls (the car cannot reach it). */
+const REACH = 100;
+const STAGE = (network as unknown as { stage: { cps: [number, number][] } })
+  .stage.cps;
+
+/** Nearest distance from a building's ring corners to the stage control points (dense enough at 100 m). */
+function stageDistance(ring: P2[]): number {
+  let best = Infinity;
+  for (const [x, z] of ring)
+    for (const [cx, cz] of STAGE)
+      best = Math.min(best, Math.hypot(x - cx, z - cz));
+  return best;
+}
+
 function colliders(): StaticCollider[] {
   const out: StaticCollider[] = [];
   for (const b of BUILDINGS) {
+    if (stageDistance(b.ring) > REACH) continue;
     const base = baseOf(b.shape);
     for (const pl of planesOf(b.shape, base))
       for (const pc of pl.pieces) {
