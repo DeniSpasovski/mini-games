@@ -3293,6 +3293,10 @@ export class Network {
           const j = Math.min(q.al.n - 1, p.f < 0.5 ? p.i : p.i + 1);
           if (Math.abs(q.al.tx[j] * tx[i] + q.al.tz[j] * tz[i]) < 0.85)
             continue;
+          // (a street over or under it - a bridge over the stage, the boulevard over its tunnel - is no neighbour)
+          if (this.tagLayer(q, p.s) !== this.tagLayer(w, s[i])) continue;
+          // (a city street alongside is no part of the parkway: the kerbs leave a strip for the barrier between)
+          if (!/^(motorway|trunk)(_link)?$/.test(q.kind)) continue;
           if (p.t <= q.sec.paveL && p.t >= -q.sec.paveR) held[i] = 1;
         }
       }
