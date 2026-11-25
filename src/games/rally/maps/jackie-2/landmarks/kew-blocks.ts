@@ -1,7 +1,7 @@
 import { Group, Matrix4, ShapeUtils, Vector2 } from 'three';
 import { hash3 } from '../../../../../shared/rng';
 import type { StaticCollider } from '../../../physics/types';
-import type { TerrainSampler } from '../../../world/heightfield';
+import type { BuildingDef } from '../../shared/types';
 import type { Landmark } from '../../../world/landmarks';
 import type { World } from '../../../world/world';
 import { Bucket, Frame } from '../../ajvatovci/start-row/build/kit';
@@ -94,14 +94,11 @@ const BUILDINGS: { shape: Shape; style: KewStyle; ring: P2[] }[] =
     ring: ringOf(s),
   }));
 
-/** Game height of the survey's h = 0 for a building: its ring points laid on the game terrain (median, robust). */
-function baseOf(s: Shape, ground: TerrainSampler): number {
-  const d: number[] = [];
-  for (let i = 0; i < s.foot.length; i += 3)
-    d.push(ground.height(s.foot[i], s.foot[i + 1]) - s.foot[i + 2]);
-  d.sort((a, b) => a - b);
-  return d[Math.floor(d.length / 2)];
-}
+/** The map's datum: game y = NAVD88 height - this (jackie-2/map.ts START_HEIGHT; the terrain is the same lidar). */
+const DATUM = 32.9;
+
+/** Game height of the survey's h = 0 (the building's lowest ground point). */
+const baseOf = (s: Shape): number => s.ground - DATUM;
 
 /** Bearing (deg, 0 = north, 90 = east) of a horizontal outward normal (x east, z south). */
 const bearingOf = (nx: number, nz: number): number =>
@@ -417,17 +414,35 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
       .filter((f) => near(f.face, pl.bearing, 25) && pl.s1 - pl.s0 > 8)
       .flatMap((f) => f.at.map((t) => pl.s0 + (pl.s1 - pl.s0) * t));
     for (const [qi, pc] of pl.pieces.entries()) {
+      // A part with its own windows (a tower over a lower wing): by the piece's top.
+      const part = st.parts?.find((p) => pc.top >= p.minTop);
+      const ps: BlockStyle = part ? { ...st, ...part.style } : st;
+      const pcols = part ? columns(ps, pl.s0, pl.s1) : cols;
       const wins: Win[] = [];
       for (const [fi, y] of lines.entries()) {
-        const y0 = y + (fi === 0 ? Math.max(st.win.sill, 1.0) : st.win.sill);
-        const y1 = y0 + st.win.h;
+        const y0 = y + (fi === 0 ? Math.max(ps.win.sill, 1.0) : ps.win.sill);
+        const y1 = y0 + ps.win.h;
         if (y0 < pc.bot + 0.3 || y1 > pc.top - 0.5) continue;
-        for (const c of cols) {
-          const w0 = c - st.win.w / 2;
-          const w1 = c + st.win.w / 2;
+        for (const c of pcols) {
+          const w0 = c - ps.win.w / 2;
+          const w1 = c + ps.win.w / 2;
           if (w0 < pc.s0 + 0.35 || w1 > pc.s1 - 0.35) continue;
           wins.push({ s0: w0, s1: w1, y0, y1 });
         }
+      }
+      const piers: [number, number][] =
+        ps.pilasters && pl.s1 - pl.s0 > 12
+          ? ps.pilasters.at.map((t) => {
+              const c = pl.s0 + (pl.s1 - pl.s0) * t;
+              return [c - ps.pilasters!.width / 2, c + ps.pilasters!.width / 2];
+            })
+          : [];
+      if (piers.length) {
+        const keep = wins.filter(
+          (w) => !piers.some(([a, b]) => w.s1 > a - 0.2 && w.s0 < b + 0.2),
+        );
+        wins.length = 0;
+        wins.push(...keep);
       }
       panel(
         o,
@@ -443,7 +458,49 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
         m,
       );
       for (const [wi, w] of wins.entries())
-        window_(o, st, w, m, h(pi * 997 + qi, wi));
+        window_(o, ps, w, m, h(pi * 997 + qi, wi));
+      for (const [a, b] of piers)
+        if (a > pc.s0 && b < pc.s1)
+          o.face(
+            'paleBrick',
+            a,
+            Math.max(pc.bot, -FOOT),
+            b,
+            pc.top - 0.15,
+            0.04,
+            ps.pilasters!.color,
+            m,
+          );
+      if (ps.plinth && pc.grounded) {
+        const yb = ps.ground - 0.25;
+        const low = wins.filter((w) => w.y1 < yb);
+        panel(
+          o,
+          'render',
+          [
+            [pc.s0, -FOOT],
+            [pc.s1, -FOOT],
+            [pc.s1, yb],
+            [pc.s0, yb],
+          ],
+          low.map((w) => [
+            [w.s0, w.y0],
+            [w.s1, w.y0],
+            [w.s1, w.y1],
+            [w.s0, w.y1],
+          ]),
+          ps.plinth,
+          m,
+          0.05,
+        );
+        o.ledge(
+          'paint',
+          [pc.s0, yb, 0],
+          [pc.s1, yb + 0.12, 0.09],
+          ps.plinth,
+          m,
+        );
+      }
       // Parapet: inner face, coping and cornice along the top.
       const top = pc.top;
       o.poly(
@@ -771,16 +828,24 @@ function balconies(
   const bal = st.balconies!;
   for (const pc of pl.pieces) {
     if (pc.s1 - pc.s0 < 4) continue;
-    const a = pc.s0 + 0.4;
-    const b = pc.s1 - 0.4;
-    for (const [i, y] of lines.entries()) {
-      if (i < bal.from || y < pc.bot + 1 || y > pc.top - 2.5 || y > top - 3)
-        continue;
-      o.box('paint', [a, y - 0.18, 0], [b, y, 1.4], '#d8d4ca', m);
-      o.box('paint', [a, y, 1.34], [b, y + 1.0, 1.4], bal.rail, m);
-      o.box('paint', [a, y, 0], [a + 0.06, y + 1.0, 1.4], bal.rail, m);
-      o.box('paint', [b - 0.06, y, 0], [b, y + 1.0, 1.4], bal.rail, m);
-    }
+    const spans: [number, number][] = bal.at
+      ? pl.s1 - pl.s0 > 12
+        ? bal.at.map((t) => {
+            const c = pl.s0 + (pl.s1 - pl.s0) * t;
+            return [c - bal.width! / 2, c + bal.width! / 2];
+          })
+        : [[pc.s0 + 0.4, pc.s1 - 0.4]]
+      : [[pc.s0 + 0.4, pc.s1 - 0.4]];
+    for (const [a, b] of spans)
+      for (const [i, y] of lines.entries()) {
+        if (a < pc.s0 || b > pc.s1) continue;
+        if (i < bal.from || y < pc.bot + 1 || y > pc.top - 2.5 || y > top - 3)
+          continue;
+        o.box('paint', [a, y - 0.18, 0], [b, y, 1.4], '#d8d4ca', m);
+        o.box('paint', [a, y, 1.34], [b, y + 1.0, 1.4], bal.rail, m);
+        o.box('paint', [a, y, 0], [a + 0.06, y + 1.0, 1.4], bal.rail, m);
+        o.box('paint', [b - 0.06, y, 0], [b, y + 1.0, 1.4], bal.rail, m);
+      }
   }
 }
 
@@ -1223,10 +1288,10 @@ function casement(
 
 // ---------------------------------------------------------------------------------------------------------------
 
-function* build(world: World): Generator<void, Group> {
+function* build(_world: World): Generator<void, Group> {
   const bucket = new Bucket();
   for (const b of BUILDINGS) {
-    const base = baseOf(b.shape, world.analytic);
+    const base = baseOf(b.shape);
     const tile = `kew ${Math.floor(b.shape.rect[0] / 128)},${Math.floor(b.shape.rect[1] / 128)}`;
     const o = new Out(new Frame(bucket, tile, undefined, { x: 0, z: 0 }));
     const bb: Building = { ...b, base };
@@ -1237,25 +1302,46 @@ function* build(world: World): Generator<void, Group> {
   return bucket.build('kew-buildings');
 }
 
-function colliders(ground: TerrainSampler): StaticCollider[] {
-  return BUILDINGS.map((b) => {
-    const [x, z, w, d, ang] = b.shape.rect;
-    const y = baseOf(b.shape, ground) - FOOT;
-    const top = Math.max(
-      ...b.shape.roofs.flatMap((r) => r.filter((_, i) => i % 3 === 2)),
-    );
-    return {
-      kind: 'box',
-      x,
-      z,
-      y,
-      h: top + FOOT,
-      hx: w / 2,
-      hz: d / 2,
-      rot: -ang,
-      r: Math.hypot(w, d) / 2,
-    } satisfies StaticCollider;
-  });
+/** Solid parts: a 0.6 m slab behind every wall piece standing on the ground (yards and streets stay open). */
+function colliders(): StaticCollider[] {
+  const out: StaticCollider[] = [];
+  for (const b of BUILDINGS) {
+    const base = baseOf(b.shape);
+    for (const pl of planesOf(b.shape, base))
+      for (const pc of pl.pieces) {
+        if (!pc.grounded || pc.s1 - pc.s0 < 0.5) continue;
+        const sm = (pc.s0 + pc.s1) / 2;
+        const len = pc.s1 - pc.s0;
+        // Centre 0.3 m inside the wall face.
+        const x = pl.ox + pl.nz * sm - pl.nx * 0.3;
+        const z = pl.oz - pl.nx * sm - pl.nz * 0.3;
+        out.push({
+          kind: 'box',
+          x,
+          z,
+          y: base - FOOT,
+          h: pc.top + FOOT,
+          hx: len / 2,
+          hz: 0.3,
+          rot: Math.atan2(pl.nx, pl.nz),
+          r: len / 2 + 0.3,
+        });
+      }
+  }
+  return out;
+}
+
+/** A footprint box of the city bake overlaps a building's ring (a sample of points over the box, its corners too). */
+function overlaps(b: BuildingDef, ring: P2[]): boolean {
+  const c = Math.cos(b.angle);
+  const sn = Math.sin(b.angle);
+  for (let i = 0; i <= 6; i++)
+    for (let j = 0; j <= 6; j++) {
+      const u = (i / 6 - 0.5) * b.w * 0.96;
+      const v = (j / 6 - 0.5) * b.d * 0.96;
+      if (inside(b.x + u * c - v * sn, b.z + u * sn + v * c, ring)) return true;
+    }
+  return false;
 }
 
 export const kewBuildingsLandmark: Landmark = {
@@ -1263,7 +1349,7 @@ export const kewBuildingsLandmark: Landmark = {
   occupies: (x, z, margin) =>
     BUILDINGS.some((b) => distToRing(x, z, b.ring) <= margin),
   // The footprint boxes of the city bake under these buildings.
-  replaces: (b) => BUILDINGS.some((k) => inside(b.x, b.z, k.ring)),
+  replaces: (b) => BUILDINGS.some((k) => overlaps(b, k.ring)),
   colliders,
   instances: () => [],
   build,
