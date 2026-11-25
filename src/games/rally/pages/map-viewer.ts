@@ -1053,6 +1053,77 @@ void loadMap(state.map).then(async (map) => {
     return n;
   }
 
+  /**
+   * Test hook for `scripts/realmap/topdown.mjs` (satellite check): a north-up top-down picture of the box
+   * x0..x1, z0..z1 (world m) at `w` x `h` px, pixel (i, j) = world (x0 + i * (x1 - x0) / w, z0 + ...): the same grid as
+   * `scripts/realmap/satellite.py`. Drawn in squares of `tile` m, each by the viewer's own camera straight above it
+   * ~56 m up with a narrow `fov` (near-orthographic: a slope 5 m above or below the square's middle lands ~1 m off at
+   * its edge). Low and perspective on purpose: an orthographic or high camera loses most tree crowns (thinned by
+   * projected size and distance, impostors edge-on from above). Plain renderer, no bloom. Returns a PNG data URL.
+   */
+  function topDownShot(
+    x0: number,
+    x1: number,
+    z0: number,
+    z1: number,
+    w: number,
+    h: number,
+    tile = 30,
+    fov = 30,
+  ): string {
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    const ctx = out.getContext('2d')!;
+    const size = renderer.getSize(new Vector2());
+    const ratio = renderer.getPixelRatio();
+    const aspect = camera.aspect;
+    const up = camera.up.clone();
+    renderer.setPixelRatio(1);
+    const nx = Math.ceil((x1 - x0) / tile);
+    const nz = Math.ceil((z1 - z0) / tile);
+    const ppx = w / (x1 - x0);
+    const ppz = h / (z1 - z0);
+    const tanHalf = Math.tan((fov * Math.PI) / 360);
+    for (let j = 0; j < nz; j++)
+      for (let i = 0; i < nx; i++) {
+        const ax = x0 + i * tile;
+        const bx = Math.min(x1, ax + tile);
+        const az = z0 + j * tile;
+        const bz = Math.min(z1, az + tile);
+        const cx = (ax + bx) / 2;
+        const cz = (az + bz) / 2;
+        const gy = world.gen.height(cx, cz);
+        const over = (bz - az) / 2 / tanHalf;
+        camera.up.set(0, 0, -1);
+        look(cx, gy + over, cz, cx, gy, cz - 1e-3, fov);
+        camera.position.set(cx, gy + over, cz);
+        camera.lookAt(cx, gy, cz);
+        camera.aspect = (bx - ax) / (bz - az);
+        camera.updateProjectionMatrix();
+        camera.updateMatrixWorld();
+        // The tree levels and culling for this exact camera (`look` picked them before the aspect changed).
+        trees.updateNow(camera);
+        shell.env.update(new Vector3(cx, gy, cz));
+        shell.env.follow(camera.position);
+        const px = Math.round((ax - x0) * ppx);
+        const pz = Math.round((az - z0) * ppz);
+        renderer.setSize(
+          Math.round((bx - x0) * ppx) - px,
+          Math.round((bz - z0) * ppz) - pz,
+          false,
+        );
+        renderer.render(scene, camera);
+        ctx.drawImage(renderer.domElement, px, pz);
+      }
+    camera.up.copy(up);
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(ratio);
+    renderer.setSize(size.x, size.y, false);
+    return out.toDataURL('image/png');
+  }
+
   (window as unknown as Record<string, unknown>).__mapViewer = {
     world,
     terrain,
@@ -1060,5 +1131,6 @@ void loadMap(state.map).then(async (map) => {
     trees,
     shell,
     look,
+    topDownShot,
   };
 });

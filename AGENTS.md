@@ -29,9 +29,12 @@
 - **Every external source gets a row** in the car / map README credits table (public) and its `DETAILS.md` (local,
   git-ignored) and, if it ships, in `THIRD-PARTY.md` + `public/models/CREDITS.md`. Keep CC BY / ODbL attribution current in
   the `credit` / `meta.sources` strings and the About links (`info.ts`).
-- **Reference material** (Maps / Street View screenshots, photos, blueprints, press images): local-only in `sources/`
-  (git-ignored); never copy or ship it. Trace only from OpenStreetMap-compatible imagery (`trace_route.py` on a route
-  screenshot = waypoints only) and disclose any tracing in the map README + `THIRD-PARTY.md`.
+- **Reference material** (Maps / Street View screenshots, aerial photos, blueprints, press images): local-only in `sources/`
+  (git-ignored); never copy or ship it, map images included. Tracing (shapes, lines, positions into map data) is allowed from:
+  public-domain imagery (USGS for US maps such as Jackie), OpenStreetMap-compatible imagery, and for North Macedonia
+  imagery downloaded from an official `.gov.mk` site (the cadastre agency's geoportal). Name the traced source in the map
+  README + `THIRD-PARTY.md` (a `.gov` download page may be linked). Other imagery (commercial map services) is for checking
+  and placing by eye only. `trace_route.py` on a route screenshot = waypoints only.
 - **No trademarks:** no manufacturer, sponsor, series or agency logos / wordmarks in liveries, signs or decals; generic names.
   Car makes / models only identify the car (trademark note in `THIRD-PARTY.md`).
 - **No secrets or personal data** in code, docs or history. Publish from this folder only, never the parent monorepo.
@@ -118,7 +121,9 @@ into `DETAILS.md`, never up.
   the DEM), `dem_heightmap.py` (re-bakes only the heightmap from a local DEM, GLO-30 on Vodno), `culverts.py` (`culverts.json`: culverts where the DEM's drainage crosses the stage road), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
   from a winter + summer Sentinel-2 scene, run after `bake.py`), `canopy.py` (`canopy.json`: canopy share / stand height grids and the
   real trees from the Meta / WRI canopy height map, run after `leaf_type.py`), `features.py` (config `osm.features`: park furniture,
-  barriers, single trees, signs and fence / wall / guard-rail lines -> `data.json` "features"; runs inside `bake.py` or alone)
+  barriers, single trees, signs and fence / wall / guard-rail lines -> `data.json` "features"; runs inside `bake.py` or alone),
+  satellite check: `satellite.py` (aerial photo of a box on the game's grid, git-ignored, never committed), `topdown.mjs`
+  (top-down pictures of the stage from the map viewer, dev server running), `overlay.py` (the two side by side + blended)
 
 ## Skills - read before these tasks (`.claude/skills/<name>/SKILL.md`)
 
