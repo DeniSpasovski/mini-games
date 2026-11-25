@@ -479,7 +479,7 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
         o,
         wallKey,
         pc.pts,
-        wins.map((w) => [
+        (ps.far ? [] : wins).map((w) => [
           [w.s0, w.y0],
           [w.s1, w.y0],
           [w.s1, w.y1],
@@ -609,6 +609,28 @@ function buildBlock(o: Out, b: Building, st: BlockStyle): void {
 /** One double-hung window in its hole: reveals, sashes and glass, sill, lintel, sometimes an air conditioner. */
 function window_(o: Out, st: BlockStyle, w: Win, m: Matrix4, r: number): void {
   const { s0, s1, y0, y1 } = w;
+  // Far buildings (hundreds of metres off the road): the pane on the wall face, no reveals or trim.
+  if (st.far) {
+    o.poly(
+      'glass',
+      [
+        [s0, y0, 0.03],
+        [s1, y0, 0.03],
+        [s1, y1, 0.03],
+        [s0, y1, 0.03],
+      ],
+      r < 0.2 ? '#8d887f' : '#727a84',
+      [0, 0, 1],
+      m,
+      [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+      ],
+    );
+    return;
+  }
   const d = -REVEAL;
   const rc = shade(st.tint, 0.82);
   // Reveals (facing into the opening).
@@ -1663,7 +1685,10 @@ export function kewShare(b: BuildingDef): number {
   return n / 49;
 }
 
-/** A box goes when a third of it lies under the Kew buildings (a U block's box has its centre in the yard). */
+/**
+ * A box goes when a third of it lies under the Kew buildings (a U block's box has its centre in the yard), or its
+ * centre does (a tower's box drawn over its plaza).
+ */
 const REPLACE_SHARE = 1 / 3;
 
 export const kewBuildingsLandmark: Landmark = {
@@ -1671,7 +1696,9 @@ export const kewBuildingsLandmark: Landmark = {
   occupies: (x, z, margin) =>
     BUILDINGS.some((b) => distToRing(x, z, b.ring) <= margin),
   // The footprint boxes of the city bake under these buildings.
-  replaces: (b) => kewShare(b) >= REPLACE_SHARE,
+  replaces: (b) =>
+    kewShare(b) >= REPLACE_SHARE ||
+    BUILDINGS.some((k) => inside(b.x, b.z, k.ring)),
   colliders,
   instances: () => [],
   build,

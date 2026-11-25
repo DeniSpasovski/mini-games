@@ -70,13 +70,20 @@ describe('jackie 2 Kew Gardens buildings', () => {
     const open: Record<number, string> = {
       7918: 'street corner and yard by 120-10 Queens Blvd',
       7936: 'Borough Hall car park and lawn',
+      7773: 'building site beside the 126 St court buildings',
+      7786: 'car park beside the tower south of Queens Blvd',
     };
+    const bad: string[] = [];
     for (const b of jackie2Map.buildings!) {
       const share = kewShare(b);
-      if (landmark.replaces(b))
-        expect(share).toBeGreaterThanOrEqual(open[b.id] ? 1 / 3 : 0.4);
-      else expect(share).toBeLessThan(0.15);
+      if (
+        landmark.replaces(b) ? share < (open[b.id] ? 0.2 : 0.4) : share >= 0.15
+      )
+        bad.push(
+          `${b.id} ${landmark.replaces(b) ? 'removed' : 'kept'} ${share.toFixed(2)}`,
+        );
     }
+    expect(bad).toEqual([]);
   });
 
   test('solid boxes stay off the stage road', () => {

@@ -67,6 +67,8 @@ export interface BlockStyle {
   piers?: { width: number; color: string };
   /** A lantern cupola on the roof over world (x, z). */
   cupola?: { x: number; z: number; color: string; roof: string };
+  /** Far off the road: windows as panes on the wall face (no holes, reveals or trim). */
+  far?: boolean;
   /**
    * Parts with their own windows / trim: walls whose top is at least `minTop` m and, with `near`, whose middle lies
    * within `near[2]` m of world (`near[0]`, `near[1]`) (first match).
@@ -153,6 +155,34 @@ const TUDOR: HouseStyle = {
   front: 135,
 };
 
+// Tan concrete office slabs: long dark ribbon windows between deep spandrels (frames t0-27 .. t0-31).
+const RIBBON: BlockStyle = {
+  type: 'block',
+  wall: 'render',
+  tint: '#ccb995',
+  ground: 5,
+  floor: 3.5,
+  win: { w: 2.85, h: 1.45, sill: 1.0, bay: 3.0 },
+  frame: '#2b2a28',
+  coping: '#d6c9ab',
+  roof: '#8f8c85',
+  far: true,
+};
+
+// Tall buff brick towers far off the road: punched windows in pairs.
+const FAR_TOWER: BlockStyle = {
+  type: 'block',
+  wall: 'brick',
+  tint: '#c9ad88',
+  ground: 4.5,
+  floor: 2.8,
+  win: { w: 1.2, h: 1.4, sill: 0.8, bay: 3.2, pair: 2 },
+  frame: '#3a3936',
+  coping: '#d8cfbe',
+  roof: '#85837e',
+  far: true,
+};
+
 export const KEW_STYLES: Record<number, KewStyle> = {
   // 118-17 Union Tpke: buff brick tower, balconies down its north-west end
   4079634: {
@@ -186,7 +216,7 @@ export const KEW_STYLES: Record<number, KewStyle> = {
     light: {
       bearings: [20, 75, 200, 260],
       tint: '#a7bfd3',
-      maxWidth: 9,
+      maxWidth: 4,
       stripe: '#eef2f4',
     },
     mullion: '#6c7684',
@@ -342,6 +372,45 @@ export const KEW_STYLES: Record<number, KewStyle> = {
   },
   // 119-66 80 Rd (1929): four-storey walk-up, white roof
   4080025: { ...WALKUP, tint: '#a8826f', roof: '#cfccc5' },
+  // Past the finish, 300 - 450 m off the road (frames t0-27 .. t0-35, aerial photo): the tan court buildings by
+  // 126 St with long dark ribbon windows and a curved front, and the tall towers south of Queens Blvd
+  4206522: { ...RIBBON },
+  4458617: { ...RIBBON, tint: '#c6b08c' },
+  4080169: { ...FAR_TOWER, tint: '#cdb894' },
+  4533202: { ...FAR_TOWER, tint: '#c2a987', floor: 2.9 },
+  4206486: { ...FAR_TOWER, tint: '#bf9f7e' },
+  4206485: { ...FAR_TOWER, tint: '#b8987a' },
+  4080168: { ...WALKUP, tint: '#a5836f', roof: '#bdbab3', far: true },
+  4080160: {
+    ...WALKUP,
+    wall: 'render',
+    tint: '#cfc9bc',
+    roof: '#9a9893',
+    ac: 0,
+    far: true,
+  },
+  // East of the finish (aerial photo): two staggered red-brown brick apartment blocks with white roofs, and the
+  // two-storey brick school by the expressway under brown hipped roofs
+  4206529: {
+    ...FAR_TOWER,
+    tint: '#8f5f4f',
+    roof: '#d6d4ce',
+    win: { w: 1.2, h: 1.4, sill: 0.8, bay: 3.0 },
+  },
+  4206530: {
+    ...FAR_TOWER,
+    tint: '#94634f',
+    roof: '#d6d4ce',
+    win: { w: 1.2, h: 1.4, sill: 0.8, bay: 3.0 },
+  },
+  4314908: {
+    ...WALKUP,
+    tint: '#9c6a58',
+    lift: -2.5,
+    ac: 0,
+    far: true,
+    hip: { rise: 3, tiles: '#6f5b4f' },
+  },
   // 424 Burns St (1935): a brick two-family house, tile roof
   4079635: { ...TUDOR, upper: 'brick', front: 225 },
   // Tudor houses on the north side of Union Tpke and Markwood Pl
