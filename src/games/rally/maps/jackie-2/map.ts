@@ -30,6 +30,25 @@ const eastTriangle = {
     2720.5, -1827.7, 2725.5, -1823.4, 2741.7, -1810.5,
   ],
 };
+/**
+ * Paved forecourts the planimetric sidewalks stop short of (2024 aerial): round the office block on Union Tpke past the
+ * Austin St ramp, and the plaza with the round planter at the foot of the tower by Austin St.
+ */
+const forecourts = [
+  [
+    2566, -1640, 2556, -1690, 2536, -1680.5, 2503.8, -1654.7, 2529.2, -1628.2,
+    2545.2, -1618,
+  ],
+  [
+    2447.7, -1575, 2435.1, -1589.9, 2467.3, -1617.1, 2470, -1613.9, 2470,
+    -1619.7, 2464.1, -1626.7, 2470, -1632, 2468.3, -1632, 2435.9, -1608.6,
+    2423.3, -1600.4, 2444.5, -1575,
+  ],
+].map((area, k) => ({
+  area,
+  // (the office block's own footprint left out)
+  holes: k === 0 ? [[2507, -1659, 2537, -1680, 2556, -1654, 2525, -1633]] : [],
+}));
 // The fountain park east of Kew Gardens: lawn, footpaths, fountain (scripts/realmap/park_block.py: NYC planimetrics + OSM)
 import parkKew from './park-kew.json';
 // The city street space by the stage road's last kilometre: roadbed, sidewalks, medians (scripts/realmap/street_space.py:
@@ -140,12 +159,17 @@ export const jackie2Map: MapDef = {
       },
       {
         area: qbEast.area,
-        islands: qbEast.islands,
+        // (the triangle south-east of the hall's east portal is planted: lawn and a round bed, 2024 aerial)
+        islands: qbEast.islands.map((il) =>
+          il.pts[0] === 2728.51 && il.pts[1] === -1777.52
+            ? { ...il, kind: 'planted' }
+            : il,
+        ),
         crosswalks: qbEast.crosswalks,
       },
     ],
     // ... and the rest of the street space beside it, paved under the street ribbons (none of it bare land)
-    streetSpace,
+    streetSpace: { ...streetSpace, walk: [...streetSpace.walk, ...forecourts] },
     parks: [parkKew],
     bikeLanes: markings.lanes,
     // the two red bus lanes on Queens Blvd either side of the hall (2024 aerial)

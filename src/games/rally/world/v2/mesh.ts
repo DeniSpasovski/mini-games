@@ -91,6 +91,8 @@ const MERGE_LINE_GAP = 1;
 const WALL_BACK = 3.1;
 /** The stone coping on top of a cut wall (m back from its face). */
 const WALL_COPING = 0.6;
+/** A carried wall's cap reaches on over the land behind it to the street it holds, this far at most (m). */
+const CAP_REACH = 6;
 /** A bore wall past its headwall takes the top of the cut wall within this many samples (else the land's). */
 const PAST_REACH = 6;
 /** A tunnel lane wall's thickness (m). */
@@ -129,6 +131,14 @@ const JERSEY_GRIME_Y = 0.34;
 const JERSEY_GRIME: [aged: number, fresh: number] = [0.66, 0.86];
 /** The barriers' bounce light in shade (emissive share of their texture, `jerseyMaterial`). */
 const JERSEY_BOUNCE = 0.2;
+/**
+ * A tunnel ceiling's light from below (emissive share of its colour, as the barriers' bounce): the sunlit road at the
+ * portals and open sides and the lamp rows hung from the girders light the soffit and girders a mid grey (drive video
+ * s05), not the sky's black.
+ */
+const CEILING_BOUNCE = 0.3;
+/** ... the girders a shade darker than the soffit, so each beam reads against it. */
+const GIRDER_BOUNCE = 0.18;
 
 /** The colour of a precast barrier section (`JERSEY_NEW` / `JERSEY_AGED`) by its way, side and section index. */
 function jerseyColor(w: Way, side: number, seg: number, y: number): RGB {
@@ -243,6 +253,7 @@ type MatId =
   | 'junction'
   | 'sidewalk'
   | 'island'
+  | 'lawn'
   | 'kerb'
   | 'paint';
 
@@ -275,6 +286,8 @@ function materials(): Record<MatId, MeshStandardMaterial> {
     // a plaza island's top: over the paving and the roads running under it, so its depth bias beats theirs (from afar
     // the asphalt's own bias would pull it through the island's top)
     island: road('sidewalk', 4),
+    // a planted island's top (`kind: 'planted'`): mown grass inside the kerb
+    lawn: road('grass', 4, 0.4),
     kerb: new MeshStandardMaterial({
       map: getTexture('bridge_concrete'),
       vertexColors: true,
@@ -370,6 +383,20 @@ function paintedSteel(): MeshStandardMaterial {
 }
 /** Sky (environment) light on the v2 structures relative to other materials. */
 const SHADE_SKY = 3.2;
+/** A tunnel's soffit and girders: the structures' concrete / painted steel with the light from below (CEILING_BOUNCE). */
+let ceilMats:
+  { concrete: MeshStandardMaterial; steel: MeshStandardMaterial } | undefined;
+function ceilingMaterials() {
+  if (ceilMats) return ceilMats;
+  const concrete = structureMaterials().concrete.clone();
+  concrete.emissive.setRGB(SOFFIT[0], SOFFIT[1], SOFFIT[2]);
+  concrete.emissiveMap = concrete.map;
+  concrete.emissiveIntensity = CEILING_BOUNCE;
+  const steel = paintedSteel().clone();
+  steel.emissive.setRGB(GIRDER[0], GIRDER[1], GIRDER[2]);
+  steel.emissiveIntensity = GIRDER_BOUNCE;
+  return (ceilMats = { concrete, steel });
+}
 
 /** Structure builders per tile (stone, concrete, metal, lamps). */
 class Parts {
@@ -385,6 +412,9 @@ class Parts {
       light: Builder;
       fence: Builder;
       mfence: Builder;
+      /** A tunnel's soffit (concrete) and girders (steel), lit from below. */
+      ceil: Builder;
+      girder: Builder;
     }
   >();
   /** Name / clearance plates on portal headwalls (one mesh per texture). */
@@ -405,6 +435,8 @@ class Parts {
           light: new Builder(4),
           fence: new Builder(FENCE_TS),
           mfence: new Builder(FENCE_TS),
+          ceil: new Builder(4),
+          girder: new Builder(4),
         }),
       );
     return p;
@@ -426,6 +458,9 @@ class Parts {
         group.add(p.rail.build((railMat ??= guardRailMaterial())));
       if (!p.paint.empty()) group.add(p.paint.build(paintedSteel()));
       if (!p.light.empty()) group.add(p.light.build(glow));
+      if (!p.ceil.empty()) group.add(p.ceil.build(ceilingMaterials().concrete));
+      if (!p.girder.empty())
+        group.add(p.girder.build(ceilingMaterials().steel));
       if (!p.fence.empty()) {
         const f = p.fence.build(chainLinkMaterial());
         f.castShadow = false;
@@ -1836,7 +1871,7 @@ function plazaSurface(
     };
     fill(
       il.pts,
-      'island',
+      il.kind === 'planted' ? 'lawn' : 'island',
       PLAZA_KERB + 0.01,
       SIDEWALK_TEX,
       topH,
@@ -2899,7 +2934,7 @@ function hallColumns(net: Network, w: Way, parts: Parts): void {
       }
       const p = parts.at(beam[0].x, beam[0].z);
       // the long beam: a box section along the column line under the girders
-      p.paint.strip(beam, [t - 0.25, 0, 0], [t + 0.25, 0, 0], GIRDER, false);
+      p.girder.strip(beam, [t - 0.25, 0, 0], [t + 0.25, 0, 0], GIRDER, false);
       for (let s = s0 + HALL_COLUMN_EVERY / 2; s < s1; s += HALL_COLUMN_EVERY) {
         const fr = frameAt(w, s);
         const c = columnAt(fr, t);
@@ -3094,6 +3129,36 @@ function walls(net: Network, field: NetField, w: Way, parts: Parts): void {
             return !!hit && Math.abs(hit.h - r.y) < 1;
           });
           const carriedAt = (k: number) => paved[k];
+          // (a wall carrying a street's edge a few metres back: the cap reaches on to that edge - no strip of land
+          // dug down between the coping and the street, nor a mound standing in it)
+          const reach = cap.map((r, k) => {
+            const kk = Math.min(
+              i1,
+              Math.max(
+                i0,
+                i0 + Math.round((k / Math.max(1, cap.length - 1)) * (i1 - i0)),
+              ),
+            );
+            if (!w.wallCarried[side][kk]) return 0;
+            for (let o = 0.5; o <= CAP_REACH; o += 0.5) {
+              const off = tWall + back + sg * o;
+              const hit = field.top(r.x + r.tz * off, r.z - r.tx * off);
+              if (hit && hit.surface !== 'grass' && Math.abs(hit.h - r.y) < 0.6)
+                return o;
+            }
+            return 0;
+          });
+          if (reach.some((o) => o > 0))
+            p.conc.strip(
+              cap.map((r, k) => ({
+                ...r,
+                hw: reach[k] + (reach[k] ? 0.3 : 0),
+              })),
+              [tWall + back - sg * 0.05, 0, 0],
+              [tWall + back - sg * 0.05, 0, sg],
+              WALK,
+              false,
+            );
           let a = 0;
           for (let k = 1; k <= cap.length; k++) {
             if (k < cap.length && carriedAt(k) === carriedAt(a)) continue;
@@ -3662,7 +3727,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
       const ceil = net.surfaceAt(w, fr.i, fr.f, 0) + w.tpl.clearance + 0.4;
       const girder = net.girderAt(w, fr.i);
       const [cx, cz] = lat(fr, midT);
-      p.paint.box(
+      p.girder.box(
         cx,
         cz,
         fr.tx,
@@ -3680,7 +3745,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
           p.light.lamp(lx, lz, ceil - girder);
         }
     }
-    p.conc.strip(
+    p.ceil.strip(
       roof,
       [-edgeR - 0.6, 0, 0],
       [edgeL + 0.6, 0, 0],
@@ -3773,7 +3838,7 @@ function tunnel(net: Network, field: NetField, w: Way, parts: Parts): void {
       }
       if (para.length > 1) mat.wall(para, col);
       mat.wall(pts, col);
-      portalPlates(net, w, i, i0, i1, fr, y, midT, parts);
+      portalPlates(net, w, i, i0, i1, fr, y, midT, parts, line);
     }
   }
 }
@@ -3875,6 +3940,9 @@ export function portalPlateText(
  * video, Queens Blvd 5:26-5:27): the green name plate of the street over the portal over the left lane, the white
  * clearance plate (to the girders) over the right one. A one-way bore has them at its entry end only.
  */
+/** A bore's end this far (m) from its tunnel's straight headwall has no plates. */
+const PLATE_OFF_LINE = 2;
+
 function portalPlates(
   net: Network,
   w: Way,
@@ -3885,6 +3953,7 @@ function portalPlates(
   y: number,
   midT: number,
   parts: Parts,
+  line?: { x: number; z: number; tx: number; tz: number },
 ): void {
   const entry = i === i0;
   const text = portalPlateText(net, w, i, i0, i1);
@@ -3898,8 +3967,22 @@ function portalPlates(
   const nz = fr.tz * out;
   const py = bot + Math.min(0.55, head / 2);
   // the drivers' left / right: lateral +t is left of the way's direction (entry); the exit end is seen the other way
+  // (on a tunnel's one straight headwall: on that wall's face; a bore whose own end lies back inside the hall, away
+  // from that face, has none - nobody sees its end, only the plate's back from the portal)
+  if (line) {
+    const [x, z] = lat(fr, midT);
+    if (
+      Math.abs((x - line.x) * line.tx + (z - line.z) * line.tz) > PLATE_OFF_LINE
+    )
+      return;
+  }
   const side = (t: number) => {
-    const [x, z] = lat(fr, midT + t * -out);
+    let [x, z] = lat(fr, midT + t * -out);
+    if (line) {
+      const d = (x - line.x) * line.tx + (z - line.z) * line.tz;
+      x -= line.tx * d;
+      z -= line.tz * d;
+    }
     return [x + nx * 0.09, z + nz * 0.09] as const;
   };
   const [cx, cz] = side(-1.7);
