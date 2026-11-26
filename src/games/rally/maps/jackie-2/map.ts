@@ -159,10 +159,21 @@ export const jackie2Map: MapDef = {
       },
       {
         area: qbEast.area,
-        // (the triangle south-east of the hall's east portal is planted: lawn and a round bed, 2024 aerial)
+        // (the triangle south-east of the hall's east portal is planted: lawn and a round bed, 2024 aerial; its kerb
+        // along the bus lane 1.3 m further in than the survey's outline, clear of the lane's red paint)
         islands: qbEast.islands.map((il) =>
           il.pts[0] === 2728.51 && il.pts[1] === -1777.52
-            ? { ...il, kind: 'planted' }
+            ? {
+                ...il,
+                kind: 'planted',
+                pts: [
+                  2727.88,
+                  -1776.38,
+                  ...il.pts.slice(2, -4),
+                  2761.02,
+                  -1759.0,
+                ],
+              }
             : il,
         ),
         crosswalks: qbEast.crosswalks,
