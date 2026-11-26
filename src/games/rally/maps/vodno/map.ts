@@ -51,8 +51,15 @@ import {
 } from './lots';
 import { SKYLINE } from './skyline';
 import { JUNCTION_PAINT, PATCHES, SURFACE_SECTIONS } from './surface';
-import { START_SIDEWALKS, startBuildings, startStreets } from './start-area';
+import {
+  HALL_PAD,
+  START_DRY,
+  START_SIDEWALKS,
+  startBuildings,
+  startStreets,
+} from './start-area';
 import { START_LOT_PAD } from './landmarks/start-lot';
+import { COURT_PADS } from './landmarks/start-courts';
 import { FINISH, ROAD_LENGTH, START } from './stages';
 
 /**
@@ -644,8 +651,11 @@ export const vodnoMap: MapDef = {
       HOTEL_PAD,
       BUILDING_PAD,
       START_LOT_PAD,
+      ...COURT_PADS,
+      HALL_PAD,
     ],
     lawns: LAWNS,
+    dryGround: START_DRY,
     meshSink: LOT_MESH_SINK,
   },
   landcover: {
@@ -1679,6 +1689,13 @@ export const vodnoMap: MapDef = {
     'vodno-start-blocks',
     'vodno-crossroad-hotel',
     'vodno-start-lot',
+    'vodno-start-courts',
+    'vodno-residence-roof',
+    'vodno-start-lots',
+    'vodno-start-towers',
+    'vodno-corner-house',
+    'vodno-start-site',
+    'vodno-graffiti-wall',
     'vodno-roadside-gazebo',
     'vodno-pulloff-gazebo',
     'vodno-trail-lot',

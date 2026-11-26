@@ -19,8 +19,8 @@ const POLE = '#3b4247';
 /** Hoop positions (local x of the pole) at both ends: just inside the asphalt. */
 export const HOOP_POLES = [-15.0, 15.0];
 
-/** A painted line from a to b (local x, z), in pieces of <= 1 m draped on the slab. */
-function line(
+/** A painted line from a to b (local x, z), in pieces of <= 1 m draped on the slab (also the Vodno tennis courts). */
+export function line(
   l: Local,
   g: Ground,
   a: [number, number],

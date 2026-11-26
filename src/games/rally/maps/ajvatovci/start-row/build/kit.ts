@@ -638,7 +638,7 @@ function normalOf(a: V3, b: V3, c: V3): V3 {
 }
 
 /** Splits a triangle (x, z points) until every edge is shorter than `step`. */
-function subdivide(
+export function subdivide(
   t: [Vector2, Vector2, Vector2],
   step: number,
 ): [Vector2, Vector2, Vector2][] {

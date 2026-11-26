@@ -327,8 +327,9 @@ export function* buildingMeshJob(
       const V = b.d / 2 + 0.3;
       const yE = yw - 0.12;
       const yR = yw + rise;
-      const rc = rgb(pick(GABLE_ROOF, h >>> 9));
-      const rc2 = rgb(pick(GABLE_ROOF, h >>> 9), 0.82);
+      const gableRoof = b.roofColor ?? pick(GABLE_ROOF, h >>> 9);
+      const rc = rgb(gableRoof);
+      const rc2 = rgb(gableRoof, 0.82);
       for (const side of [1, -1]) {
         const a = P(-U, side * V, yE);
         const bb = P(U, side * V, yE);
@@ -354,7 +355,7 @@ export function* buildingMeshJob(
           q[1] - ROOF_T,
           q[2],
         ];
-        const edge = rgb(pick(GABLE_ROOF, h >>> 9), 0.55);
+        const edge = rgb(gableRoof, 0.55);
         face(roof, [a, bb, c, d].map(dn), [-nn[0], -nn[1], -nn[2]], edge);
         face(roof, [a, bb, dn(bb), dn(a)], [-sa * side, 0, ca * side], edge);
         face(roof, [a, d, dn(d), dn(a)], [-ca, 0, -sa], edge);
@@ -374,7 +375,7 @@ export function* buildingMeshJob(
       }
     } else {
       // Flat roof (polygon) a parapet below the wall tops.
-      const rcol = rgb(pick(FLAT_ROOF, h >>> 9));
+      const rcol = rgb(b.roofColor ?? pick(FLAT_ROOF, h >>> 9));
       const contour = ring.map(([x, z]) => new Vector2(x, z));
       const faces = ShapeUtils.triangulateShape(contour, []);
       for (const f of faces) {
@@ -444,7 +445,9 @@ export function* buildingMeshJob(
           b.angle,
           rgb(EXTRA, 1.05),
         );
+        // (a New York roof: none on the Macedonian blocks)
         if (
+          !MK_MAPS.has(world.map.id) &&
           (kind === 'row' || kind === 'apartment') &&
           b.h > 9 &&
           (h >> 9) % 2 === 0
