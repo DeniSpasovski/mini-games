@@ -255,7 +255,10 @@ type MatId =
   | 'island'
   | 'lawn'
   | 'kerb'
-  | 'paint';
+  | 'paint'
+  | 'underWalk'
+  | 'underRoad'
+  | 'underConcrete';
 
 let mats: Record<MatId, MeshStandardMaterial> | undefined;
 function materials(): Record<MatId, MeshStandardMaterial> {
@@ -288,6 +291,11 @@ function materials(): Record<MatId, MeshStandardMaterial> {
     island: road('sidewalk', 4),
     // a planted island's top (`kind: 'planted'`): mown grass inside the kerb
     lawn: road('grass', 4, 0.4),
+    // the city street space under the roads (`underSurface`): no depth bias, so from far up the street over it never
+    // loses to it (the paving's own bias would pull it through a ribbon ROAD_UNDER above)
+    underWalk: road('sidewalk', 0),
+    underRoad: road('asphalt_street', 0),
+    underConcrete: road('concrete_highway', 0, 0.6),
     kerb: new MeshStandardMaterial({
       map: getTexture('bridge_concrete'),
       vertexColors: true,
@@ -310,6 +318,7 @@ function materials(): Record<MatId, MeshStandardMaterial> {
   };
   mats.sidewalk.color.setRGB(0.92, 0.91, 0.88);
   mats.island.color.copy(mats.sidewalk.color);
+  mats.underWalk.color.copy(mats.sidewalk.color);
   return mats;
 }
 
@@ -1957,7 +1966,7 @@ function underSurface(
   u: Under,
   tiles: Tiles,
 ): void {
-  const mat: MatId = u.kind === 'walk' ? 'sidewalk' : 'junction';
+  const mat: MatId = u.kind === 'walk' ? 'underWalk' : 'underRoad';
   const tex = u.kind === 'walk' ? SIDEWALK_TEX : TEX;
   const acc = tiles.at(mat, (u.minX + u.maxX) / 2, (u.minZ + u.maxZ) / 2);
   const { pts, tris } = triangulate(u.area, 1, u.holes);
@@ -1980,14 +1989,37 @@ function underSurface(
       cap = Math.min(cap, foot);
     return cap - ROAD_UNDER < h ? cap - ROAD_UNDER : h;
   });
-  const ids = pts.map(([x, z], k) =>
-    hs[k] === undefined ? -1 : acc.v(x, hs[k] as number, z, x / tex, z / tex),
-  );
-  for (const i of ids) if (i >= 0) acc.up.push(i);
+  // (the roadbed between ribbons paved in concrete where the roads beside it are, `NetworkDef.pavement`: no asphalt
+  // band along a barrier on a concrete parkway)
+  const accs = [acc];
+  const idsOf: number[][] = [];
+  const idsFor = (m: number) => {
+    if (idsOf[m]) return idsOf[m];
+    const a = m
+      ? tiles.at('underConcrete', (u.minX + u.maxX) / 2, (u.minZ + u.maxZ) / 2)
+      : acc;
+    accs[m] = a;
+    idsOf[m] = pts.map(([x, z], k) =>
+      hs[k] === undefined ? -1 : a.v(x, hs[k] as number, z, x / tex, z / tex),
+    );
+    for (const i of idsOf[m]) if (i >= 0) a.up.push(i);
+    return idsOf[m];
+  };
   for (const [a, b, c] of tris) {
     if (hanging(pts, hs, a, b, c)) continue;
+    const m =
+      u.kind !== 'walk' &&
+      concreteBed(
+        net,
+        (pts[a][0] + pts[b][0] + pts[c][0]) / 3,
+        (pts[a][1] + pts[b][1] + pts[c][1]) / 3,
+      )
+        ? 1
+        : 0;
+    const ids = idsFor(m);
+    const ac = accs[m];
     if (cm[a] > 0 || cm[b] > 0 || cm[c] > 0) {
-      clipToCut(acc, pts, hs, cm, [a, b, c], ids, 0, tex, true);
+      clipToCut(ac, pts, hs, cm, [a, b, c], ids, 0, tex, true);
       continue;
     }
     if (ids[a] < 0 || ids[b] < 0 || ids[c] < 0) continue;
@@ -1995,9 +2027,29 @@ function underSurface(
     const [bx, bz] = pts[b];
     const [qx, qz] = pts[c];
     const cross = (bx - ax) * (qz - az) - (bz - az) * (qx - ax);
-    if (cross < 0) acc.tri(ids[a], ids[b], ids[c]);
-    else acc.tri(ids[a], ids[c], ids[b]);
+    if (cross < 0) ac.tri(ids[a], ids[b], ids[c]);
+    else ac.tri(ids[a], ids[c], ids[b]);
   }
+}
+
+/** The roadbed at (x, z) lies by a parkway paved in concrete (`NetworkDef.pavement`): the nearest way within reach. */
+const CONCRETE_BED_REACH = 12;
+const CONCRETE_NEAR = new Map<number, Projection>();
+function concreteBed(net: Network, x: number, z: number): boolean {
+  let best: [Way, Projection] | undefined;
+  for (const [wi, p] of net.nearLines(
+    x,
+    z,
+    CONCRETE_BED_REACH,
+    CONCRETE_NEAR,
+  )) {
+    const w = net.ways[wi];
+    if (w.internal) continue;
+    if (!best || p.d < best[1].d) best = [w, p];
+  }
+  if (!best) return false;
+  const [w, p] = best;
+  return pavedMat(w) !== 'asphalt' && net.pavementAt(w, p.i) === 'concrete';
 }
 
 /** Past a way's foot on a side with a barrier, this far (m): the barrier's and its foot's ground, no raised median. */

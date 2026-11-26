@@ -387,6 +387,11 @@ const CARRIED_HUMP = 1.2;
 const SOFT_RISE = 0.85;
 // a cut wall left uncarried this long (m) between two carried stretches is carried across
 const CARRIED_GAP = 16;
+// a carried wall's top sunk this far (m) under both neighbours is a notch, filled
+const CARRIED_NOTCH = 0.2;
+// a node this near (m) the stage road's last sample, its arms within this turn (rad) of the stage's end: the road runs on
+const STAGE_END_JOIN = 3;
+const STAGE_END_TURN = 0.45;
 /** A cut wall at most this far (m) in front of a higher road's fill wall gives way to it (`facedWalls`). */
 const FACE_GAP = 6;
 /** A projection this much further from a way's line than its lateral offset lies past the way's end (m). */
@@ -1383,6 +1388,13 @@ export class Network {
             top[i] = Math.min(top[i], cap);
           }
         }
+        // (one sample of a carried wall's top sunk under both its neighbours - two holds meeting: level with the lower
+        // neighbour, no notch in the coping)
+        for (let i = 1; i + 1 < w.al.n; i++)
+          if (carried[i - 1] && carried[i] && carried[i + 1]) {
+            const m = Math.min(top[i - 1], top[i + 1]);
+            if (top[i] < m - CARRIED_NOTCH) top[i] = m;
+          }
         // a short stub of the cut wall left beside the faced stretch goes with it (no lone block on the strip)
         for (const [i0, i1] of runsOf(type, WALL_CUT)) {
           if (w.al.s[i1] - w.al.s[i0] > 2 * FACE_GAP) continue;
@@ -1732,6 +1744,26 @@ export class Network {
     this.clearNodes();
   }
 
+  /** Nodes at the stage road's end where the road runs straight on (`runsOnFromStageEnd`): joined to the stage there. */
+  private readonly stageRunOn = new Set<number>();
+
+  /** Node at the stage road's last sample whose every arm leaves in line with the stage's end (the road running on). */
+  private runsOnFromStageEnd(node: NetNode): boolean {
+    const st = this.stage.al;
+    const n = st.n - 1;
+    if (Math.hypot(node.x - st.x[n], node.z - st.z[n]) > STAGE_END_JOIN)
+      return false;
+    return node.ends.every((e) => {
+      const a = e.way.al;
+      const k = e.atEnd ? a.n - 1 : 0;
+      const sg = e.atEnd ? -1 : 1;
+      return (
+        a.tx[k] * sg * st.tx[n] + a.tz[k] * sg * st.tz[n] >
+        Math.cos(STAGE_END_TURN)
+      );
+    });
+  }
+
   /**
    * A street-grid junction lying on or against a roadway's section (OSM draws the service road's junctions at the
    * parkway's edge): the node moves off the roadway by the gap the sections need, and every arm follows it, eased in
@@ -1747,6 +1779,12 @@ export class Network {
         if (node.ends.some((e) => e.way.into.includes(this.stage))) continue;
         node.stage = -1;
         node.kind = 'end';
+        // (the stage's own end with the road running straight on from it: it stays there, the road paved on past the
+        // finish - pushed off the stage it would leave a gap of bare land in front of a stopped car)
+        if (this.runsOnFromStageEnd(node)) {
+          this.stageRunOn.add(node.id);
+          continue;
+        }
       } else if (node.ends.length < 2) continue;
       let hw = 0;
       let rank = -Infinity;
@@ -2047,7 +2085,9 @@ export class Network {
     for (const id of w.nodes) {
       const n = this.nodes.get(id);
       if (!n) continue;
-      const shared = q.nodes.includes(id) || (q.stage && n.stage >= 0);
+      const shared =
+        q.nodes.includes(id) ||
+        (q.stage && (n.stage >= 0 || this.stageRunOn.has(id)));
       if (shared && Math.hypot(n.x - x, n.z - z) < r) return true;
     }
     if (w.stage)
@@ -2322,7 +2362,9 @@ export class Network {
       // with it and takes the continuing way's end along, so a lane beside the parkway keeps its gap over its whole
       // length and not only mid-way
       const fixed = (nd: NetNode | undefined, merge: boolean) =>
-        !!nd && !merge && (nd.ends.length > 2 || nd.stage >= 0);
+        !!nd &&
+        !merge &&
+        (nd.ends.length > 2 || nd.stage >= 0 || this.stageRunOn.has(nd.id));
       const fixed0 = fixed(n0, w.merge0);
       const fixed1 = fixed(n1, w.merge1);
       const pts: number[] = [];
@@ -2448,7 +2490,8 @@ export class Network {
         continue;
       }
       if (node.ends.length === 1) {
-        node.kind = 'end';
+        // (the road running on from the stage's end: joined to it, at its height)
+        node.kind = this.stageRunOn.has(node.id) ? 'joint' : 'end';
         continue;
       }
       if (node.merge) {
@@ -4419,6 +4462,10 @@ export class Network {
       }
       if (node.kind === 'stage') {
         node.h = valueAt(stage.al, base[0], node.stage);
+        continue;
+      }
+      if (this.stageRunOn.has(node.id)) {
+        node.h = valueAt(stage.al, base[0], stage.al.length);
         continue;
       }
       let rank = -1;
