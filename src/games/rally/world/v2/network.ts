@@ -381,6 +381,12 @@ const DECK_REACH = 30;
 const UNDER_STOREY = 3;
 /** ...or that road's sidewalks and cut wall: m beyond its wall line the deck still clears (the abutment stands behind). */
 const DECK_WALL_CLEAR = 1;
+// a cut wall top this little over the street it holds is brought down to that street's edge
+const CARRIED_HUMP = 1.2;
+// a raised wall runs on along the street it holds while that street stands this much (m) over the road (past ROAD_STEP)
+const SOFT_RISE = 0.85;
+// a cut wall left uncarried this long (m) between two carried stretches is carried across
+const CARRIED_GAP = 16;
 /** A cut wall at most this far (m) in front of a higher road's fill wall gives way to it (`facedWalls`). */
 const FACE_GAP = 6;
 /** A projection this much further from a way's line than its lateral offset lies past the way's end (m). */
@@ -1188,6 +1194,11 @@ export class Network {
         // samples this pass turned into this road's wall (from none) / lifted (its cut wall carried up to the street)
         const raised = new Uint8Array(w.al.n);
         const lifted = new Uint8Array(w.al.n);
+        // (bare samples beside a street too low over this road for a wall of their own: its rise, and that street)
+        const soft = new Float32Array(w.al.n);
+        const softDrop: ([Way, 0 | 1, number] | undefined)[] = new Array(
+          w.al.n,
+        );
         for (let i = 0; i < w.al.n; i++) {
           // (a road with no wall of its own on that side - a bank by the survey - below a street's fill wall: the same
           // strip at its level up to that face, not a slope sawing into it)
@@ -1200,11 +1211,14 @@ export class Network {
           const pz = w.al.z[i] - w.al.tx[i] * lw;
           const E = this.surfaceAt(w, i, 0, sg * foot);
           this.nearLines(px, pz, 20, near, (q) => q === w || q.internal);
-          for (const [qi, p] of near) {
+          for (const [qi, p] of [...near].sort((a, b) => a[1].d - b[1].d)) {
             const q = this.ways[qi];
             const k = p.f < 0.5 ? p.i : Math.min(q.al.n - 1, p.i + 1);
             const qs = p.t >= 0 ? 0 : 1;
-            if (q.st[k] !== ST_GROUND || q.wall[qs][k] !== WALL_FILL) continue;
+            if (q.st[k] !== ST_GROUND) continue;
+            // (a street with no fill wall here: only for a raised wall running on along it, below)
+            const noFill = q.wall[qs][k] !== WALL_FILL;
+            if (noFill && !bare) continue;
             // (only the higher-ranked road's wall stands: the stage road keeps its own walls)
             // (the stage road's carriageways: the parkway's wall is the one face; elsewhere the street's fill wall
             // stays and a lower road's own wall stays in front of it)
@@ -1240,20 +1254,30 @@ export class Network {
               continue;
             const rise =
               this.surfaceAt(q, p.i, p.f, (qs === 0 ? 1 : -1) * qFoot) - E;
-            if (rise < 1) continue;
             // (with no wall of its own: only where the bank up to that face would be steeper than 1:1 - a cliff the
             // 1 m terrain mesh draws as teeth against the face; a gentler bank stays)
-            if (bare && rise < off + gap) continue;
+            if (noFill || rise < 1 || (bare && rise < off + gap)) {
+              // (kept: the wall raised beside it may run on along this street while it still stands over this road)
+              if (bare && mine && rise >= SOFT_RISE && !soft[i]) {
+                soft[i] = rise;
+                softDrop[i] = [q, qs, k];
+              }
+              continue;
+            }
             if (mine) {
               // this road's wall holds the street's edge; the street's fill wall over it goes
               if (bare) raised[i] = 1;
               else if (E + rise - 0.15 > w.wallTop[side][i]) lifted[i] = 1;
               type[i] = WALL_CUT;
               w.wallCarried[side][i] = 1;
-              w.wallTop[side][i] = Math.max(
-                bare ? -Infinity : w.wallTop[side][i],
-                E + rise - 0.15,
-              );
+              // (a cut wall a little over the street it holds stands at that street's edge: one coping along the
+              // street, no hump where the survey's bank rose behind it)
+              const held = E + rise - 0.15;
+              const own0 = bare ? -Infinity : w.wallTop[side][i];
+              w.wallTop[side][i] =
+                own0 > held && own0 - held < CARRIED_HUMP
+                  ? held
+                  : Math.max(own0, held);
               for (const kk of [k - 1, k, k + 1])
                 if (kk >= 0 && kk < q.al.n) drop.push([q, qs, kk, w, side]);
               break;
@@ -1263,6 +1287,34 @@ export class Network {
             break;
           }
         }
+        // a raised wall runs on at each end while the street it holds still stands over this road (its face down to
+        // where the two meet, no wall end stepping down into a bank between them)
+        for (const [i0, i1] of runsOf(w.wallCarried[side], 1))
+          for (const [from, dir] of [
+            [i0 - 1, -1],
+            [i1 + 1, 1],
+          ] as const)
+            for (
+              let i = from;
+              i >= 0 && i < w.al.n && !w.wallCarried[side][i];
+              i += dir
+            ) {
+              // (one sample missed between: the next one's street)
+              const j = soft[i]
+                ? i
+                : soft[i + dir] && type[i] !== WALL_FILL
+                  ? i + dir
+                  : -1;
+              if (j < 0) break;
+              const E = this.surfaceAt(w, i, 0, sg * foot);
+              raised[i] = 1;
+              type[i] = WALL_CUT;
+              w.wallCarried[side][i] = 1;
+              w.wallTop[side][i] = E + soft[j] - 0.15;
+              const [q, qs, k] = softDrop[j]!;
+              for (const kk of [k - 1, k, k + 1])
+                if (kk >= 0 && kk < q.al.n) drop.push([q, qs, kk, w, side]);
+            }
         // the raised wall: one run over short gaps (tops between), stepping down at an end on open land as wallsOf's
         const top = w.wallTop[side];
         const runs = runsOf(type, WALL_CUT);
@@ -1278,6 +1330,24 @@ export class Network {
             top[i] = top[a] + (top[b] - top[a]) * f;
             w.wallCarried[side][i] =
               w.wallCarried[side][a] & w.wallCarried[side][b];
+          }
+        }
+        // (a few samples of the cut wall left uncarried between two carried stretches: carried too, the top straight
+        // across - no tooth standing up out of one coping)
+        const carried = w.wallCarried[side];
+        const cr = runsOf(carried, 1);
+        for (let r = 0; r + 1 < cr.length; r++) {
+          const a = cr[r][1];
+          const b = cr[r + 1][0];
+          if (w.al.s[b] - w.al.s[a] > CARRIED_GAP) continue;
+          let ok = true;
+          for (let i = a + 1; i < b; i++)
+            if (type[i] !== WALL_CUT || w.st[i] !== ST_GROUND) ok = false;
+          if (!ok) continue;
+          for (let i = a + 1; i < b; i++) {
+            const f = (i - a) / (b - a);
+            top[i] = Math.min(top[i], top[a] + (top[b] - top[a]) * f);
+            carried[i] = 1;
           }
         }
         for (const [i0, i1] of runsOf(type, WALL_CUT)) {
