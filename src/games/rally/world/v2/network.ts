@@ -381,6 +381,19 @@ const DECK_REACH = 30;
 const UNDER_STOREY = 3;
 /** ...or that road's sidewalks and cut wall: m beyond its wall line the deck still clears (the abutment stands behind). */
 const DECK_WALL_CLEAR = 1;
+// a cut wall top this little over the street it holds is brought down to that street's edge
+const CARRIED_HUMP = 1.2;
+// a raised wall runs on along the street it holds while that street stands this much (m) over the road (past ROAD_STEP)
+const SOFT_RISE = 0.85;
+// a cut wall left uncarried this long (m) between two carried stretches is carried across
+const CARRIED_GAP = 16;
+// a structure range reaches this far (m) past its ends: a sample on its end vertex is in it
+const RANGE_EPS = 1e-6;
+// a carried wall's top sunk this far (m) under both neighbours is a notch, filled
+const CARRIED_NOTCH = 0.2;
+// a node this near (m) the stage road's last sample, its arms within this turn (rad) of the stage's end: the road runs on
+const STAGE_END_JOIN = 3;
+const STAGE_END_TURN = 0.45;
 /** A cut wall at most this far (m) in front of a higher road's fill wall gives way to it (`facedWalls`). */
 const FACE_GAP = 6;
 /** A projection this much further from a way's line than its lateral offset lies past the way's end (m). */
@@ -1188,6 +1201,11 @@ export class Network {
         // samples this pass turned into this road's wall (from none) / lifted (its cut wall carried up to the street)
         const raised = new Uint8Array(w.al.n);
         const lifted = new Uint8Array(w.al.n);
+        // (bare samples beside a street too low over this road for a wall of their own: its rise, and that street)
+        const soft = new Float32Array(w.al.n);
+        const softDrop: ([Way, 0 | 1, number] | undefined)[] = new Array(
+          w.al.n,
+        );
         for (let i = 0; i < w.al.n; i++) {
           // (a road with no wall of its own on that side - a bank by the survey - below a street's fill wall: the same
           // strip at its level up to that face, not a slope sawing into it)
@@ -1200,11 +1218,14 @@ export class Network {
           const pz = w.al.z[i] - w.al.tx[i] * lw;
           const E = this.surfaceAt(w, i, 0, sg * foot);
           this.nearLines(px, pz, 20, near, (q) => q === w || q.internal);
-          for (const [qi, p] of near) {
+          for (const [qi, p] of [...near].sort((a, b) => a[1].d - b[1].d)) {
             const q = this.ways[qi];
             const k = p.f < 0.5 ? p.i : Math.min(q.al.n - 1, p.i + 1);
             const qs = p.t >= 0 ? 0 : 1;
-            if (q.st[k] !== ST_GROUND || q.wall[qs][k] !== WALL_FILL) continue;
+            if (q.st[k] !== ST_GROUND) continue;
+            // (a street with no fill wall here: only for a raised wall running on along it, below)
+            const noFill = q.wall[qs][k] !== WALL_FILL;
+            if (noFill && !bare) continue;
             // (only the higher-ranked road's wall stands: the stage road keeps its own walls)
             // (the stage road's carriageways: the parkway's wall is the one face; elsewhere the street's fill wall
             // stays and a lower road's own wall stays in front of it)
@@ -1240,20 +1261,30 @@ export class Network {
               continue;
             const rise =
               this.surfaceAt(q, p.i, p.f, (qs === 0 ? 1 : -1) * qFoot) - E;
-            if (rise < 1) continue;
             // (with no wall of its own: only where the bank up to that face would be steeper than 1:1 - a cliff the
             // 1 m terrain mesh draws as teeth against the face; a gentler bank stays)
-            if (bare && rise < off + gap) continue;
+            if (noFill || rise < 1 || (bare && rise < off + gap)) {
+              // (kept: the wall raised beside it may run on along this street while it still stands over this road)
+              if (bare && mine && rise >= SOFT_RISE && !soft[i]) {
+                soft[i] = rise;
+                softDrop[i] = [q, qs, k];
+              }
+              continue;
+            }
             if (mine) {
               // this road's wall holds the street's edge; the street's fill wall over it goes
               if (bare) raised[i] = 1;
               else if (E + rise - 0.15 > w.wallTop[side][i]) lifted[i] = 1;
               type[i] = WALL_CUT;
               w.wallCarried[side][i] = 1;
-              w.wallTop[side][i] = Math.max(
-                bare ? -Infinity : w.wallTop[side][i],
-                E + rise - 0.15,
-              );
+              // (a cut wall a little over the street it holds stands at that street's edge: one coping along the
+              // street, no hump where the survey's bank rose behind it)
+              const held = E + rise - 0.15;
+              const own0 = bare ? -Infinity : w.wallTop[side][i];
+              w.wallTop[side][i] =
+                own0 > held && own0 - held < CARRIED_HUMP
+                  ? held
+                  : Math.max(own0, held);
               for (const kk of [k - 1, k, k + 1])
                 if (kk >= 0 && kk < q.al.n) drop.push([q, qs, kk, w, side]);
               break;
@@ -1263,6 +1294,34 @@ export class Network {
             break;
           }
         }
+        // a raised wall runs on at each end while the street it holds still stands over this road (its face down to
+        // where the two meet, no wall end stepping down into a bank between them)
+        for (const [i0, i1] of runsOf(w.wallCarried[side], 1))
+          for (const [from, dir] of [
+            [i0 - 1, -1],
+            [i1 + 1, 1],
+          ] as const)
+            for (
+              let i = from;
+              i >= 0 && i < w.al.n && !w.wallCarried[side][i];
+              i += dir
+            ) {
+              // (one sample missed between: the next one's street)
+              const j = soft[i]
+                ? i
+                : soft[i + dir] && type[i] !== WALL_FILL
+                  ? i + dir
+                  : -1;
+              if (j < 0) break;
+              const E = this.surfaceAt(w, i, 0, sg * foot);
+              raised[i] = 1;
+              type[i] = WALL_CUT;
+              w.wallCarried[side][i] = 1;
+              w.wallTop[side][i] = E + soft[j] - 0.15;
+              const [q, qs, k] = softDrop[j]!;
+              for (const kk of [k - 1, k, k + 1])
+                if (kk >= 0 && kk < q.al.n) drop.push([q, qs, kk, w, side]);
+            }
         // the raised wall: one run over short gaps (tops between), stepping down at an end on open land as wallsOf's
         const top = w.wallTop[side];
         const runs = runsOf(type, WALL_CUT);
@@ -1278,6 +1337,24 @@ export class Network {
             top[i] = top[a] + (top[b] - top[a]) * f;
             w.wallCarried[side][i] =
               w.wallCarried[side][a] & w.wallCarried[side][b];
+          }
+        }
+        // (a few samples of the cut wall left uncarried between two carried stretches: carried too, the top straight
+        // across - no tooth standing up out of one coping)
+        const carried = w.wallCarried[side];
+        const cr = runsOf(carried, 1);
+        for (let r = 0; r + 1 < cr.length; r++) {
+          const a = cr[r][1];
+          const b = cr[r + 1][0];
+          if (w.al.s[b] - w.al.s[a] > CARRIED_GAP) continue;
+          let ok = true;
+          for (let i = a + 1; i < b; i++)
+            if (type[i] !== WALL_CUT || w.st[i] !== ST_GROUND) ok = false;
+          if (!ok) continue;
+          for (let i = a + 1; i < b; i++) {
+            const f = (i - a) / (b - a);
+            top[i] = Math.min(top[i], top[a] + (top[b] - top[a]) * f);
+            carried[i] = 1;
           }
         }
         for (const [i0, i1] of runsOf(type, WALL_CUT)) {
@@ -1313,6 +1390,13 @@ export class Network {
             top[i] = Math.min(top[i], cap);
           }
         }
+        // (one sample of a carried wall's top sunk under both its neighbours - two holds meeting: level with the lower
+        // neighbour, no notch in the coping)
+        for (let i = 1; i + 1 < w.al.n; i++)
+          if (carried[i - 1] && carried[i] && carried[i + 1]) {
+            const m = Math.min(top[i - 1], top[i + 1]);
+            if (top[i] < m - CARRIED_NOTCH) top[i] = m;
+          }
         // a short stub of the cut wall left beside the faced stretch goes with it (no lone block on the strip)
         for (const [i0, i1] of runsOf(type, WALL_CUT)) {
           if (w.al.s[i1] - w.al.s[i0] > 2 * FACE_GAP) continue;
@@ -1662,6 +1746,26 @@ export class Network {
     this.clearNodes();
   }
 
+  /** Nodes at the stage road's end where the road runs straight on (`runsOnFromStageEnd`): joined to the stage there. */
+  private readonly stageRunOn = new Set<number>();
+
+  /** Node at the stage road's last sample whose every arm leaves in line with the stage's end (the road running on). */
+  private runsOnFromStageEnd(node: NetNode): boolean {
+    const st = this.stage.al;
+    const n = st.n - 1;
+    if (Math.hypot(node.x - st.x[n], node.z - st.z[n]) > STAGE_END_JOIN)
+      return false;
+    return node.ends.every((e) => {
+      const a = e.way.al;
+      const k = e.atEnd ? a.n - 1 : 0;
+      const sg = e.atEnd ? -1 : 1;
+      return (
+        a.tx[k] * sg * st.tx[n] + a.tz[k] * sg * st.tz[n] >
+        Math.cos(STAGE_END_TURN)
+      );
+    });
+  }
+
   /**
    * A street-grid junction lying on or against a roadway's section (OSM draws the service road's junctions at the
    * parkway's edge): the node moves off the roadway by the gap the sections need, and every arm follows it, eased in
@@ -1677,6 +1781,12 @@ export class Network {
         if (node.ends.some((e) => e.way.into.includes(this.stage))) continue;
         node.stage = -1;
         node.kind = 'end';
+        // (the stage's own end with the road running straight on from it: it stays there, the road paved on past the
+        // finish - pushed off the stage it would leave a gap of bare land in front of a stopped car)
+        if (this.runsOnFromStageEnd(node)) {
+          this.stageRunOn.add(node.id);
+          continue;
+        }
       } else if (node.ends.length < 2) continue;
       let hw = 0;
       let rank = -Infinity;
@@ -1977,7 +2087,9 @@ export class Network {
     for (const id of w.nodes) {
       const n = this.nodes.get(id);
       if (!n) continue;
-      const shared = q.nodes.includes(id) || (q.stage && n.stage >= 0);
+      const shared =
+        q.nodes.includes(id) ||
+        (q.stage && (n.stage >= 0 || this.stageRunOn.has(id)));
       if (shared && Math.hypot(n.x - x, n.z - z) < r) return true;
     }
     if (w.stage)
@@ -2252,7 +2364,9 @@ export class Network {
       // with it and takes the continuing way's end along, so a lane beside the parkway keeps its gap over its whole
       // length and not only mid-way
       const fixed = (nd: NetNode | undefined, merge: boolean) =>
-        !!nd && !merge && (nd.ends.length > 2 || nd.stage >= 0);
+        !!nd &&
+        !merge &&
+        (nd.ends.length > 2 || nd.stage >= 0 || this.stageRunOn.has(nd.id));
       const fixed0 = fixed(n0, w.merge0);
       const fixed1 = fixed(n1, w.merge1);
       const pts: number[] = [];
@@ -2378,7 +2492,8 @@ export class Network {
         continue;
       }
       if (node.ends.length === 1) {
-        node.kind = 'end';
+        // (the road running on from the stage's end: joined to it, at its height)
+        node.kind = this.stageRunOn.has(node.id) ? 'joint' : 'end';
         continue;
       }
       if (node.merge) {
@@ -2595,8 +2710,10 @@ export class Network {
   }
 
   private markRange(w: Way, from: number, to: number, kind: number): void {
-    const a = Math.max(0, from);
-    const b = Math.min(w.al.length, to);
+    // (a range ending on a vertex holds the sample there: the vertex and sample stations are summed differently, a last
+    // bit apart, and which way that bit falls differs between engines)
+    const a = Math.max(0, from) - RANGE_EPS;
+    const b = Math.min(w.al.length, to) + RANGE_EPS;
     for (let i = 0; i < w.al.n; i++) {
       const s = w.al.s[i];
       if (s >= a && s <= b) w.st[i] = kind;
@@ -4349,6 +4466,10 @@ export class Network {
       }
       if (node.kind === 'stage') {
         node.h = valueAt(stage.al, base[0], node.stage);
+        continue;
+      }
+      if (this.stageRunOn.has(node.id)) {
+        node.h = valueAt(stage.al, base[0], stage.al.length);
         continue;
       }
       let rank = -1;

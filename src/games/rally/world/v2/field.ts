@@ -44,6 +44,8 @@ import { SINK_RAMP, SLAB_SINKS } from '../road-slab';
 
 /** Terrain under a meshed element sits this far below it (the mesh is the surface). */
 const SINK = 0.04;
+/** The land this far (m) under the city street space's paving (drawn with no depth bias: more room than SINK). */
+const UNDER_SINK = 0.1;
 
 interface PlazaField {
   pl: Plaza;
@@ -70,6 +72,8 @@ interface UnderField {
 
 /** City street space further than this (m) from a drawn surface lies on the land (nearer, it blends to the roads). */
 const UNDER_BLEND = 8;
+// the street space on a deck this far (m) over the land under it lies down on that land (a median under a bridge)
+const UNDER_DECK_GAP = 2.5;
 /** Over the land (a street's grass verge the survey paves, the land past UNDER_BLEND) the paving lies this far up (m):
  * level with it, the two would flicker. */
 const UNDER_LAND_LIFT = 0.04;
@@ -136,6 +140,8 @@ const BETWEEN_HUMP = 0.4;
 const ISLAND_GAP = 2.6;
 /** An island's top over its edges (a kerb). */
 const ISLAND_RISE = 0.15;
+/** The land under a deck is held under its soffit out to this far (m) past its side. */
+const DECK_HOLD = 0.6;
 /** A tunnel's roof slab reaches this far beyond its wall line (m): it rests on the walls. */
 export const SLAB_REACH = 0.9;
 /** Footprint index margin beyond the section for daylight slopes (m). */
@@ -367,6 +373,17 @@ export class NetField {
           if (!lower || (slab !== undefined && lower.h < slab - 1.5)) break;
           t = lower;
         }
+        // (on a deck with no street under it, over open land well below it - a median under a bridge, not the fill
+        // behind an abutment: the street space down there, not the deck's)
+        if (
+          pd === undefined &&
+          t &&
+          t.h > (this.deckOver(x, z) ?? Infinity) - 0.3 &&
+          this.groundAt(x, z) < t.h - UNDER_DECK_GAP
+        ) {
+          state[k] = 1;
+          continue;
+        }
         const y = pd ?? t?.h;
         if (y === undefined) {
           state[k] = 1;
@@ -423,6 +440,21 @@ export class NetField {
           if (c) h[k] = a / c;
         }
     return { x0, z0, nx, nz, h, state, inside };
+  }
+
+  /** Highest deck surface whose footprint holds (x, z), undefined off every deck. */
+  private deckOver(x: number, z: number): number | undefined {
+    let out: number | undefined;
+    for (const [wi, p] of this.nearest(x, z)) {
+      const w = this.net.ways[wi];
+      if (this.beyondEnds(w, p, x, z)) continue;
+      const k = p.f < 0.5 ? p.i : p.i + 1;
+      if (w.st[k] !== ST_DECK) continue;
+      if (Math.abs(p.t) > (p.t >= 0 ? w.sec.footL : w.sec.footR)) continue;
+      const h = this.net.surfaceAt(w, p.i, p.f, p.t);
+      if (out === undefined || h > out) out = h;
+    }
+    return out;
   }
 
   /**
@@ -1271,7 +1303,7 @@ export class NetField {
         // the land under a deck stays under its soffit (at an abutment the approach fill ends at the deck end)
         const footD = p.t >= 0 ? w.sec.footL : w.sec.footR;
         const soffit = this.net.surfaceAt(w, p.i, p.f, 0) - DECK_DEPTH - 0.15;
-        if (Math.abs(p.t) <= footD + 0.6) {
+        if (Math.abs(p.t) <= footD + DECK_HOLD) {
           cap = Math.min(cap, soffit);
           deckUnder = Math.min(deckUnder, soffit);
         } else if (w.stage || w.corr) {
@@ -1445,16 +1477,17 @@ export class NetField {
     }
     // (and under the paving as its mesh draws it - over a junction's or a road's cells, just under a street running
     // onto it - where that lies lower than the solved field: no land shows through the paving)
+    // (never over a deck's soffit: paving drawn up there is the deck's street, the land under it stays below)
     const pd = this.plazaPaving(x, z);
-    if (pd !== undefined && pd >= ownedTop - UNDER_PLAZA) {
+    if (pd !== undefined && pd >= ownedTop - UNDER_PLAZA && !(pd > deckUnder)) {
       onMesh = true;
       foot = Math.min(foot, pd - SINK);
     }
     // (the city street space paved under the roads: the same)
     const ud = this.underDrawn(x, z);
-    if (ud !== undefined && ud >= ownedTop - UNDER_PLAZA) {
+    if (ud !== undefined && ud >= ownedTop - UNDER_PLAZA && !(ud > deckUnder)) {
       onMesh = true;
-      foot = Math.min(foot, ud - SINK);
+      foot = Math.min(foot, ud - UNDER_SINK);
     }
     for (const ji of this.jgrid.at(x, z)) {
       const j = net.junctions[ji];
@@ -1830,9 +1863,10 @@ export class NetField {
       const nz = -w.al.tx[k] * sg;
       let low: number;
       if (w.st[k] === ST_DECK) {
-        // a deck's side: the land under it (held up to the soffit) drops near the edge to the land beside it
-        if (u > footW || u < footW - WALL_CELL) continue;
-        const out = footW + 0.6 - u;
+        // a deck's side: the land under it (held up to the soffit, out to DECK_HOLD past the side) drops near the edge
+        // to the land beside it
+        if (u > footW + DECK_HOLD || u < footW - WALL_CELL) continue;
+        const out = footW + DECK_HOLD + 0.6 - u;
         low = this.ground(x + nx * out, z + nz * out, w);
       } else {
         const wt = w.wall[left ? 0 : 1][k];
