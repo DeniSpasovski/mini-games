@@ -222,15 +222,17 @@ export class Landcover {
         cover: new Raster(base.canopy.cover),
         height: new Raster(base.canopy.height),
       };
-    base.paint?.forEach((p, k) => this.paint(p.poly, base.zones.length + k));
+    base.paint?.forEach((p, k) =>
+      this.paint(p.poly, base.zones.length + k, p.over),
+    );
     this.coverNames = [...new Set(def.zones.map((z) => z.cover))];
     this.zoneCover = new Uint8Array(
       def.zones.map((z) => this.coverNames.indexOf(z.cover)),
     );
   }
 
-  /** Set every cell whose centre is inside `poly` (world x, z pairs) to `zone`. */
-  private paint(poly: number[], zone: number): void {
+  /** Set every cell whose centre is inside `poly` (world x, z pairs) to `zone` (only cells of the `over` covers). */
+  private paint(poly: number[], zone: number, over?: string[]): void {
     const d = this.def;
     let x0 = Infinity;
     let x1 = -Infinity;
@@ -260,7 +262,9 @@ export class Landcover {
                 poly[a]
           )
             inside = !inside;
-        if (inside) this.zones[j * d.cols + i] = zone;
+        const k = j * d.cols + i;
+        if (inside && (!over || over.includes(d.zones[this.zones[k]]?.cover)))
+          this.zones[k] = zone;
       }
   }
 

@@ -17,6 +17,8 @@ import {
   tapePost,
   tapeSpan,
   villageSign,
+  greenhouseTunnel,
+  swimmingPool,
 } from './builders/props';
 import {
   buildingFlat,
@@ -286,6 +288,8 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   antenna_mast: antennaMast,
   gondola_pylon: gondolaPylon,
   village_sign: villageSign,
+  greenhouse_tunnel: greenhouseTunnel,
+  swimming_pool: swimmingPool,
 };
 
 /** Seed used for an in-world variant (stable across sessions). */

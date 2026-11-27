@@ -656,9 +656,10 @@ export const buildingFlat: AssetBuilder = ({ seed, variant, lod }) => {
   parts.push(box(1, 1, 1, 0, 0.5, 0, body, rng, layer));
   const cap = style < 2 ? '#7d8287' : style === 2 ? '#8f8c86' : '#a7a29a';
   if (style < 2) {
-    // Hall: a sheet-metal fascia round the roof edge, the membrane inside it.
+    // Hall: a sheet-metal fascia round the roof edge, the roof sheet inside it (most Macedonian halls are roofed in
+    // light, near-white sheet steel; style 1 in a weathered grey).
     parts.push(slab(1, -0.45, 0.2, 0.05, cap));
-    parts.push(slab(1, 0, 0.05, -0.12, '#6d6f70'));
+    parts.push(slab(1, 0, 0.05, -0.12, style === 0 ? '#d3d6d5' : '#a4a8a9'));
   } else {
     // Block: the concrete roof slab stands out over the walls, a kerb round its edge.
     parts.push(slab(1, -0.22, 0, 0.4, cap));

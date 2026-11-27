@@ -905,6 +905,35 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'box', hx: 1, hz: 0.08, h: 2.4, r: 1.1 }],
   },
   {
+    id: 'greenhouse_tunnel',
+    name: 'Greenhouse tunnel',
+    category: 'props',
+    description:
+      'Plastic garden greenhouse tunnel: milky film over steel hoops, 6 m wide, 2.8 m high, long axis along X (variant 0 18 m long, 1 12 m). Solid.',
+    variants: 2,
+    lods: [
+      { maxDistance: 150, castShadow: true },
+      { maxDistance: 900, castShadow: false },
+    ],
+    colliders: [{ kind: 'box', hx: 9, hz: 3.1, h: 2.4, r: 9.6 }],
+    variantColliders: [
+      [{ kind: 'box', hx: 9, hz: 3.1, h: 2.4, r: 9.6 }],
+      [{ kind: 'box', hx: 6, hz: 3.1, h: 2.4, r: 6.8 }],
+    ],
+  },
+  {
+    id: 'swimming_pool',
+    name: 'Swimming pool',
+    category: 'props',
+    description:
+      'Garden swimming pool in a stone coping, long axis along X (variant 0 8 x 4 m, 1 6 x 3.5 m).',
+    variants: 2,
+    lods: [
+      { maxDistance: 120, castShadow: false },
+      { maxDistance: 400, castShadow: false },
+    ],
+  },
+  {
     id: 'street_lamp',
     name: 'Street lamp',
     category: 'props',
