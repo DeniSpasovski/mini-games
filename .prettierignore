@@ -11,6 +11,8 @@ src/games/rally/maps/*/data.json
 src/games/rally/maps/*/route.json
 src/games/rally/maps/*/horizon.json
 src/games/rally/maps/*/culverts.json
+# Village tree crowns (the `trees` of scripts/realmap/canopy.py, cut to the village)
+src/games/rally/maps/ajvatovci/village-trees.json
 # Baked stage cards (tools/stage-card-bake.ts)
 src/games/rally/maps/*/preview/stage-card.json
 # Generated car girth tables (scripts/car-model/girth-table.py)

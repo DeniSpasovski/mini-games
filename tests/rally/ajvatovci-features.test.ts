@@ -1,5 +1,7 @@
 import { describe, expect, test } from '@rstest/core';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
+import { VILLAGE_FIX } from '../../src/games/rally/maps/ajvatovci/village';
+import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
 
 /**
@@ -66,5 +68,46 @@ describe('ajvatovci', () => {
     expect(counts.power_pylon).toBeGreaterThan(20);
     expect(counts.village_sign).toBe(2);
     expect(counts.street_lamp).toBeGreaterThan(20);
+  });
+
+  test('village fixes: pools / empty yards dropped, missing roadside buildings added clear of the road', () => {
+    const ids = new Set(ajvatovciMap.buildings!.map((b) => b.id));
+    for (const id of VILLAGE_FIX.drop)
+      expect(ids.has(id), `${id} dropped`).toBe(false);
+    for (const id of [...VILLAGE_FIX.move, ...VILLAGE_FIX.added])
+      expect(ids.has(id), `${id} present`).toBe(true);
+    const rq = newRoadQuery();
+    for (const b of ajvatovciMap.buildings!.filter((b) =>
+      VILLAGE_FIX.added.includes(b.id),
+    )) {
+      // Every corner stays off the stage road (village barns stand right at its edge).
+      const c = Math.cos(b.angle);
+      const s = Math.sin(b.angle);
+      for (const [u, v] of [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ]) {
+        const x = b.x + (u * b.w * c) / 2 - (v * b.d * s) / 2;
+        const z = b.z + (u * b.w * s) / 2 + (v * b.d * c) / 2;
+        world.road.query(x, z, rq);
+        expect(
+          rq.found && rq.distance < rq.halfWidth + 0.5,
+          `${b.id} on the road`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  test('village trees stand where the canopy model has them; greenhouses and pools are placed', () => {
+    expect(ajvatovciMap.realTrees!.trees.length / 3).toBeGreaterThan(400);
+    const props = ajvatovciMap.props.map((p) => p.asset);
+    expect(
+      props.filter((a) => a === 'greenhouse_tunnel').length,
+    ).toBeGreaterThan(4);
+    expect(props.filter((a) => a === 'swimming_pool').length).toBeGreaterThan(
+      2,
+    );
   });
 });

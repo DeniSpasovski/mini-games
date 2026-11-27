@@ -14,7 +14,10 @@ export const ajvatovciInfo: MapInfo = {
   stages: ajvatovciStages,
   seed: 4207,
   geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
-  credits: data.meta.sources,
+  credits: [
+    ...data.meta.sources,
+    'Village trees: Meta and World Resources Institute, High Resolution Canopy Height Maps (CC BY 4.0), imagery (c) Maxar 2018-2020',
+  ],
   sources: [
     {
       label: 'Google Maps route (start -> Ajvatovci Hill)',
@@ -25,6 +28,11 @@ export const ajvatovciInfo: MapInfo = {
       label: 'OpenStreetMap',
       url: 'https://www.openstreetmap.org/copyright',
       note: 'route, roads, railways, canals, land use, buildings, power lines - (c) OpenStreetMap contributors, ODbL',
+    },
+    {
+      label: 'High Resolution Canopy Height Maps (Meta / WRI)',
+      url: 'https://registry.opendata.aws/dataforgood-fb-forests/',
+      note: 'the trees of the village gardens where they stand - Meta and World Resources Institute, imagery (c) Maxar 2018-2020, CC BY 4.0',
     },
     {
       label: 'AWS Terrain Tiles (Terrarium)',

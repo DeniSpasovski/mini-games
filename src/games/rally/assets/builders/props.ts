@@ -766,3 +766,154 @@ export const villageSign: AssetBuilder = () => {
     ],
   };
 };
+
+/** Triangles (non-indexed: position, colour, uv) from quads of corner points [x, y, z] and a colour per quad. */
+function quadMesh(
+  quads: { p: [number, number, number][]; c: Color }[],
+  uvScale = 0.5,
+): BufferGeometry {
+  const pos: number[] = [];
+  const col: number[] = [];
+  const uv: number[] = [];
+  for (const { p, c } of quads)
+    for (const i of p.length === 4 ? [0, 1, 2, 0, 2, 3] : [0, 1, 2]) {
+      pos.push(...p[i]);
+      col.push(c.r, c.g, c.b);
+      uv.push((p[i][0] + p[i][2]) * uvScale, p[i][1] * uvScale);
+    }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('color', new BufferAttribute(new Float32Array(col), 3));
+  g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * Plastic greenhouse tunnel of the village gardens (front faces +Z, long axis along X): milky film over round steel
+ * hoops every 2 m, sagging a little between them, buried in a soil bank along both sides, a film end with a door frame
+ * at each end. 6 m wide, 2.8 m high; variant 0 is 18 m long, 1 is 12 m. The film greens with age (by seed).
+ */
+export const greenhouseTunnel: AssetBuilder = ({ seed, variant, lod }) => {
+  const rng = new Rng(seed);
+  const L = variant === 1 ? 12 : 18;
+  const W = 6;
+  const H = 2.8;
+  const film = new Color('#d2d9ce').lerp(
+    new Color('#a7baa2'),
+    rng.range(0, 0.6),
+  );
+  const hoop = new Color('#7d877f');
+  const segs = lod === 0 ? 12 : 6;
+  // Arch point at angle t (0 = +Z foot, PI = -Z foot): a slightly flattened half ellipse.
+  const arch = (t: number, sag: number): [number, number] => [
+    (W / 2) * Math.cos(t) * (1 - sag * 0.6),
+    H * Math.pow(Math.sin(t), 0.85) * (1 - sag),
+  ];
+  // Stations along X: hoop bands (dark, narrow) and the sagging film between them.
+  const stations: { x: number; sag: number; band: boolean }[] = [];
+  const bays = Math.round(L / 2);
+  for (let i = 0; i <= bays; i++) {
+    const x = -L / 2 + (i * L) / bays;
+    if (lod === 0) {
+      stations.push({ x: x - 0.04, sag: 0, band: true });
+      stations.push({ x: x + 0.04, sag: 0, band: false });
+      if (i < bays)
+        stations.push({ x: x + L / bays / 2, sag: 0.025, band: false });
+    } else stations.push({ x, sag: 0, band: false });
+  }
+  if (lod === 0) stations.splice(0, 1);
+  stations.pop();
+  stations.push({ x: L / 2, sag: 0, band: false });
+  const quads: { p: [number, number, number][]; c: Color }[] = [];
+  // Old film: each bay a touch lighter or greener, mud splashed up the foot (y < 0.7 m).
+  const mud = new Color('#9b8a6e');
+  for (let s = 0; s + 1 < stations.length; s++) {
+    const a = stations[s];
+    const b = stations[s + 1];
+    const bay = film.clone().multiplyScalar(rng.range(0.93, 1.03));
+    for (let k = 0; k < segs; k++) {
+      const yMid = Math.min(
+        arch((k / segs) * Math.PI, 0)[1],
+        arch(((k + 1) / segs) * Math.PI, 0)[1],
+      );
+      const c = a.band
+        ? hoop
+        : yMid < 0.7
+          ? bay.clone().lerp(mud, 0.35 * (1 - yMid / 0.7))
+          : bay;
+      const t0 = (k / segs) * Math.PI;
+      const t1 = ((k + 1) / segs) * Math.PI;
+      const [za0, ya0] = arch(t0, a.sag);
+      const [za1, ya1] = arch(t1, a.sag);
+      const [zb0, yb0] = arch(t0, b.sag);
+      const [zb1, yb1] = arch(t1, b.sag);
+      quads.push({
+        p: [
+          [a.x, ya0, za0],
+          [b.x, yb0, zb0],
+          [b.x, yb1, zb1],
+          [a.x, ya1, za1],
+        ],
+        c,
+      });
+    }
+  }
+  // The film ends: a fan over the end arch, a little darker (dust), a door frame on both.
+  const endFilm = film.clone().multiplyScalar(0.92);
+  for (const x of [-L / 2, L / 2])
+    for (let k = 0; k < segs; k++) {
+      const [z0, y0] = arch((k / segs) * Math.PI, 0);
+      const [z1, y1] = arch(((k + 1) / segs) * Math.PI, 0);
+      quads.push({
+        p:
+          x > 0
+            ? [
+                [x, 0, 0],
+                [x, y0, z0],
+                [x, y1, z1],
+              ]
+            : [
+                [x, 0, 0],
+                [x, y1, z1],
+                [x, y0, z0],
+              ],
+        c: endFilm,
+      });
+    }
+  const parts = twoSided(quadMesh(quads));
+  if (lod === 0) {
+    // Door frames (1.2 x 2 m, galvanised) a hand off the end film, the soil banks over the film's foot.
+    for (const x of [-L / 2 - 0.03, L / 2 + 0.03]) {
+      parts.push(box(0.05, 2, 0.06, x, 1, -0.6, '#8d9296'));
+      parts.push(box(0.05, 2, 0.06, x, 1, 0.6, '#8d9296'));
+      parts.push(box(0.05, 0.06, 1.26, x, 2, 0, '#8d9296'));
+    }
+    for (const z of [-W / 2, W / 2])
+      parts.push(box(L + 0.3, 0.22, 0.5, 0, 0.06, z, '#6e5a44', rng));
+  }
+  return {
+    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+  };
+};
+
+/**
+ * Garden swimming pool (front faces +Z, long axis along X): 4 x 8 m of water in a 0.35 m stone coping, set a hand
+ * above the yard (the yard's own paving is not modelled). Variant 1 is 3.5 x 6 m.
+ */
+export const swimmingPool: AssetBuilder = ({ variant, lod }) => {
+  const [L, W] = variant === 1 ? [6, 3.5] : [8, 4];
+  const c = 0.35;
+  const parts: BufferGeometry[] = [
+    box(L + 2 * c, 0.16, c, 0, 0.08, -(W + c) / 2, '#e8e4da'),
+    box(L + 2 * c, 0.16, c, 0, 0.08, (W + c) / 2, '#e8e4da'),
+    box(c, 0.16, W, -(L + c) / 2, 0.08, 0, '#e8e4da'),
+    box(c, 0.16, W, (L + c) / 2, 0.08, 0, '#e8e4da'),
+    box(L, 0.1, W, 0, 0.05, 0, '#24809f'),
+  ];
+  if (lod === 0)
+    parts.push(box(L * 0.92, 0.02, W * 0.86, 0, 0.105, 0, '#3593b5'));
+  return {
+    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+  };
+};

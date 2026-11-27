@@ -10,11 +10,13 @@ import type {
 } from '../shared/types';
 import data from './data.json';
 import horizon from './horizon.json';
+import villageTrees from './village-trees.json';
 import { ajvatovciInfo as info } from './info';
 import { HILLTOP_FLATS } from './hilltop';
 import { STATION_FLAT } from './station';
 import { fieldLinkPads, fieldLotPad, startLotPad } from './service-park';
 import { startRowPads } from './start-row';
+import { villageBuildings } from './village';
 import { forestEdge } from '../shared/forest-edge';
 import { seedingGrass } from '../shared/seasonal-grass';
 
@@ -258,7 +260,10 @@ export const ajvatovciMap: MapDef = {
   country: 'mk',
   // Plain instanced boxes (house / flat): the baked `kind` (mesh buildings with facades) is left out so
   // the ~6 500 buildings of the Ilinden / Marino background stay cheap and the stage keeps its look.
-  buildings: buildingsFromData({ ...data.buildings, kinds: undefined }),
+  // + the village fixes (./village.ts): missing halls and houses by the stage road, pools that were baked as houses.
+  buildings: villageBuildings(
+    buildingsFromData({ ...data.buildings, kinds: undefined }),
+  ),
   // 125 pylons / poles + 6 power lines from OSM: lattice towers on the long spans, wooden poles on the short ones.
   pylons: data.pylons as [number, number][],
   powerLines: data.powerLines as number[][],
@@ -426,6 +431,30 @@ export const ajvatovciMap: MapDef = {
     points: routePoints(data.route, widthAt),
     // The Aracinovo canal bridge (OSM bridge=yes): a deck over the lowered channel, abutments + parapets.
     spans: routeSpans(data.routeSpans),
+  },
+  // Every crown of the canopy height model around the village and the hill (gardens, hedgerows, field trees) where it
+  // stands (scripts/realmap/canopy.py, cut to x -200..2200, z -900..400); the species from the cover there.
+  realTrees: {
+    trees: villageTrees.trees,
+    assets: {
+      urban: [
+        ...['walnut_tree', 'walnut_tree', 'fruit_tree', 'fruit_tree'],
+        ...['locust_tree', 'poplar_tree'],
+      ],
+      grass: ['oak_tree', 'locust_tree', 'walnut_tree'],
+      shrub: ['oak_tree', 'oak_tree', 'locust_tree'],
+      crop: ['walnut_tree', 'locust_tree', 'fruit_tree'],
+      orchard: ['fruit_tree'],
+      industrial: ['locust_tree', 'poplar_tree'],
+      cemetery: ['cypress_tree'],
+      pine: ['pine_tree'],
+    },
+    minRoadDist: 3.5,
+    minPathDist: 2,
+    scale: [0.5, 1.4],
+    tilt: 3,
+    sink: 0.15,
+    lean: { deg: [2, 5], within: 12 },
   },
   scatter: [
     // The planted pine stands on the hills (the hilltop's above the church): young full cones, needled to the foot.
@@ -798,6 +827,52 @@ export const ajvatovciMap: MapDef = {
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   // Village name boards where the road enters / leaves Ajvatovci (facing the driver coming in).
   props: [
+    // Village gardens (placed by eye from aerial photos): plastic greenhouse tunnels and swimming pools.
+    { asset: 'greenhouse_tunnel', x: 962.5, z: -85, rotY: -97, variant: 0 },
+    { asset: 'greenhouse_tunnel', x: 968.5, z: -83, rotY: -97, variant: 0 },
+    { asset: 'greenhouse_tunnel', x: 993.5, z: -78.5, rotY: -93, variant: 0 },
+    { asset: 'greenhouse_tunnel', x: 1018, z: -71, rotY: -95, variant: 1 },
+    { asset: 'greenhouse_tunnel', x: 1408.5, z: -84.5, rotY: -13, variant: 1 },
+    {
+      asset: 'greenhouse_tunnel',
+      x: 1454,
+      z: -59,
+      rotY: -122,
+      variant: 0,
+      scale: 1.1,
+    },
+    {
+      asset: 'swimming_pool',
+      x: 1093.5,
+      z: -103.4,
+      rotY: 0,
+      variant: 0,
+      scale: 1.3,
+    },
+    {
+      asset: 'swimming_pool',
+      x: 1315,
+      z: -198,
+      rotY: -2,
+      variant: 0,
+      scale: 1.1,
+    },
+    {
+      asset: 'swimming_pool',
+      x: 1267,
+      z: -219.4,
+      rotY: -90,
+      variant: 0,
+      scale: 1.3,
+    },
+    {
+      asset: 'swimming_pool',
+      x: 940.5,
+      z: -153.5,
+      rotY: 6,
+      variant: 0,
+      scale: 1.05,
+    },
     { asset: 'village_sign', along: 2335, lateral: 5.2, rotY: 180 },
     { asset: 'village_sign', along: 3690, lateral: -5.2 },
     // Barrier row across the road 11 m before its end (15 m out from the monastery gate), facing the
