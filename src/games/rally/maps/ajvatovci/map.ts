@@ -16,7 +16,8 @@ import { HILLTOP_FLATS } from './hilltop';
 import { STATION_FLAT } from './station';
 import { fieldLinkPads, fieldLotPad, startLotPad } from './service-park';
 import { startRowPads } from './start-row';
-import { villageBuildings } from './village';
+import { villageFarmPads } from './farms';
+import { ORCHARD_ANGLE, ORCHARD_POLY, villageBuildings } from './village';
 import { forestEdge } from '../shared/forest-edge';
 import { seedingGrass } from '../shared/seasonal-grass';
 
@@ -53,6 +54,7 @@ const WILD = [
   'cemetery',
   'industrial',
   'urban',
+  'garden',
 ];
 
 /**
@@ -272,7 +274,12 @@ export const ajvatovciMap: MapDef = {
   // The industrial street at the start: hand-modelled lots replace the placeholder boxes there.
   // The hilltop: the church of St. Peter and St. Paul + bell tower at the finish, the playground court.
   // Ilinden railway station west of the start: building, platforms, crossing.
-  landmarks: ['ajvatovci-start-row', 'ajvatovci-hilltop', 'ajvatovci-station'],
+  landmarks: [
+    'ajvatovci-start-row',
+    'ajvatovci-hilltop',
+    'ajvatovci-station',
+    'ajvatovci-village-farms',
+  ],
   // Far land around the map (terrain + land cover) as a backdrop: scripts/realmap/horizon.py.
   horizon: horizon as HorizonDef,
   terrain: {
@@ -289,7 +296,14 @@ export const ajvatovciMap: MapDef = {
     flatAreas: [...HILLTOP_FLATS, STATION_FLAT],
     // Level yards for the start row's lots (levelled to the sidewalk in front of each).
     // + the service park's gravel yards: beside the start and in the field NW of it (./service-park.ts).
-    pads: [...startRowPads(), startLotPad(), fieldLotPad(), ...fieldLinkPads()],
+    pads: [
+      ...startRowPads(),
+      startLotPad(),
+      fieldLotPad(),
+      ...fieldLinkPads(),
+      // The village farm buildings' terraces (./farms).
+      ...villageFarmPads(),
+    ],
     ditches: DITCHES,
   },
   landcover: {
@@ -314,6 +328,20 @@ export const ajvatovciMap: MapDef = {
         angle: Math.PI / 2,
         poly: [-430, -480, -310, -482, -321, -377, -437, -373],
       },
+      // The vineyard east of the young orchard, between its fence and the wood.
+      {
+        cover: 'vineyard',
+        angle: -0.33,
+        poly: [1686, -222, 1730, -237, 1730, -210, 1691, -196.5],
+      },
+      // The young orchard at ~3 620 m (./village.ts): its own rows of young trees in dry grass.
+      { cover: 'young_orchard', angle: ORCHARD_ANGLE, poly: ORCHARD_POLY },
+      // Ajvatovci's own gardens (the one baked built-up zone also covers Ilinden and Marino): far more trees.
+      {
+        cover: 'garden',
+        poly: [250, -420, 1760, -420, 1760, 60, 250, 60],
+        over: ['urban'],
+      },
     ],
     // [grass, dirt, rock, gravel]
     splat: {
@@ -323,6 +351,8 @@ export const ajvatovciMap: MapDef = {
       trees: [0.75, 0.25, 0, 0],
       orchard: [0.85, 0.15, 0, 0],
       urban: [0.68, 0.2, 0, 0.12],
+      garden: [0.68, 0.2, 0, 0.12],
+      young_orchard: [0.8, 0.2, 0, 0],
       industrial: [0.3, 0.2, 0, 0.5],
       bare: [0.1, 0.55, 0, 0.35],
       water: [0.75, 0.25, 0, 0],
@@ -441,6 +471,10 @@ export const ajvatovciMap: MapDef = {
         ...['walnut_tree', 'walnut_tree', 'fruit_tree', 'fruit_tree'],
         ...['locust_tree', 'poplar_tree'],
       ],
+      garden: [
+        ...['walnut_tree', 'walnut_tree', 'fruit_tree', 'fruit_tree'],
+        ...['locust_tree', 'poplar_tree'],
+      ],
       grass: ['oak_tree', 'locust_tree', 'walnut_tree'],
       shrub: ['oak_tree', 'oak_tree', 'locust_tree'],
       crop: ['walnut_tree', 'locust_tree', 'fruit_tree'],
@@ -518,11 +552,33 @@ export const ajvatovciMap: MapDef = {
       tilt: 4,
       sink: 0.1,
     },
-    // Big walnut / mulberry yard trees among the village gardens.
+    // The young orchard at ~3 620 m: small trees about 5.8 m apart in rows 6 m apart.
+    {
+      asset: 'fruit_tree',
+      cover: ['young_orchard'],
+      density: 0,
+      rows: { spacing: 5.8, rowSpacing: 6, jitter: 0.25, keep: 0.94 },
+      minRoadDist: 3,
+      scale: [0.42, 0.58],
+      tilt: 3,
+      sink: 0.05,
+    },
+    // Big walnut / mulberry yard trees among the village gardens (Ajvatovci's are well wooded: the canopy model above
+    // misses most of their crowns).
     {
       asset: 'walnut_tree',
       cover: ['urban'],
       density: 0.45,
+      minRoadDist: 5,
+      minPathDist: 3.5,
+      scale: [0.8, 1.2],
+      tilt: 2,
+      sink: 0.15,
+    },
+    {
+      asset: 'walnut_tree',
+      cover: ['garden'],
+      density: 2,
       minRoadDist: 5,
       minPathDist: 3.5,
       scale: [0.8, 1.2],
@@ -551,20 +607,39 @@ export const ajvatovciMap: MapDef = {
       minRoadDist: 0.8,
       scale: [0.8, 1.3],
     },
-    // Village gardens.
-    {
+    // Village gardens: fruit trees all over; in Ajvatovci's, more of them and clumps of locust, walnut and oak along the
+    // plot edges and in the back gardens (one noise field: they grow together).
+    ...(
+      [
+        ['urban', 2.5],
+        ['garden', 6],
+      ] as const
+    ).map(([cover, density]): ScatterRule => ({
       asset: 'fruit_tree',
-      cover: ['urban'],
-      density: 2.5,
+      cover: [cover],
+      density,
       minRoadDist: 3,
       minPathDist: 3,
       scale: [0.8, 1.25],
       tilt: 5,
       sink: 0.1,
-    },
+    })),
+    ...(['locust_tree', 'locust_tree', 'walnut_tree', 'oak_tree'] as const).map(
+      (asset): ScatterRule => ({
+        asset,
+        cover: ['garden'],
+        density: 3,
+        mask: { scale: 38, threshold: 0.1, group: 41 },
+        minRoadDist: 4,
+        minPathDist: 3,
+        scale: [0.75, 1.25],
+        tilt: 3,
+        sink: 0.15,
+      }),
+    ),
     {
       asset: 'poplar_tree',
-      cover: ['urban', 'industrial'],
+      cover: ['urban', 'garden', 'industrial'],
       density: 0.25,
       minRoadDist: 4,
       minPathDist: 3,
@@ -608,7 +683,7 @@ export const ajvatovciMap: MapDef = {
     },
     {
       asset: 'scrub_bush',
-      cover: ['crop', 'orchard', 'urban'],
+      cover: ['crop', 'orchard', 'urban', 'garden'],
       density: 0.5,
       minRoadDist: 2.5,
       minPathDist: 2,
@@ -670,7 +745,7 @@ export const ajvatovciMap: MapDef = {
     }),
     ...seasonalGrass({
       asset: 'spring_grass',
-      cover: ['orchard', 'trees', 'water', 'urban'],
+      cover: ['orchard', 'young_orchard', 'trees', 'water', 'urban', 'garden'],
       density: 160,
       detail: true,
       minRoadDist: 1,

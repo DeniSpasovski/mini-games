@@ -27,9 +27,8 @@ const MOVE: Record<number, Box> = {
 };
 
 /**
- * Buildings by the stage road the footprint data lacks: id (from 900 000, clear of the baked ids; its parity picks the
- * box style: odd = rendered block / gable house, even = hall or hip house), centre, long side, short side, angle,
- * wall height, floors, type.
+ * Buildings by the stage road the footprint data lacks: id (from 900 000, clear of the baked ids), centre, long side,
+ * short side, angle, wall height, floors, type. Each is drawn as its own model (./farms), not as a box.
  */
 const ADD: [id: number, ...box: Box][] = [
   // ~2 850 m: concrete farm complex, two flat-roofed blocks + a white hall, north of the road.
@@ -39,15 +38,15 @@ const ADD: [id: number, ...box: Box][] = [
   // ~3 240 m: the teal sheet-roofed shed behind the junction.
   [900004, 1231, -198, 26, 13, 0.08, 4.5, 1, 'flat'],
   // ~3 290 m: the green-roofed house, the long tiled barn behind it and the L-shaped barn by the road.
-  [900006, 1276.7, -180.4, 14, 13, 0, 6.2, 2, 'house'],
-  [900011, 1278, -204, 22, 7, 1.6, 3.3, 1, 'house'],
-  [900013, 1296, -188.5, 23, 7, 0, 3.3, 1, 'house'],
+  [900006, 1278.7, -179.4, 14, 13, 1.571, 6.2, 2, 'house'],
+  [900011, 1279, -205, 19.5, 6, 1.76, 3.3, 1, 'house'],
+  [900013, 1293.25, -188, 15, 7, 0, 3.3, 1, 'house'],
   [900015, 1305, -179.5, 25, 8.5, 1.55, 3.3, 1, 'house'],
   // ~3 400 m: the dark-roofed modern house south of the road.
   [900017, 1400, -158.5, 17, 13, 1.62, 6.5, 2, 'flat'],
   // ~3 480 m: the big farm halls north of the road (white sheet roofs) and the white-roofed block south of it.
-  [900018, 1524, -230, 50, 27, -0.11, 6, 1, 'flat'],
-  [900020, 1544, -210, 21, 20, -0.11, 6, 1, 'flat'],
+  [900018, 1523.5, -231.5, 50, 27, -0.09, 6, 1, 'flat'],
+  [900020, 1544, -208.25, 21, 16.5, -0.11, 6, 1, 'flat'],
   [900021, 1493, -234, 14.5, 12.5, -0.05, 4, 1, 'flat'],
   [900023, 1504.8, -159.9, 17.3, 11, 1.63, 6.5, 2, 'flat'],
   // ~3 600 m: farm building in a fenced yard south of the road.
@@ -92,6 +91,13 @@ export function villageBuildings(baked: BuildingDef[]): BuildingDef[] {
   for (const [id, ...b] of ADD) out.push(box(b, id, nearest(b[0], b[1])));
   return out;
 }
+
+/** The young orchard south-east of the road at ~3 620 m (placed by eye): its parcel and the direction of its rows. */
+export const ORCHARD_POLY = [1632, -228, 1683, -236, 1700, -150, 1686, -145];
+export const ORCHARD_ANGLE = 1.16;
+
+/** The added buildings' footprints (the village farms landmark draws them: ./farms). */
+export const VILLAGE_ADDED = ADD.map(([id, ...b]) => box(b, id, 0));
 
 /** Ids for tests. */
 export const VILLAGE_FIX = {
