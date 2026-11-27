@@ -74,6 +74,8 @@ const LAWN = ['grass', 'shrub', 'bare', 'cemetery'];
 
 export const jackie2Map: MapDef = {
   ...info,
+  // one-off buildings at the Kew Gardens end (maps/jackie-2/landmarks/kew-blocks.ts)
+  landmarks: ['jackie-2-kew-buildings'],
   network: {
     data: network as unknown as NetworkData,
     patches: patches as NetworkPatch[],
