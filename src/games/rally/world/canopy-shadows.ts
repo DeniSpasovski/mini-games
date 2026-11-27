@@ -506,6 +506,21 @@ export class CanopyShadows {
     this.dirtyMax = Math.max(this.dirtyMax, j1);
   }
 
+  /**
+   * Crown cover round a point (0..1): the leaf litter under the crowns averaged over `span` m, the area the sky
+   * occlusion reads (`SKY_VIS`: mip 3 of the texture). From the splatted grid, so it is current before the next upload.
+   */
+  coverAt(x: number, z: number, span = 8 * this.res): number {
+    const n = Math.max(1, Math.round(span / this.res));
+    const i0 = Math.floor((x - this.map.x0) / this.res - n / 2);
+    const j0 = Math.floor((z - this.map.z0) / this.res - n / 2);
+    let sum = 0;
+    for (let j = Math.max(0, j0); j < Math.min(this.nz, j0 + n); j++)
+      for (let i = Math.max(0, i0); i < Math.min(this.nx, i0 + n); i++)
+        sum += this.litter[j * this.nx + i];
+    return sum / (n * n);
+  }
+
   dispose(): void {
     this.texture.dispose();
     this.local.dispose();

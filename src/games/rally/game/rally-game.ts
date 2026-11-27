@@ -2651,6 +2651,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         Math.min(1.5, Math.max(0.3, slack)),
       );
     setCanopyLocalMap(this.canopy.localMap);
+    // light=v2: the exposure opens up under trees (a no-op for the default look).
+    this.env.adapt(this.canopy.coverAt(p.x, p.z));
     this.farForest?.update(p);
     const tl = this.terrainLight;
     if (tl && slack !== undefined && tl.strength < 1) {

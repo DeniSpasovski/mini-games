@@ -83,6 +83,8 @@ export const worldUniforms = {
    * share it cuts off a face turned sideways / down, z off a face turned up, w the share of the sky a crown's leaves get.
    */
   wsSkyVis: { value: new Vector4(0, 0, 0, 0) },
+  /** `?light=v2` (`setSkyVis`): the share of the sun a leaf gets in its own crown's shade, 1 = the default look's. */
+  wsLeafSun: { value: 1 },
   /** Baked terrain light (world/terrain-light.ts: R the shadow line, G sky in view, B its penumbra), its ground mapping and strengths. */
   wsTerrain: { value: null as Texture | null },
   wsTerrainMap: { value: new Vector4(0, 0, 0, 0) },
@@ -372,15 +374,18 @@ export function setEnvDiffuse(share: number): void {
 
 /**
  * `?light=v2`: the sky's light on everything but the ground (which has its own terms) dimmed by the stand of trees
- * round it (`SKY_VIS`); `cut` = [sideways / down, up] at a closed stand, `leaves` the share a crown's foliage gets.
+ * round it (`SKY_VIS`); `cut` = [sideways / down, up] at a closed stand, `leaves` the share a crown's foliage gets,
+ * `leafSun` the share of the sun a leaf gets in its own crown's shade (`FOLIAGE_TERM`).
  */
 export function setSkyVis(
   cut: readonly [number, number] | null,
   leaves = 1,
+  leafSun = 1,
 ): void {
   const v = worldUniforms.wsSkyVis.value;
   if (cut) v.set(1, cut[0], cut[1], leaves);
   else v.x = 0;
+  worldUniforms.wsLeafSun.value = cut ? leafSun : 1;
 }
 
 /** Height where the fog has its nominal density (the ground at the focus point; call every frame). */
@@ -864,6 +869,7 @@ uniform sampler2D wsCanopyLocal;
 uniform vec4 wsCanopyLocalMap;
 uniform float wsCanopyAO;
 uniform vec4 wsSkyVis;
+uniform float wsLeafSun;
 uniform vec4 wsShadowBox;
 uniform vec4 wsForest;
 uniform sampler2D wsTerrain;
@@ -1139,6 +1145,10 @@ const SUN_TERMS = /* glsl */ `
 		#if defined( TREE_SPRITE ) && ! defined( TREE_SHADOW_PASS )
 			// Its own crown's shade (trees/materials.ts SPRITE_SHADOW_LOOKUP): the maps only add the other casters'.
 			wsSelfT = vTreeSelfT;
+			#ifdef USE_LIGHT_PROBES
+				// ?light=v2: the light that gets into the crown's shade takes only \`wsLeafSun\` of the sun (FOLIAGE_TERM).
+				wsSelfT *= mix( wsLeafSun, 1.0, wsSelfT );
+			#endif
 			directLight.color *= wsSelfT;
 		#endif
 		float wsSunVis = 1.0;
@@ -1220,7 +1230,11 @@ const FOLIAGE_TERM = /* glsl */ `
 				reflectedLight.directDiffuse += directLight.color * mix( vec3( 1.0 ), material.diffuseColor / max( material.diffuseColor.g, 1e-3 ), 0.7 ) * ( 0.06 * wsGlint * saturate( dot( geometryNormal, directLight.direction ) ) );
 				// In the crown's shadow a leaf still gets the sun through and off the leaves round it (a leaf passes ~10 %
 				// and reflects as much, green-yellow): more light again than the sky gives it, so a crown's underside is
-				// not black.
+				// not black. ?light=v2 (\`wsLeafSun\`): its sun is the default look's plus the fill the default look's env map
+				// spread from the sun disc, so the light in the shade, tuned to the default look's sun, takes a share of it.
+				#ifdef USE_LIGHT_PROBES
+					wsSunC *= wsLeafSun;
+				#endif
 				reflectedLight.directDiffuse += wsSunC * ( ( 1.0 - wsSunVis * wsSelfT ) * 0.08 ) * material.diffuseColor * vec3( 1.0, 1.0, 0.3 );
 			#else
 				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );

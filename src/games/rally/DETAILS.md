@@ -222,10 +222,13 @@ Per-map settings live in `MapDef.environment`; everything has a default.
     no IBL); the env map gives reflections only. Occluded like the default look's fill: the ground keeps its terrain / forest-floor
     terms, everything else takes the terrain's sky in view and loses the share the stand of trees round it shuts out
     (`SKY_VIS`, `setSkyVis`: canopy cover from a coarse mip, more off flanks and trunks than off crown tops); leaves
-    (tree sprites, impostors, far forest) see only part of it past their own crown (`V2.leaves`).
+    (tree sprites, impostors, far forest) see only part of it past their own crown (`V2.leaves`). In its own crown's
+    shade a leaf takes only a share of the sun (`V2.leafSun`): that light was tuned to the default look's weaker sun.
   - Haze: lit by the sky's horizon round the view (`setSkyHaze`), so far land fades into the sky behind it.
   - Exposure: one for the whole day like the default look's, scaled by the map's noon light on sunlit ground
-    (`noonGroundLight`, `V2.lit`) so a sunlit surface lands where it does in the default look. A camera white balance on
+    (`noonGroundLight`, `V2.lit`) so a sunlit surface lands where it does in the default look. Under trees it opens up
+    like an eye, eased (`Environment.adapt`, `canopyLift`, `V2.adaptStops`): driven by the crown cover round the camera
+    (`CanopyShadows.coverAt`), never by the frame, so it cannot chase itself. A camera white balance on
     the scene light (`V2.white`), the map's own tone curve (ACES) and grade.
 - **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
   (`SUN_TERMS`, `SUN_SHADOW`):

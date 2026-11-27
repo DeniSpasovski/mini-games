@@ -35,6 +35,7 @@ import {
 } from 'three';
 import { urlParam } from './url-param';
 import {
+  canopyLift,
   daylight,
   luminance,
   mieFromTurbidity,
@@ -258,6 +259,18 @@ const V2 = {
    * default look's foliage takes about this much less sky than the ground (it never sampled the env map).
    */
   leaves: 0.4,
+  /**
+   * The share of the sun a leaf gets in its own crown's shade (`setSkyVis`): that light was tuned to the default look's
+   * sun, and this one also carries the fill the default look's env map spread from the sun disc.
+   */
+  leafSun: 0.7,
+  /**
+   * Under trees the exposure opens up by as much as this many stops (`adapt`), as an eye or an auto-exposing camera
+   * does: the light there is right, but a fixed exposure shows it darker than a driver sees it. Driven by the crown
+   * cover round the camera (not the frame, so no feedback), eased over `adaptTime` s; open ground keeps its exposure.
+   */
+  adaptStops: 1,
+  adaptTime: 1.5,
   /**
    * Camera white balance on the scene's light (sun, sky light; not the dome or the haze), r g b at unit luminance: a
    * little cooler than the atmosphere's neutral noon, so a sunlit grey road has the default look's colour (without it
@@ -753,7 +766,7 @@ export class Environment {
     this.envDiffuse = envDiffuse;
     // light=v2: the sky's diffuse light comes from the probe (`rebuildEnvMap`), the env map gives reflections only.
     setEnvDiffuse(this.daylight ? 0 : envDiffuse);
-    setSkyVis(this.daylight ? V2.standCut : null, V2.leaves);
+    setSkyVis(this.daylight ? V2.standCut : null, V2.leaves, V2.leafSun);
     // In the scene only under light=v2: a light probe turns on USE_LIGHT_PROBES in every program.
     if (this.daylight) this.scene.add(this.probe);
     else {
@@ -796,6 +809,9 @@ export class Environment {
       fogFalloff: def.fogFalloff ?? 0.004,
       macro: getTexture('macro'),
     });
+    // A new light: the lift under trees jumps to its value on the next `adapt` (none = 1 until then).
+    this.v2Lift = 1;
+    this.liftAt = -1;
     this.refreshExposure();
     this.rebuildEnvMap();
     this.sunBase = this.sun.intensity;
@@ -846,8 +862,27 @@ export class Environment {
       (this.night
         ? NIGHT.exposure
         : this.daylight
-          ? this.v2Exposure
+          ? this.v2Exposure * this.v2Lift
           : this.def.exposure) * displayExposure();
+  }
+
+  /** `light=v2`: the exposure lift under trees (`adapt`) and when it was last eased (-1 = snap on the next call). */
+  private v2Lift = 1;
+  private liftAt = -1;
+
+  /**
+   * `light=v2` by day, every frame: ease the exposure toward the lift for the crown cover round the camera (0..1,
+   * `CanopyShadows.coverAt`). Snaps after a relight or a pause; a no-op for the default look.
+   */
+  adapt(cover: number, now = performance.now()): void {
+    const goal = this.daylight ? canopyLift(cover, V2.adaptStops) : 1;
+    const dt = (now - this.liftAt) / 1000;
+    const k = this.liftAt < 0 || dt > 2 ? 1 : 1 - Math.exp(-dt / V2.adaptTime);
+    this.liftAt = now;
+    const lift = this.v2Lift + (goal - this.v2Lift) * k;
+    if (Math.abs(lift - this.v2Lift) < 1e-4) return;
+    this.v2Lift = lift;
+    this.refreshExposure();
   }
 
   /**

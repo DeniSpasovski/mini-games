@@ -496,3 +496,12 @@ export function noonGroundLight(opts: AtmosphereOptions): number {
     luminance(day.sky)
   );
 }
+
+/**
+ * `light=v2`'s exposure lift (x) under trees for the crown cover round the camera (0..1): none in the open or at a
+ * stand's edge (a sunlit road beside the trees keeps its exposure), `stops` inside a closed stand.
+ */
+export function canopyLift(cover: number, stops: number): number {
+  const t = Math.min(1, Math.max(0, (cover - 0.3) / 0.5));
+  return 2 ** (stops * t * t * (3 - 2 * t));
+}

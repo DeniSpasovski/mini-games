@@ -1,5 +1,6 @@
 import { describe, expect, test } from '@rstest/core';
 import {
+  canopyLift,
   daylight,
   luminance,
   mieFromTurbidity,
@@ -75,5 +76,20 @@ describe('light=v2 exposure reference', () => {
     expect(
       luminance(daylight(58, hazy).sky) / noonGroundLight(hazy),
     ).toBeGreaterThan(luminance(day.sky) / e);
+  });
+});
+
+describe('light=v2 exposure under trees', () => {
+  test('no lift in the open or at the edge of a stand, the full lift in a closed stand, rising in between', () => {
+    expect(canopyLift(0, 1)).toBe(1);
+    expect(canopyLift(0.3, 1)).toBe(1);
+    expect(canopyLift(1, 1)).toBe(2);
+    expect(canopyLift(0.8, 1)).toBe(2);
+    let prev = 1;
+    for (let c = 0.35; c < 0.8; c += 0.05) {
+      const l = canopyLift(c, 1);
+      expect(l).toBeGreaterThan(prev);
+      prev = l;
+    }
   });
 });
