@@ -387,6 +387,8 @@ const CARRIED_HUMP = 1.2;
 const SOFT_RISE = 0.85;
 // a cut wall left uncarried this long (m) between two carried stretches is carried across
 const CARRIED_GAP = 16;
+// a structure range reaches this far (m) past its ends: a sample on its end vertex is in it
+const RANGE_EPS = 1e-6;
 // a carried wall's top sunk this far (m) under both neighbours is a notch, filled
 const CARRIED_NOTCH = 0.2;
 // a node this near (m) the stage road's last sample, its arms within this turn (rad) of the stage's end: the road runs on
@@ -2708,8 +2710,10 @@ export class Network {
   }
 
   private markRange(w: Way, from: number, to: number, kind: number): void {
-    const a = Math.max(0, from);
-    const b = Math.min(w.al.length, to);
+    // (a range ending on a vertex holds the sample there: the vertex and sample stations are summed differently, a last
+    // bit apart, and which way that bit falls differs between engines)
+    const a = Math.max(0, from) - RANGE_EPS;
+    const b = Math.min(w.al.length, to) + RANGE_EPS;
     for (let i = 0; i < w.al.n; i++) {
       const s = w.al.s[i];
       if (s >= a && s <= b) w.st[i] = kind;
