@@ -91,9 +91,11 @@ export function bakeGroundMoisture(
     data[k] = Math.round((0.5 + 0.5 * Math.max(-1, Math.min(1, m))) * 255);
   }
 
-  // Lawns (MapDef.terrain.lawns): wet, so the painted grass is lush green. Texels reach a little beyond the polygon (they are
+  // Lawns (MapDef.terrain.lawns): wet (by their `wet`), so the painted grass is lush green. Texels reach a little beyond the polygon (they are
   // 12 m wide and filtered: a narrow garden would otherwise fall between texel centres); slopes dry it again in the shader.
-  for (const poly of map.terrain.lawns ?? []) {
+  for (const lawn of map.terrain.lawns ?? []) {
+    const poly = Array.isArray(lawn) ? lawn : lawn.pts;
+    const wet = Array.isArray(lawn) ? 1 : lawn.wet;
     const pts = Float64Array.from(poly);
     let minX = Infinity;
     let maxX = -Infinity;
@@ -114,7 +116,9 @@ export function bakeGroundMoisture(
       const z = z0 + (j + 0.5) * res;
       for (let i = i0; i <= i1; i++) {
         const x = x0 + (i + 0.5) * res;
-        if (polygonDistance(pts, x, z) < res * 0.75) data[j * nx + i] = 255;
+        const k = j * nx + i;
+        if (polygonDistance(pts, x, z) < res * 0.75)
+          data[k] = Math.round(data[k] + (255 - data[k]) * wet);
       }
     }
   }

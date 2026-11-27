@@ -1,6 +1,9 @@
+import { Noise2D } from '../../../../../shared/noise';
+import { hash3 } from '../../../../../shared/rng';
 import type { StaticCollider } from '../../../physics/types';
 import {
   lotShape,
+  segDist,
   SLAB,
   SREDNO,
   vergePolygon,
@@ -875,11 +878,17 @@ export function vidikovecVerge(): number[] {
 }
 
 /**
- * The lawns of the Sredno park strip, the Vidikovec's verge and the garden's levels, flat world polygons:
- * `MapDef.terrain.lawns` paints the levelled terrain itself as lush grass there (no green decal laid over a terrain that pokes
- * through it).
+ * Grass moisture of the Vidikovec's island and garden levels (`MapDef.terrain.lawns` `wet`): greener than the dry real
+ * ground, but rough, part dry with bare patches (not a mown lawn).
  */
-export function lawnPolygons(): number[][] {
+const GARDEN_WET = 0.5;
+
+/**
+ * The lawns of the Sredno park strip, the Vidikovec's verge and the garden's levels, flat world polygons:
+ * `MapDef.terrain.lawns` paints the levelled terrain itself as grass there (no green decal laid over a terrain that pokes
+ * through it); the Vidikovec's rough grass is drier than the Sredno strip (`GARDEN_WET`, dry tufts: `gardenGrass`).
+ */
+export function lawnPolygons(): (number[] | { pts: number[]; wet: number })[] {
   layout(SREDNO);
   const [inner, outer] = strips.get(SREDNO)!;
   const strip = [...inner, ...outer.slice().reverse()].flatMap(([x, z]) =>
@@ -887,12 +896,14 @@ export function lawnPolygons(): number[][] {
   );
   return [
     strip,
-    vidikovecVerge(),
-    gardenPadPolygon(0),
-    gardenPadPolygon(1),
-    gardenPadPolygon(2),
-    // (the lot's east end: grass, the stone steps' flight down the middle of it)
-    worldFlat(TAIL.poly),
+    ...[
+      vidikovecVerge(),
+      gardenPadPolygon(0),
+      gardenPadPolygon(1),
+      gardenPadPolygon(2),
+      // (the lot's east end: grass, the stone steps' flight down the middle of it)
+      worldFlat(TAIL.poly),
+    ].map((pts) => ({ pts, wet: GARDEN_WET })),
   ];
 }
 
@@ -1125,6 +1136,48 @@ function gardenPieces(out: Piece[], trees: ParkPlant[]): void {
     const n = edgeNormal(GREEN_ARC[i - 1], GREEN_ARC[i + 1], [-40, -18]);
     plant('oak_tree', push(GREEN_ARC[i], n, -4.2), 0.6);
   }
+  gardenGrass(plant, out);
+}
+
+/** Drifts of dry grass through the garden's and the island's green (patches a few metres across), clear of its paths, gazebo and benches. */
+const grassNoise = new Noise2D(4127);
+function gardenGrass(
+  plant: (asset: string, p: V2, scale: number) => void,
+  pieces: Piece[],
+): void {
+  const STEP = 1.3;
+  const v = vidikovecVerge();
+  const verge: V2[] = [];
+  for (let i = 0; i < v.length; i += 2)
+    verge.push(toLocal(VIDIKOVEC.site, v[i], v[i + 1]));
+  // (the garden and the island's bounds, local frame)
+  for (let x = -80; x <= 64; x += STEP)
+    for (let z = -44; z <= 26; z += STEP) {
+      const u = (k: number) =>
+        (hash3(Math.round(x * 10), Math.round(z * 10), k, 977) % 1000) / 1000;
+      const p: V2 = [x + (u(1) - 0.5) * STEP, z + (u(2) - 0.5) * STEP];
+      // (the island's tufts a metre and a half in from its edges: off the road's verge and the kerb)
+      const onIsland =
+        inPoly(verge, p[0], p[1]) &&
+        verge.every(
+          (a, i) => segDist(p, a, verge[(i + 1) % verge.length]) > 1.5,
+        );
+      if (!inGarden(p[0], p[1]) && !onIsland) continue;
+      const n =
+        grassNoise.noise2(p[0] / 6, p[1] / 6) +
+        0.25 * grassNoise.noise2(p[0] / 1.7, p[1] / 1.7);
+      if (n < 0.05 + u(3) * 0.25) continue;
+      // (not on the gazebo's floor or at a bench, a lamp or the tower)
+      if (
+        pieces.some(
+          (q) =>
+            Math.hypot(q.x - p[0], q.z - p[1]) <
+            (q.kind === 'pavilion' ? 3.2 : 1.2),
+        )
+      )
+        continue;
+      plant(u(4) < 0.8 ? 'dry_grass' : 'grass_tuft', p, 0.7 + 0.5 * u(5));
+    }
 }
 
 export interface GardenWall {

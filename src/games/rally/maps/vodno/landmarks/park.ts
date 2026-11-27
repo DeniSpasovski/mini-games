@@ -5,6 +5,7 @@ import {
   Quaternion,
   Vector3,
 } from 'three';
+import { hash3 } from '../../../../../shared/rng';
 import type { MatKey } from '../../ajvatovci/start-row/build/materials';
 import { placeAt, type Local, type V2, type V3 } from './common';
 
@@ -694,7 +695,64 @@ export function binocular(
     l.box('metal', [x0, 0.08, z0], [x1, 0.13, z1], '#7d8286', m);
 }
 
-/** A yellow steel lattice tower (the Vidikovec lookout): tapered, four legs, X bracing, a top platform and a solar panel. */
+/** Hex colour `a` mixed towards `b` by `t` (0..1). */
+function mixHex(a: string, b: string, t: number): string {
+  const ch = (h: string, i: number): number =>
+    parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+  let out = '#';
+  for (let i = 0; i < 3; i++)
+    out += Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t)
+      .toString(16)
+      .padStart(2, '0');
+  return out;
+}
+
+const TOWER_PAINT = '#cfa526';
+const TOWER_FADED = '#b8a066';
+const TOWER_RUST = '#8a573b';
+const TOWER_RUST_DARK = '#5c3622';
+
+/**
+ * A weathered yellow steel member from `a` to `b`: cut into pieces about 0.7 m long, each faded paint, a rust stain or
+ * bare rust (more near the ground and where members meet), so the old paint reads patchy from the lot.
+ */
+function rustyStrut(
+  l: Local,
+  a: V3,
+  b: V3,
+  t: number,
+  seed: number,
+  ground: number,
+): void {
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  const n = Math.max(1, Math.round(len / 0.7));
+  const at = (u: number): V3 => [
+    a[0] + (b[0] - a[0]) * u,
+    a[1] + (b[1] - a[1]) * u,
+    a[2] + (b[2] - a[2]) * u,
+  ];
+  for (let k = 0; k < n; k++) {
+    const r = (hash3(seed, k, 31, 7211) % 1000) / 1000;
+    const r2 = (hash3(seed, k, 37, 7213) % 1000) / 1000;
+    const mid = at((k + 0.5) / n);
+    const low = Math.max(0, 1 - (mid[1] - ground) / 3);
+    const joint = k === 0 || k === n - 1 ? 0.18 : 0;
+    const rust = r + low * 0.35 + joint;
+    let color = mixHex(TOWER_PAINT, TOWER_FADED, r2 * 0.6);
+    if (rust > 1.05) color = mixHex(TOWER_RUST, TOWER_RUST_DARK, r2);
+    else if (rust > 0.8) color = mixHex(color, TOWER_RUST, 0.45 + r2 * 0.3);
+    strut(
+      l,
+      at(k / n),
+      at((k + 1) / n),
+      t,
+      rust > 0.8 ? 'paint' : 'metal',
+      color,
+    );
+  }
+}
+
+/** A yellow steel lattice tower (the Vidikovec lookout), its paint old and rusting: tapered, four legs, X bracing, a top platform and a solar panel. */
 export function latticeTower(
   l: Local,
   x: number,
@@ -704,7 +762,9 @@ export function latticeTower(
   height = 9,
 ): void {
   const at = turn(x, z, yaw);
-  const yellow = '#d6ab1c';
+  let member = 0;
+  const steel = (a: V3, b: V3, t: number): void =>
+    rustyStrut(l, a, b, t, member++, y);
   const half = (v: number): number => 1.15 - 0.45 * (v / height);
   const level = (v: number): V3[] =>
     [
@@ -718,18 +778,20 @@ export function latticeTower(
     });
   const base = level(-0.3);
   const top = level(height);
-  for (let i = 0; i < 4; i++) strut(l, base[i], top[i], 0.12, 'metal', yellow);
   const bays = 4;
   for (let b = 0; b < bays; b++) {
     const v0 = (height * b) / bays;
     const v1 = (height * (b + 1)) / bays;
     const lo = level(v0);
     const hi = level(v1);
+    // (the legs bay by bay: one straight line, base to top, as before)
+    const legLo = b === 0 ? base : lo;
     for (let i = 0; i < 4; i++) {
       const j = (i + 1) % 4;
-      strut(l, lo[i], hi[j], 0.05, 'metal', yellow);
-      strut(l, lo[j], hi[i], 0.05, 'metal', yellow);
-      strut(l, hi[i], hi[j], 0.06, 'metal', yellow);
+      steel(legLo[i], hi[i], 0.12);
+      steel(lo[i], hi[j], 0.05);
+      steel(lo[j], hi[i], 0.05);
+      steel(hi[i], hi[j], 0.06);
     }
   }
   // The top platform, a rail, a solar panel on a mast.
@@ -743,14 +805,7 @@ export function latticeTower(
   for (let i = 0; i < 4; i++) {
     const a = top[i];
     const b = top[(i + 1) % 4];
-    strut(
-      l,
-      [a[0], a[1] + 1, a[2]],
-      [b[0], b[1] + 1, b[2]],
-      0.05,
-      'metal',
-      yellow,
-    );
+    steel([a[0], a[1] + 1, a[2]], [b[0], b[1] + 1, b[2]], 0.05);
   }
   const mast = at(0, 0);
   strut(

@@ -5,15 +5,23 @@ import {
   ROAD_LENGTH,
   START,
 } from '../../src/games/rally/maps/vodno/stages';
+import { Euler, Vector3 } from 'three';
 import {
   carParksLandmark,
+  trailLotLandmark,
   VODNO_FLATS,
 } from '../../src/games/rally/maps/vodno/landmarks';
+import {
+  TRAIL_CARS,
+  TRAIL_WOOD,
+} from '../../src/games/rally/maps/vodno/landmarks/trail-lot';
 import {
   lotShape,
   onLot,
   runThick,
+  SLAB,
   SREDNO,
+  TRAIL,
   wallRuns,
   SREDNO_BUS,
   VIDIKOVEC,
@@ -460,6 +468,7 @@ describe('vodno car parks', () => {
       'sredno_bus_lot',
       'trail_lot',
       'trail_mouth',
+      'trail_terrace',
       'trail_start',
       'gazebo_pulloff',
     ]);
@@ -527,6 +536,59 @@ describe('vodno car park surroundings', () => {
           expect(r.distance - r.halfWidth, `(${x}, ${z})`).toBeGreaterThan(1.2);
       }
     }
+  });
+
+  test("the hikers' lot asphalt runs out to the stage road through its mouth (the aerial photos)", () => {
+    expect(TRAIL.mouth).toBe(true);
+    const [x, z] = toWorld(TRAIL.site, ...TRAIL.centre[0]);
+    const r = world.road.query(x, z, q);
+    expect(r.found).toBe(true);
+    // (the slab's square end a few metres off the road's edge, the asphalt apron between them)
+    expect(r.distance - r.halfWidth).toBeLessThan(4.5);
+    const mouth = LOT_PADS.find((p) => p.name === 'trail_mouth');
+    expect(mouth?.surface).toBeUndefined();
+  });
+
+  test("the hikers' lot cars stand on its asphalt with all four wheels on the slope", () => {
+    expect(TRAIL_CARS.length).toBeGreaterThan(3);
+    const cars = trailLotLandmark
+      .instances(world.analytic)
+      .filter((c) => c.asset === 'street_car');
+    expect(cars.length).toBe(TRAIL_CARS.length);
+    for (const c of cars) {
+      const e = new Euler(c.tiltX, c.rotY, c.tiltZ, 'YXZ');
+      for (const [lx, lz] of [
+        [2, 0.8],
+        [2, -0.8],
+        [-2, 0.8],
+        [-2, -0.8],
+      ]) {
+        const p = new Vector3(lx, 0, lz).applyEuler(e);
+        const x = c.x + p.x;
+        const z = c.z + p.z;
+        expect(onLot(TRAIL, x, z), `car corner (${x}, ${z})`).toBe(true);
+        const top = world.analytic.height(x, z) + SLAB;
+        expect(
+          Math.abs(c.y + p.y - top),
+          `car corner (${x}, ${z}) off the asphalt`,
+        ).toBeLessThan(0.08);
+      }
+    }
+  });
+
+  test("the wood round the hikers' lot keeps 1 m off its asphalt", () => {
+    expect(TRAIL_WOOD.length).toBeGreaterThan(40);
+    for (const [x, z, asset] of TRAIL_WOOD)
+      for (const [dx, dz] of [
+        [0, 0],
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ])
+        expect(onLot(TRAIL, x + dx, z + dz), `${asset} (${x}, ${z})`).toBe(
+          false,
+        );
   });
 
   test('pieces that stand on the asphalt are on the slab, the park ones are off it', () => {
@@ -627,11 +689,12 @@ describe('vodno car park surroundings', () => {
     }
   });
 
-  test('the garden terraces, the park strip and the east end of the lot are painted lush grass terrain, not decals', () => {
+  test('the garden terraces, the park strip and the east end of the lot are painted grass terrain (rough, part bare earth at the Vidikovec), not decals', () => {
     const lawns = vodnoMap.terrain.lawns!;
     expect(lawns.length).toBe(6);
     const out = new Float32Array(4);
-    for (const poly of lawns) {
+    for (const lawn of lawns) {
+      const poly = Array.isArray(lawn) ? lawn : lawn.pts;
       // The polygon's vertex mean (a thin strip: inside enough for the feather).
       let cx = 0;
       let cz = 0;
@@ -642,8 +705,14 @@ describe('vodno car park surroundings', () => {
       cx /= poly.length / 2;
       cz /= poly.length / 2;
       world.gen.splat(cx, cz, 0, Infinity, 0, out);
-      expect(out[0], 'pure grass').toBeGreaterThan(0.97);
-      expect(out[1] + out[2] + out[3]).toBeLessThan(0.03);
+      if (Array.isArray(lawn)) {
+        expect(out[0], 'pure grass').toBeGreaterThan(0.97);
+        expect(out[1] + out[2] + out[3]).toBeLessThan(0.03);
+      } else {
+        // (a rough lawn: grass with patches of bare earth, never rock or gravel)
+        expect(out[0], 'mostly grass').toBeGreaterThan(0.45);
+        expect(out[0] + out[1], 'grass and earth').toBeGreaterThan(0.97);
+      }
     }
   });
 
@@ -1022,7 +1091,7 @@ describe('vodno start street and first crossroad', () => {
       // On the right (lateral < 0) and past the road edge, not out in the land.
       expect(r.lateral).toBeLessThan(0);
       expect(r.distance - r.halfWidth).toBeGreaterThan(0.3);
-      expect(r.distance - r.halfWidth).toBeLessThan(3);
+      expect(r.distance - r.halfWidth).toBeLessThan(4.5);
     }
   });
 

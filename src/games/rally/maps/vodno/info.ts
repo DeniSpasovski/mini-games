@@ -49,7 +49,7 @@ export const vodnoInfo: MapInfo = {
     {
       label: 'Copernicus Sentinel-2 L2A',
       url: 'https://registry.opendata.aws/sentinel-2-l2a-cogs/',
-      note: 'which woods are pine and which are oak and hornbeam, from a winter and a summer scene - contains modified Copernicus Sentinel data (2025)',
+      note: 'which woods are pine and which are oak and hornbeam, from a winter and a summer scene, and where they are closed - contains modified Copernicus Sentinel data (2025)',
     },
     {
       label: 'High Resolution Canopy Height Maps (Meta / WRI)',

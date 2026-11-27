@@ -730,9 +730,10 @@ export interface TerrainDef {
   /**
    * Lawns: closed polygons (flat [x0, z0, x1, z1, ...], world metres) where the terrain itself is painted lush green grass
    * (pure grass in the splat, wet in the grass moisture tint), with a metre of feather outside. For levelled gardens and
-   * park strips: paint the ground instead of laying a green decal over a terrain that pokes through it.
+   * park strips: paint the ground instead of laying a green decal over a terrain that pokes through it. `{ pts, wet }`
+   * sets its grass moisture (0 = as dry as the land round it, 1 = lush; default 1): a rough, part-dry lawn.
    */
-  lawns?: number[][];
+  lawns?: (number[] | { pts: number[]; wet: number })[];
   /**
    * A cut in the DRAWN terrain only (m, + = down; world x, z, `height` = the levelled terrain): where a wall holds a step the
    * 1 m terrain mesh cannot (a lot under a raised verge). Physics keeps the levelled heights.

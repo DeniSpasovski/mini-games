@@ -515,13 +515,14 @@ const CABLE_CAR = [
 /**
  * Woods in bands from the road edge: a closed canopy at the verge, thinner across the slope where the crowns are still
  * drawn as sprites (the costly part of a tree; the road side within ~100 m is most of it), the full forest behind (trees
- * past 250 m are only impostors). [from, to, share of the density] (m).
+ * past 250 m are only impostors). The aerial photos show the north face's woods closed (85-95 % under crowns): the
+ * densities below close them. [from, to, share of the density] (m).
  */
 const WOOD_BANDS: [number, number | undefined, number][] = [
-  [0, 40, 1.4],
-  [40, 100, 1],
-  [100, 245, 0.8],
-  [245, undefined, 1],
+  [0, 40, 2],
+  [40, 100, 1.6],
+  [100, 245, 1.3],
+  [245, undefined, 1.6],
 ];
 
 /** Every wood cover (the bake's leaf type split, scripts/realmap/leaf_type.py): pine stands, mixed, oak coppice. */
@@ -995,7 +996,7 @@ export const vodnoMap: MapDef = {
       minRoadDist: 3.5,
       maxSlope: 0.75,
       mask: { ...PINE_BLOCKS, invert: true },
-      scale: [0.6, 1.1],
+      scale: [0.7, 1.25],
       tilt: 4,
       lean: { deg: [2, 5], within: 12 },
       sink: 0.25,
@@ -1006,18 +1007,19 @@ export const vodnoMap: MapDef = {
       minRoadDist: 3,
       maxSlope: 0.8,
       mask: { ...PINE_BLOCKS, invert: true },
-      scale: [0.7, 1.15],
+      scale: [0.8, 1.3],
       tilt: 5,
       lean: { deg: [2, 5], within: 12 },
       sink: 0.2,
     }),
-    // Oak coppice (downy / Turkey oak) with oriental hornbeam, crowns 6-12 m; planted black pines in small tight groups.
+    // Oak coppice (downy / Turkey oak) with oriental hornbeam, crowns 6-12 m that touch (the aerial photos: a closed
+    // canopy); planted black pines in small tight groups.
     ...banded(['oakwood'], {
       asset: 'hornbeam_tree',
       density: 4,
       minRoadDist: 3,
       maxSlope: 0.8,
-      scale: [0.7, 1.15],
+      scale: [0.8, 1.3],
       tilt: 5,
       lean: { deg: [2, 5], within: 12 },
       sink: 0.2,
@@ -1027,7 +1029,7 @@ export const vodnoMap: MapDef = {
       density: 7.5,
       minRoadDist: 3.5,
       maxSlope: 0.75,
-      scale: [0.6, 1.1],
+      scale: [0.7, 1.25],
       tilt: 4,
       lean: { deg: [2, 5], within: 12 },
       sink: 0.25,
