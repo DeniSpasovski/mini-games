@@ -25,6 +25,8 @@ interface Pad {
   flat?: number;
   /** `PadDef.hold`: applied again over the stage road's embankment. */
   hold?: boolean;
+  /** `PadDef.firm`: its level holds inside its outline over the other pads. */
+  firm?: boolean;
   /** A ramp (`PadDef.ramp`): its start, the unit direction and length, the lifts at the two ends. */
   ramp?: {
     x0: number;
@@ -45,6 +47,8 @@ interface Pad {
  */
 export class PadField {
   private pads: Pad[] = [];
+  /** The `firm` ones. */
+  private firm: Pad[] = [];
 
   /** `land` = the terrain before any pad (for the terraces, `PadDef.level` with `at`). */
   constructor(
@@ -64,7 +68,12 @@ export class PadField {
       if (d.level) {
         // A terrace (a house on a hillside): one level over the whole pad, the land's height at `at` plus `lift`.
         const [x, z] = d.level.at;
-        const flat = land(x, z) + (d.level.lift ?? 0.1);
+        const at = d.level.road
+          ? road.query(x, z, q).found
+            ? q.height
+            : land(x, z)
+          : land(x, z);
+        const flat = at + (d.level.lift ?? 0.1);
         this.add(d, x, z, 1, 0, [0, 1], [flat, flat], 0, flat);
         continue;
       }
@@ -139,8 +148,9 @@ export class PadField {
         linear: d.ramp.linear,
       };
     }
-    this.pads.push({
+    const pad: Pad = {
       hold: d.hold,
+      firm: d.firm,
       ramp,
       pts,
       minX: minX - d.blend,
@@ -157,7 +167,9 @@ export class PadField {
       hs,
       slope,
       flat,
-    });
+    };
+    this.pads.push(pad);
+    if (pad.firm) this.firm.push(pad);
   }
 
   /**
@@ -228,8 +240,57 @@ export class PadField {
     return h;
   }
 
+  /** Any `firm` pads? */
+  get hasFirm(): boolean {
+    return this.firm.length > 0;
+  }
+
+  /**
+   * `h` (the ground after the lanes / the stage road are carved) with the firm pads held again: their level inside
+   * the outline, easing back to `h` over `reach` m outside it (a lane's bank never runs up a building's wall).
+   * `keep(x, z)` (asked only near a firm pad): leave `h` as it is here (on a lane).
+   */
+  applyFirm(
+    x: number,
+    z: number,
+    h: number,
+    keep?: (x: number, z: number) => boolean,
+    reach = 2.5,
+  ): number {
+    let best: Pad | undefined;
+    let deepest = 0;
+    let nearest = reach;
+    for (const p of this.firm) {
+      if (
+        x < p.minX - reach ||
+        x > p.maxX + reach ||
+        z < p.minZ - reach ||
+        z > p.maxZ + reach
+      )
+        continue;
+      const d = distance(p.pts, x, z);
+      if (d === 0) {
+        const k = depth(p.pts, x, z);
+        if (k >= deepest) [best, deepest, nearest] = [p, k, 0];
+      } else if (d < nearest) [best, nearest] = [p, d];
+    }
+    if (!best || keep?.(x, z)) return h;
+    const target = this.level(best, x, z);
+    return h + (target - h) * (1 - smoothstep(0, reach, nearest));
+  }
+
   /** `h` (the land height) with every pad applied. */
   apply(x: number, z: number, h: number): number {
+    // Inside a firm pad: its own level (inside two, the one it is deeper in: each building's own yard up to the
+    // line between them).
+    let firm: Pad | undefined;
+    let deepest = 0;
+    for (const p of this.firm) {
+      if (x < p.minX || x > p.maxX || z < p.minZ || z > p.maxZ) continue;
+      const d = depth(p.pts, x, z);
+      if (d > deepest) [firm, deepest] = [p, d];
+    }
+    if (firm) return this.level(firm, x, z);
     for (const p of this.pads) {
       if (x < p.minX || x > p.maxX || z < p.minZ || z > p.maxZ) continue;
       const d = distance(p.pts, x, z);
@@ -240,6 +301,29 @@ export class PadField {
     }
     return h;
   }
+}
+
+/** How far (x, z) lies inside the polygon (distance to its edge), 0 outside. */
+function depth(pts: Float64Array, x: number, z: number): number {
+  return distance(pts, x, z) > 0 ? 0 : edgeDistance(pts, x, z);
+}
+
+/** Distance from (x, z) to the polygon's edge. */
+function edgeDistance(pts: Float64Array, x: number, z: number): number {
+  let best = Infinity;
+  const n = pts.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const ax = pts[i * 2];
+    const az = pts[i * 2 + 1];
+    const ex = pts[j * 2] - ax;
+    const ez = pts[j * 2 + 1] - az;
+    const len2 = ex * ex + ez * ez;
+    const t = len2
+      ? Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / len2))
+      : 0;
+    best = Math.min(best, Math.hypot(x - (ax + ex * t), z - (az + ez * t)));
+  }
+  return best;
 }
 
 /** Distance from (x, z) to the polygon (0 inside). */

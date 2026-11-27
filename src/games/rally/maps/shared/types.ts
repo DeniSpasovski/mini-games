@@ -282,9 +282,9 @@ export interface PadDef {
   /**
    * The pad's own level instead of following the road along `frontage`: a number = a fixed level (m, before `lift`) for a lot
    * with no stage road beside it; `{ at, lift }` = a terrace (a house on a hillside), the land's height at `at` plus `lift`
-   * (default 0.1).
+   * (default 0.1); with `road`, the stage road's height nearest `at` instead of the land's.
    */
-  level?: number | { at: [number, number]; lift?: number };
+  level?: number | { at: [number, number]; lift?: number; road?: boolean };
   /** Metres above the road's centre line at the frontage (sidewalk height), default 0.1. */
   lift?: number;
   /** Surface inside the outline (physics + ground texture), default the land's own. */
@@ -294,6 +294,9 @@ export interface PadDef {
    * height: a lot that lies well under the road behind a wall.
    */
   hold?: boolean;
+  /** Inside its outline its own level holds over the blends of every other pad (buildings that stand close together);
+   * where two firm pads overlap, the one the point is deeper in. */
+  firm?: boolean;
   /**
    * A sloped pad (a ramp between two levelled terraces): instead of `lift` the level is the road's height at the frontage plus
    * `lift[0]` at `from`, `lift[1]` at `to` (world x, z), eased between them along that line and held beyond its ends
@@ -444,9 +447,10 @@ export interface LandcoverDef {
   };
   /**
    * Hand-drawn parcels painted over the baked raster (cells whose centre is inside `poly`, world x, z pairs): land the
-   * open data gets wrong (vineyards mapped as orchard or missing). Each becomes a zone of its own with `angle`.
+   * open data gets wrong (vineyards mapped as orchard or missing). Each becomes a zone of its own with `angle`. `over` =
+   * only the cells of these covers (a village's own gardens out of the one baked `urban` zone).
    */
-  paint?: { cover: string; angle?: number; poly: number[] }[];
+  paint?: { cover: string; angle?: number; poly: number[]; over?: string[] }[];
   /**
    * The real canopy (scripts/realmap/canopy.py): share of the ground under crowns (0-1) and the stand height (m). Scatter
    * rules with `canopy` thin and size their trees by it.

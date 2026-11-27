@@ -267,6 +267,15 @@ export class TerrainGenerator {
   private q: RoadQuery = newRoadQuery();
   private pq: PathQuery = newPathQuery();
   private pq2: PathQuery = newPathQuery();
+  /** Lane query of the firm pads (`PadField.applyFirm`). */
+  private firmQ: PathQuery = newPathQuery();
+
+  /** On (or within 0.5 m of) a lane: the firm pads leave it alone. */
+  private readonly onLane = (x: number, z: number): boolean => {
+    if (!this.paths) return false;
+    const fq = this.paths.query(x, z, this.firmQ);
+    return fq.found && fq.distance <= fq.halfWidth + 0.5;
+  };
   private cq: PathQuery = newPathQuery();
   private dq: RoadQuery = newRoadQuery();
   /** The splat's own road query (`paintScree`): the height queries keep theirs. */
@@ -2148,7 +2157,12 @@ export class TerrainGenerator {
   private heightUncapped(x: number, z: number): number {
     let base = this.naturalHeight(x, z);
     const q = this.road.query(x, z, this.q);
-    if (this.paths) base = this.carvePaths(x, z, base, q.found ? q.along : NaN);
+    if (this.paths) {
+      base = this.carvePaths(x, z, base, q.found ? q.along : NaN);
+      // Firm pads (buildings) hold their level over a lane's bank, never over the lane itself.
+      if (this.pads?.hasFirm)
+        base = this.pads.applyFirm(x, z, base, this.onLane);
+    }
     // A junction plaza stays level over the streets meeting in it (inside only: the streets ease onto it, fitPlazas).
     // Under a portal slab the walls carry it: the ground stays at a carriageway / lane's level out to its wall
     // line + setback, whatever street runs on top (a street along the slab edge pulled rock up in front of the wall).
@@ -2172,6 +2186,9 @@ export class TerrainGenerator {
     let carved = this.carveRoad(x, z, base, q);
     if (this.pads && q.distance > q.halfWidth)
       carved = this.pads.applyHeld(x, z, carved);
+    // ... and over the stage road's embankment, clear of its verge.
+    if (this.pads?.hasFirm && q.distance > q.halfWidth + 1.5)
+      carved = this.pads.applyFirm(x, z, carved, this.onLane);
     // On a junction area beside the stage road at grade: the area's surface (the road's embankment stops at it).
     if (
       !this.plazas.empty &&
