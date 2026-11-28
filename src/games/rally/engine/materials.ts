@@ -50,6 +50,7 @@ export type MaterialId =
   | 'fan_flag'
   | 'chevron'
   | 'chevron_us'
+  | 'us_signs'
   | 'reflector'
   | 'lamp_lens'
   | 'vehicle'
@@ -439,6 +440,14 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 0.55,
       });
       // Reflective sheeting: lights up in the car's low beam at night.
+      addNightGlow(m as MeshStandardMaterial, 'sheeting');
+      break;
+    case 'us_signs':
+      m = new MeshStandardMaterial({
+        map: getTexture('us_signs'),
+        roughness: 0.55,
+        alphaTest: 0.5,
+      });
       addNightGlow(m as MeshStandardMaterial, 'sheeting');
       break;
     case 'reflector':

@@ -664,6 +664,8 @@ export interface SignBoardDef {
   /** Smaller last line ("1/4 MILE"). */
   small?: string;
   arrow?: 'down' | 'right' | 'left';
+  /** A yellow winding-road warning board with this advisory speed (mph) in place of a guide board. */
+  winding?: number;
 }
 
 export interface OverheadSignDef {

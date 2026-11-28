@@ -16,7 +16,7 @@ Reads the bake config's "lidarCanopy" block:
   `overhang` m) is a tree beside it leaning in: it is moved out to `overhang` m.
 - The land cover (data.json) within that band is redrawn from the canopy: cells under closed canopy become `woods`
   (forest floor; the trees are the real ones), open cells within `verge` m of the stage line that the raster calls
-  built-up or bare become `verge` (mown grass), other open wood cells `grass`. Cemeteries, water and cells with a
+  built-up or bare become `verge` (mown grass), as do open wood and grass cells. Cemeteries, water and cells with a
   building are kept.
 """
 
@@ -195,7 +195,8 @@ def main(cfg_path):
     new = cur.copy()
     new[~kept & closed & (woodsy | (built & (dd <= lcfg.get('verge', 30))))] = names.index('woods')
     new[~kept & ~closed & built & (dd <= lcfg.get('verge', 30))] = names.index('verge')
-    new[~kept & ~closed & np.isin(nm[cur], ['trees', 'pine'])] = names.index('grass')
+    # (open wood and grass in the band: mown `verge` too - its trees are the lidar's, the generated scatter adds none)
+    new[~kept & ~closed & np.isin(nm[cur], ['trees', 'pine', 'grass', 'open'])] = names.index('verge')
     before = {n: int((nm[cur] == n).sum()) for n in np.unique(nm[cur])}
     after = {n: int((nm[new] == n).sum()) for n in np.unique(nm[new])}
     flat[sel] = new

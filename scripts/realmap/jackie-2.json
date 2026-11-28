@@ -60,7 +60,7 @@
     "to": 5600,
     "reach": 110,
     "verge": 30,
-    "overhang": 7,
+    "overhang": 6.3,
     "minHeight": 3,
     "minRadius": 1.2,
     "closed": 0.5,

@@ -71,6 +71,7 @@ export type TextureId =
   | 'bark_birch'
   | 'chevron'
   | 'chevron_us'
+  | 'us_signs'
   | 'water_normal'
   | FacadeId
   | LotTextureId;
@@ -1875,6 +1876,133 @@ const DEFS: Record<TextureId, TexDef> = {
       ctx.lineTo(100, y + 38);
       ctx.closePath();
       ctx.fill();
+    },
+  },
+  us_signs: {
+    name: 'US road signs (exit gore signs, speed limit, curve warnings, advisory plate)',
+    size: [1024, 512],
+    color: true,
+    draw(ctx, w, h) {
+      // 8 cells of 256 x 256 (us-road-sign.ts US_SIGN_CELLS): EXIT 2-5, SPEED LIMIT 45, curve right, winding road,
+      // the 25 MPH plate; each sign drawn at its own aspect from the cell's top left, the rest transparent
+      ctx.clearRect(0, 0, w, h);
+      const C = 256;
+      const font = (px: number) =>
+        `bold ${px}px Arial Narrow, Arial, Helvetica, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const border = (
+        x: number,
+        y: number,
+        bw: number,
+        bh: number,
+        fill: string,
+        line: string,
+      ) => {
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, bw, bh);
+        ctx.strokeStyle = line;
+        ctx.lineWidth = 6;
+        ctx.strokeRect(x + 7, y + 7, bw - 14, bh - 14);
+      };
+      for (let k = 0; k < 4; k++) {
+        // EXIT n with the up-right arrow: green, white legend (1.25 : 1)
+        const x = k * C;
+        border(x, 0, C, 205, '#0f6b3a', '#f4f4f1');
+        ctx.fillStyle = '#f7f7f4';
+        ctx.font = font(52);
+        ctx.fillText('EXIT', x + C / 2, 48);
+        ctx.font = font(96);
+        ctx.fillText(String(k + 2), x + C / 2 - 34, 132);
+        ctx.save();
+        ctx.translate(x + C / 2 + 52, 132);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillRect(-9, -10, 18, 48);
+        ctx.beginPath();
+        ctx.moveTo(0, -44);
+        ctx.lineTo(-28, -8);
+        ctx.lineTo(28, -8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+      // SPEED LIMIT 45 (4 : 5)
+      border(0, C, 205, 256, '#f6f6f2', '#111');
+      ctx.fillStyle = '#111';
+      ctx.font = font(44);
+      ctx.fillText('SPEED', 102, C + 46);
+      ctx.fillText('LIMIT', 102, C + 92);
+      ctx.font = font(118);
+      ctx.fillText('45', 102, C + 178);
+      // yellow diamonds: curve right, winding road (a square turned 45 degrees in the cell)
+      const diamond = (cx: number, cy: number) => {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 126);
+        ctx.lineTo(cx + 126, cy);
+        ctx.lineTo(cx, cy + 126);
+        ctx.lineTo(cx - 126, cy);
+        ctx.closePath();
+        ctx.fillStyle = '#f4c20d';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - 112);
+        ctx.lineTo(cx + 112, cy);
+        ctx.lineTo(cx, cy + 112);
+        ctx.lineTo(cx - 112, cy);
+        ctx.closePath();
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+      };
+      ctx.lineCap = 'butt';
+      diamond(C + 128, C + 128);
+      ctx.strokeStyle = '#111';
+      ctx.fillStyle = '#111';
+      ctx.lineWidth = 20;
+      ctx.beginPath();
+      ctx.moveTo(C + 110, C + 200);
+      ctx.lineTo(C + 110, C + 140);
+      ctx.quadraticCurveTo(C + 110, C + 100, C + 150, C + 92);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(C + 186, C + 88);
+      ctx.lineTo(C + 146, C + 60);
+      ctx.lineTo(C + 146, C + 118);
+      ctx.closePath();
+      ctx.fill();
+      diamond(2 * C + 128, C + 128);
+      ctx.beginPath();
+      ctx.moveTo(2 * C + 112, C + 205);
+      ctx.bezierCurveTo(
+        2 * C + 160,
+        C + 180,
+        2 * C + 160,
+        C + 150,
+        2 * C + 120,
+        C + 135,
+      );
+      ctx.bezierCurveTo(
+        2 * C + 85,
+        C + 120,
+        2 * C + 90,
+        C + 95,
+        2 * C + 128,
+        C + 82,
+      );
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(2 * C + 150, C + 46);
+      ctx.lineTo(2 * C + 112, C + 64);
+      ctx.lineTo(2 * C + 146, C + 98);
+      ctx.closePath();
+      ctx.fill();
+      // the 25 MPH advisory plate (square)
+      border(3 * C, C, 256, 256, '#f4c20d', '#111');
+      ctx.fillStyle = '#111';
+      ctx.font = font(124);
+      ctx.fillText('25', 3 * C + 128, C + 100);
+      ctx.font = font(64);
+      ctx.fillText('MPH', 3 * C + 128, C + 200);
     },
   },
   chevron: {

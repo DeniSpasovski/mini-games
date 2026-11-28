@@ -6,6 +6,7 @@ import type {
   LakeDef,
   LandcoverDef,
   MapDef,
+  ScatterRule,
 } from '../shared/types';
 import type { NetworkData, NetworkPatch } from '../../world/v2/types';
 import data from './data.json';
@@ -101,6 +102,11 @@ export const jackie2Map: MapDef = {
       // the decks over Vermont Pl: a concrete Jersey parapet on the outer edge of both carriageways, the guard rail
       // ending against it (video 1:11-1:13, opposite lane 6:38-6:42)
       { from: 1228, to: 1290, barrier: 'jersey' },
+      // mown grass to the kerb, no rail (video 1:21-1:31 and 3:09-3:15); concrete Jersey on the outer side through the
+      // cemetery bends (1:47-2:35)
+      { from: 1500, to: 1800, barrier: 'none' },
+      { from: 2150, to: 3200, barrier: 'jersey' },
+      { from: 3950, to: 4100, barrier: 'none' },
       // concrete on both outer sides from where the stone cut opens up to the hall (opposite lane 1:03-1:11, lidar)
       { from: 6940, to: 7800, barrier: 'jersey' },
       // tall tan / grey ashlar on both sides out of the Queens Blvd tunnel to the interchange (5:33-5:36)
@@ -117,6 +123,21 @@ export const jackie2Map: MapDef = {
     // a chain-link fence on the median barrier where the parkway leaves the stone cut west of the Queens Blvd tunnel
     // to past Park Lane's approach (opposite lane 1:05-1:20)
     medianFences: [{ from: 6915, to: 7185 }],
+    // fences on the ground behind the outer rail (drive video): galvanised chain-link (1:14-1:17, 3:02-3:05, 3:30-3:32),
+    // dark green mesh (2:33-2:41), teal privacy slats on a low wall along the cemeteries (1:45-2:05, 2:24-2:29)
+    roadFences: [
+      { from: 1310, to: 1390, look: 'chainlink' },
+      { from: 2130, to: 2630, look: 'slatted' },
+      { from: 3005, to: 3100, look: 'slatted' },
+      { from: 3170, to: 3315, look: 'green' },
+      { from: 3745, to: 3830, look: 'chainlink' },
+      { from: 4505, to: 4570, look: 'chainlink' },
+    ],
+    // double solid white between the lanes through the cemetery bends (1:50-2:35), the exit gores hatched, the bars
+    // across the lanes past exit 3 (1:32)
+    solidLanes: [{ from: 2255, to: 3205 }],
+    goreHatch: true,
+    laneBars: [1780],
     // pale cement-concrete pavement with sealed joints east of the Queens Blvd tunnel (drive video 5:30-5:49, opposite
     // lane 0:36-0:38); asphalt through the tunnel and at both portals (opposite lane 0:41-0:44 and 0:55-0:59)
     pavement: [{ from: 7474, to: 8000, surface: 'concrete' }],
@@ -242,7 +263,7 @@ export const jackie2Map: MapDef = {
       paved: [0.12, 0.08, 0.5, 0.3],
       open: [0.92, 0.06, 0.02, 0],
       // (lidar_canopy.py) under the parkway's woods: leaf litter and soil between the plants; the mown verge
-      woods: [0.72, 0.25, 0.03, 0],
+      woods: [0.4, 0.52, 0.08, 0],
       verge: [0.95, 0.03, 0.02, 0],
     },
   },
@@ -266,20 +287,14 @@ export const jackie2Map: MapDef = {
     texture: 'road_parkway',
   },
   // Every crown of the lidar within 110 m of the parkway from 1 000 to 5 600 m, where it stands (scripts/realmap/
-  // lidar_canopy.py): Forest Park, Highland Park and the cemeteries' oaks, planes and locusts up to 25 m, evergreens
+  // lidar_canopy.py): Forest Park, Highland Park and the cemeteries' oaks, beeches and locusts up to 25 m, evergreens
   // among the graves. The generated woods stay beyond that band (`trees` cover); inside it the cover is `woods`.
   realTrees: {
     trees: canopy.trees,
     assets: {
-      woods: [
-        'oak_tree',
-        'oak_tree',
-        'locust_tree',
-        'hornbeam_tree',
-        'beech_tree',
-      ],
-      verge: ['oak_tree', 'locust_tree', 'pale_tree'],
-      grass: ['oak_tree', 'locust_tree', 'pale_tree'],
+      woods: ['oak_tree', 'locust_tree', 'hornbeam_tree', 'beech_tree'],
+      verge: ['oak_tree', 'locust_tree', 'hornbeam_tree'],
+      grass: ['oak_tree', 'locust_tree', 'beech_tree'],
       shrub: ['oak_tree', 'locust_tree', 'hornbeam_tree'],
       trees: ['oak_tree', 'locust_tree'],
       pine: ['pine_tree'],
@@ -288,30 +303,32 @@ export const jackie2Map: MapDef = {
         'pine_tree',
         'cypress_tree',
         'oak_tree',
-        'pale_tree',
+        'beech_tree',
       ],
       urban: ['pale_tree', 'locust_tree', 'oak_tree'],
       bare: ['locust_tree', 'oak_tree'],
       industrial: ['locust_tree'],
       paved: ['pale_tree'],
     },
-    // (the tall crowns: species that are tall, not small ones blown up)
+    // (the tall crowns: species that are tall with slim trunks, not oaks blown up; no pale-barked planes in the woods -
+    // the video has none)
     tall: {
-      height: 20,
+      height: 18,
       assets: {
-        woods: ['pale_tree', 'oak_tree', 'beech_tree'],
-        verge: ['pale_tree', 'oak_tree'],
-        grass: ['pale_tree', 'oak_tree'],
-        cemetery: ['pale_tree', 'oak_tree', 'tall_black_pine'],
-        urban: ['pale_tree'],
+        woods: ['beech_tree', 'locust_tree', 'beech_tree', 'hornbeam_tree'],
+        verge: ['beech_tree', 'locust_tree'],
+        grass: ['beech_tree', 'locust_tree'],
+        cemetery: ['beech_tree', 'locust_tree', 'tall_black_pine'],
+        urban: ['pale_tree', 'locust_tree'],
       },
     },
-    minRoadDist: 3,
+    minRoadDist: 2.5,
     minPathDist: 1.5,
-    scale: [0.4, 1.6],
+    scale: [0.4, 1.8],
     tilt: 3,
     sink: 0.2,
-    lean: { deg: [2, 5], within: 12 },
+    // (the trees at the verge lean out over the road: the video's crowns reach over the right lane)
+    lean: { deg: [4, 10], within: 16 },
   },
   scatter: [
     {
@@ -446,7 +463,7 @@ export const jackie2Map: MapDef = {
     },
     {
       asset: 'grass_tuft',
-      cover: ['trees', 'pine', 'orchard', 'woods'],
+      cover: ['trees', 'pine', 'orchard'],
       density: 140,
       detail: true,
       minRoadDist: 1,
@@ -471,12 +488,36 @@ export const jackie2Map: MapDef = {
       scale: [0.8, 1.3],
       sink: 0.1,
     },
-    // Where the road cuts a wood: shrub belt and young trees along the verge (maps/shared/forest-edge.ts).
+    // Where the road cuts a wood: a closed belt of shrubs and young trees from the ground up along the verge (drive video
+    // 2:56, 3:19, 3:51-4:02: no sky through the first 20 m). Denser than the shared `forestEdge`, and on the parkway's
+    // cut / fill banks too (steeper than its 37 deg limit).
     ...forestEdge({
-      woods: ['trees', 'pine', 'woods'],
+      woods: ['trees', 'pine'],
       young: ['birch_tree', 'oak_tree'],
       open: ['shrub'],
     }),
+    ...(
+      [
+        ['thicket_shrub', 12, 1.6, 22, [0.9, 1.5]],
+        ['hazelnut_tree', 5, 2.5, 24, [0.8, 1.3]],
+        ['bush', 8, 1.4, 18, [0.8, 1.4]],
+        ['bramble_shrub', 5, 1.4, 14, [0.9, 1.4]],
+        ['hornbeam_tree', 1.6, 2.5, 22, [0.4, 0.7]],
+        ['locust_tree', 1.2, 2.5, 22, [0.4, 0.7]],
+        ['oak_tree', 1.2, 3, 22, [0.35, 0.55]],
+      ] as const
+    ).map(([asset, density, minRoadDist, maxRoadDist, scale]): ScatterRule => ({
+      asset,
+      cover: ['woods'],
+      density,
+      minRoadDist,
+      maxRoadDist,
+      mask: { scale: 22, threshold: -0.35, group: 13 },
+      scale: [...scale],
+      maxSlope: 0.55,
+      lean: { deg: [2, 7], within: 14 },
+      sink: 0.15,
+    })),
   ],
   roadside: [
     // Curve warning boards on the outside of the tight bends (drive videos: US black arrows on yellow, behind the barriers;
@@ -512,11 +553,62 @@ export const jackie2Map: MapDef = {
       faceRoad: true,
     },
   ],
-  props: [],
+  // Signs on posts (drive video): the EXIT signs at the gore noses of exits 2-5 (1:07, 1:30, 2:44, 3:24), SPEED LIMIT
+  // 45 (1:24, 3:33), curve warnings with their 25 MPH plates (1:03, 2:23)
+  props: [
+    ...(
+      [
+        [1098, -8.9, 0],
+        [1734, -7.2, 1],
+        [3291, -7.7, 2],
+        [4373, -9.8, 3],
+        [1578, -7.6, 4],
+        [4597, -7.6, 4],
+        [1050, -7.2, 5],
+        [2990, -7.2, 5],
+      ] as const
+    ).map(([along, lateral, variant]) => ({
+      asset: 'us_road_sign',
+      along,
+      lateral,
+      variant,
+      rotY: 180,
+    })),
+  ],
   // Overhead signs: road names only, no shields; steel truss beams on lattice legs (drive videos 5:10, 5:41-5:46).
   overheadSigns: {
     lattice: true,
     signs: [
+      // exit 2 (drive video 1:04), the exit 4 advance gantry with its winding-road warning (1:49), exit 4 a quarter mile
+      // on (2:24) and at the exit (2:43)
+      {
+        along: 1040,
+        boards: [
+          {
+            tab: 'EXIT 2',
+            lines: ['Vermont Pl'],
+            small: 'NEXT RIGHT',
+            arrow: 'right',
+          },
+        ],
+      },
+      {
+        along: 2231,
+        boards: [
+          { lines: [], winding: 25 },
+          { tab: 'EXIT 4', lines: ['Forest Park Dr'], small: '1/2 MILE' },
+        ],
+      },
+      {
+        along: 3015,
+        boards: [
+          { tab: 'EXIT 4', lines: ['Forest Park Dr'], small: 'RIGHT LANE' },
+        ],
+      },
+      {
+        along: 3250,
+        boards: [{ tab: 'EXIT 4', lines: ['Forest Park Dr'], arrow: 'right' }],
+      },
       // Metropolitan Ave advance board (drive video 4:05): a right cantilever ~30 m before the NYAR rail bridge (OSM, 5 445 m).
       {
         along: 5410,

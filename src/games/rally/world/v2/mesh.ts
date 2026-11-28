@@ -32,6 +32,7 @@ import {
   clearancePlateTexture,
   feetInches,
   namePlateTexture,
+  slatFenceTexture,
 } from '../../engine/structure-textures';
 import { SKIRT_DEPTH, SKIRT_W } from '../road-slab';
 import type { World } from '../world';
@@ -421,6 +422,9 @@ class Parts {
       light: Builder;
       fence: Builder;
       mfence: Builder;
+      /** The map's ground fences beside the stage road (`roadFences`): dark green mesh, teal privacy slats. */
+      gfence: Builder;
+      sfence: Builder;
       /** A tunnel's soffit (concrete) and girders (steel), lit from below. */
       ceil: Builder;
       girder: Builder;
@@ -444,6 +448,8 @@ class Parts {
           light: new Builder(4),
           fence: new Builder(FENCE_TS),
           mfence: new Builder(FENCE_TS),
+          gfence: new Builder(FENCE_TS),
+          sfence: new Builder(FENCE_TS),
           ceil: new Builder(4),
           girder: new Builder(4),
         }),
@@ -480,9 +486,36 @@ class Parts {
         f.castShadow = false;
         group.add(f);
       }
+      if (!p.gfence.empty()) {
+        const f = p.gfence.build(greenFenceMaterial());
+        f.castShadow = false;
+        group.add(f);
+      }
+      if (!p.sfence.empty()) group.add(p.sfence.build(slatFenceMaterial()));
     }
     this.plates.flush(group);
   }
+}
+
+/** A dark green coated chain-link (`roadFences` green) and teal privacy slats (`slatted`). */
+let greenFenceMat: MeshStandardMaterial | undefined;
+function greenFenceMaterial(): MeshStandardMaterial {
+  if (!greenFenceMat) {
+    greenFenceMat = chainLinkMaterial().clone();
+    greenFenceMat.color.setRGB(0.1, 0.2, 0.15);
+    greenFenceMat.metalness = 0;
+    greenFenceMat.roughness = 0.9;
+  }
+  return greenFenceMat;
+}
+let slatFenceMat: MeshStandardMaterial | undefined;
+function slatFenceMaterial(): MeshStandardMaterial {
+  return (slatFenceMat ??= new MeshStandardMaterial({
+    map: slatFenceTexture(),
+    alphaTest: 0.4,
+    roughness: 0.85,
+    side: DoubleSide,
+  }));
 }
 
 /** The median fence's chain-link: v1's mesh (cut-wall-mesh.ts) in weathered galvanised grey, not new bright steel. */
@@ -587,8 +620,13 @@ export function* netMeshJob(world: World): Generator<void, Group | undefined> {
     medianDecks(net, w, parts);
     tunnel(net, field, w, parts);
     barriers(net, field, w, parts);
+    if (w.stage) {
+      roadFences(net, field, w, parts);
+      laneBars(net, w, tiles);
+    }
     if (++n % 20 === 0) yield;
   }
+  if (net.goreHatch) goreHatches(net, field, tiles);
   for (const j of net.junctions) {
     // (a junction inside a survey plaza: the plaza is its paving and has the crosswalks; its stop bars on the plaza)
     if (j.plaza) {
@@ -1261,6 +1299,19 @@ function wayLines(
       // a white lane line in the tight curves of a template with `solidLaneRadius`: double solid there
       const solid =
         line.color === 'white' ? solidLaneRuns(w, s0, s1, net.stage) : [];
+      // (and the map's own double solid stretches of the stage road, `solidLanes`, merged with the curves')
+      if (line.color === 'white' && w.stage && net.solidLanes.length)
+        solid.splice(
+          0,
+          solid.length,
+          ...mergeRuns([
+            ...solid,
+            ...net.solidLanes.map((r): [number, number] => [
+              Math.max(s0, r.from),
+              Math.min(s1, r.to),
+            ]),
+          ]),
+        );
       for (const [a, b] of solid)
         for (const d of [-SOLID_GAP / 2, SOLID_GAP / 2])
           paintStrip(net, w, tiles, a, b, t + d, line.w, false, hidden, pf);
@@ -1447,6 +1498,19 @@ const SOLID_GAP = 0.22;
 /** A tight curve's double solid line runs on this far past it (m); straights shorter than SOLID_JOIN keep it. */
 const SOLID_HOLD = 30;
 const SOLID_JOIN = 150;
+/** Runs [a, b] sorted and joined where they overlap (empty ones dropped). */
+function mergeRuns(runs: [number, number][]): [number, number][] {
+  const out: [number, number][] = [];
+  for (const [a, b] of runs
+    .filter(([a, b]) => b > a)
+    .sort((p, q) => p[0] - q[0])) {
+    const last = out[out.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else out.push([a, b]);
+  }
+  return out;
+}
+
 /** Shortest double solid run (m, holds included): a lone short bend stays dashed. */
 const SOLID_MIN = 200;
 
@@ -2830,6 +2894,8 @@ const FENCE_H = 2.2;
 const FENCE_POST = 3;
 const FENCE_TS = 0.8;
 const STEEL: RGB = [0.52, 0.54, 0.55];
+/** Posts of the coated fences (`roadFences` green, slatted). */
+const FENCE_GREEN: RGB = [0.12, 0.2, 0.16];
 /** Chain-link on the parapets of a bridge over the parkway (m over the parapet cap). */
 const PARAPET_FENCE_H = 1.8;
 /** Chain-link on the median barrier (m over the barrier's top). */
@@ -2869,6 +2935,159 @@ function chainLink(
       post,
     );
   }
+}
+
+/** A ground fence's default distance from the pavement edge (m), height, its sample step and the low wall's height. */
+const ROAD_FENCE_OFF = 2.2;
+const ROAD_FENCE_H: Record<'chainlink' | 'green' | 'slatted', number> = {
+  chainlink: 1.8,
+  green: 2.4,
+  slatted: 1.9,
+};
+const ROAD_FENCE_STEP = 2;
+const ROAD_FENCE_WALL = 0.6;
+/** No fence where the ground at it stands further than this off the road surface (a cut wall, a drop): m. */
+const ROAD_FENCE_DY = 2;
+
+/**
+ * The map's fences on the ground beside the stage road's outer side (`NetworkDef.roadFences`): each run follows the
+ * ground at its offset, broken where the ground there leaves the road's level or another road's foot reaches it.
+ */
+function roadFences(net: Network, field: NetField, w: Way, parts: Parts): void {
+  for (const r of net.roadFences) {
+    const s0 = Math.max(r.from, w.cut0);
+    const s1 = Math.min(r.to, w.al.length - w.cut1);
+    if (s1 - s0 < 4) continue;
+    const off = r.offset ?? ROAD_FENCE_OFF;
+    const h = r.height ?? ROAD_FENCE_H[r.look];
+    let run: Row[] = [];
+    const flush = () => {
+      if (run.length >= 2) {
+        const p = parts.at(run[0].x, run[0].z);
+        if (r.look === 'slatted') {
+          p.conc.wall(
+            run.map((q) => ({
+              x: q.x,
+              z: q.z,
+              bot: q.y - 0.4,
+              top: q.y + ROAD_FENCE_WALL,
+            })),
+            CONC,
+          );
+          p.sfence.strip(
+            run,
+            [0, ROAD_FENCE_WALL, 0],
+            [0, ROAD_FENCE_WALL + h, 0],
+            [1, 1, 1],
+          );
+          let next = run[0].d;
+          for (const q of run) {
+            if (q.d < next) continue;
+            next = q.d + FENCE_POST;
+            p.metal.box(
+              q.x,
+              q.z,
+              q.tx,
+              q.tz,
+              0.05,
+              0.05,
+              q.y,
+              q.y + ROAD_FENCE_WALL + h + 0.05,
+              FENCE_GREEN,
+            );
+          }
+        } else if (r.look === 'green')
+          chainLink(p, run, 0, 0, h, p.gfence, FENCE_GREEN);
+        else chainLink(p, run, 0, 0, h);
+      }
+      run = [];
+    };
+    const n = Math.max(1, Math.ceil((s1 - s0) / ROAD_FENCE_STEP));
+    for (let k = 0; k <= n; k++) {
+      const fr = frameAt(w, s0 + ((s1 - s0) * k) / n);
+      const t = -(w.sec.paveR + off);
+      const [x, z] = lat(fr, t + sideShift(fr, 1));
+      const y = field.ground(x, z);
+      const road = net.surfaceAt(w, fr.i, fr.f, -w.sec.paveR);
+      if (
+        !Number.isFinite(y) ||
+        Math.abs(y - road) > ROAD_FENCE_DY ||
+        field.occupied(x, z, 0.3)
+      ) {
+        flush();
+        continue;
+      }
+      run.push({ x, z, y, tx: fr.tx, tz: fr.tz, d: fr.s, hw: 0 });
+    }
+    flush();
+  }
+}
+
+/** A lane bar group (`NetworkDef.laneBars`): bars, their spacing and length along, and the gap at the lane line (m). */
+const BAR_N = 6;
+const BAR_STEP = 0.9;
+const BAR_L = 0.45;
+const BAR_GAP = 0.5;
+
+/** White bars across each lane of the stage road (`NetworkDef.laneBars`): a group of short ones, one per lane. */
+function laneBars(net: Network, w: Way, tiles: Tiles): void {
+  if (!net.laneBars.length) return;
+  const [shL, shR] = w.tpl.shoulder;
+  const left = w.sec.paveL - shL - 0.25;
+  const right = -(w.sec.paveR - shR - 0.25);
+  const mid = (left + right) / 2;
+  for (const at of net.laneBars)
+    for (let b = 0; b < BAR_N; b++) {
+      const a = at + b * BAR_STEP;
+      if (a < w.cut0 || a + BAR_L > w.al.length - w.cut1) continue;
+      for (const [lo, hi] of [
+        [right, mid - BAR_GAP / 2],
+        [mid + BAR_GAP / 2, left],
+      ])
+        paintStrip(net, w, tiles, a, a + BAR_L, (lo + hi) / 2, hi - lo, false);
+    }
+}
+
+/**
+ * White hatching over the gores of the ramps leaving / joining the stage road (`NetworkDef.goreHatch`): the wedge between
+ * the ramp's pavement edge and the stage road's, from where they part by GORE_HATCH_MIN m to where the gore ends.
+ */
+const GORE_HATCH_MIN = 0.4;
+function goreHatches(net: Network, field: NetField, tiles: Tiles): void {
+  const polys: number[][] = [];
+  for (const w of net.ways) {
+    const g = w.gore;
+    if (!g || w.stage) continue;
+    if (!(w.merge0 && w.into[0]?.stage) && !(w.merge1 && w.into[1]?.stage))
+      continue;
+    let inner: number[] = [];
+    let outer: number[] = [];
+    const flush = () => {
+      if (inner.length >= 6) {
+        const back: number[] = [];
+        for (let k = outer.length - 2; k >= 0; k -= 2)
+          back.push(outer[k], outer[k + 1]);
+        polys.push([...inner, ...back]);
+      }
+      inner = [];
+      outer = [];
+    };
+    for (let i = 0; i < w.al.n; i++) {
+      const t = g.t[i];
+      const pave = g.side[i] > 0 ? w.sec.paveL : w.sec.paveR;
+      if (Number.isNaN(t) || Math.abs(t) - pave < GORE_HATCH_MIN) {
+        flush();
+        continue;
+      }
+      const fr = frameAt(w, w.al.s[i]);
+      inner.push(...lat(fr, g.side[i] * pave));
+      const [x, z] = [fr.x + fr.tz * t, fr.z - fr.tx * t];
+      outer.push(x, z);
+    }
+    flush();
+  }
+  if (polys.length)
+    markings(tiles, (x, z) => field.top(x, z)?.h, polys, [], false);
 }
 
 /** The wall look of way `w` at sample i (`Network.wallStyle`): past a tunnel's own headwall, the cut's beside it. */

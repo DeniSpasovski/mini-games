@@ -153,6 +153,25 @@ export interface NetworkDef {
    */
   medianFences?: { from: number; to: number }[];
   /**
+   * Fences on the ground beside the stage road's outer (right) side, by stage station (drive videos): `chainlink` =
+   * galvanised mesh behind the rail, `green` = a tall dark green mesh, `slatted` = dark teal privacy slats in a mesh on a
+   * low concrete wall (the cemeteries). `offset` = from the pavement edge (m, default 2.2); none where the ground there
+   * stands more than 2 m off the road or another road's foot reaches it.
+   */
+  roadFences?: {
+    from: number;
+    to: number;
+    look: 'chainlink' | 'green' | 'slatted';
+    offset?: number;
+    height?: number;
+  }[];
+  /** Stretches of the stage road (m along) whose lane line is double solid white whatever the curve (`solidLaneRadius`). */
+  solidLanes?: { from: number; to: number }[];
+  /** The gores of the ramps leaving / joining the stage road hatched in white (paint between their edge lines). */
+  goreHatch?: boolean;
+  /** Groups of white bars across the stage road's lanes (m along: the first bar of each group; 5 bars, 4 m apart). */
+  laneBars?: number[];
+  /**
    * Pavement per stretch of the stage road (m along; both carriageways and the highway ramps there by stage station):
    * 'concrete' = pale cement-concrete slabs with sealed joints (drive videos: from the Queens Blvd tunnel portal on).
    */
