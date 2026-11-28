@@ -183,6 +183,22 @@ const FAR_TOWER: BlockStyle = {
   far: true,
 };
 
+// Two-storey brick row houses: white sashes, a soldier course over the windows, a light flat roof.
+const ROW: BlockStyle = {
+  type: 'block',
+  wall: 'brick',
+  tint: '#9b6e5d',
+  ground: 3.1,
+  floor: 2.9,
+  win: { w: 0.9, h: 1.45, sill: 0.85, bay: 2.3 },
+  frame: '#eeebe4',
+  sill: '#cfc6b4',
+  lintel: '#7d5a4d',
+  coping: '#c9c2b5',
+  ac: 0.15,
+  roof: '#d4d1ca',
+};
+
 export const KEW_STYLES: Record<number, KewStyle> = {
   // 118-17 Union Tpke: buff brick tower, balconies down its north-west end
   4079634: {
@@ -514,4 +530,34 @@ export const KEW_STYLES: Record<number, KewStyle> = {
   4079185: { ...TUDOR, brick: '#866254' },
   4079191: { ...TUDOR, front: 225 },
   4079069: { ...TUDOR, tiles: '#7f5041' },
+  // Mid stretch, beside Cypress Hills Cemetery (stage ~3 000 m): the cemetery's 1931 three-storey mausoleum, pale cast
+  // stone walls with tall narrow stained-glass windows between piers, a dark flat roof behind a stone parapet.
+  4091324: {
+    type: 'block',
+    wall: 'render',
+    tint: '#e4dac3',
+    ground: 5.5,
+    floor: 5.5,
+    win: { w: 0.9, h: 3.4, sill: 1.2, bay: 4.2 },
+    frame: '#3e3a35',
+    sill: '#c9bea4',
+    piers: { width: 0.9, color: '#cbbfa2' },
+    cornice: '#cdc2a8',
+    coping: '#e0d8c5',
+    plinth: '#b9ad94',
+    roof: '#4b4a47',
+  },
+  // 89-24 .. 89-46 83 Ave (1920-40, stage ~4 800 m behind the stone wall): two-storey brick row houses in pairs,
+  // fronts to the parkway, white-coated flat roofs (2024 aerial photo).
+  4094671: { ...ROW, tint: '#9b6e5d' },
+  4094672: { ...ROW, tint: '#9b6e5d' },
+  4094673: { ...ROW, tint: '#a27a66' },
+  4094674: { ...ROW, tint: '#a27a66' },
+  4094675: { ...ROW, tint: '#8f6656' },
+  4094676: { ...ROW, tint: '#8f6656' },
+  4094677: { ...ROW, tint: '#9b6e5d' },
+  4094678: { ...ROW, tint: '#9b6e5d' },
+  4094679: { ...ROW, tint: '#a27a66' },
+  4094680: { ...ROW, tint: '#a27a66' },
+  4094681: { ...ROW, tint: '#94705f' },
 };
