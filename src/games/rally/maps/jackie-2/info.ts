@@ -65,8 +65,16 @@ export const jackie2Info: MapInfo = {
   stageNumber: 3,
   bounds: { minX: -3300, maxX: 3700, minZ: -2400, maxZ: 2400 },
   previewRelief: 1.8,
-  // Same sky, light, grade and seasons as The Jackie.
-  environment: jackieInfo.environment,
+  // Same sky, light, grade and seasons as The Jackie; under the lidar woods' closed crowns a dark forest floor (`shade`,
+  // drive video 3:27-3:32: litter and humus, the mown verge stays green).
+  environment: {
+    ...jackieInfo.environment,
+    groundTint: { ...jackieInfo.environment.groundTint!, shade: 0.55 },
+    groundTints: {
+      spring: { ...jackieInfo.environment.groundTints!.spring!, shade: 0.5 },
+      autumn: { ...jackieInfo.environment.groundTints!.autumn!, shade: 0.5 },
+    },
+  },
   route: data.route,
   surfaces: ['tarmac'],
 };

@@ -721,6 +721,11 @@ export class Network {
   private readonly tunnelDefs: NonNullable<NetworkDef['tunnels']>;
   private readonly openBeside: NonNullable<NetworkDef['openBeside']>;
   private readonly medianFences: NonNullable<NetworkDef['medianFences']>;
+  /** The map's ground fences, solid lane stretches, gore hatching and lane bars (`NetworkDef`). */
+  readonly roadFences: NonNullable<NetworkDef['roadFences']>;
+  readonly solidLanes: NonNullable<NetworkDef['solidLanes']>;
+  readonly goreHatch: boolean;
+  readonly laneBars: readonly number[];
   private readonly paveNear = new Map<number, Projection>();
   /** Wall samples beside another, unrelated road at their level (`dividingWalls`): way, side, sample, that road. */
   private divides: [Way, 0 | 1, number, Way][] = [];
@@ -774,6 +779,10 @@ export class Network {
     this.tunnelDefs = def.tunnels ?? [];
     this.openBeside = def.openBeside ?? [];
     this.medianFences = def.medianFences ?? [];
+    this.roadFences = def.roadFences ?? [];
+    this.solidLanes = def.solidLanes ?? [];
+    this.goreHatch = def.goreHatch ?? false;
+    this.laneBars = def.laneBars ?? [];
     const sw = def.data.survey;
     if (sw?.walls?.length && sw.wallsUntil) {
       const segs: number[] = [];

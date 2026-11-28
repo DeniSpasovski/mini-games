@@ -1726,6 +1726,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 500, castShadow: true }],
     breakable: { r: 0.65, h: 1.6, slow: 0.93 },
   },
+  {
+    id: 'us_road_sign',
+    name: 'US road sign',
+    category: 'markers',
+    description:
+      'US post-mounted road signs, one per variant: 0-3 the green EXIT 2-5 gore sign on two posts (EXIT 2 with a 25 MPH plate), 4 SPEED LIMIT 45, 5 curve right and 6 winding road diamonds with a 25 MPH plate. Front faces +Z.',
+    variants: 7,
+    lods: [{ maxDistance: 500, castShadow: true }],
+    breakable: { r: 0.5, h: 2.2, slow: 0.93 },
+  },
 ];
 
 /** The box buildings: unit boxes scaled per instance to a real footprint (world/buildings.ts). */

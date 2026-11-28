@@ -113,9 +113,9 @@ describe('Jackie 2 woods, 1 200 - 5 400 m', () => {
     expect(total).toBeGreaterThan(0);
   });
 
-  test('share of bare ground (grass weight under 0.5) within 15 m of the road edge', () => {
+  test('share of bare ground (grass weight under 0.5) and of woods floor within 15 m of the road edge', () => {
     const out = new Float32Array(4);
-    const bins = new Map<number, [number, number]>();
+    const bins = new Map<number, [number, number, number]>();
     for (let s = FROM; s < TO; s += 2) {
       const m = road.at(s);
       const hw = m.halfWidth;
@@ -141,23 +141,32 @@ describe('Jackie 2 woods, 1 200 - 5 400 m', () => {
             0.75,
           );
           const b = Math.floor(s / BIN) * BIN;
-          const c = bins.get(b) ?? [0, 0];
+          const c = bins.get(b) ?? [0, 0, 0];
           c[0]++;
-          if (out[0] < 0.5) c[1]++;
+          // (the woods floor - leaf litter, its own splat - counted apart from bare ground)
+          if (out[1] > 0.4) c[2]++;
+          else if (out[0] < 0.5) c[1]++;
           bins.set(b, c);
         }
     }
     let n = 0;
     let bare = 0;
+    let woods = 0;
     const row: string[] = [];
+    const wrow: string[] = [];
     for (let b = FROM; b < TO; b += BIN) {
-      const c = bins.get(b) ?? [0, 0];
+      const c = bins.get(b) ?? [0, 0, 0];
       n += c[0];
       bare += c[1];
+      woods += c[2];
       row.push(`${b}:${c[0] ? Math.round((100 * c[1]) / c[0]) : '-'}`);
+      wrow.push(`${b}:${c[0] ? Math.round((100 * c[2]) / c[0]) : '-'}`);
     }
     report(
-      `bare ground (grass < 0.5) within 15 m of the edge, % per 200 m: ${row.join(' ')} (${Math.round((100 * bare) / Math.max(1, n))}% of ${n} points)`,
+      `bare ground (grass < 0.5, not woods floor) within 15 m of the edge, % per 200 m: ${row.join(' ')} (${Math.round((100 * bare) / Math.max(1, n))}% of ${n} points)`,
+    );
+    report(
+      `woods floor (leaf litter) within 15 m of the edge, % per 200 m: ${wrow.join(' ')} (${Math.round((100 * woods) / Math.max(1, n))}%)`,
     );
     expect(n).toBeGreaterThan(0);
   });

@@ -650,6 +650,62 @@ export const chevronSign = chevronBoard('chevron');
 export const chevronSignUs = chevronBoard('chevron_us');
 
 /**
+ * US post-mounted road signs, one per variant, their faces from the `us_signs` atlas (256 px cells, 4 x 2): 0-3 the
+ * green EXIT 2-5 sign at a gore nose on two posts (EXIT 2 with the yellow 25 MPH plate under it), 4 SPEED LIMIT 45,
+ * 5 the curve-right and 6 the winding-road diamond with the 25 MPH plate, on one post. Aluminium backs, galvanised
+ * square posts; the face toward +Z.
+ */
+export const usRoadSign: AssetBuilder = ({ variant }) => {
+  const v = variant % 7;
+  const metal: BufferGeometry[] = [];
+  const faces: BufferGeometry[] = [];
+  // a face: w x h m centred at (0, y), its texture the px rectangle [u0, v0, uw, vh] of the 1024 x 512 atlas
+  const face = (
+    w: number,
+    h: number,
+    y: number,
+    cell: [number, number, number, number],
+  ) => {
+    const g = new PlaneGeometry(w, h);
+    const uv = g.getAttribute('uv');
+    const [cx, cy, cw, ch] = cell;
+    for (let i = 0; i < uv.count; i++)
+      uv.setXY(
+        i,
+        (cx + uv.getX(i) * cw) / 1024,
+        1 - (cy + (1 - uv.getY(i)) * ch) / 512,
+      );
+    g.translate(0, y, 0.012);
+    faces.push(g);
+    metal.push(box(w * 0.98, h * 0.98, 0.006, 0, y, 0.006, '#c4c6c8'));
+  };
+  const post = (x: number, top: number) =>
+    metal.push(box(0.065, top, 0.065, x, top / 2, -0.04, '#a7abaf'));
+  if (v < 4) {
+    face(1.4, 1.12, 2.3, [v * 256, 0, 256, 205]);
+    for (const x of [-0.45, 0.45]) post(x, 2.8);
+    if (v === 0) face(0.55, 0.55, 1.4, [768, 256, 256, 256]);
+  } else if (v === 4) {
+    face(0.62, 0.78, 1.9, [0, 256, 205, 256]);
+    post(0, 2.25);
+  } else {
+    // (the diamond's cell is drawn edge to edge: the sign's square turned 45 degrees, 0.9 m a side)
+    face(1.27, 1.27, 2.15, [(v - 4) * 256, 256, 256, 256]);
+    face(0.5, 0.5, 1.2, [768, 256, 256, 256]);
+    post(0, 2.6);
+  }
+  return {
+    parts: [
+      { geometry: merge(metal), material: getMaterial('props') },
+      {
+        geometry: merge(faces.map((g) => g.toNonIndexed())),
+        material: getMaterial('us_signs'),
+      },
+    ],
+  };
+};
+
+/**
  * Village street lamp: a tapered galvanised pole on a base flange (service door at knee height), an arm bent out over
  * the road (+Z = road side) and a flat LED head with its lens underneath.
  */
