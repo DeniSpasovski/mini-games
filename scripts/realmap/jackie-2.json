@@ -54,5 +54,16 @@
       "route": true,
       "cache": "sources/maps/jackie-2/lidar"
     }
+  },
+  "lidarCanopy": {
+    "from": 1000,
+    "to": 5600,
+    "reach": 110,
+    "verge": 30,
+    "overhang": 7,
+    "minHeight": 3,
+    "minRadius": 1.2,
+    "closed": 0.5,
+    "out": "src/games/rally/maps/jackie-2/canopy.json"
   }
 }

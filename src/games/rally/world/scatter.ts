@@ -388,7 +388,12 @@ export class ScatterField {
       const x = t[i] + u(1) - 0.5;
       const z = t[i + 1] + u(2) - 0.5;
       const cover = lc?.coverAt(x, z);
-      const list = cover === undefined ? undefined : def.assets[cover];
+      const list =
+        cover === undefined
+          ? undefined
+          : def.tall && t[i + 2] >= def.tall.height
+            ? (def.tall.assets[cover] ?? def.assets[cover])
+            : def.assets[cover];
       if (!list?.length) continue;
       if (!this.inBounds(x, z) || this.excluded(x, z)) continue;
       const asset = list[Math.floor(u(3) * list.length)];

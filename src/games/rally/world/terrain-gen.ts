@@ -2792,7 +2792,11 @@ export class TerrainGenerator {
    * the deck itself is `deckHeightAt`.
    */
   height(x: number, z: number): number {
-    if (this.netField) return this.netField.ground(x, z);
+    if (this.netField) {
+      // (the road query too: the terrain mesh's splat reads `lastRoad` - stale, every vertex got the gravel shoulder)
+      this.road.query(x, z, this.q);
+      return this.netField.ground(x, z);
+    }
     const h = this.heightUncapped(x, z);
     return this.capUnderDecks(x, z, this.walls ? this.applyWalls(x, z, h) : h);
   }

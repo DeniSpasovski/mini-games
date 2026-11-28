@@ -510,6 +510,11 @@ export interface RealTreesDef {
   trees: number[];
   /** Tree types by the land cover class at the tree, picked by hash (list one twice to weight it); classes left out grow none. */
   assets: Record<string, string[]>;
+  /**
+   * Trees `height` m or taller take their type from these lists instead (by cover, as `assets`; a cover left out keeps
+   * `assets`): tall species for the tall crowns, so a 25 m tree is not a small one blown up.
+   */
+  tall?: { height: number; assets: Record<string, string[]> };
   minRoadDist: number;
   /** Default 1.5. */
   minPathDist?: number;

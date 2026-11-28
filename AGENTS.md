@@ -125,7 +125,7 @@ into `DETAILS.md`, never up.
   opposite carriageway, spot heights, retaining walls and street trees are committed data (their one-off scripts were
   retired 2026-11); Jackie 2 measures the same from the NYC data in `network_survey.py`. `dem_heightmap.py` (re-bakes only the heightmap from a local DEM, GLO-30 on Vodno), `culverts.py` (`culverts.json`: culverts where the DEM's drainage crosses the stage road), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
   from a winter + summer Sentinel-2 scene, run after `bake.py`), `canopy.py` (`canopy.json`: canopy share / stand height grids and the
-  real trees from the Meta / WRI canopy height map, run after `leaf_type.py`), `features.py` (config `osm.features`: park furniture,
+  real trees from the Meta / WRI canopy height map, run after `leaf_type.py`), `lidar_canopy.py` (v2 maps: `canopy.json` trees and heights from the survey lidar along the stage, woods / verge land cover; config `lidarCanopy`), `features.py` (config `osm.features`: park furniture,
   barriers, single trees, signs and fence / wall / guard-rail lines -> `data.json` "features"; runs inside `bake.py` or alone),
   satellite check: `satellite.py` (aerial photo of a box on the game's grid, git-ignored, never committed), `topdown.mjs`
   (top-down pictures of the stage from the map viewer, dev server running), `overlay.py` (the two side by side + blended)

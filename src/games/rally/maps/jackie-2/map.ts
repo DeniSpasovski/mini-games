@@ -10,6 +10,9 @@ import type {
 import type { NetworkData, NetworkPatch } from '../../world/v2/types';
 import data from './data.json';
 import horizon from './horizon.json';
+// The trees along the parkway from 1 000 to 5 600 m, where they stand and as tall as they are (USGS 2017 lidar,
+// scripts/realmap/lidar_canopy.py); that script also redraws the land cover there (woods, verge).
+import canopy from './canopy.json';
 import network from './network.json';
 // The Kew Gardens junction core: v1's survey plaza (NYC Planimetric roadbed + islands, scripts/realmap/plaza_islands.py)
 import kewGardens from '../jackie/junction.json';
@@ -70,7 +73,7 @@ import { jackie2Info as info } from './info';
 /** The stage starts ~33 m above sea level: y = 0 there. */
 const START_HEIGHT = 32.9;
 /** Covers where mown grass grows (detail layer). */
-const LAWN = ['grass', 'shrub', 'bare', 'cemetery'];
+const LAWN = ['grass', 'shrub', 'bare', 'cemetery', 'verge'];
 
 export const jackie2Map: MapDef = {
   ...info,
@@ -201,7 +204,7 @@ export const jackie2Map: MapDef = {
         median: true,
         parapet: 'jersey',
       },
-      // both carriageways over Forest Park Drive at ~40 degrees (OSM bridge 3 549-3 586 m; drive video 3:22-3:23)
+      // both carriageways over Forest Park Drive at ~40 degrees (OSM bridge 3 549-3 586 m; drive video 2:54-2:56)
       { under: ['5700267'], length: 36, parapet: 'jersey' },
     ],
   },
@@ -238,6 +241,9 @@ export const jackie2Map: MapDef = {
       crop: [0.9, 0.1, 0, 0],
       paved: [0.12, 0.08, 0.5, 0.3],
       open: [0.92, 0.06, 0.02, 0],
+      // (lidar_canopy.py) under the parkway's woods: leaf litter and soil between the plants; the mown verge
+      woods: [0.72, 0.25, 0.03, 0],
+      verge: [0.95, 0.03, 0.02, 0],
     },
   },
   lakes: data.lakes as LakeDef[],
@@ -258,6 +264,54 @@ export const jackie2Map: MapDef = {
     gradeSmoothing: 50,
     surface: 'tarmac',
     texture: 'road_parkway',
+  },
+  // Every crown of the lidar within 110 m of the parkway from 1 000 to 5 600 m, where it stands (scripts/realmap/
+  // lidar_canopy.py): Forest Park, Highland Park and the cemeteries' oaks, planes and locusts up to 25 m, evergreens
+  // among the graves. The generated woods stay beyond that band (`trees` cover); inside it the cover is `woods`.
+  realTrees: {
+    trees: canopy.trees,
+    assets: {
+      woods: [
+        'oak_tree',
+        'oak_tree',
+        'locust_tree',
+        'hornbeam_tree',
+        'beech_tree',
+      ],
+      verge: ['oak_tree', 'locust_tree', 'pale_tree'],
+      grass: ['oak_tree', 'locust_tree', 'pale_tree'],
+      shrub: ['oak_tree', 'locust_tree', 'hornbeam_tree'],
+      trees: ['oak_tree', 'locust_tree'],
+      pine: ['pine_tree'],
+      cemetery: [
+        'pine_tree',
+        'pine_tree',
+        'cypress_tree',
+        'oak_tree',
+        'pale_tree',
+      ],
+      urban: ['pale_tree', 'locust_tree', 'oak_tree'],
+      bare: ['locust_tree', 'oak_tree'],
+      industrial: ['locust_tree'],
+      paved: ['pale_tree'],
+    },
+    // (the tall crowns: species that are tall, not small ones blown up)
+    tall: {
+      height: 20,
+      assets: {
+        woods: ['pale_tree', 'oak_tree', 'beech_tree'],
+        verge: ['pale_tree', 'oak_tree'],
+        grass: ['pale_tree', 'oak_tree'],
+        cemetery: ['pale_tree', 'oak_tree', 'tall_black_pine'],
+        urban: ['pale_tree'],
+      },
+    },
+    minRoadDist: 3,
+    minPathDist: 1.5,
+    scale: [0.4, 1.6],
+    tilt: 3,
+    sink: 0.2,
+    lean: { deg: [2, 5], within: 12 },
   },
   scatter: [
     {
@@ -292,7 +346,7 @@ export const jackie2Map: MapDef = {
     },
     {
       asset: 'bush',
-      cover: ['trees'],
+      cover: ['trees', 'woods'],
       density: 6,
       minRoadDist: 2,
       scale: [0.8, 1.4],
@@ -374,7 +428,7 @@ export const jackie2Map: MapDef = {
     },
     {
       asset: 'rock_small',
-      cover: ['trees', 'shrub'],
+      cover: ['trees', 'shrub', 'woods'],
       density: 0.6,
       minRoadDist: 1.4,
       scale: [0.6, 1.2],
@@ -392,15 +446,34 @@ export const jackie2Map: MapDef = {
     },
     {
       asset: 'grass_tuft',
-      cover: ['trees', 'pine', 'orchard'],
+      cover: ['trees', 'pine', 'orchard', 'woods'],
       density: 140,
       detail: true,
       minRoadDist: 1,
       scale: [0.7, 1.3],
     },
+    // The lidar woods' understorey: shrubs and brambles under the crowns (video 3:27-3:32, 3:54-3:59).
+    {
+      asset: 'thicket_shrub',
+      cover: ['woods'],
+      density: 4,
+      minRoadDist: 2,
+      mask: { scale: 40, threshold: -0.1 },
+      scale: [0.7, 1.2],
+      sink: 0.15,
+    },
+    {
+      asset: 'bramble_shrub',
+      cover: ['woods'],
+      density: 3,
+      minRoadDist: 1.5,
+      mask: { scale: 30, threshold: 0 },
+      scale: [0.8, 1.3],
+      sink: 0.1,
+    },
     // Where the road cuts a wood: shrub belt and young trees along the verge (maps/shared/forest-edge.ts).
     ...forestEdge({
-      woods: ['trees', 'pine'],
+      woods: ['trees', 'pine', 'woods'],
       young: ['birch_tree', 'oak_tree'],
       open: ['shrub'],
     }),
