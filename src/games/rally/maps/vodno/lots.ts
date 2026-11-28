@@ -1,6 +1,7 @@
 import type { PadDef, PathDef } from '../shared/types';
 import { LOT_ROADS } from './landmarks/lot-road';
 import { PLAZA, roadZ } from './landmarks/restaurant';
+import { TRAIL_TERRACE } from './landmarks/trail-lot';
 import {
   LOT_WEST_X,
   RESTAURANT,
@@ -247,17 +248,35 @@ export const LOT_PADS: PadDef[] = [
     },
   },
   {
+    // The earth strip behind its north wall and the terrace at its far end (landmarks/trail-lot.ts `TRAIL_TERRACE`): bare ground at the slab's foot (a kerb's step under the asphalt),
+    // falling with the lot.
+    name: 'trail_terrace',
+    polygon: TRAIL_TERRACE.flat(),
+    blend: 3,
+    frontage: [2083.3, -224, 2084, -204],
+    surface: 'dirt',
+    ramp: {
+      from: [2089, -212],
+      to: [2121, -232],
+      // (the slab's own ground level: a higher one would bend the asphalt up along its north edge, its blend reaching under it)
+      lift: [PAD_LIFT, PAD_LIFT - TRAIL_FALL],
+    },
+  },
+  {
     // Beyond it the earth path down to the picnic shelter and the hiking trail east: one walkable slope instead of the
     // land's step at the lot's end.
     name: 'trail_start',
-    polygon: [2119, -240.2, 2126.5, -227.5, 2150, -238, 2148, -254, 2122, -254],
+    polygon: [
+      2112, -247, 2124, -246.3, 2130.5, -241.5, 2133, -234.5, 2150, -238, 2148,
+      -254, 2112, -254,
+    ],
     blend: 4,
     frontage: [2083.3, -224, 2084, -204],
     surface: 'dirt',
     ramp: {
       from: [2124, -232],
       to: [2142, -246],
-      lift: [PAD_LIFT - TRAIL_FALL + SLAB, -9.5],
+      lift: [PAD_LIFT - TRAIL_FALL, -9.5],
     },
   },
   {
@@ -294,7 +313,7 @@ const REPLACED = new Set([
 ]);
 
 /** Painted lawns (`MapDef.terrain.lawns`): the Sredno park strip, the two garden terraces and the trail start's bank. */
-export const LAWNS: number[][] = lawnPolygons();
+export const LAWNS = lawnPolygons();
 const vidikovecCut = lotMeshSink(VIDIKOVEC);
 const vidikovecTail = lotTailSink(VIDIKOVEC);
 /** The drawn terrain's cut at the Vidikovec's walls, its garden's and under its west tail (`MapDef.terrain.meshSink`): the largest. */

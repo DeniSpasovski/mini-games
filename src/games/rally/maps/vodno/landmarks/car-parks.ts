@@ -61,6 +61,11 @@ export interface Lot {
     middle?: { from: number; to: number; aisle: number };
     /** Bays start only where both long edges run straight and parallel (the road-cut east end of a straight band has none). */
     straight?: boolean;
+    /**
+     * One row of bays along a straight edge instead (local x, z): the bays' back line from `a` to `b`, the bays `depth`
+     * deep on the lot's side of it, square to it, a divider every `pitch`; solid lines (the shares and sides above unused).
+     */
+    row?: { a: V2; b: V2 };
   };
   /** Stone retaining wall + green railing all round (else a kerb). */
   wall?: boolean;
@@ -218,7 +223,19 @@ export const VIDIKOVEC: Lot = {
   centre: [...VIDIKOVEC_LOT_CENTRE, [-63.4, 14.7]],
   hw: VIDIKOVEC_LOT_HW,
   // (along the straight edge of the grey strip only, from G: the bend before it skews them)
-  bays: { depth: 4.8, pitch: 2.6, from: 0.5, to: 0.9, both: false },
+  // One row of bays along the straight north kerb, 0.35 m off it, where the aerial photos show the paint (its long
+  // front line, from the lot's west end to past the lamp).
+  bays: {
+    depth: 5,
+    pitch: 2.5,
+    from: 0,
+    to: 1,
+    both: false,
+    row: {
+      a: [1505.42 - 1565, -582.85 + 586],
+      b: [1533.13 - 1565, -594.36 + 586],
+    },
+  },
   wall: true,
   // The lowered garden north of it (lot-park.ts `GARDEN`) lies 1-2 m under the lot: a thin rock wall, straight down, holds that
   // back (and hides the ground's step beside it, so the slab's own ground is never touched).
@@ -242,12 +259,20 @@ const TRAIL_SITE: Site = { x: 2086.4, z: -210.9, yaw: 0 };
 export const TRAIL: Lot = {
   site: TRAIL_SITE,
   centre: [
-    // (the first point short of the road: the end is square, and the mouth joins it to the road)
+    // (the first point short of the road: the mouth joins it to the road. The aerial photos: it widens towards the far
+    // end, which is rounded - the last points close a 6.3 m arc round [2120.5, -229].)
     [2090.5, -213.4],
-    [2104, -221.6],
-    [2121.4, -232.2],
+    [2104.5, -220.6],
+    [2113, -225.4],
+    [2120.5, -229],
+    [2122.3, -229.86],
+    [2123.66, -230.51],
+    [2124.83, -231.07],
+    [2125.64, -231.46],
+    [2126.09, -231.67],
   ].map(([x, z]): V2 => [x - TRAIL_SITE.x, z - TRAIL_SITE.z]),
   hw: 4.9,
+  widths: [4.9, 4.9, 5.6, 6.0, 5.97, 5.24, 4.08, 2.68, 1.12],
   bays: {
     depth: 4.8,
     pitch: 2.5,
@@ -1703,7 +1728,45 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
         hr: mix(hr[i - 1], hr[i]),
       };
     };
-    const sides = bays.both ? [-1, 1] : [1];
+    if (bays.row) {
+      const { a, b } = bays.row;
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const ux = (b[0] - a[0]) / len;
+      const uz = (b[1] - a[1]) / len;
+      // Into the lot: the side of the row its centre line lies on.
+      const mid = centre[Math.floor(n / 2)];
+      const sd = (mid[0] - a[0]) * -uz + (mid[1] - a[1]) * ux > 0 ? 1 : -1;
+      const nx = -uz * sd * bays.depth;
+      const nz = ux * sd * bays.depth;
+      const solid = (p: V2, q: V2): void => {
+        const l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+        const ox = (-(q[1] - p[1]) / l) * 0.055;
+        const oz = ((q[0] - p[0]) / l) * 0.055;
+        quad(
+          'marking',
+          [
+            [p[0] - ox, p[1] - oz],
+            [q[0] - ox, q[1] - oz],
+            [q[0] + ox, q[1] + oz],
+            [p[0] + ox, p[1] + oz],
+          ],
+          '#d6d6d0',
+          SLAB + 0.02,
+        );
+      };
+      const count = Math.floor(len / bays.pitch + 1e-6);
+      for (let k = 0; k <= count; k++) {
+        const p: V2 = [a[0] + ux * k * bays.pitch, a[1] + uz * k * bays.pitch];
+        solid(p, [p[0] + nx, p[1] + nz]);
+      }
+      // The line closing the bays.
+      const end = count * bays.pitch;
+      solid(
+        [a[0] + nx, a[1] + nz],
+        [a[0] + ux * end + nx, a[1] + uz * end + nz],
+      );
+    }
+    const sides = bays.row ? [] : bays.both ? [-1, 1] : [1];
     // The first station from which both edges stay on the far end's lines (within 5 cm): the bays begin 1.2 m past it.
     let straightS = 0;
     if (bays.straight) {

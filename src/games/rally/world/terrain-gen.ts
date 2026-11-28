@@ -3222,20 +3222,24 @@ export class TerrainGenerator {
     for (let i = 0; i < 4; i++) out[i] += (scree[i] - out[i]) * w;
   }
 
-  /** `MapDef.terrain.lawns` with their bounds. */
+  /** `MapDef.terrain.lawns` with their bounds and moisture. */
   private lawnPolys?: {
     pts: Float64Array;
+    wet: number;
     minX: number;
     maxX: number;
     minZ: number;
     maxZ: number;
   }[];
 
-  /** Pure grass inside a lawn polygon, feathered a metre outside it. */
+  /**
+   * Pure grass inside a lawn polygon, feathered a metre outside it; a rough lawn (`wet` < 1) is broken by patches of dry,
+   * bare earth (up to half its ground where it is driest).
+   */
   private paintLawns(x: number, z: number, out: Float32Array | number[]): void {
     const polys = (this.lawnPolys ??= (this.map.terrain.lawns ?? []).map(
-      (poly) => {
-        const pts = Float64Array.from(poly);
+      (lawn) => {
+        const pts = Float64Array.from(Array.isArray(lawn) ? lawn : lawn.pts);
         let minX = Infinity;
         let maxX = -Infinity;
         let minZ = Infinity;
@@ -3246,18 +3250,33 @@ export class TerrainGenerator {
           minZ = Math.min(minZ, pts[i + 1]);
           maxZ = Math.max(maxZ, pts[i + 1]);
         }
-        return { pts, minX, maxX, minZ, maxZ };
+        const wet = Array.isArray(lawn) ? 1 : lawn.wet;
+        return { pts, wet, minX, maxX, minZ, maxZ };
       },
     ));
     let w = 0;
+    let wet = 1;
     for (const p of polys) {
       if (x < p.minX - 1 || x > p.maxX + 1 || z < p.minZ - 1 || z > p.maxZ + 1)
         continue;
-      w = Math.max(w, 1 - smoothstep(0, 1, polygonDistance(p.pts, x, z)));
+      const pw = 1 - smoothstep(0, 1, polygonDistance(p.pts, x, z));
+      if (pw > w) {
+        w = pw;
+        wet = p.wet;
+      }
     }
     if (w <= 0) return;
+    let dirt = 0;
+    if (wet < 1) {
+      const n =
+        this.detailNoise.noise2(x / 3.1 - 41, z / 3.1 + 17) * 0.7 +
+        this.detailNoise.noise2(x / 0.9 + 5, z / 0.9 - 9) * 0.3;
+      dirt = (1 - wet) * smoothstep(0.05, 0.45, n);
+    }
     for (let i = 0; i < 4; i++)
-      out[i] = out[i] * (1 - w) + (i === SPLAT_GRASS ? w : 0);
+      out[i] =
+        out[i] * (1 - w) +
+        (i === SPLAT_GRASS ? w * (1 - dirt) : i === SPLAT_DIRT ? w * dirt : 0);
   }
 
   /** Land cover base weights (already in `out`) + road / path / channel paint + slope rock. */

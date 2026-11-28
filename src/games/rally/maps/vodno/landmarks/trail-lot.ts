@@ -16,8 +16,9 @@ import {
   picnicTable,
   solarLamp,
 } from './park';
-import { toLocal, toWorld, type Area, type Site } from './sites';
-import { smoothHeights, unitV, wallRibbon, type WallRun } from './stone-wall';
+import { lotPolygon, lotShape, TRAIL } from './car-parks';
+import { inPolygon, toLocal, toWorld, type Area, type Site } from './sites';
+import { smoothHeights, unitV, wallRibbon } from './stone-wall';
 
 /**
  * Around the big hairpin (~2 000 m along the road; the car park and trail start ~1 830 m), all from OSM: the side road "Сончев Град" closed to motor traffic
@@ -121,19 +122,139 @@ export const TRAIL_VERGE: [number, number, string, number][] = [
   [1.9, 4.6, 'hazelnut_tree', 0.68],
 ];
 
-/** The car park outline (OSM way 37998024, world x, z), the two long sides from the road end. */
-const LOT_SIDES: [V2, V2][] = [
-  [
-    [2088.3, -218.5],
-    [2118.5, -236.9],
-  ],
-  [
-    [2088.7, -205.9],
-    [2124.2, -227.5],
-  ],
+/** The P sign at the entrance (world x, z): beside the road's edge, south of the mouth. */
+const SIGN_AT: V2 = [2090.2, -207.1];
+/** The walls' frame (world): local = world - this point. */
+const WALLS_AT: V2 = [2088.3, -218.5];
+
+/**
+ * The asphalt's rows (`lotShape(TRAIL)`, world x, z): its north edge, its south edge, and how far each row lies from the
+ * road end (m).
+ */
+function lotEdges(): { north: V2[]; south: V2[]; s: number[] } {
+  const { left, right } = lotShape(TRAIL);
+  const w = (p: V2): V2 => toWorld(TRAIL.site, p[0], p[1]) as V2;
+  const l = left.map(w);
+  const r = right.map(w);
+  const mid = Math.floor(l.length / 2);
+  const [north, south] = l[mid][1] < r[mid][1] ? [l, r] : [r, l];
+  const s = [0];
+  for (let i = 1; i < north.length; i++) {
+    const c0 = [
+      (north[i - 1][0] + south[i - 1][0]) / 2,
+      (north[i - 1][1] + south[i - 1][1]) / 2,
+    ];
+    const c1 = [
+      (north[i][0] + south[i][0]) / 2,
+      (north[i][1] + south[i][1]) / 2,
+    ];
+    s.push(s[i - 1] + Math.hypot(c1[0] - c0[0], c1[1] - c0[1]));
+  }
+  return { north, south, s };
+}
+
+/** An edge of the asphalt pushed out by `off` m (away from the other edge), rows from `from` m while `keep` holds. */
+function edgeLine(
+  edge: V2[],
+  other: V2[],
+  s: number[],
+  off: number,
+  from: number,
+  keep: (p: V2) => boolean,
+): V2[] {
+  const out: V2[] = [];
+  for (let i = 0; i < edge.length; i++) {
+    if (s[i] < from || !keep(edge[i])) continue;
+    const [dx, dz] = unitV(edge[i][0] - other[i][0], edge[i][1] - other[i][1]);
+    out.push([edge[i][0] + dx * off, edge[i][1] + dz * off]);
+  }
+  return out;
+}
+
+/**
+ * The car park's stone walls (the aerial photos; positions by eye, world x, z): a kerb wall along each long side of the
+ * asphalt from just past the mouth, a step wall across the earth terraces north of the lot (the dark line between their
+ * two levels), and two curved walls round the far end - the inner one round the raised bed with the trees, the outer one
+ * holding the earth terrace that wraps the rounded end, the clearing and the path to the shelter beyond it.
+ */
+const TRAIL_WALLS: V2[][] = (() => {
+  const { north, south, s } = lotEdges();
+  return [
+    edgeLine(north, south, s, 0.5, 4, (p) => p[0] < 2110),
+    edgeLine(south, north, s, 0.5, 4, (p) => p[0] < 2118),
+    [
+      [2093.6, -223.4],
+      [2099, -226.4],
+      [2104.6, -229.4],
+    ],
+    [
+      [2109.5, -231.7],
+      [2111.5, -235],
+      [2114.5, -237.6],
+      [2118, -238.6],
+      [2121, -238],
+      [2123, -236.6],
+    ],
+    [
+      [2108.5, -241.5],
+      [2111.5, -244],
+      [2115, -245.5],
+      [2119, -246],
+      [2123, -245.3],
+      [2126.5, -243.5],
+      [2129, -240.5],
+      [2130.5, -237],
+      [2131, -233],
+      [2130.2, -229],
+      [2128.8, -226.5],
+    ],
+  ];
+})();
+
+/**
+ * Hikers' cars where the aerial photos show them (by eye): one at the mouth, a row nosed in to the north kerb, one at the
+ * rounded end. World x, z, heading (rad, the nose's direction from +X towards +Z) and street-car variant.
+ */
+const NOSE_N = Math.atan2(-0.89, -0.46);
+export const TRAIL_CARS: [number, number, number, number][] = [
+  [2097.2, -217.9, Math.atan2(-0.88, 0.48), 3],
+  [2102.5, -221.6, NOSE_N + 0.03, 8],
+  [2104.6, -222.7, NOSE_N - 0.04, 1],
+  [2106.7, -223.8, NOSE_N + 0.02, 5],
+  [2109.4, -225, NOSE_N - 0.05, 0],
+  [2121.4, -232.3, Math.atan2(-0.92, -0.38), 6],
 ];
-/** The walls start this far into the lot from its road end (m): the entrance stays open. */
-const WALL_FROM = 4;
+
+/**
+ * The earth round the asphalt's north side and far end (the aerial photos, by eye; world x, z): the two-level terraces
+ * north of the lot, the bed inside the inner curved wall and the terrace inside the outer one, which wraps the rounded
+ * end; it keeps 0.4 m off the asphalt (../lots.ts `trail_terrace`: graded to the slab's foot).
+ */
+export const TRAIL_TERRACE: V2[] = [
+  [2092.5, -220.6],
+  [2091.5, -226.5],
+  [2096, -233.5],
+  [2101.5, -236.5],
+  [2107, -239.5],
+  ...TRAIL_WALLS[4],
+  [2127.2, -227.8],
+  [2126.9, -231.3],
+  [2124.9, -234.2],
+  [2121.7, -235.7],
+  [2116, -233.9],
+  [2110.2, -230.8],
+  [2102.1, -225.3],
+];
+/** Its trees and shrubs (the photos: broad crowns on the bed and the upper terrace): world x, z, asset, scale. */
+export const TRAIL_TERRACE_PLANTS: [number, number, string, number][] = [
+  [2098, -232.4, 'oak_tree', 0.7],
+  [2103.5, -235, 'hornbeam_tree', 0.8],
+  [2107.6, -236.2, 'scrub_bush', 0.8],
+  [2113.3, -239.6, 'oak_tree', 0.75],
+  [2117.6, -242.2, 'hornbeam_tree', 0.8],
+  [2121.4, -241.3, 'oak_tree', 0.65],
+  [2125.6, -238.6, 'scrub_bush', 0.75],
+];
 
 /**
  * The picnic shelter at the car park's far end (OSM way 1534237148, baked as a house box: replaced) - an open timber gazebo
@@ -147,6 +268,113 @@ export const TRAIL_TABLES: [number, number, number][] = [
 ];
 /** Baked boxes this replaces: the shelter (2693) and a Microsoft ML "garage" in the middle of the car park (2694). */
 export const TRAIL_LOT_REPLACES = new Set([2693, 2694]);
+
+/** The solar lamps (at 0.35 and 0.75 of the south wall) and the bin (0.55), 0.9 m outside it: world x, z. */
+const SOUTH_FURNITURE: { lamps: V2[]; bin: V2 } = (() => {
+  const run = TRAIL_WALLS[1];
+  const at = (t: number): V2 => {
+    const k = Math.min(run.length - 2, Math.floor(t * (run.length - 1)));
+    const f = t * (run.length - 1) - k;
+    const [a, b] = [run[k], run[k + 1]];
+    const [tx, tz] = unitV(b[0] - a[0], b[1] - a[1]);
+    // (south: the side away from the lot, +z)
+    const [nx, nz] = tx > 0 ? [-tz, tx] : [tz, -tx];
+    return [
+      a[0] + (b[0] - a[0]) * f + nx * 0.9,
+      a[1] + (b[1] - a[1]) * f + nz * 0.9,
+    ];
+  };
+  return { lamps: [at(0.35), at(0.75)], bin: at(0.55) };
+})();
+
+/**
+ * The wood round the car park (the aerial photos: closed oak and hornbeam crowns right to the asphalt on the south side
+ * and round the far end, past the outer wall): one plant per 2.2 m cell out to 24 m from the asphalt's edge, shrubs at
+ * the edge, hazel and saplings behind, oaks and hornbeams from 4.5 m out. Clear of the walls, their lamps and bin, the
+ * earth terraces, the clearing past the end (the `trail_start` pad) and the shelter. World x, z, asset, scale.
+ */
+export const TRAIL_WOOD: [number, number, string, number][] = [];
+/** The scatter's own trees stay out of it (`TRAIL_LOT_AREAS`, world x, z). */
+const TRAIL_WOOD_AREA: V2[] = [
+  [2096, -208],
+  [2128, -224],
+  [2132, -228],
+  [2133.5, -236],
+  [2152, -239],
+  [2152, -195],
+  [2096, -195],
+];
+/** The earth clearing past the outer wall (../lots.ts `trail_start`, world x, z). */
+export const END_CLEARING: V2[] = [
+  [2112, -247],
+  [2124, -246.3],
+  [2130.5, -241.5],
+  [2133, -234.5],
+  [2150, -238],
+  [2148, -254],
+  [2112, -254],
+];
+/** The asphalt's outline (`lotPolygon(TRAIL)`, world x, z). */
+const TRAIL_SLAB: V2[] = (() => {
+  const pts = lotPolygon(TRAIL);
+  const out: V2[] = [];
+  for (let i = 0; i + 1 < pts.length; i += 2) out.push([pts[i], pts[i + 1]]);
+  return out;
+})();
+/** Distance (m) from (x, z) to a closed polygon's outline. */
+function outlineDistance(poly: readonly V2[], x: number, z: number): number {
+  let d = Infinity;
+  for (let n = 0; n < poly.length; n++)
+    d = Math.min(d, segDistance(poly[n], poly[(n + 1) % poly.length], x, z));
+  return d;
+}
+{
+  const CELL = 2.2;
+  const edge = ['bush', 'scrub_bush', 'bramble_shrub', 'thicket_shrub'];
+  const mid = ['hazelnut_tree', 'young_tree', 'thicket_shrub', 'hazelnut_tree'];
+  const tall = ['oak_tree', 'hornbeam_tree', 'oak_tree', 'hornbeam_tree'];
+  const furniture = [...SOUTH_FURNITURE.lamps, SOUTH_FURNITURE.bin];
+  for (let i = 0; i < 26; i++)
+    for (let j = 0; j < 21; j++) {
+      const h = (k: number) => (hash3(i, j, k, 6151) % 1000) / 1000;
+      const x = 2096 + (i + 0.15 + 0.7 * h(1)) * CELL;
+      const z = -241 + (j + 0.15 + 0.7 * h(2)) * CELL;
+      if (!inPolygon(TRAIL_WOOD_AREA, x, z) || inPolygon(TRAIL_SLAB, x, z))
+        continue;
+      const d = outlineDistance(TRAIL_SLAB, x, z);
+      if (d < 1.2 || d > 24) continue;
+      if (
+        inPolygon(TRAIL_TERRACE, x, z) ||
+        outlineDistance(TRAIL_TERRACE, x, z) < 1
+      )
+        continue;
+      if (
+        inPolygon(END_CLEARING, x, z) ||
+        outlineDistance(END_CLEARING, x, z) < 1.5
+      )
+        continue;
+      if (
+        TRAIL_WALLS.some((w) =>
+          w.some((p, n) => n > 0 && segDistance(w[n - 1], p, x, z) < 1),
+        )
+      )
+        continue;
+      if (Math.hypot(x - TRAIL_SHELTER.x, z - TRAIL_SHELTER.z) < 6) continue;
+      if (furniture.some(([fx, fz]) => Math.hypot(x - fx, z - fz) < 1.6))
+        continue;
+      const k = Math.floor(h(4) * 4);
+      const sz = h(5);
+      if (d < 2.6) {
+        if (h(3) < 0.75) TRAIL_WOOD.push([x, z, edge[k], 0.6 + 0.35 * sz]);
+      } else if (d < 4.5) {
+        if (h(3) < 0.55) TRAIL_WOOD.push([x, z, mid[k], 0.5 + 0.3 * sz]);
+      } else if (h(3) < 0.36) {
+        TRAIL_WOOD.push([x, z, tall[k], 0.75 + 0.3 * sz]);
+      } else if (h(3) < 0.5) {
+        TRAIL_WOOD.push([x, z, edge[k], 0.7 + 0.4 * sz]);
+      }
+    }
+}
 /** The owner-placed tall black pines over the trail start and its tables (world x, z; the plantation's edge). */
 const TRAIL_PINES_SET: [number, number][] = [
   [2071.4, -215.4],
@@ -219,6 +447,17 @@ export const TRAIL_UNDERSTOREY: [number, number][] = [
   [2064.4, -200.4],
   [2059.4, -213.4],
 ];
+
+/** Distance (m) from (x, z) to the segment a-b. */
+function segDistance(a: V2, b: V2, x: number, z: number): number {
+  const dx = b[0] - a[0];
+  const dz = b[1] - a[1];
+  const t = Math.max(
+    0,
+    Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)),
+  );
+  return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t);
+}
 
 /** Distance (m) from a world point to the trail's line. */
 function trailDistance(x: number, z: number): number {
@@ -314,6 +553,8 @@ const LOT: Site = { x: 2105.4, z: -223.1, yaw: -0.561 };
 
 export const TRAIL_LOT_AREAS: Area[] = [
   { site: LOT, rect: [-24, 21, -7.6, 7.6] },
+  // the asphalt's rounded, widened end
+  { site: { x: 0, z: 0, yaw: 0 }, poly: TRAIL_SLAB },
   // the path mouth past the posts
   { site: TRAIL_START, rect: [-2, 9, -2, 2] },
   { site: ISLAND_GAZEBO, r: ISLAND_GAZEBO_APOTHEM + 1 },
@@ -323,6 +564,10 @@ export const TRAIL_LOT_AREAS: Area[] = [
   { site: { x: 2162.3, z: -38.1, yaw: 0 }, r: 2 },
   { site: TRAIL_START, r: 2.5 },
   { site: TRAIL_SHELTER, r: TRAIL_SHELTER_APOTHEM + 0.8 },
+  // the earth terraces north of the lot and round its far end, inside the outer wall
+  { site: { x: 0, z: 0, yaw: 0 }, poly: TRAIL_TERRACE },
+  // the wood round it: its own trees only
+  { site: { x: 0, z: 0, yaw: 0 }, poly: TRAIL_WOOD_AREA },
   ...TRAIL_TABLES.map(([x, z]) => ({ site: { x, z, yaw: 0 }, r: 2.2 })),
 ];
 
@@ -816,34 +1061,47 @@ function rootTube(
   return pts;
 }
 
-/** The car park's dry-stone walls: knee high, following the ground along the two long sides. */
+/** The car park's dry-stone walls (`TRAIL_WALLS`): knee high, following the ground, resampled every ~2 m. */
 function lotWalls(l: Local, ground: (x: number, z: number) => number): void {
-  for (const [a, b] of LOT_SIDES) {
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const [tx, tz] = unitV(b[0] - a[0], b[1] - a[1]);
+  for (const line of TRAIL_WALLS) {
+    const pts: V2[] = [];
+    for (let i = 0; i + 1 < line.length; i++) {
+      const [a, b] = [line[i], line[i + 1]];
+      const steps = Math.max(
+        1,
+        Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2),
+      );
+      for (let k = i ? 1 : 0; k <= steps; k++)
+        pts.push([
+          a[0] + ((b[0] - a[0]) * k) / steps,
+          a[1] + ((b[1] - a[1]) * k) / steps,
+        ]);
+    }
+    if (pts.length < 2) continue;
     const p: V2[] = [];
     const n: V2[] = [];
     const lo: number[] = [];
     const hi: number[] = [];
-    for (let d = WALL_FROM; d <= len + 1e-6; d += 2) {
-      const x = a[0] + tx * d;
-      const z = a[1] + tz * d;
-      const [px, pz] = toLocal(l.site, x, z);
-      p.push([px, pz]);
+    pts.forEach(([x, z], k) => {
+      const [a, b] = [
+        pts[Math.max(0, k - 1)],
+        pts[Math.min(pts.length - 1, k + 1)],
+      ];
+      const [tx, tz] = unitV(b[0] - a[0], b[1] - a[1]);
+      p.push(toLocal(l.site, x, z));
       n.push([-tz, tx]);
       const g = ground(x, z) - l.baseY;
       lo.push(g - 0.4);
-      hi.push(g + 0.55);
-    }
-    const run: WallRun = {
+      hi.push(g + 0.6);
+    });
+    wallRibbon(l, {
       p,
       n,
       lo,
       hi: smoothHeights(hi, 3),
       inner: -0.25,
       outer: 0.25,
-    };
-    wallRibbon(l, run);
+    });
   }
 }
 
@@ -893,31 +1151,15 @@ export function buildTrailLot(
   });
   for (const [x, z, yaw] of ISLAND_TABLES)
     picnicTable(island, x - ix, iy(x - ix, z - iz), z - iz, yaw);
-  const lotSite: Site = {
-    x: LOT_SIDES[0][0][0],
-    z: LOT_SIDES[0][0][1],
-    yaw: 0,
-  };
+  const lotSite: Site = { x: WALLS_AT[0], z: WALLS_AT[1], yaw: 0 };
   const lot = at(lotSite, 'trail-lot');
   lotWalls(lot, ground);
-  // Solar lamps and the bin on the north wall, the P sign at the entrance.
-  const [a, b] = LOT_SIDES[1];
-  for (const t of [0.35, 0.75]) {
-    const x = a[0] + (b[0] - a[0]) * t;
-    const z = a[1] + (b[1] - a[1]) * t;
+  // Solar lamps and the bin by the south wall, the P sign at the entrance.
+  const put = ([x, z]: V2) => {
     const [lx, lz] = toLocal(lotSite, x, z);
-    solarLamp(lot, lx, ground(x, z) - lot.baseY, lz + 0.9, 1.0);
-  }
-  {
-    const x = a[0] + (b[0] - a[0]) * 0.55;
-    const z = a[1] + (b[1] - a[1]) * 0.55;
-    const [lx, lz] = toLocal(lotSite, x, z);
-    bin(lot, lx, ground(x, z) - lot.baseY, lz + 0.8, 0);
-  }
-  {
-    const x = a[0] + 1.5;
-    const z = a[1] - 1.2;
-    const [lx, lz] = toLocal(lotSite, x, z);
-    parkingSign(lot, lx, ground(x, z) - lot.baseY, lz, -Math.PI / 2);
-  }
+    return [lx, ground(x, z) - lot.baseY, lz] as const;
+  };
+  for (const at of SOUTH_FURNITURE.lamps) solarLamp(lot, ...put(at), 1.0);
+  bin(lot, ...put(SOUTH_FURNITURE.bin), 0);
+  parkingSign(lot, ...put(SIGN_AT), -Math.PI / 2);
 }

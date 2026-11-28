@@ -51,7 +51,8 @@
     "tile": "120233330",
     "cache": "sources/maps/vodno/canopy",
     "minHeight": 3,
-    "woods": ["pine", "mixed", "oakwood", "trees"]
+    "woods": ["pine", "mixed", "oakwood", "trees"],
+    "ndviFill": [0.6, 0.76]
   },
   "canopy": {
     "trees": 8,

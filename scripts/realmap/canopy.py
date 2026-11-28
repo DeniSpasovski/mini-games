@@ -12,6 +12,10 @@ into the map's data.json `meta.sources`:
   ones inside them (clearings, edges). The CHM's real resolution is ~3-5 m: it merges the crowns of a closed coppice
   stand, so the game keeps its scatter there (thinned by the share) and places only these as they stand.
 
+`ndviFill` (optional, [lo, hi]): the CHM's 2018-2020 imagery misses stands that have closed since and has blank patches;
+inside the wood covers the share is raised to the summer Sentinel-2 NDVI (the leafType "summer" scene) ramped from lo
+(none) to hi (closed). `--fill-only` applies only this step to the existing canopy.json (no CHM download).
+
 Reads the bake config's optional "canopyHeight" block:
 
     "canopyHeight": { "tile": "120233330", "cache": "sources/maps/vodno/canopy", "minHeight": 3,
@@ -38,7 +42,7 @@ from scipy.ndimage import gaussian_filter, gaussian_filter1d, map_coordinates, m
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bake import ROOT, Proj, grid_coords, http_range, rle_b64  # noqa: E402
-from leaf_type import rle_decode  # noqa: E402
+from leaf_type import ndvi, rle_decode, utm  # noqa: E402
 
 CHM_URL = 'https://dataforgood-fb-data.s3.amazonaws.com/forests/v1/alsgedi_global_v6_float/{layer}/{tile}.tif{ext}'
 MERC_R = 6378137.0
@@ -225,6 +229,54 @@ def blocks(a, cell):
     return p.reshape(r, cell, c, cell).swapaxes(1, 2).reshape(r, c, cell * cell)
 
 
+def ndvi_fill(cfg, q, data):
+    """Cover quarters `q` (nodes x0 + i GRID, z0 + j GRID) raised to the summer NDVI ramp inside the wood covers."""
+    ch = cfg['canopyHeight']
+    if 'ndviFill' not in ch:
+        return q
+    lo, hi = ch['ndviFill']
+    x0, z0 = cfg['landcover']['extent'][0], cfg['landcover']['extent'][2]
+    Z, X = np.mgrid[0 : q.shape[0], 0 : q.shape[1]].astype(np.float64) * GRID
+    X += x0
+    Z += z0
+    lat, lon = Proj(*cfg['origin']).inv(X, Z)
+    scene = cfg['landcover']['leafType']['summer']
+    E, N = utm(lat, lon, int(scene.split('_')[1][:2]))
+    green = np.clip((ndvi(scene, E, N) - lo) / (hi - lo), 0, 1)
+    lc = data['landcover']
+    zid = rle_decode(lc['rle'], lc['rows'] * lc['cols']).reshape(lc['rows'], lc['cols'])
+    names = [zn['cover'] for zn in lc['zones']]
+    ci = np.clip(np.floor((Z - lc['originZ']) / lc['cell']).astype(int), 0, lc['rows'] - 1)
+    cj = np.clip(np.floor((X - lc['originX']) / lc['cell']).astype(int), 0, lc['cols'] - 1)
+    woods = np.isin(zid[ci, cj], [i for i, n in enumerate(names) if n in ch.get('woods', ['pine', 'mixed', 'oakwood', 'trees'])])
+    out = np.where(woods, np.maximum(q, np.round(green * 4)), q).astype(np.uint8)
+    print(f'  ndvi fill: wood canopy {25 * q[woods].mean():.0f} % -> {25 * out[woods].mean():.0f} %')
+    return out
+
+
+def fill_only(cfg_path):
+    """Re-applies `ndvi_fill` to the map's existing canopy.json."""
+    cfg = json.load(open(cfg_path))
+    ch = cfg['canopyHeight']
+    data = json.load(open(os.path.join(ROOT, cfg['out'])))
+    fn = os.path.join(ROOT, ch.get('out', os.path.join(os.path.dirname(cfg['out']), 'canopy.json')))
+    out = json.load(open(fn))
+    c = out['cover']
+    q = rle_decode(c['rle'], c['rows'] * c['cols']).reshape(c['rows'], c['cols'])
+    c['rle'] = rle_b64(ndvi_fill(cfg, q, data))
+    with open(fn, 'w', newline='\n') as f:
+        json.dump(out, f, separators=(',', ':'))
+    if 'ndviFill' in ch:
+        add_fill_source(data)
+        with open(os.path.join(ROOT, cfg['out']), 'w', newline='\n') as f:
+            json.dump(data, f, separators=(',', ':'))
+
+
+def add_fill_source(data):
+    note = 'Canopy gaps: Copernicus Sentinel-2 L2A (contains modified Copernicus Sentinel data)'
+    data['meta']['sources'] = [s for s in data['meta']['sources'] if not s.startswith('Canopy gaps:')] + [note]
+
+
 def main(cfg_path, cache=None):
     cfg = json.load(open(cfg_path))
     ch = cfg['canopyHeight']
@@ -271,7 +323,7 @@ def main(cfg_path, cache=None):
     lone = (near < ch.get('loneCover', 0.45)) | ~woods
     out = {
         # share in quarters, height in 2 m steps
-        'cover': raster(np.round(share * 4).astype(np.uint8), GRID, 0.25),
+        'cover': raster(ndvi_fill(cfg, np.round(share * 4).astype(np.uint8), data), GRID, 0.25),
         'height': raster(stand, 2 * GRID, 2),
         # x, z, height (whole metres: the CHM's own steps)
         'trees': [int(v) for t in zip(xs[lone], zs[lone], np.round(th[lone])) for v in t],
@@ -280,6 +332,8 @@ def main(cfg_path, cache=None):
     with open(fn, 'w', newline='\n') as f:
         json.dump(out, f, separators=(',', ':'))
     data['meta']['sources'] = [s for s in data['meta']['sources'] if not s.startswith('Canopy height:')] + [SOURCE]
+    if 'ndviFill' in ch:
+        add_fill_source(data)
     with open(out_path, 'w', newline='\n') as f:
         json.dump(data, f, separators=(',', ':'))
 
@@ -299,4 +353,7 @@ def main(cfg_path, cache=None):
 
 if __name__ == '__main__':
     a = sys.argv[1:]
-    main(a[0], a[a.index('--cache') + 1] if '--cache' in a else None)
+    if '--fill-only' in a:
+        fill_only(a[0])
+    else:
+        main(a[0], a[a.index('--cache') + 1] if '--cache' in a else None)

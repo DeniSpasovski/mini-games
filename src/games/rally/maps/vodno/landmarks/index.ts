@@ -6,7 +6,7 @@ import type { SurfaceId } from '../../../physics/surfaces';
 import type { StaticCollider } from '../../../physics/types';
 import type { TerrainSampler } from '../../../world/heightfield';
 import type { Landmark } from '../../../world/landmarks';
-import type { ScatterInstance } from '../../../world/scatter';
+import { addLean, type ScatterInstance } from '../../../world/scatter';
 import type { World } from '../../../world/world';
 import { Local } from '../../ajvatovci/hilltop/build/shapes';
 import { Bucket } from '../../ajvatovci/start-row/build/kit';
@@ -108,7 +108,10 @@ import {
   TRAIL_LOT_REPLACES,
   TRAIL_PINES,
   TRAIL_STAND_OAKS,
+  TRAIL_CARS,
+  TRAIL_TERRACE_PLANTS,
   TRAIL_START,
+  TRAIL_WOOD,
   TRAIL_UNDERSTOREY,
   TRAIL_VERGE,
   trailLotColliders,
@@ -161,6 +164,8 @@ interface Plant {
   rotY?: number;
   /** Metres above the ground (a car on a raised paving). */
   lift?: number;
+  /** Lean it with the ground (a car on a sloping lot): its wheels sit on the slope instead of a level body sinking in. */
+  fit?: boolean;
 }
 
 interface Spec {
@@ -203,7 +208,7 @@ function landmark(spec: Spec): Landmark {
       (spec.plants ?? []).map((p, i) => {
         const [x, z] = toWorld(p.site, p.x, p.z);
         const h = hash3(i, 9, 5, 5101);
-        return {
+        const inst: ScatterInstance = {
           asset: p.asset,
           // Trees: the placement stage sets variant, rotation and scale (trees/placement.ts).
           variant:
@@ -217,6 +222,14 @@ function landmark(spec: Spec): Landmark {
           tiltX: 0,
           tiltZ: 0,
         };
+        if (p.fit) {
+          // (the ground's slope over the car's footprint: the body's up leans to the downhill side, square to it)
+          const gx = (ground.height(x + 1, z) - ground.height(x - 1, z)) / 2;
+          const gz = (ground.height(x, z + 1) - ground.height(x, z - 1)) / 2;
+          const g = Math.hypot(gx, gz);
+          if (g > 1e-4) addLean(inst, -gx / g, -gz / g, Math.atan(g));
+        }
+        return inst;
       }),
     *build(world: World): Generator<void, Group> {
       const bucket = new Bucket();
@@ -476,6 +489,7 @@ export const carParksLandmark = landmark({
         scale: 1,
         variant: c.variant,
         lift: SLAB,
+        fit: true,
         // The car model faces +x: turned `turn` from the site's x axis (three.js yaws the other way round).
         rotY: -(lot.site.yaw + c.turn),
       })),
@@ -775,6 +789,33 @@ export const trailLotLandmark = landmark({
       scale: 0.6,
     })),
     ...TRAIL_SCRUB.map(([x, z, asset, scale]) => ({
+      asset,
+      site: AT_WORLD,
+      x,
+      z,
+      scale,
+    })),
+    // Hikers' cars nosed in along the north wall (the aerial photos).
+    ...TRAIL_CARS.map(([x, z, turn, variant]) => ({
+      asset: 'street_car',
+      site: AT_WORLD,
+      x,
+      z,
+      scale: 1,
+      variant,
+      lift: SLAB,
+      rotY: -turn,
+      fit: true,
+    })),
+    ...TRAIL_TERRACE_PLANTS.map(([x, z, asset, scale]) => ({
+      asset,
+      site: AT_WORLD,
+      x,
+      z,
+      scale,
+    })),
+    // The wood right to the asphalt's south side and round its far end (the aerial photos).
+    ...TRAIL_WOOD.map(([x, z, asset, scale]) => ({
       asset,
       site: AT_WORLD,
       x,
