@@ -498,6 +498,19 @@ export function noonGroundLight(opts: AtmosphereOptions): number {
 }
 
 /**
+ * `light=v2`'s exposure lift (x) for a low sun, from the clear sky's light on the ground now and at noon: once it falls
+ * below `from` of noon, the exposure makes up `k` of the further drop (in stops), as an eye does at dusk; 1 all day.
+ */
+export function lowSunLift(
+  sky: number,
+  noonSky: number,
+  from: number,
+  k: number,
+): number {
+  return Math.max(1, (from * noonSky) / Math.max(1e-6, sky)) ** k;
+}
+
+/**
  * `light=v2`'s exposure lift (x) under trees for the crown cover round the camera (0..1): none in the open or at a
  * stand's edge (a sunlit road beside the trees keeps its exposure), `stops` inside a closed stand.
  */

@@ -2,6 +2,7 @@ import { describe, expect, test } from '@rstest/core';
 import {
   canopyLift,
   daylight,
+  lowSunLift,
   luminance,
   mieFromTurbidity,
   noonGroundLight,
@@ -89,6 +90,30 @@ describe('light=v2 exposure under trees', () => {
     for (let c = 0.35; c < 0.8; c += 0.05) {
       const l = canopyLift(c, 1);
       expect(l).toBeGreaterThan(prev);
+      prev = l;
+    }
+  });
+});
+
+describe('light=v2 exposure for a low sun', () => {
+  test('none while the sky keeps most of its noon light, then a share of the further drop in stops', () => {
+    const noonSky = luminance(daylight(58, HAZY).sky);
+    for (const el of [58, 45, 30]) {
+      expect(
+        lowSunLift(luminance(daylight(el, HAZY).sky), noonSky, 0.8, 0.6),
+      ).toBe(1);
+    }
+    expect(lowSunLift(0.2, 1, 0.8, 0.5)).toBeCloseTo(2);
+    let prev = 1;
+    for (const el of [20, 15, 10, 6]) {
+      const l = lowSunLift(
+        luminance(daylight(el, HAZY).sky),
+        noonSky,
+        0.8,
+        0.6,
+      );
+      expect(l).toBeGreaterThan(prev);
+      expect(l).toBeLessThan(2.5);
       prev = l;
     }
   });

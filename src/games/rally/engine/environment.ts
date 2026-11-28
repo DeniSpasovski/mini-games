@@ -37,6 +37,7 @@ import { urlParam } from './url-param';
 import {
   canopyLift,
   daylight,
+  lowSunLift,
   luminance,
   mieFromTurbidity,
   noonGroundLight,
@@ -271,6 +272,13 @@ const V2 = {
    */
   adaptStops: 1,
   adaptTime: 1.5,
+  /**
+   * A low sun (`lowSunLift`): once the clear sky's light falls below `duskFrom` of noon's, the exposure makes up
+   * `duskStops` of the further drop, as an eye does at dusk; without it the shade goes dark and blue where the default
+   * look keeps its warm fill. By sun height only: nothing above ~30 deg, ~x1.05 at 22 deg, x1.6 at 8 deg.
+   */
+  duskFrom: 0.8,
+  duskStops: 0.6,
   /**
    * Camera white balance on the scene's light (sun, sky light; not the dome or the haze), r g b at unit luminance: a
    * little cooler than the atmosphere's neutral noon, so a sunlit grey road has the default look's colour (without it
@@ -629,19 +637,16 @@ export class Environment {
   /** Re-apply settings (sun angle, fog, exposure) and rebuild the env map; `studio` = with softboxes (or keep). */
   apply(def: EnvironmentDef, studio = this.studio): void {
     this.source = def;
-    // Evening golden hour (~17:00 till night): the map's `goldenHour` look over its day look.
+    // Evening golden hour (~17:00 till night): the map's `goldenHour` look over its day look (light=v2: its grade
+    // only; the atmosphere gives the sky, the light and the exposure).
     const at =
       def.timeOfDay !== undefined
         ? (urlNumber('tod') ?? def.timeOfDay)
         : undefined;
-    if (
-      def.goldenHour &&
-      !studio &&
-      !lightV2() &&
-      at !== undefined &&
-      isGoldenHour(at)
-    )
-      def = { ...def, ...def.goldenHour };
+    if (def.goldenHour && !studio && at !== undefined && isGoldenHour(at))
+      def = lightV2()
+        ? { ...def, grade: def.goldenHour.grade ?? def.grade }
+        : { ...def, ...def.goldenHour };
     const look = ownValue(LOOKS, urlString('look') ?? '');
     if (look) def = { ...def, ...look };
     const light =
@@ -955,22 +960,32 @@ export class Environment {
     this.hemi.color.setRGB(sky[0], sky[1], sky[2]).multiply(V2_WHITE);
     this.hemi.groundColor.copy(g).multiplyScalar(Math.PI);
     this.hemi.intensity = this.probe.intensity > 0 ? 0 : V2.envDiffuse;
-    this.v2Exposure = (def.exposure * V2.lit) / this.noonLight(def);
+    const noon = this.noonLight(def);
+    this.v2Exposure =
+      ((def.exposure * V2.lit) / noon.ground) *
+      lowSunLift(luminance(day.sky), noon.sky, V2.duskFrom, V2.duskStops);
     setAerial(HAZE_TAIL, undefined, day.extinction);
     return V2.envDiffuse;
   }
 
-  /** `light=v2`: the light on sunlit flat ground under a clear noon sun through this map's air (cached per air). */
-  private noonLight(def: EnvironmentDef): number {
+  /**
+   * `light=v2`: the light on sunlit flat ground and the sky's share of it under a clear noon sun through this map's air
+   * (cached per air).
+   */
+  private noonLight(def: EnvironmentDef): { ground: number; sky: number } {
     const mie = mieFromTurbidity(def.turbidity);
     let e = this.noonCache.get(mie);
     if (e === undefined) {
-      e = noonGroundLight({ mie, altitude: V2.altitude, albedo: V2.albedo });
+      const opts = { mie, altitude: V2.altitude, albedo: V2.albedo };
+      e = {
+        ground: noonGroundLight(opts),
+        sky: luminance(daylight(NOON_ELEVATION, opts).sky),
+      };
       this.noonCache.set(mie, e);
     }
     return e;
   }
-  private noonCache = new Map<number, number>();
+  private noonCache = new Map<number, { ground: number; sky: number }>();
 
   /** The sky-view table as a half-float texture (made once, refilled per apply). */
   private skyTexture(lut: Float32Array): DataTexture {
