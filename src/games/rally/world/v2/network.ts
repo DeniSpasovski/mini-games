@@ -726,6 +726,7 @@ export class Network {
   readonly solidLanes: NonNullable<NetworkDef['solidLanes']>;
   readonly goreHatch: boolean;
   readonly laneBars: readonly number[];
+  private readonly weathered: NonNullable<NetworkDef['weatheredBarriers']>;
   private readonly paveNear = new Map<number, Projection>();
   /** Wall samples beside another, unrelated road at their level (`dividingWalls`): way, side, sample, that road. */
   private divides: [Way, 0 | 1, number, Way][] = [];
@@ -783,6 +784,7 @@ export class Network {
     this.solidLanes = def.solidLanes ?? [];
     this.goreHatch = def.goreHatch ?? false;
     this.laneBars = def.laneBars ?? [];
+    this.weathered = def.weatheredBarriers ?? [];
     const sw = def.data.survey;
     if (sw?.walls?.length && sw.wallsUntil) {
       const segs: number[] = [];
@@ -3803,6 +3805,13 @@ export class Network {
   medianFenceAt(w: Way, i: number): boolean {
     const st = this.stationOf(w, i);
     return this.medianFences.some((r) => st >= r.from && st <= r.to);
+  }
+
+  /** Way `w`'s barriers at sample i are all one weathered concrete (map `weatheredBarriers`, by stage station). */
+  weatheredAt(w: Way, i: number): boolean {
+    if (!this.weathered.length) return false;
+    const st = this.stationOf(w, i);
+    return this.weathered.some((r) => st >= r.from && st <= r.to);
   }
 
   /** The outer barrier of way `w` at sample i where the map's `wallStyles` set one for that stage station. */

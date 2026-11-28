@@ -458,10 +458,10 @@ export class ScatterField {
           tiltZ: Math.sin(tiltA) * tiltM,
         });
       }
-      const scale = Math.min(
-        def.scale[1],
-        Math.max(def.scale[0], t[i + 2] / typeHeight(asset)),
-      );
+      const [sLo, sHi] =
+        (cover !== undefined ? def.coverScale?.[cover] : undefined) ??
+        def.scale;
+      const scale = Math.min(sHi, Math.max(sLo, t[i + 2] / typeHeight(asset)));
       const inst: ScatterInstance = {
         asset,
         variant: 0,
@@ -1383,8 +1383,12 @@ export function roadsideInstances(
           const da =
             count > 1 ? (i / (count - 1) - 0.5) * (rule.spread ?? 0) : 0;
           const p = road.at(along + da);
+          const off =
+            side > 0 && rule.offsetLeft !== undefined
+              ? rule.offsetLeft
+              : rule.offset;
           const lat =
-            side * (p.halfWidth + rule.offset + rng.next() * (rule.depth ?? 0));
+            side * (p.halfWidth + off + rng.next() * (rule.depth ?? 0));
           // left = (tz, -tx)
           const x = p.x + p.tz * lat;
           const z = p.z - p.tx * lat;

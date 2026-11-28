@@ -165,6 +165,11 @@ export interface NetworkDef {
     offset?: number;
     height?: number;
   }[];
+  /**
+   * Stretches of the stage road (m along; the opposite carriageway by its stage station) where every precast Jersey is
+   * one weathered grey-brown concrete, section to section a little lighter or darker: no new-white / aged-tan stretches.
+   */
+  weatheredBarriers?: { from: number; to: number }[];
   /** Stretches of the stage road (m along) whose lane line is double solid white whatever the curve (`solidLaneRadius`). */
   solidLanes?: { from: number; to: number }[];
   /** The gores of the ramps leaving / joining the stage road hatched in white (paint between their edge lines). */

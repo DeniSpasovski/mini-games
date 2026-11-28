@@ -515,6 +515,8 @@ export interface RealTreesDef {
    * `assets`): tall species for the tall crowns, so a 25 m tree is not a small one blown up.
    */
   tall?: { height: number; assets: Record<string, string[]> };
+  /** The scale range per land cover class in place of `scale` (open parkland's few big specimen trees). */
+  coverScale?: Record<string, [number, number]>;
   minRoadDist: number;
   /** Default 1.5. */
   minPathDist?: number;
@@ -1611,6 +1613,8 @@ export interface RoadsideRule {
   side: 'left' | 'right' | 'both' | 'outside' | 'inside';
   /** Distance from the road edge (m). */
   offset: number;
+  /** On the left side: this offset instead of `offset` (a median barrier there, a fence behind the right one). */
+  offsetLeft?: number;
   /** Instances per placement (crowds, bale stacks). */
   count?: number;
   /** Spread of a group along the road (m). */

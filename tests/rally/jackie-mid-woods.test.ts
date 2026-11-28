@@ -78,7 +78,9 @@ const trisOf = (asset: string): number => {
   if (n === undefined) {
     n = 0;
     try {
-      if (isTreeType(asset)) {
+      // (the fern cards bake from an image, asynchronously: not here - their few quads are left out)
+      if (asset.startsWith('fern')) n = 0;
+      else if (isTreeType(asset)) {
         // (the branches and the leaf sprites)
         const m = generateVariant(speciesOfType(asset), 0).meshes;
         n = (m.levels[0].index.length + m.sprites.index.length) / 3;

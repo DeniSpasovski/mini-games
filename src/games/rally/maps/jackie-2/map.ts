@@ -74,7 +74,7 @@ import { jackie2Info as info } from './info';
 /** The stage starts ~33 m above sea level: y = 0 there. */
 const START_HEIGHT = 32.9;
 /** Covers where mown grass grows (detail layer). */
-const LAWN = ['grass', 'shrub', 'bare', 'cemetery', 'verge'];
+const LAWN = ['grass', 'shrub', 'bare', 'cemetery'];
 
 export const jackie2Map: MapDef = {
   ...info,
@@ -136,6 +136,8 @@ export const jackie2Map: MapDef = {
     // double solid white between the lanes through the cemetery bends (1:50-2:35), the exit gores hatched, the bars
     // across the lanes past exit 3 (1:32)
     solidLanes: [{ from: 2255, to: 3205 }],
+    // one weathered grey-brown concrete on every Jersey through the wooded parkway, no new-white / tan stretches
+    weatheredBarriers: [{ from: 0, to: 6600 }],
     goreHatch: true,
     laneBars: [1780],
     // pale cement-concrete pavement with sealed joints east of the Queens Blvd tunnel (drive video 5:30-5:49, opposite
@@ -262,8 +264,9 @@ export const jackie2Map: MapDef = {
       crop: [0.9, 0.1, 0, 0],
       paved: [0.12, 0.08, 0.5, 0.3],
       open: [0.92, 0.06, 0.02, 0],
-      // (lidar_canopy.py) under the parkway's woods: leaf litter and soil between the plants; the mown verge
-      woods: [0.4, 0.52, 0.08, 0],
+      // (lidar_canopy.py) under the parkway's woods: low green between the plants - the litter and dark humus lie under the
+      // crowns only (the canopy texture), so a sunlit gap is not bare earth (drive video 3:12, 3:27-3:34); the mown verge
+      woods: [0.72, 0.22, 0.06, 0],
       verge: [0.95, 0.03, 0.02, 0],
     },
   },
@@ -325,10 +328,17 @@ export const jackie2Map: MapDef = {
     minRoadDist: 2.5,
     minPathDist: 1.5,
     scale: [0.4, 1.8],
-    tilt: 3,
+    // (the open parkland's trees - mown verge, lawns, the cemeteries - are big single specimens: few crowns there, each
+    // one broad; drive video 1:48-1:52, 2:23-2:26)
+    coverScale: {
+      verge: [0.85, 1.9],
+      grass: [0.85, 1.9],
+      cemetery: [0.8, 1.8],
+    },
+    tilt: 1.5,
     sink: 0.2,
-    // (the trees at the verge lean out over the road: the video's crowns reach over the right lane)
-    lean: { deg: [4, 10], within: 16 },
+    // (upright trunks: the crowns spread over the right lane, the trunks barely lean - drive video)
+    lean: { deg: [0, 3], within: 12 },
   },
   scatter: [
     {
@@ -461,6 +471,35 @@ export const jackie2Map: MapDef = {
       maxSlope: 0.5,
       scale: [0.7, 1.3],
     },
+    // the mown verge: an even short sward, few tufts on it (drive video)
+    {
+      asset: 'spring_grass',
+      cover: ['verge'],
+      density: 70,
+      detail: true,
+      minRoadDist: 1,
+      maxSlope: 0.5,
+      scale: [0.55, 0.9],
+    },
+    // ferns in drifts on the woods floor (Forest Park, video 3:27-3:34): unfurling in spring, dead bracken in autumn
+    ...(
+      [
+        ['fern', ['spring'], [0.55, 0.8]],
+        ['fern', ['summer'], [0.8, 1.15]],
+        ['fern_autumn', ['autumn'], [0.8, 1.1]],
+      ] as const
+    ).map(([asset, season, scale]): ScatterRule => ({
+      asset,
+      season: [...season],
+      cover: ['woods'],
+      density: 30,
+      detail: true,
+      mask: { scale: 26, threshold: 0.1 },
+      minRoadDist: 2,
+      maxSlope: 0.45,
+      scale: [scale[0], scale[1]],
+      sink: 0.05,
+    })),
     {
       asset: 'grass_tuft',
       cover: ['trees', 'pine', 'orchard'],
@@ -515,7 +554,7 @@ export const jackie2Map: MapDef = {
       mask: { scale: 22, threshold: -0.35, group: 13 },
       scale: [...scale],
       maxSlope: 0.55,
-      lean: { deg: [2, 7], within: 14 },
+      lean: { deg: [0, 3], within: 12 },
       sink: 0.15,
     })),
   ],
@@ -529,7 +568,10 @@ export const jackie2Map: MapDef = {
       every: 16,
       maxRadius: 130,
       side: 'outside',
-      offset: 2.5,
+      // (rows seen from the lane, as in the video 1:52-2:32: on the right just behind the Jersey, in front of the fences;
+      // on the median barrier itself for the right-hand bends)
+      offset: 1.5,
+      offsetLeft: 0.45,
       faceRoad: true,
     },
     // Tall twin-arm masts on the median barrier past the Queens Blvd tunnel (drive video 5:37-5:49).

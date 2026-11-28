@@ -125,6 +125,9 @@ const JERSEY_TONE = 0.07;
  */
 const JERSEY_NEW: RGB = [0.93, 0.93, 0.91];
 const JERSEY_AGED: RGB = [0.84, 0.67, 0.42];
+/** One weathered look (`weatheredBarriers`): grey-brown concrete, its sections a little apart in tone (drive video). */
+const JERSEY_WEATHERED: RGB = [0.8, 0.76, 0.68];
+const JERSEY_WEATHERED_TONE = 0.1;
 const JERSEY_RUN = 5;
 const JERSEY_OLD = 0.4;
 const JERSEY_SEED = 7121;
@@ -142,8 +145,26 @@ const CEILING_BOUNCE = 0.3;
 const GIRDER_BOUNCE = 0.18;
 
 /** The colour of a precast barrier section (`JERSEY_NEW` / `JERSEY_AGED`) by its way, side and section index. */
-function jerseyColor(w: Way, side: number, seg: number, y: number): RGB {
+function jerseyColor(
+  w: Way,
+  side: number,
+  seg: number,
+  y: number,
+  weathered = false,
+): RGB {
   const key = hashString(w.id) ^ (side * 0x9e37);
+  if (weathered) {
+    const tone =
+      (1 +
+        JERSEY_WEATHERED_TONE *
+          (hash3(seg, side, key, JERSEY_SEED + 1) / 0xffffffff - 0.5)) *
+      (y < JERSEY_GRIME_Y ? JERSEY_GRIME[0] : 1);
+    return [
+      JERSEY_WEATHERED[0] * tone,
+      JERSEY_WEATHERED[1] * tone,
+      JERSEY_WEATHERED[2] * tone,
+    ];
+  }
   const run = Math.floor(seg / JERSEY_RUN);
   const aged = hash3(run, side, key, JERSEY_SEED) / 0xffffffff < JERSEY_OLD;
   const base = aged ? JERSEY_AGED : JERSEY_NEW;
@@ -193,7 +214,7 @@ const CUT_EDGE_FILL = 2;
  * A steel deck (`deckStyles` 'steel'): the fascia girders' dull grey-green paint (drive video 3:34-3:36, Myrtle Ave),
  * the slab's underside above its girders (m under the deck top) and the girder spacing across the deck (m).
  */
-const STEEL_PAINT: RGB = [0.15, 0.21, 0.2];
+const STEEL_PAINT: RGB = [0.07, 0.16, 0.1];
 const STEEL_SLAB = 0.45;
 const STEEL_GIRDER_GAP = 2.2;
 /** Top of a tunnel slab (weathered concrete paving). */
@@ -3736,12 +3757,13 @@ function jerseyParapet(
   if (sg < 0) prof.reverse();
   // (one parapet run: one age, by its start)
   const n = Math.round(r0 / JERSEY_SEG);
+  const weathered = net.weatheredAt(w, sampleAt(w.al, r0));
   for (let k = 0; k + 1 < prof.length; k++)
     p.jersey.strip(
       rows,
       [prof[k][0], prof[k][1], 0],
       [prof[k + 1][0], prof[k + 1][1], 0],
-      jerseyColor(w, side, n, Math.min(prof[k][1], prof[k + 1][1])),
+      jerseyColor(w, side, n, Math.min(prof[k][1], prof[k + 1][1]), weathered),
       true,
       true,
     );
@@ -3756,7 +3778,7 @@ function jerseyParapet(
         top: r.y + y,
       };
     });
-    const col = jerseyColor(w, side, n, 1);
+    const col = jerseyColor(w, side, n, 1, weathered);
     p.jersey.wall(pts, col);
     p.jersey.wall([...pts].reverse(), col);
   }
@@ -4580,6 +4602,7 @@ function barriers(net: Network, field: NetField, w: Way, parts: Parts): void {
               if (k < 1) r.y -= JERSEY_H * (1 - Math.max(0, k)) * 1.05;
             }
             const n = Math.round(a / JERSEY_SEG);
+            const weathered = net.weatheredAt(w, sampleAt(w.al, a));
             for (let k = 0; k + 1 < JERSEY.length; k++) {
               const [pa, ya] = JERSEY[k];
               const [pb, yb] = JERSEY[k + 1];
@@ -4587,7 +4610,7 @@ function barriers(net: Network, field: NetField, w: Way, parts: Parts): void {
                 seg,
                 [t + pa, ya, 0],
                 [t + pb, yb, 0],
-                jerseyColor(w, side, n, Math.min(ya, yb)),
+                jerseyColor(w, side, n, Math.min(ya, yb), weathered),
                 true,
                 true,
               );

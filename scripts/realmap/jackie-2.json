@@ -56,11 +56,12 @@
     }
   },
   "lidarCanopy": {
-    "from": 1000,
-    "to": 5600,
+    "from": 0,
+    "to": 6600,
     "reach": 110,
     "verge": 30,
     "overhang": 6.3,
+    "lawns": [[3950, 4100, 14]],
     "minHeight": 3,
     "minRadius": 1.2,
     "closed": 0.5,

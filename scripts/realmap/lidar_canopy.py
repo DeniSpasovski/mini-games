@@ -13,7 +13,8 @@ Reads the bake config's "lidarCanopy" block:
   Cached per lidar region as `top-<box>.npz` beside the ground grids (git-ignored, in sources/).
 - `trees`: x, z, height (m) of every crown (canopy.crowns) within `reach` m of the stage line between `from` and `to`
   (stage metres): the map's `realTrees`. A crown over the stage's carriageway or its right verge (closer than
-  `overhang` m) is a tree beside it leaning in: it is moved out to `overhang` m.
+  `overhang` m) is a tree beside it leaning in: it is moved out to `overhang` m. `lawns` ([from, to, width], stage
+  metres and m from the line): a mown lawn on the right there - its cells `verge`, its trees moved out to its far edge.
 - The land cover (data.json) within that band is redrawn from the canopy: cells under closed canopy become `woods`
   (forest floor; the trees are the real ones), open cells within `verge` m of the stage line that the raster calls
   built-up or bare become `verge` (mown grass), as do open wood and grass cells. Cemeteries, water and cells with a
@@ -155,10 +156,15 @@ def main(cfg_path):
         t = line[i + 1] - line[i - 1]
         t /= np.linalg.norm(t, axis=1)[:, None]
         lat = (xs - line[i, 0]) * -t[:, 1] + (zs - line[i, 1]) * t[:, 0]
-        mv = (lat > -2) & (lat < ovh)
-        xs[mv] += -t[mv, 1] * (ovh - lat[mv])
-        zs[mv] += t[mv, 0] * (ovh - lat[mv])
-        print(f'  {mv.sum()} crowns over the carriageway / verge: trees moved out to {ovh} m')
+        # (a mown lawn beside the road, `lawns` [from, to, width]: its trees stand at the lawn's far edge)
+        st = s[i]
+        out = np.full(len(xs), float(ovh))
+        for l0, l1, lw in lcfg.get('lawns', []):
+            out[(st >= l0) & (st <= l1)] = np.maximum(out[(st >= l0) & (st <= l1)], lw)
+        mv = (lat > -2) & (lat < out)
+        xs[mv] += -t[mv, 1] * (out[mv] - lat[mv])
+        zs[mv] += t[mv, 0] * (out[mv] - lat[mv])
+        print(f'  {mv.sum()} crowns over the carriageway / verge / lawns: trees moved out to {ovh} m (lawns: their width)')
     print(f'  {len(xs)} crowns within {reach} m of {a}-{b} m (h p50 {np.median(th):.1f}, p90 {np.percentile(th, 90):.1f} m)')
 
     # The land cover in the band, from the canopy.
@@ -197,6 +203,14 @@ def main(cfg_path):
     new[~kept & ~closed & built & (dd <= lcfg.get('verge', 30))] = names.index('verge')
     # (open wood and grass in the band: mown `verge` too - its trees are the lidar's, the generated scatter adds none)
     new[~kept & ~closed & np.isin(nm[cur], ['trees', 'pine', 'grass', 'open'])] = names.index('verge')
+    # (the mown lawns beside the road, `lawns`: verge from the line out to their width on the right, whatever the canopy)
+    if lcfg.get('lawns'):
+        ip = np.clip(idf[ok][on_lidar], 1, len(line) - 2)
+        tp = line[ip + 1] - line[ip - 1]
+        tp /= np.linalg.norm(tp, axis=1)[:, None]
+        latp = (px - line[ip, 0]) * -tp[:, 1] + (pz - line[ip, 1]) * tp[:, 0]
+        for l0, l1, lw in lcfg['lawns']:
+            new[~kept & (s[ip] >= l0) & (s[ip] <= l1) & (latp > 0) & (latp <= lw)] = names.index('verge')
     before = {n: int((nm[cur] == n).sum()) for n in np.unique(nm[cur])}
     after = {n: int((nm[new] == n).sum()) for n in np.unique(nm[new])}
     flat[sel] = new

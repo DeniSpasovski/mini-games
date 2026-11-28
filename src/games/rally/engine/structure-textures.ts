@@ -251,11 +251,11 @@ export function slatFenceTexture(): Texture {
   const t = make('slats', 256, 256, (ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
     for (let x = 0; x < w; x += 32) {
-      ctx.fillStyle = '#20453f';
+      ctx.fillStyle = '#2f6e62';
       ctx.fillRect(x + 3, 0, 27, h);
-      ctx.fillStyle = '#2d5a52';
+      ctx.fillStyle = '#3f8576';
       ctx.fillRect(x + 3, 0, 4, h);
-      ctx.fillStyle = '#163430';
+      ctx.fillStyle = '#245a50';
       ctx.fillRect(x + 26, 0, 4, h);
     }
   });
