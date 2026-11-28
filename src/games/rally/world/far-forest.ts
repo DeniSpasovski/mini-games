@@ -371,6 +371,8 @@ export class FarForest {
     this.snap = snap;
     const material = new MeshLambertMaterial({ color: 0xffffff });
     material.name = 'far forest';
+    // light=v2: its leaves take the crowns' share of the sky (engine/world-shading.ts `SKY_VIS`).
+    material.defines = { RALLY_LEAVES: 1 };
     material.onBeforeCompile = (s) => {
       addWorldUniforms(s);
       Object.assign(s.uniforms, u);

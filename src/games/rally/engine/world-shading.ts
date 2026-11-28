@@ -78,6 +78,13 @@ export const worldUniforms = {
   wsCanopyLocalMap: { value: new Vector4(0, 0, 0, 0) },
   /** Forest floor (`GroundTint.shade`, 0 = off): the share of the sky light the crowns shut out over the ground under them. */
   wsCanopyAO: { value: 0 },
+  /**
+   * `?light=v2` (`setSkyVis`, `SKY_VIS`): the sky light a stand of trees shuts out round a point. x on (0 = off), y the
+   * share it cuts off a face turned sideways / down, z off a face turned up, w the share of the sky a crown's leaves get.
+   */
+  wsSkyVis: { value: new Vector4(0, 0, 0, 0) },
+  /** `?light=v2` (`setSkyVis`): the share of the sun a leaf gets in its own crown's shade, 1 = the default look's. */
+  wsLeafSun: { value: 1 },
   /** Baked terrain light (world/terrain-light.ts: R the shadow line, G sky in view, B its penumbra), its ground mapping and strengths. */
   wsTerrain: { value: null as Texture | null },
   wsTerrainMap: { value: new Vector4(0, 0, 0, 0) },
@@ -126,6 +133,12 @@ export const worldUniforms = {
    * w = 1 on (the fog then works before tone mapping, `HAZE_FRAGMENT`), 0 = the plain display-space fog.
    */
   wsHaze: { value: new Vector4(0, 0, 0, 0) },
+  /**
+   * `?light=v2` (`setSkyHaze`): the haze's light varies round the view like the sky's horizon, rgb x cos(azimuth from
+   * the sun) added to `wsHaze.rgb`, w = 1 on; `wsHazeLobe` x cos^12 is the glow round a low sun.
+   */
+  wsHazeSun: { value: new Vector4(0, 0, 0, 0) },
+  wsHazeLobe: { value: new Color(0, 0, 0) },
   /** xyz how much more each channel is dimmed than the mean (blue most: far land turns blue), w the haze's tail (see `HAZE_FRAGMENT`). */
   wsAerial: { value: new Vector4(0.87, 1.0, 1.2, 1.2) },
   /** Dirt on the player's car (`setCarDirt`): rgb the dust's colour (linear), w how dirty (0 = clean). */
@@ -359,6 +372,22 @@ export function setEnvDiffuse(share: number): void {
   worldUniforms.wsEnvCut.value = 1 - share;
 }
 
+/**
+ * `?light=v2`: the sky's light on everything but the ground (which has its own terms) dimmed by the stand of trees
+ * round it (`SKY_VIS`); `cut` = [sideways / down, up] at a closed stand, `leaves` the share a crown's foliage gets,
+ * `leafSun` the share of the sun a leaf gets in its own crown's shade (`FOLIAGE_TERM`).
+ */
+export function setSkyVis(
+  cut: readonly [number, number] | null,
+  leaves = 1,
+  leafSun = 1,
+): void {
+  const v = worldUniforms.wsSkyVis.value;
+  if (cut) v.set(1, cut[0], cut[1], leaves);
+  else v.x = 0;
+  worldUniforms.wsLeafSun.value = cut ? leafSun : 1;
+}
+
 /** Height where the fog has its nominal density (the ground at the focus point; call every frame). */
 export function setFogBase(height: number): void {
   worldUniforms.wsFogBase.value = height;
@@ -437,16 +466,38 @@ export function setHaze(display: Color | null, exposure = 1): void {
   }
   inverseAces(display, exposure, _haze);
   h.set(_haze.r, _haze.g, _haze.b, 1);
+  worldUniforms.wsHazeSun.value.w = 0;
+}
+
+/**
+ * `?light=v2`: the haze lit by the physical sky (engine/atmosphere.ts `horizonFit`, scene light, no tone-mapping
+ * inverse): a + b cos(azimuth from the sun) + d cos^12, so far land fades into the horizon of the sky behind it.
+ */
+export function setSkyHaze(
+  a: readonly number[],
+  b: readonly number[],
+  d: readonly number[],
+): void {
+  worldUniforms.wsHaze.value.set(a[0], a[1], a[2], 1);
+  worldUniforms.wsHazeSun.value.set(b[0], b[1], b[2], 1);
+  worldUniforms.wsHazeLobe.value.setRGB(d[0], d[1], d[2]);
 }
 const _haze = new Color();
 
-/** Tail of the haze's optical depth (see `HAZE_FRAGMENT`) and how much more blue is dimmed than red. */
-export function setAerial(tail: number, blue = 1.2): void {
+/**
+ * Tail of the haze's optical depth (see `HAZE_FRAGMENT`) and how much more blue is dimmed than red; `weights` (`?light=v2`:
+ * the atmosphere's extinction per channel, engine/atmosphere.ts) replaces the fixed red / blue ones.
+ */
+export function setAerial(
+  tail: number,
+  blue = 1.2,
+  weights?: readonly number[],
+): void {
   const a = worldUniforms.wsAerial.value;
   // Weights that keep the mean (luminance) dimming as the plain fog's.
-  const r = 0.87;
-  const l = 0.2126 * r + 0.7152 + 0.0722 * blue;
-  a.set(r / l, 1 / l, blue / l, tail);
+  const w = weights ?? [0.87, 1, blue];
+  const l = 0.2126 * w[0] + 0.7152 * w[1] + 0.0722 * w[2];
+  a.set(w[0] / l, w[1] / l, w[2] / l, tail);
 }
 
 const ACES_IN = new Matrix3().set(
@@ -563,6 +614,8 @@ uniform float wsFogBase;
 uniform vec4 wsFogLayer;
 uniform vec3 wsFogLayerColor;
 uniform vec4 wsHaze;
+uniform vec4 wsHazeSun;
+uniform vec3 wsHazeLobe;
 uniform vec4 wsAerial;
 #ifdef RALLY_CAR_DIRT
 uniform vec4 wsCarDirt;
@@ -669,7 +722,14 @@ const HAZE_FRAGMENT = /* glsl */ `
 			gl_FragColor.rgb *= wsT;
 		#else
 			vec3 wsHz = wsHaze.rgb;
-			if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
+			if ( wsHazeSun.w > 0.5 ) {
+				// The sky's horizon round the view (\`setSkyHaze\`).
+				float wsC = dot( normalize( wsFogRay.xz + vec2( 1e-4 ) ), normalize( wsSunDir.xz + vec2( 1e-4 ) ) );
+				float wsL = max( wsC, 0.0 );
+				wsL *= wsL;
+				wsL *= wsL;
+				wsHz = max( wsHz + wsHazeSun.rgb * wsC + wsHazeLobe * ( wsL * wsL * wsL ), vec3( 0.0 ) );
+			} else if ( wsFog.x + wsFog.y + wsFog.z > 0.0 ) {
 				float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
 				wsSunAmt *= wsSunAmt;
 				wsSunAmt *= wsSunAmt;
@@ -808,6 +868,8 @@ uniform vec4 wsCanopyMap;
 uniform sampler2D wsCanopyLocal;
 uniform vec4 wsCanopyLocalMap;
 uniform float wsCanopyAO;
+uniform vec4 wsSkyVis;
+uniform float wsLeafSun;
 uniform vec4 wsShadowBox;
 uniform vec4 wsForest;
 uniform sampler2D wsTerrain;
@@ -1083,6 +1145,10 @@ const SUN_TERMS = /* glsl */ `
 		#if defined( TREE_SPRITE ) && ! defined( TREE_SHADOW_PASS )
 			// Its own crown's shade (trees/materials.ts SPRITE_SHADOW_LOOKUP): the maps only add the other casters'.
 			wsSelfT = vTreeSelfT;
+			#ifdef USE_LIGHT_PROBES
+				// ?light=v2: the light that gets into the crown's shade takes only \`wsLeafSun\` of the sun (FOLIAGE_TERM).
+				wsSelfT *= mix( wsLeafSun, 1.0, wsSelfT );
+			#endif
 			directLight.color *= wsSelfT;
 		#endif
 		float wsSunVis = 1.0;
@@ -1164,7 +1230,11 @@ const FOLIAGE_TERM = /* glsl */ `
 				reflectedLight.directDiffuse += directLight.color * mix( vec3( 1.0 ), material.diffuseColor / max( material.diffuseColor.g, 1e-3 ), 0.7 ) * ( 0.06 * wsGlint * saturate( dot( geometryNormal, directLight.direction ) ) );
 				// In the crown's shadow a leaf still gets the sun through and off the leaves round it (a leaf passes ~10 %
 				// and reflects as much, green-yellow): more light again than the sky gives it, so a crown's underside is
-				// not black.
+				// not black. ?light=v2 (\`wsLeafSun\`): its sun is the default look's plus the fill the default look's env map
+				// spread from the sun disc, so the light in the shade, tuned to the default look's sun, takes a share of it.
+				#ifdef USE_LIGHT_PROBES
+					wsSunC *= wsLeafSun;
+				#endif
 				reflectedLight.directDiffuse += wsSunC * ( ( 1.0 - wsSunVis * wsSelfT ) * 0.08 ) * material.diffuseColor * vec3( 1.0, 1.0, 0.3 );
 			#else
 				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
@@ -1425,12 +1495,41 @@ const TERRAIN_SKY = /* glsl */ `
 #endif
 `;
 
+/**
+ * `?light=v2` (the only look with a light probe, so the default look never compiles it): everything but the ground
+ * (`TERRAIN_SKY`, `CANOPY_FLOOR`) takes the sky the terrain leaves in view and loses the share a stand of trees round it
+ * shuts out: the canopy cover averaged over ~24 m (one fetch of mip 3 of the 3 m canopy texture), more off a face turned
+ * sideways or down (a crown's flank, a trunk) than off one turned up. A lone tree stays in the open sky. Leaves (tree
+ * sprites, impostors, the far forest: \`RALLY_LEAVES\`) see the sky past the other leaves of their crown: \`wsSkyVis.w\` of it.
+ */
+const SKY_VIS = /* glsl */ `
+#if defined( USE_LIGHT_PROBES ) && ! defined( RALLY_GROUND )
+	if ( wsSkyVis.x > 0.0 ) {
+		vec3 wsVp = wsWorldPos( geometryPosition );
+		float wsVis = wsTerrainLight( wsVp ).y;
+		if ( wsCanopyMap.z > 0.0 ) {
+			vec2 wsVu = ( wsVp.xz - wsCanopyMap.xy ) * wsCanopyMap.zw;
+			if ( wsVu.x > 0.0 && wsVu.y > 0.0 && wsVu.x < 1.0 && wsVu.y < 1.0 ) {
+				float wsStand = smoothstep( 0.15, 0.85, textureLod( wsCanopy, wsVu, 3.0 ).g );
+				float wsUp = saturate( inverseTransformDirection( geometryNormal, viewMatrix ).y );
+				wsVis *= 1.0 - wsStand * mix( wsSkyVis.y, wsSkyVis.z, wsUp );
+			}
+		}
+		#if defined( TREE_SPRITE ) || defined( TREE_IMPOSTOR ) || defined( RALLY_LEAVES )
+			wsVis *= wsSkyVis.w;
+		#endif
+		reflectedLight.indirectDiffuse *= wsVis;
+	}
+#endif
+`;
+
 /** three's own `lights_fragment_end` + the ground's sky terms (terrain, then the forest floor) + the wet puddles' sky. */
 function lightsEnd(wet: boolean): string {
   return (
     baseLightsEnd +
     TERRAIN_SKY +
     CANOPY_FLOOR +
+    SKY_VIS +
     CAR_SURROUND_DIFFUSE +
     (wet ? PUDDLE_SKY : '')
   );
