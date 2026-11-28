@@ -183,6 +183,22 @@ const FAR_TOWER: BlockStyle = {
   far: true,
 };
 
+// Two-storey brick row houses: white sashes, a soldier course over the windows, a light flat roof.
+const ROW: BlockStyle = {
+  type: 'block',
+  wall: 'brick',
+  tint: '#9b6e5d',
+  ground: 3.1,
+  floor: 2.9,
+  win: { w: 0.9, h: 1.45, sill: 0.85, bay: 2.3 },
+  frame: '#eeebe4',
+  sill: '#cfc6b4',
+  lintel: '#7d5a4d',
+  coping: '#c9c2b5',
+  ac: 0.15,
+  roof: '#d4d1ca',
+};
+
 export const KEW_STYLES: Record<number, KewStyle> = {
   // 118-17 Union Tpke: buff brick tower, balconies down its north-west end
   4079634: {
@@ -514,4 +530,94 @@ export const KEW_STYLES: Record<number, KewStyle> = {
   4079185: { ...TUDOR, brick: '#866254' },
   4079191: { ...TUDOR, front: 225 },
   4079069: { ...TUDOR, tiles: '#7f5041' },
+  // Mid stretch, beside Cypress Hills Cemetery (stage ~3 000 m): the cemetery's 1931 three-storey mausoleum, pale cast
+  // stone walls with tall narrow stained-glass windows between piers, a dark flat roof behind a stone parapet.
+  4091324: {
+    type: 'block',
+    wall: 'render',
+    tint: '#e4dac3',
+    ground: 5.5,
+    floor: 5.5,
+    win: { w: 0.9, h: 3.4, sill: 1.2, bay: 4.2 },
+    frame: '#3e3a35',
+    sill: '#c9bea4',
+    piers: { width: 0.9, color: '#cbbfa2' },
+    cornice: '#cdc2a8',
+    coping: '#e0d8c5',
+    plinth: '#b9ad94',
+    roof: '#4b4a47',
+  },
+  // 89-24 .. 89-46 83 Ave (1920-40, stage ~4 800 m behind the stone wall): two-storey brick row houses in pairs,
+  // fronts to the parkway, white-coated flat roofs (2024 aerial photo).
+  4094671: { ...ROW, tint: '#9b6e5d' },
+  4094672: { ...ROW, tint: '#9b6e5d' },
+  4094673: { ...ROW, tint: '#a27a66' },
+  4094674: { ...ROW, tint: '#a27a66' },
+  4094675: { ...ROW, tint: '#8f6656' },
+  4094676: { ...ROW, tint: '#8f6656' },
+  4094677: { ...ROW, tint: '#9b6e5d' },
+  4094678: { ...ROW, tint: '#9b6e5d' },
+  4094679: { ...ROW, tint: '#a27a66' },
+  4094680: { ...ROW, tint: '#a27a66' },
+  4094681: { ...ROW, tint: '#94705f' },
+  // Stage ~1 340 m: the 1949 Parks Department building on Cypress Ave above the parkway, red-brown brick with grey
+  // slate hipped roofs (2024 aerial photo).
+  4555478: {
+    type: 'block',
+    wall: 'brick',
+    tint: '#9c7465',
+    ground: 3.6,
+    floor: 3.2,
+    win: { w: 1.0, h: 1.5, sill: 0.9, bay: 3.2 },
+    frame: '#ebe7de',
+    sill: '#cfc6b4',
+    coping: '#b9b1a3',
+    plinth: '#a59a88',
+    roof: '#6d6e70',
+    hip: { rise: 2.6, tiles: '#6a6c6f' },
+  },
+  // Stage ~1 600 m: Congregation Emanu-El's 1931 cemetery chapel on Cypress Hills St, red brick, tall windows between
+  // piers, grey slate hipped roofs over the hall and the apse.
+  4554843: {
+    type: 'block',
+    wall: 'brick',
+    tint: '#9a5d4b',
+    ground: 4.2,
+    floor: 3.6,
+    win: { w: 1.1, h: 2.6, sill: 1.1, bay: 3.6 },
+    frame: '#3f3a35',
+    sill: '#d2c8b4',
+    piers: { width: 0.7, color: '#8d5443' },
+    coping: '#cfc5b2',
+    plinth: '#b5a991',
+    roof: '#6d6e70',
+    hip: { rise: 2.8, tiles: '#707377' },
+  },
+  // Stage ~4 580 - 4 780 m, left above the wall: 87-55 Myrtle Ave and the 82 Ave row of two-storey brick row houses
+  // (1925-50), fronts to the parkway, white-coated flat roofs (2024 aerial photo).
+  4094159: { ...ROW, tint: '#9b6e5d' },
+  4094160: { ...ROW, tint: '#9b6e5d' },
+  4094161: { ...ROW, tint: '#a27a66' },
+  4094162: { ...ROW, tint: '#a27a66' },
+  4094602: { ...ROW, tint: '#8f6656' },
+  4094603: { ...ROW, tint: '#8f6656' },
+  4094604: { ...ROW, tint: '#94705f' },
+  4094605: { ...ROW, tint: '#94705f' },
+  4094606: { ...ROW, tint: '#a5806b' },
+  4094639: { ...ROW, tint: '#a5806b' },
+  4094640: { ...ROW, tint: '#9b6e5d' },
+  4094641: { ...ROW, tint: '#9b6e5d' },
+  4094642: { ...ROW, tint: '#a27a66' },
+  4094643: { ...ROW, tint: '#a27a66' },
+  4094644: { ...ROW, tint: '#8f6656' },
+  4094645: { ...ROW, tint: '#8f6656' },
+  4094646: { ...ROW, tint: '#94705f' },
+  4094647: { ...ROW, tint: '#94705f' },
+  4094648: { ...ROW, tint: '#a5806b' },
+  4094649: { ...ROW, tint: '#a5806b' },
+  4094650: { ...ROW, tint: '#9b6e5d' },
+  4094651: { ...ROW, tint: '#9b6e5d' },
+  4094652: { ...ROW, tint: '#a27a66' },
+  4094653: { ...ROW, tint: '#a27a66' },
+  4094654: { ...ROW, tint: '#8f6656' },
 };
