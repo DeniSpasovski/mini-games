@@ -14,6 +14,7 @@ import { facadePhotosReady, type FacadeId } from '../engine/facade-textures';
 import type { BuildingDef } from '../maps/shared/types';
 import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
+import { inArea, type MeshArea } from './mesh-area';
 
 /**
  * Mesh buildings (BuildingDef.kind set - real-world maps whose footprints carry OSM heights):
@@ -123,7 +124,12 @@ function face(
   const cy = e1[2] * e2[0] - e1[0] * e2[2];
   const cz = e1[0] * e2[1] - e1[1] * e2[0];
   const q = cx * n[0] + cy * n[1] + cz * n[2] < 0 ? [...p].reverse() : p;
-  tri(a, q, n, q.map(() => c));
+  tri(
+    a,
+    q,
+    n,
+    q.map(() => c),
+  );
 }
 
 /** Facade wall quad a-b-c-d (outward normal (nx, nz)); bottom edge darker (fake AO). */
@@ -249,8 +255,11 @@ function macedonianStyle(
 
 export function* buildingMeshJob(
   world: World,
+  area?: MeshArea,
 ): Generator<void, Group | undefined> {
-  const list = world.buildings.buildings.filter((b) => b.kind);
+  const list = world.buildings.buildings.filter(
+    (b) => b.kind && inArea(area, b.x, b.z, b.x, b.z, 60),
+  );
   if (!list.length) return undefined;
   while (!facadePhotosReady) yield;
   const tiles = new Map<string, { walls: Map<FacadeId, Acc>; roof: Acc }>();
@@ -276,7 +285,7 @@ export function* buildingMeshJob(
     const mk = MK_MAPS.has(world.map.id)
       ? macedonianStyle(kind, h, MOUNTAIN_MAPS.has(world.map.id))
       : undefined;
-    const jackie = world.map.id === 'jackie';
+    const jackie = world.map.id === 'jackie' || world.map.id === 'jackie_2';
     let style: FacadeId =
       mk?.facade ??
       (kind === 'apartment' && b.h > 30 && h % 3 === 0

@@ -1,6 +1,7 @@
 import {
   CanvasTexture,
   LinearMipmapLinearFilter,
+  RepeatWrapping,
   SRGBColorSpace,
   type Texture,
 } from 'three';
@@ -122,12 +123,18 @@ export interface SignBoard {
   small?: string;
   /** Arrow under the text: 'down' (this lane), 'right' / 'left' (exit), omitted = none. */
   arrow?: 'down' | 'right' | 'left';
+  /** A yellow warning board instead: the winding-road arrow and its advisory speed plate (mph); `lines` unused. */
+  winding?: number;
 }
 
 /** Overhead guide sign (1024 x 512 + tab): green board, white text and border, an arrow. */
 export function signBoardTexture(b: SignBoard): Texture {
-  const key = `sign:${b.tab ?? ''}|${b.lines.join('|')}|${b.small ?? ''}|${b.arrow ?? ''}`;
+  const key = `sign:${b.tab ?? ''}|${b.lines.join('|')}|${b.small ?? ''}|${b.arrow ?? ''}|${b.winding ?? ''}`;
   return make(key, 1024, 640, (ctx, w, h) => {
+    if (b.winding !== undefined) {
+      windingBoard(ctx, w, h, b.winding);
+      return;
+    }
     const tabH = b.tab ? 110 : 0;
     ctx.clearRect(0, 0, w, h);
     // Board.
@@ -183,9 +190,82 @@ export function signBoardTexture(b: SignBoard): Texture {
   });
 }
 
-/** Chain-link fence (256 x 256, tileable, alpha): a diamond mesh on transparent ground. */
+/**
+ * A yellow warning board on a gantry (W1-5 winding road beside its advisory speed plate): black border, the winding arrow
+ * on the left, a black-framed plate with the speed and "MPH" on the right. Its top tab row left clear (no tab).
+ */
+function windingBoard(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  mph: number,
+): void {
+  const top = 110;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f4c20d';
+  ctx.fillRect(0, top, w, h - top);
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(14, top + 14, w - 28, h - top - 28);
+  // the winding arrow: a thick S of three bends, its head at the top
+  const cx = w * 0.32;
+  const y0 = h - 70;
+  const y1 = top + 120;
+  ctx.lineWidth = 34;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(cx - 40, y0);
+  const n = 3;
+  for (let k = 0; k < n; k++) {
+    const a = y0 - ((y0 - y1) * k) / n;
+    const b = y0 - ((y0 - y1) * (k + 1)) / n;
+    const dx = k % 2 ? -1 : 1;
+    ctx.bezierCurveTo(cx + dx * 110, a, cx + dx * 110, b, cx - dx * 20, b);
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.moveTo(cx - 20, y1 - 70);
+  ctx.lineTo(cx - 80, y1 + 10);
+  ctx.lineTo(cx + 40, y1 + 10);
+  ctx.closePath();
+  ctx.fill();
+  // the advisory speed plate
+  const px = w * 0.6;
+  const pw = w * 0.3;
+  ctx.lineWidth = 10;
+  ctx.strokeRect(px, top + 70, pw, h - top - 140);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold 190px ${FONT}`;
+  ctx.fillText(String(mph), px + pw / 2, top + 210);
+  ctx.font = `bold 70px ${FONT}`;
+  ctx.fillText('MPH', px + pw / 2, h - 125);
+}
+
+/**
+ * Privacy slats woven into a chain-link fence (256 x 256, alpha, repeats): narrow dark teal vinyl slats side by side,
+ * each with a lighter edge, thin gaps of light between them.
+ */
+export function slatFenceTexture(): Texture {
+  const t = make('slats', 256, 256, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 32) {
+      ctx.fillStyle = '#2f6e62';
+      ctx.fillRect(x + 3, 0, 27, h);
+      ctx.fillStyle = '#3f8576';
+      ctx.fillRect(x + 3, 0, 4, h);
+      ctx.fillStyle = '#245a50';
+      ctx.fillRect(x + 26, 0, 4, h);
+    }
+  });
+  t.wrapS = t.wrapT = RepeatWrapping;
+  return t;
+}
+
+/** Chain-link fence (256 x 256, alpha, repeats along the fence): a diamond mesh on transparent ground. */
 export function chainLinkTexture(): Texture {
-  return make('chainlink', 256, 256, (ctx, w, h) => {
+  const t = make('chainlink', 256, 256, (ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(190,195,200,0.95)';
     ctx.lineWidth = 3;
@@ -199,4 +279,6 @@ export function chainLinkTexture(): Texture {
     }
     ctx.stroke();
   });
+  t.wrapS = t.wrapT = RepeatWrapping;
+  return t;
 }

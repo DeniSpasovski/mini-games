@@ -602,44 +602,105 @@ export const markerPost: AssetBuilder = () => {
 
 /**
  * Corner chevron board: a 1.3 x 0.62 m aluminium sign plate with its edge folded back, riveted to two horizontal
- * omega rails that clamp to a pair of galvanised tube posts. Sheeting on the front only; the back is bare metal.
+ * omega rails that clamp to a pair of galvanised tube posts. Sheeting on the front only (`sheeting`: the European
+ * red / white chevrons, or the US yellow large-arrow board); the back is bare metal.
  */
-export const chevronSign: AssetBuilder = ({ variant, lod }) => {
-  const [W, H, Y] = [1.3, 0.62, 1.3];
-  const seg = lod === 0 ? 8 : 5;
-  const metal: BufferGeometry[] = [];
-  for (const x of [-0.42, 0.42]) {
-    const post = new CylinderGeometry(0.03, 0.03, 1.66, seg, 1);
-    post.translate(x, 0.83, -0.075);
-    metal.push(cylindricalUV(paint(post, '#a7abaf'), 0.3));
-    const cap = new CylinderGeometry(0.034, 0.034, 0.03, seg, 1);
-    cap.translate(x, 1.67, -0.075);
-    metal.push(paint(cap, '#3a3a3a'));
-    // U-bolt clamps round the post on each rail.
+const chevronBoard =
+  (sheeting: 'chevron' | 'chevron_us'): AssetBuilder =>
+  ({ variant, lod }) => {
+    const [W, H, Y] = [1.3, 0.62, 1.3];
+    const seg = lod === 0 ? 8 : 5;
+    const metal: BufferGeometry[] = [];
+    for (const x of [-0.42, 0.42]) {
+      const post = new CylinderGeometry(0.03, 0.03, 1.66, seg, 1);
+      post.translate(x, 0.83, -0.075);
+      metal.push(cylindricalUV(paint(post, '#a7abaf'), 0.3));
+      const cap = new CylinderGeometry(0.034, 0.034, 0.03, seg, 1);
+      cap.translate(x, 1.67, -0.075);
+      metal.push(paint(cap, '#3a3a3a'));
+      // U-bolt clamps round the post on each rail.
+      for (const y of [Y - 0.2, Y + 0.2])
+        metal.push(box(0.085, 0.05, 0.075, x, y, -0.075, '#8e9297'));
+    }
+    // Omega rails across the back, and the plate's back with its folded rim.
     for (const y of [Y - 0.2, Y + 0.2])
-      metal.push(box(0.085, 0.05, 0.075, x, y, -0.075, '#8e9297'));
+      metal.push(box(W - 0.08, 0.06, 0.03, 0, y, -0.03, '#b9bcbf'));
+    metal.push(box(W, H, 0.004, 0, Y, -0.004, '#c4c6c8'));
+    for (const [w, h, x, y] of [
+      [W, 0.02, 0, Y + H / 2 - 0.01],
+      [W, 0.02, 0, Y - H / 2 + 0.01],
+      [0.02, H, -W / 2 + 0.01, Y],
+      [0.02, H, W / 2 - 0.01, Y],
+    ] as const)
+      metal.push(box(w, h, 0.018, x, y, -0.011, '#b2b5b8'));
+    const front = new PlaneGeometry(W, H);
+    if (variant === 1) {
+      const uv = front.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
+    }
+    front.translate(0, Y, 0.001);
+    return {
+      parts: [
+        { geometry: merge(metal), material: getMaterial('props') },
+        { geometry: front.toNonIndexed(), material: getMaterial(sheeting) },
+      ],
+    };
+  };
+export const chevronSign = chevronBoard('chevron');
+export const chevronSignUs = chevronBoard('chevron_us');
+
+/**
+ * US post-mounted road signs, one per variant, their faces from the `us_signs` atlas (256 px cells, 4 x 2): 0-3 the
+ * green EXIT 2-5 sign at a gore nose on two posts (EXIT 2 with the yellow 25 MPH plate under it), 4 SPEED LIMIT 45,
+ * 5 the curve-right and 6 the winding-road diamond with the 25 MPH plate, on one post. Aluminium backs, galvanised
+ * square posts; the face toward +Z.
+ */
+export const usRoadSign: AssetBuilder = ({ variant }) => {
+  const v = variant % 7;
+  const metal: BufferGeometry[] = [];
+  const faces: BufferGeometry[] = [];
+  // a face: w x h m centred at (0, y), its texture the px rectangle [u0, v0, uw, vh] of the 1024 x 512 atlas
+  const face = (
+    w: number,
+    h: number,
+    y: number,
+    cell: [number, number, number, number],
+  ) => {
+    const g = new PlaneGeometry(w, h);
+    const uv = g.getAttribute('uv');
+    const [cx, cy, cw, ch] = cell;
+    for (let i = 0; i < uv.count; i++)
+      uv.setXY(
+        i,
+        (cx + uv.getX(i) * cw) / 1024,
+        1 - (cy + (1 - uv.getY(i)) * ch) / 512,
+      );
+    g.translate(0, y, 0.012);
+    faces.push(g);
+    metal.push(box(w * 0.98, h * 0.98, 0.006, 0, y, 0.006, '#c4c6c8'));
+  };
+  const post = (x: number, top: number) =>
+    metal.push(box(0.065, top, 0.065, x, top / 2, -0.04, '#a7abaf'));
+  if (v < 4) {
+    face(1.4, 1.12, 2.3, [v * 256, 0, 256, 205]);
+    for (const x of [-0.45, 0.45]) post(x, 2.8);
+    if (v === 0) face(0.55, 0.55, 1.4, [768, 256, 256, 256]);
+  } else if (v === 4) {
+    face(0.62, 0.78, 1.9, [0, 256, 205, 256]);
+    post(0, 2.25);
+  } else {
+    // (the diamond's cell is drawn edge to edge: the sign's square turned 45 degrees, 0.9 m a side)
+    face(1.27, 1.27, 2.15, [(v - 4) * 256, 256, 256, 256]);
+    face(0.5, 0.5, 1.2, [768, 256, 256, 256]);
+    post(0, 2.6);
   }
-  // Omega rails across the back, and the plate's back with its folded rim.
-  for (const y of [Y - 0.2, Y + 0.2])
-    metal.push(box(W - 0.08, 0.06, 0.03, 0, y, -0.03, '#b9bcbf'));
-  metal.push(box(W, H, 0.004, 0, Y, -0.004, '#c4c6c8'));
-  for (const [w, h, x, y] of [
-    [W, 0.02, 0, Y + H / 2 - 0.01],
-    [W, 0.02, 0, Y - H / 2 + 0.01],
-    [0.02, H, -W / 2 + 0.01, Y],
-    [0.02, H, W / 2 - 0.01, Y],
-  ] as const)
-    metal.push(box(w, h, 0.018, x, y, -0.011, '#b2b5b8'));
-  const front = new PlaneGeometry(W, H);
-  if (variant === 1) {
-    const uv = front.getAttribute('uv');
-    for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
-  }
-  front.translate(0, Y, 0.001);
   return {
     parts: [
       { geometry: merge(metal), material: getMaterial('props') },
-      { geometry: front.toNonIndexed(), material: getMaterial('chevron') },
+      {
+        geometry: merge(faces.map((g) => g.toNonIndexed())),
+        material: getMaterial('us_signs'),
+      },
     ],
   };
 };
@@ -705,6 +766,132 @@ export const streetLamp: AssetBuilder = ({ seed, lod }) => {
 };
 
 /**
+ * Highway cobra-head lamp: a tall tapered galvanised mast on a flange, a long arm rising out over the lanes (+Z = road
+ * side) and the cobra head - a long rounded housing with its lens underneath (the parkway drive videos: ~10 m masts,
+ * ~3 m arms over the right lane).
+ */
+export const cobraLamp: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(9.4, 10.2);
+  const REACH = rng.range(2.9, 3.4);
+  const ZINC = '#a2a7aa';
+  const HEAD = '#8a8f92';
+  const near = lod === 0;
+  const parts: BufferGeometry[] = [];
+  const pole = new CylinderGeometry(0.07, 0.15, H, near ? 10 : 6);
+  pole.translate(0, H / 2, 0);
+  parts.push(cylindricalUV(paint(pole, ZINC, rng, 0.03), 0.5, 2));
+  // the arm: out from the mast near its top, a gentle rise to the head
+  const bend: [number, number][] = near
+    ? [
+        [H - 0.35, 0],
+        [H - 0.05, 0.5],
+        [H + 0.2, 1.4],
+        [H + 0.32, REACH],
+      ]
+    : [
+        [H - 0.35, 0],
+        [H + 0.32, REACH],
+      ];
+  for (let i = 1; i < bend.length; i++) {
+    const [y0, z0] = bend[i - 1];
+    const [y1, z1] = bend[i];
+    const piece = new CylinderGeometry(
+      0.045,
+      0.055,
+      Math.hypot(y1 - y0, z1 - z0) + 0.04,
+      6,
+    );
+    piece.rotateX(Math.atan2(z1 - z0, y1 - y0));
+    piece.translate(0, (y0 + y1) / 2, (z0 + z1) / 2);
+    parts.push(paint(piece, ZINC));
+  }
+  // the cobra head: a long low housing, a little nose-down, past the arm end
+  const head = new BoxGeometry(0.34, 0.16, 0.8);
+  head.rotateX(0.06);
+  head.translate(0, H + 0.3, REACH + 0.36);
+  parts.push(paint(head, HEAD));
+  if (near) {
+    const top = new BoxGeometry(0.24, 0.06, 0.6);
+    top.rotateX(0.06);
+    top.translate(0, H + 0.4, REACH + 0.33);
+    parts.push(paint(top, HEAD));
+    const flange = new CylinderGeometry(0.24, 0.24, 0.04, 8);
+    flange.translate(0, 0.02, 0);
+    parts.push(paint(flange, ZINC));
+    parts.push(box(0.1, 0.34, 0.02, 0, 0.8, 0.14, '#959a9e'));
+  }
+  const lens = box(0.26, 0.04, 0.56, 0, H + 0.2, REACH + 0.4, '#ffd690');
+  return {
+    parts: [
+      { geometry: merge(parts), material: getMaterial('props') },
+      { geometry: lens, material: getMaterial('lamp_lens') },
+    ],
+  };
+};
+
+/**
+ * Median highway lamp: a tall galvanised mast standing on the median barrier with two arms, one out over each
+ * carriageway (+Z and -Z), each with a flat LED head (the drive videos past the Queens Blvd tunnel: ~12 m twin-arm masts).
+ */
+export const twinLamp: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(11.6, 12.4);
+  const REACH = rng.range(2.6, 3.0);
+  const ZINC = '#a2a7aa';
+  const HEAD = '#8a8f92';
+  const near = lod === 0;
+  const parts: BufferGeometry[] = [];
+  const pole = new CylinderGeometry(0.08, 0.17, H, near ? 10 : 6);
+  pole.translate(0, H / 2, 0);
+  parts.push(cylindricalUV(paint(pole, ZINC, rng, 0.03), 0.5, 2));
+  const lenses: BufferGeometry[] = [];
+  for (const sg of [1, -1]) {
+    const bend: [number, number][] = near
+      ? [
+          [H - 0.3, 0],
+          [H, 0.45 * sg],
+          [H + 0.18, 1.3 * sg],
+          [H + 0.26, REACH * sg],
+        ]
+      : [
+          [H - 0.3, 0],
+          [H + 0.26, REACH * sg],
+        ];
+    for (let i = 1; i < bend.length; i++) {
+      const [y0, z0] = bend[i - 1];
+      const [y1, z1] = bend[i];
+      const piece = new CylinderGeometry(
+        0.045,
+        0.055,
+        Math.hypot(y1 - y0, z1 - z0) + 0.04,
+        6,
+      );
+      piece.rotateX(Math.atan2(z1 - z0, y1 - y0));
+      piece.translate(0, (y0 + y1) / 2, (z0 + z1) / 2);
+      parts.push(paint(piece, ZINC));
+    }
+    const head = new BoxGeometry(0.36, 0.12, 0.72);
+    head.translate(0, H + 0.26, (REACH + 0.32) * sg);
+    parts.push(paint(head, HEAD));
+    lenses.push(
+      box(0.28, 0.03, 0.56, 0, H + 0.19, (REACH + 0.34) * sg, '#ffd690'),
+    );
+  }
+  if (near) {
+    const flange = new CylinderGeometry(0.26, 0.26, 0.05, 8);
+    flange.translate(0, 0.025, 0);
+    parts.push(paint(flange, ZINC));
+  }
+  return {
+    parts: [
+      { geometry: merge(parts), material: getMaterial('props') },
+      { geometry: merge(lenses), material: getMaterial('lamp_lens') },
+    ],
+  };
+};
+
+/**
  * City traffic signal: a grey pole with a mast arm over the road (+Z), two three-lamp heads facing +X (the traffic coming
  * from +X sees them) - one on the arm, one on the pole - and a pedestrian head. Generic, no signs.
  */
@@ -737,6 +924,25 @@ export const trafficSignal: AssetBuilder = ({ lod }) => {
   };
 };
 
+/**
+ * Street tree pit: a 1.3 m square of dark soil with a low granite edging, centred on the tree (lies flat on the
+ * sidewalk, y = 0 = the sidewalk top). The sides run along X / Z (turned with the street).
+ */
+export const treePit: AssetBuilder = ({ seed }) => {
+  const rng = new Rng(seed);
+  const s = 1.3;
+  const e = 0.1;
+  const parts: BufferGeometry[] = [
+    box(s - 2 * e, 0.02, s - 2 * e, 0, 0.0, 0, '#3b2f24', rng),
+    box(s, 0.05, e, 0, 0.015, (s - e) / 2, '#9a9893'),
+    box(s, 0.05, e, 0, 0.015, -(s - e) / 2, '#9a9893'),
+    box(e, 0.05, s - 2 * e, (s - e) / 2, 0.015, 0, '#9a9893'),
+    box(e, 0.05, s - 2 * e, -(s - e) / 2, 0.015, 0, '#9a9893'),
+  ];
+  return {
+    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+  };
+};
 /** Maps a plane's UVs into the texture's top (v0 = 0.5) or bottom (v0 = 0) half. */
 function halfUv(g: BufferGeometry, v0: number): void {
   const uv = g.getAttribute('uv');

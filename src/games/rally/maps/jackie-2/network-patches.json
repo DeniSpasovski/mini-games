@@ -1,0 +1,18 @@
+[
+  {
+    "op": "setStructure",
+    "edge": "126077113.0",
+    "from": 140,
+    "to": 245,
+    "kind": "ground",
+    "note": "Union Tpke over the parkway (stage 6 670 m): the OSM bridge (s 158-230) runs on over the land beside the cut; ground there"
+  },
+  {
+    "op": "setStructure",
+    "edge": "126077113.0",
+    "from": 151,
+    "to": 207,
+    "kind": "bridge",
+    "note": "the deck spans the cut wall to wall at its 39 deg skew: both deck edges over the parkway cut from s 155 (twin's outer wall) to s 207 (the stage's right wall, which carries its edge from there) (drive videos our 4:55-4:56, opposite 1:33-1:35)"
+  }
+]

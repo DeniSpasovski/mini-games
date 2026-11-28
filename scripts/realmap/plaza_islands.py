@@ -7,16 +7,24 @@ Inputs (kept in `sources/maps/<map>/`, never shipped):
   - an Overpass JSON extract of the junction (all ways + tagged nodes, OSM, ODbL) (optional).
 
 Output `maps/<map>/junction.json` (world frame of `bake.py` Proj: +X east, +Z south):
-  - `area`: the street space (roadbed + sidewalks + medians) within REACH m of the junction box outline -> `junctionPlazas`;
+  - `area`: the street space (roadbed + sidewalks + medians) within `reach` m of the junction box outline ->
+    `junctionAreas` (a core of one source: the streets keep their own ribbons outside it) or `ribbonAreas`;
   - `islands`: medians / traffic islands (`island`, raised), painted medians (`painted`), sidewalks (`sidewalk`, raised),
-    clipped to the area -> `plazaIslands`;
-  - `crosswalks`: OSM ways tagged `crossing:markings=zebra` touching the area -> `plazaCrosswalks`;
+    clipped to the area -> `plazaIslands` (not the carriageways' divider down in the cut, `on_surface`);
+  - `crosswalks`: OSM ways tagged `crossing:markings=zebra` touching the area -> `plazaCrosswalks` (a ribbon area);
   - `trees`: census street trees on the area's sidewalks (`[x, z, dbh_inch, ...]`);
   - `signals`: OSM traffic signal nodes in the area (`[x, z, ...]`).
 
-    python scripts/realmap/plaza_islands.py scripts/realmap/jackie.json sources/maps/jackie/nyc-planimetrics/kew-gardens \\
-        src/games/rally/maps/jackie/junction.json 2650.8,-1815.9,2668,-1840,... sources/maps/jackie/osm-kew-gardens-junction.json \
-        2652.7,-1812.4,2737.6,-1844.7,2749.7,-1809.1,2670.9,-1779.5
+The Jackie junction core (Queens Blvd x Union Tpke on the finish slab):
+
+    python scripts/realmap/plaza_islands.py scripts/realmap/jackie.json sources/maps/jackie/nyc-planimetrics/kew-gardens \
+        src/games/rally/maps/jackie/junction.json         "2650.8,-1815.9,2668,-1840,2690,-1846,2712,-1848,2736.3,-1848.5,2750.8,-1806.3,2742,-1796,2728,-1784,2712,-1784,2695,-1780,2672.5,-1776.9"         sources/maps/jackie/osm-kew-gardens-junction.json "2652.7,-1812.4,2737.6,-1844.7,2749.7,-1809.1,2670.9,-1779.5" 3
+
+Junction cores at the other NYC intersections (one source: the survey's intersection polygon, `junction-cores.json`): the
+listed points first, then every intersection within AUTO_REACH m of the stage road that holds no bridge deck / highway ramp:
+
+    python scripts/realmap/plaza_islands.py --cores scripts/realmap/jackie.json src/games/rally/maps/jackie/junction-cores.json \
+        -2919,2199 2750,-1736 2612,-1900
 
 Optional 7th argument: the reach around the clip polygon (default REACH). The 6th argument is the game's portal slab
 footprint (`-` for none) (the headwall corners: World.gen.portals rows, latL / latR at the
@@ -24,14 +32,15 @@ span ends): it is added to the area.
 """
 
 import json
+import math
 import os
 import sys
 
 from shapely.geometry import LineString, Point, Polygon, shape
-from shapely.ops import transform, unary_union
+from shapely.ops import substring, transform, unary_union
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bake import Proj  # noqa: E402
+from bake import ROOT, Proj  # noqa: E402
 
 # Street space kept around the junction box (m).
 REACH = 80
@@ -39,15 +48,37 @@ CROSS_REACH = 2
 # Planimetric sub codes -> island kinds (Capture_Rules.md: 360080 traffic island, 360020 curb median, 360010 painted).
 KINDS = {'360080': 'island', '360020': 'island', '360010': 'painted', '380000': 'sidewalk', '380010': 'sidewalk'}
 MIN_AREA = 1.0
+# Auto cores (`--cores`): every NYC intersection within AUTO_REACH m of the stage road, not within AUTO_GAP m of a listed one.
+AUTO_REACH = 300.0
+AUTO_GAP = 25.0
+SPAN_KEEP_OUT = 45.0  # m round a stage-road bridge / tunnel span
 SIMPLIFY = 0.15
+# A median at least this long, at most this wide and lying along the stage road (DIVIDER_ALONG of it within DIVIDER_REACH
+# m) is the divider of the carriageways in the trench under the box (the survey draws it straight through the tunnel):
+# not on the junction's surface.
+DIVIDER_LEN = 40.0
+DIVIDER_W = 2.5
+DIVIDER_REACH = 12.0
+DIVIDER_ALONG = 0.8
 
 
 def flat(poly):
     return [round(v, 2) for p in list(poly.exterior.coords)[:-1] for v in p]
 
 
+def on_surface(poly, kind, route):
+    """Not the long thin divider of the carriageways beneath the junction box (length and mean width of a strip: half
+    its perimeter, twice its area over the perimeter - it bends with the parkway). `route`: the stage road (world line)."""
+    p = poly.length
+    if kind != 'island' or p / 2 < DIVIDER_LEN or 2 * poly.area / p > DIVIDER_W:
+        return True
+    return poly.intersection(route.buffer(DIVIDER_REACH)).area < DIVIDER_ALONG * poly.area
+
+
 def main(config, prefix, out, clip, osm=None, slab=None, reach=None):
-    proj = Proj(*json.load(open(config))['origin'])
+    cfg = json.load(open(config))
+    proj = Proj(*cfg['origin'])
+    route = LineString(json.load(open(os.path.join(ROOT, cfg['out']), encoding='utf-8'))['route'])
     tr = lambda g: transform(lambda lon, lat, z=None: proj.fwd(lat, lon), g)  # noqa: E731
     c = [float(v) for v in clip.split(',')]
     box = Polygon(list(zip(c[0::2], c[1::2]))).buffer(0)
@@ -71,7 +102,7 @@ def main(config, prefix, out, clip, osm=None, slab=None, reach=None):
                 continue
             part = geom.intersection(area).simplify(SIMPLIFY)
             for poly in getattr(part, 'geoms', [part]):
-                if poly.geom_type == 'Polygon' and poly.area >= MIN_AREA:
+                if poly.geom_type == 'Polygon' and poly.area >= MIN_AREA and on_surface(poly, kind, route):
                     islands.append({'kind': kind, 'pts': flat(poly)})
     trees = []
     if os.path.exists(f'{prefix}-trees.json'):
@@ -114,5 +145,112 @@ def main(config, prefix, out, clip, osm=None, slab=None, reach=None):
           f'{len(trees) // 3} trees, {len(signals) // 2} signals -> {out}')
 
 
-if __name__ == '__main__':
+def cores(config, out, points, prefixes=('endbox', 'west'), reach=3.0):
+    """Junction cores at NYC intersections (roadbed sub code 350010, "three or more roadways converge"): for each point
+    (x, z) the intersection polygon that holds it, with the street space within `reach` m of it, its islands and trees
+    -> {cores: [{area, islands, trees}]} (`junctionAreas` / `plazaIslands` / `plazaTrees` of the map)."""
+    cfg = json.load(open(config))
+    proj = Proj(*cfg['origin'])
+    route = LineString(json.load(open(os.path.join(ROOT, cfg['out']), encoding='utf-8'))['route'])
+    tr = lambda g: transform(lambda lon, lat, z=None: proj.fwd(lat, lon), g)  # noqa: E731
+    base = os.path.join(ROOT, 'sources', 'maps', 'jackie', 'nyc-planimetrics')
+    layers = {k: [] for k in ('roadbed', 'sidewalk', 'median')}
+    for pre in prefixes:
+        for layer in layers:
+            fn = os.path.join(base, f'{pre}-{layer}.geojson')
+            layers[layer] += [(f['properties'], tr(shape(f['geometry'])).buffer(0)) for f in json.load(open(fn))['features'] if f['geometry']]
+    ints = [g for p, g in layers['roadbed'] if p.get('sub_code') == '350010']
+    space = unary_union([g for fs in layers.values() for _, g in fs]).buffer(0.05).buffer(-0.05)
+    walks = unary_union([g for _, g in layers['sidewalk']])
+    trees_all = []
+    for pre in prefixes:
+        fn = os.path.join(base, f'{pre}-trees.json')
+        if os.path.exists(fn):
+            for t in json.load(open(fn)):
+                if t.get('status') == 'Alive':
+                    trees_all.append((*proj.fwd(float(t['latitude']), float(t['longitude'])), int(t.get('tree_dbh') or 0)))
+    out_cores = []
+    for x, z in points:
+        pt = Point(x, z)
+        box = min(ints, key=lambda g: g.distance(pt))
+        if box.distance(pt) > 5:
+            print(f'  ({x}, {z}): no intersection polygon within 5 m')
+            continue
+        area = space.intersection(box.buffer(reach)).simplify(SIMPLIFY)
+        if area.geom_type != 'Polygon':
+            area = max(area.geoms, key=lambda g: g.area)
+        islands = []
+        for layer in ('median', 'sidewalk'):
+            for props, geom in layers[layer]:
+                kind = KINDS.get(props.get('sub_code', ''))
+                if not kind or not geom.intersects(area):
+                    continue
+                part = geom.intersection(area).simplify(SIMPLIFY)
+                for poly in getattr(part, 'geoms', [part]):
+                    if poly.geom_type == 'Polygon' and poly.area >= MIN_AREA and on_surface(poly, kind, route):
+                        islands.append({'kind': kind, 'pts': flat(poly)})
+        w = walks.intersection(area).buffer(0.5)
+        trees = [v for tx, tz, dbh in trees_all if w.contains(Point(tx, tz)) for v in (round(tx, 2), round(tz, 2), dbh)]
+        out_cores.append({'area': flat(area), 'islands': islands, 'trees': trees})
+        print(f'  ({x}, {z}): area {area.area:.0f} m2, {len(islands)} islands, {len(trees) // 3} trees')
+    json.dump(
+        {
+            'source': 'NYC Planimetric Database (roadbed intersections, sidewalk, median) and NYC Street Tree Census 2015 - '
+            'NYC Open Data, Office of Technology and Innovation; scripts/realmap/plaza_islands.py --cores',
+            'cores': out_cores,
+        },
+        open(out, 'w'),
+        separators=(',', ':'),
+    )
+    print(f'{len(out_cores)} cores -> {out}')
+
+
+def auto_points(config, manual, reach=None, prefixes=('endbox', 'west')):
+    """Points (one per NYC intersection polygon) of the intersections within `reach` m of the stage road that can be cores:
+    none that holds a bridge deck, a carriageway / ramp of the highway or a parkway lane (those keep their ribbons), and
+    none within AUTO_GAP m of a `manual` point (already a core)."""
+    reach = reach or AUTO_REACH
+    cfg = json.load(open(config))
+    proj = Proj(*cfg['origin'])
+    data = json.load(open(os.path.join(ROOT, cfg['out']), encoding='utf-8'))
+    route = LineString(data['route'])
+    tr = lambda g: transform(lambda lon, lat, z=None: proj.fwd(lat, lon), g)  # noqa: E731
+    base = os.path.join(ROOT, 'sources', 'maps', 'jackie', 'nyc-planimetrics')
+    keep_out = unary_union(
+        [
+            LineString(zip(q['pts'][0::2], q['pts'][1::2])).buffer(max(2.0, q['width'] / 2))
+            for q in data['paths']
+            if len(q['pts']) >= 4
+            and q['surface'] == 'tarmac'
+            and (q.get('bridge') or q['kind'] in ('motorway', 'trunk', 'motorway_link', 'trunk_link'))
+        ]
+    )
+    # the stage road's own structures (bridge / tunnel spans, the first metres at the start): hand-built, never a core
+    spans = [
+        substring(route, max(0.0, sp['from'] - 5), min(route.length, sp['to'] + 5)).buffer(SPAN_KEEP_OUT)
+        for sp in data.get('routeSpans', [])
+    ] + [substring(route, 0.0, 120.0).buffer(SPAN_KEEP_OUT)]
+    keep_out = unary_union([keep_out, *spans])
+    seen, pts = set(), []
+    for pre in prefixes:
+        for f in json.load(open(os.path.join(base, f'{pre}-roadbed.geojson')))['features']:
+            if f['properties'].get('sub_code') != '350010' or not f['geometry']:
+                continue
+            g = tr(shape(f['geometry'])).buffer(0)
+            key = tuple(round(v) for v in g.centroid.coords[0])
+            if key in seen or route.distance(g) > reach or g.intersects(keep_out):
+                continue
+            seen.add(key)
+            c = g.representative_point()
+            if any(math.hypot(c.x - x, c.y - z) < AUTO_GAP for x, z in manual):
+                continue
+            pts.append((round(c.x, 1), round(c.y, 1)))
+    return pts
+
+
+if __name__ == '__main__' and '--cores' in sys.argv:
+    a = [v for v in sys.argv[1:] if v != '--cores']
+    manual = [tuple(float(v) for v in p.split(',')) for p in a[2:]]
+    cores(a[0], a[1], manual + auto_points(a[0], manual))
+elif __name__ == '__main__':
     main(*sys.argv[1:8])

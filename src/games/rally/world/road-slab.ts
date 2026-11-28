@@ -39,7 +39,7 @@ const MASK_STEP = 2;
 const MASK_PAD = MASK_STEP;
 /** The cut reaches its full depth this far inside the slab's edge (m): one terrain mesh cell (LOD0), so the mesh dips
  * under the ribbon, not beside it. */
-const SINK_RAMP = 1;
+export const SINK_RAMP = 1;
 /** `paved`: a skirt toe this close past another road's edge counts as on it (m). */
 const PAVED_PAD = 0.1;
 

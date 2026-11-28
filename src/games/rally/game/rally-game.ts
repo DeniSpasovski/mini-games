@@ -822,8 +822,8 @@ export class RallyGame {
       this.scene.add(this.haze.points);
     }
     const rainRate = this.env.weatherLook.rain;
-    // Tunnels and the ground under bridge decks stay dry.
-    if (this.env.weatherLook.wet > 0) this.roofs = roofZones(this.world);
+    // Tunnels and the ground under bridge decks stay dry; a tunnel is dark inside.
+    this.roofs = roofZones(this.world);
     if (rainRate > 0) {
       this.rain = new Rain(RAIN_DROPS[q.name], rainRate, new Color());
       this.scene.add(this.rain.mesh);

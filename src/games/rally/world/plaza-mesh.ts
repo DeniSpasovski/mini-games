@@ -9,29 +9,49 @@ import {
 } from 'three';
 import { applyRoadSurface } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
+import { ptsInArea, type MeshArea } from './mesh-area';
 import { ISLAND_KERB } from './plazas';
-import { newPathQuery } from './real-data';
-import { STREET_KINDS } from './street-detail';
 import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
 
 /** Longest triangle edge of the plaza surface (m): it follows the slab top's slope. */
 const MAX_EDGE = 3;
+/** Longest triangle edge where the open trench cuts the plaza (m): the paving follows the cut, not 3 m teeth. */
+const CUT_EDGE = 1;
 /** Metres per texture repeat. */
 const TILE = 8;
 
 /** Junction plazas (plazas.ts): one plain asphalt surface per outline at the slab top, under the street ribbons at its edge. */
 export function* plazaMeshJob(
   world: World,
+  area?: MeshArea,
 ): Generator<void, Group | undefined> {
   const plazas = world.gen.plazas;
   if (plazas.empty) return undefined;
   const pos: number[] = [];
   const uv: number[] = [];
+  // A vertex is shared by up to six of the subdivided triangles: its height once.
+  const heights = new Map<string, number>();
   const add = (x: number, z: number) => {
-    const y = plazas.height(x, z) ?? world.gen.height(x, z);
+    const key = `${x},${z}`;
+    let y = heights.get(key);
+    if (y === undefined) {
+      y = plazas.height(x, z) ?? world.gen.height(x, z);
+      heights.set(key, y);
+    }
     pos.push(x, y + 0.03, z);
     uv.push(x / TILE, z / TILE);
+  };
+  // On the plaza (not over the open trench), per vertex once.
+  const onPlaza = new Map<string, boolean>();
+  const paved = (p: number[]): boolean => {
+    const key = `${p[0]},${p[1]}`;
+    let v = onPlaza.get(key);
+    if (v === undefined) {
+      v = plazas.inside(p[0], p[1], 0.5);
+      onPlaza.set(key, v);
+    }
+    return v;
   };
   const tri = (a: number[], b: number[], c: number[]): void => {
     const e = Math.max(
@@ -39,7 +59,11 @@ export function* plazaMeshJob(
       Math.hypot(b[0] - c[0], b[1] - c[1]),
       Math.hypot(c[0] - a[0], c[1] - a[1]),
     );
-    if (e > MAX_EDGE) {
+    const cut =
+      e > CUT_EDGE &&
+      e <= MAX_EDGE &&
+      (paved(a) !== paved(b) || paved(b) !== paved(c));
+    if (e > MAX_EDGE || cut) {
       const ab = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
       const bc = [(b[0] + c[0]) / 2, (b[1] + c[1]) / 2];
       const ca = [(c[0] + a[0]) / 2, (c[1] + a[1]) / 2];
@@ -65,6 +89,7 @@ export function* plazaMeshJob(
     }
   };
   for (const p of plazas.polys) {
+    if (!ptsInArea(area, p.pts, 10)) continue;
     const ring: Vector2[] = [];
     for (let i = 0; i < p.pts.length; i += 2)
       ring.push(new Vector2(p.pts[i], p.pts[i + 1]));
@@ -100,193 +125,10 @@ export function* plazaMeshJob(
   group.name = 'plazas';
   group.add(m);
   yield;
-  for (const mesh of yield* islandMeshes(world)) group.add(mesh);
-  const cw = crosswalkMesh(world);
+  for (const mesh of yield* islandMeshes(world, area)) group.add(mesh);
+  const cw = crosswalkMesh(world, area);
   if (cw) group.add(cw);
-  yield;
-  for (const mesh of laneMarkings(world)) group.add(mesh);
   return group;
-}
-
-/** Lane line width, dash / gap length (m): NYC-like 10 ft dashes on 30 ft gaps. */
-const LINE_W = 0.12;
-const DASH = 3;
-const GAP = 9;
-/** Lines stop this far beyond a crosswalk's edge (m). */
-const CROSS_MARGIN = 1.2;
-/** Assumed lane width when a way has no `lanes` tag (m). */
-const LANE_W = 3.3;
-
-/**
- * Lane markings on the junction areas, from the OSM ways that run there: dashed white lines between the lanes of a
- * direction, a double yellow centre line on a two-way street. None in the intersection core (where another street's
- * ribbon crosses), none across a crosswalk; raised islands / sidewalks hide what runs under them.
- */
-function laneMarkings(world: World): Mesh[] {
-  const plazas = world.gen.plazas;
-  const net = world.gen.paths;
-  const areas = plazas.polys.filter((p) => p.area);
-  if (!net || !areas.length) return [];
-  const minX = Math.min(...areas.map((p) => p.minX));
-  const maxX = Math.max(...areas.map((p) => p.maxX));
-  const minZ = Math.min(...areas.map((p) => p.minZ));
-  const maxZ = Math.max(...areas.map((p) => p.maxZ));
-  const crossings = world.map.plazaCrosswalks ?? [];
-  const CROSS_CLEAR = CROSSWALK_W / 2 + CROSS_MARGIN;
-  const nearCrossing = (x: number, z: number): boolean => {
-    for (const c of crossings)
-      for (let i = 0; i + 3 < c.length; i += 2) {
-        const ax = c[i];
-        const az = c[i + 1];
-        const ex = c[i + 2] - ax;
-        const ez = c[i + 3] - az;
-        const l2 = ex * ex + ez * ez || 1e-9;
-        const t = Math.max(
-          0,
-          Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2),
-        );
-        if (Math.hypot(ax + ex * t - x, az + ez * t - z) < CROSS_CLEAR)
-          return true;
-      }
-    return false;
-  };
-  const pq = newPathQuery();
-  const white: number[] = [];
-  const yellow: number[] = [];
-  const pt = { x: 0, z: 0 };
-  const nx = { x: 0, z: 0 };
-  net.paths.forEach((p, pi) => {
-    if (
-      p.surface !== 'tarmac' ||
-      !STREET_KINDS.has(p.kind) ||
-      world.gen.isCarriageway(pi)
-    )
-      return;
-    const L = net.lengths[pi];
-    // A quick reject: no sample of the way near the areas.
-    net.pointAt(pi, L / 2, pt);
-    if (
-      pt.x < minX - L ||
-      pt.x > maxX + L ||
-      pt.z < minZ - L ||
-      pt.z > maxZ + L
-    )
-      return;
-    const hw = p.width / 2;
-    const twoWay = !p.oneway;
-    const lanes = Math.max(1, p.lanes ?? Math.round(p.width / LANE_W));
-    // Lateral offsets (+ = left of the way's direction) of the lines and their colour / dash.
-    const lines: { off: number; yellow: boolean; dashed: boolean }[] = [];
-    if (twoWay) {
-      lines.push({ off: 0.1, yellow: true, dashed: false });
-      lines.push({ off: -0.1, yellow: true, dashed: false });
-      const per = Math.max(1, Math.floor(lanes / 2));
-      for (let k = 1; k < per; k++)
-        for (const s of [1, -1])
-          lines.push({ off: (s * hw * k) / per, yellow: false, dashed: true });
-    } else
-      for (let k = 1; k < lanes; k++)
-        lines.push({
-          off: -hw + (2 * hw * k) / lanes,
-          yellow: false,
-          dashed: true,
-        });
-    if (!lines.length) return;
-    const ok = (x: number, z: number, a: number): boolean => {
-      if (
-        !plazas.inside(x, z) ||
-        plazas.keepsRibbons(x, z) ||
-        nearCrossing(x, z)
-      )
-        return false;
-      // The intersection core: another street's ribbon crosses here.
-      net.query(
-        x,
-        z,
-        pq,
-        'tarmac',
-        (qi) =>
-          qi !== pi &&
-          STREET_KINDS.has(net.paths[qi].kind) &&
-          !world.gen.isCarriageway(qi),
-      );
-      if (pq.found && pq.distance < pq.halfWidth) {
-        net.pointAt(pi, Math.max(0, a - 1), pt);
-        net.pointAt(pi, Math.min(L, a + 1), nx);
-        const dx = nx.x - pt.x;
-        const dz = nx.z - pt.z;
-        const q0 = { x: 0, z: 0 };
-        const q1 = { x: 0, z: 0 };
-        net.pointAt(pq.path, Math.max(0, pq.along - 1), q0);
-        net.pointAt(pq.path, Math.min(net.lengths[pq.path], pq.along + 1), q1);
-        const ex = q1.x - q0.x;
-        const ez = q1.z - q0.z;
-        const cos =
-          Math.abs(dx * ex + dz * ez) /
-          ((Math.hypot(dx, dz) || 1) * (Math.hypot(ex, ez) || 1));
-        if (cos < 0.8) return false;
-      }
-      return true;
-    };
-    for (const ln of lines) {
-      const out = ln.yellow ? yellow : white;
-      const period = ln.dashed ? DASH + GAP : 1;
-      for (let a = 0; a + 0.5 <= L; a += 0.5) {
-        if (ln.dashed && a % period >= DASH) continue;
-        const b = a + 0.5;
-        net.pointAt(pi, Math.max(0, a - 1), pt);
-        net.pointAt(pi, Math.min(L, a + 1), nx);
-        const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
-        const tx = (nx.x - pt.x) / tl;
-        const tz = (nx.z - pt.z) / tl;
-        const lat = ln.off;
-        net.pointAt(pi, a, pt);
-        const x0 = pt.x + tz * lat;
-        const z0 = pt.z - tx * lat;
-        net.pointAt(pi, b, nx);
-        const x1 = nx.x + tz * lat;
-        const z1 = nx.z - tx * lat;
-        if (!ok((x0 + x1) / 2, (z0 + z1) / 2, a + 0.25)) continue;
-        const w = LINE_W / 2;
-        const quad = [
-          [x0 + tz * w, z0 - tx * w],
-          [x1 + tz * w, z1 - tx * w],
-          [x1 - tz * w, z1 + tx * w],
-          [x0 - tz * w, z0 + tx * w],
-        ];
-        for (const k of [0, 2, 1, 0, 3, 2]) {
-          const [x, z] = quad[k];
-          out.push(x, (plazas.height(x, z) ?? 0) + 0.05, z);
-        }
-      }
-    }
-  });
-  const meshes: Mesh[] = [];
-  for (const [pos, color] of [
-    [white, 0xe6e6e0],
-    [yellow, 0xe0b830],
-  ] as const) {
-    if (!pos.length) continue;
-    const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-    g.computeVertexNormals();
-    g.computeBoundingSphere();
-    const m = new Mesh(
-      g,
-      new MeshStandardMaterial({
-        color,
-        roughness: 0.75,
-        side: 2,
-        polygonOffset: true,
-        polygonOffsetFactor: -3,
-        polygonOffsetUnits: -6,
-      }),
-    );
-    m.receiveShadow = true;
-    m.matrixAutoUpdate = false;
-    meshes.push(m);
-  }
-  return meshes;
 }
 
 /** Width of a zebra crosswalk across its centre line (along the traffic) (m). */
@@ -298,7 +140,7 @@ const ZEBRA_TILE = 4;
  * Zebra crosswalks (MapDef.plazaCrosswalks): a band CROSSWALK_W wide along each centre line, on the plaza paving or the
  * street ground beside it. A raised island it crosses hides it (the island top is above the paint).
  */
-function crosswalkMesh(world: World): Mesh | undefined {
+function crosswalkMesh(world: World, area?: MeshArea): Mesh | undefined {
   const lines = world.map.plazaCrosswalks;
   if (!lines?.length) return undefined;
   const plazas = world.gen.plazas;
@@ -308,6 +150,7 @@ function crosswalkMesh(world: World): Mesh | undefined {
   const pos: number[] = [];
   const uv: number[] = [];
   for (const pts of lines) {
+    if (!ptsInArea(area, pts, 10)) continue;
     let along = 0;
     for (let i = 0; i + 3 < pts.length; i += 2) {
       const [ax, az, bx, bz] = pts.slice(i, i + 4);
@@ -386,7 +229,7 @@ const HATCH_TILE = 4;
  * Islands on the plazas (MapDef.plazaIslands): raised ones (traffic islands, medians, sidewalks) as a paved top
  * ISLAND_KERB over the plaza with a kerb face around the outline; painted medians as a flat pale area.
  */
-function* islandMeshes(world: World): Generator<void, Mesh[]> {
+function* islandMeshes(world: World, area?: MeshArea): Generator<void, Mesh[]> {
   const plazas = world.gen.plazas;
   if (!plazas.islands.length) return [];
   const raised = {
@@ -400,6 +243,7 @@ function* islandMeshes(world: World): Generator<void, Mesh[]> {
   const base = (x: number, z: number) =>
     (plazas.height(x, z) ?? world.gen.height(x, z)) + 0.03;
   for (const il of plazas.islands) {
+    if (!ptsInArea(area, il.pts, 10)) continue;
     const ring: Vector2[] = [];
     for (let i = 0; i < il.pts.length; i += 2)
       ring.push(new Vector2(il.pts[i], il.pts[i + 1]));

@@ -166,10 +166,13 @@ describe('seasons: air temperature', () => {
   );
 
   test('the stages have their own temperatures; ?air= wins', () => {
-    // One stage per map: the three Galichica stages share one table.
-    const temps = [...new Map(STAGES.map((s) => [s.map, s])).values()].map(
-      (s) => JSON.stringify(s.temps),
-    );
+    // One stage per map: the three Galichica stages share one table; The Jackie 2 (the same parkway on the v2 road
+    // engine) shares The Jackie's.
+    const temps = [
+      ...new Map(
+        STAGES.filter((s) => s.id !== 'jackie_2').map((s) => [s.map, s]),
+      ).values(),
+    ].map((s) => JSON.stringify(s.temps));
     expect(new Set(temps).size).toBe(temps.length);
     const stage = STAGES.find((s) => s.id === 'ajvatovci')!;
     expect(stageClimate(stage, 12, 'summer', 3).air).toBe(3);

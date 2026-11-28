@@ -82,7 +82,12 @@ export const pathTexture = (
           : width >= 6.4
             ? 'road_street'
             : 'road_city'
-      : 'road_tarmac';
+      : city
+        ? // a city map has no village tarmac: ramps / narrow carriageways get highway asphalt, service roads city asphalt
+          /^(motorway|trunk)/.test(kind) || kind.endsWith('_link')
+          ? 'asphalt_highway'
+          : 'road_city'
+        : 'road_tarmac';
 /** Side road textures that get a junction mouth: plain tarmac and the city streets. */
 export const MOUTH_TEX = new Set<RoadTexture>([
   'road_tarmac',
@@ -142,6 +147,8 @@ const MAX_RAY = 45;
 const REF_BACK = 8;
 /** The extended end stops this far past the stage road edge (hidden under its ribbon, m). */
 const OVERSHOOT = 1;
+/** A street runs alongside the stage road above this |cos| of the angle between them. */
+const ALONGSIDE = 0.8;
 /** A junction is straight on when the stage road turns more than THROUGH_TURN between its arms THROUGH_ARM m either
  * side, and the side road leaves within THROUGH_STRAIGHT of one arm's line (radians, m). */
 const THROUGH_TURN = (30 * Math.PI) / 180;
@@ -260,6 +267,67 @@ export function connectPaths(
         }
     return false;
   };
+  // The other carriageways of the highway (and the lanes beside them in the cut), and any other street running alongside
+  // the stage road (a service road / frontage street): a street end never reaches the stage road across them (a dead end
+  // at the rim of the cut was extended over the opposite lanes; side streets across the Union Tpke service road opened
+  // 100 m of the parkway's guard rail). Per segment: ax, az, bx, bz, half width, path, carriageway (1 / 0).
+  const SEG = 7;
+  const lanes: number[] = [];
+  paths.forEach((p, pi) => {
+    if (p.bridge || p.surface !== 'tarmac') return;
+    const carriageway = /^(motorway|trunk)$/.test(p.kind) || !!p.parkwayLane;
+    for (let k = 0; k + 3 < p.pts.length; k += 2)
+      lanes.push(
+        p.pts[k],
+        p.pts[k + 1],
+        p.pts[k + 2],
+        p.pts[k + 3],
+        p.width / 2,
+        pi,
+        carriageway ? 1 : 0,
+      );
+  });
+  const LCELL = 16;
+  const laneGrid = new Map<number, number[]>();
+  for (let s = 0; s < lanes.length; s += SEG) {
+    const r = lanes[s + 4];
+    const x0 = Math.floor((Math.min(lanes[s], lanes[s + 2]) - r) / LCELL);
+    const x1 = Math.floor((Math.max(lanes[s], lanes[s + 2]) + r) / LCELL);
+    const z0 = Math.floor((Math.min(lanes[s + 1], lanes[s + 3]) - r) / LCELL);
+    const z1 = Math.floor((Math.max(lanes[s + 1], lanes[s + 3]) + r) / LCELL);
+    for (let cx = x0; cx <= x1; cx++)
+      for (let cz = z0; cz <= z1; cz++) {
+        const key = cellKey(cx, cz);
+        const list = laneGrid.get(key);
+        if (list) list.push(s);
+        else laneGrid.set(key, [s]);
+      }
+  }
+  /** (x, z) lies on a carriageway, or on a street other than `self` running along the stage road (tangent tx, tz). */
+  const onLane = (
+    x: number,
+    z: number,
+    self: number,
+    tx: number,
+    tz: number,
+  ): boolean => {
+    for (const s of laneGrid.get(
+      cellKey(Math.floor(x / LCELL), Math.floor(z / LCELL)),
+    ) ?? []) {
+      if (lanes[s + 5] === self) continue;
+      const ax = lanes[s];
+      const az = lanes[s + 1];
+      const ex = lanes[s + 2] - ax;
+      const ez = lanes[s + 3] - az;
+      const l2 = ex * ex + ez * ez || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2));
+      if (Math.hypot(ax + ex * t - x, az + ez * t - z) > lanes[s + 4]) continue;
+      if (lanes[s + 6]) return true;
+      if (Math.abs((ex * tx + ez * tz) / Math.sqrt(l2)) > ALONGSIDE)
+        return true;
+    }
+    return false;
+  };
   const out = paths.map((p, pi) => {
     // Water, roads the baker marked as passing over / under the stage road (no junction), bridge decks.
     if (p.surface === 'water' || p.junction === false || p.bridge) return p;
@@ -314,6 +382,9 @@ export function connectPaths(
           hit = t;
           break;
         }
+        // Across another carriageway / a street alongside the road: not a junction of the stage road.
+        const s = road.samples[q.index];
+        if (onLane(ex + dx * t, ez + dz * t, pi, s.tx, s.tz)) break;
       }
       if (hit < 0) continue;
       // No junction where the stage road is on a bridge or under a structure (a street cannot join a deck or a

@@ -24,6 +24,10 @@ import { newPathQuery } from './real-data';
 import { newRoadQuery } from './road';
 import { getRoadMaterial, pathTexture, texLength } from './road-mesh';
 import { STREET_KINDS } from './street-detail';
+import { baseTexture, hasMarkings, straightJoint } from './street-markings';
+import { MarkingBuilder } from './street-markings-mesh';
+import { mergePaint } from './merge-paint';
+import type { RoadTexture } from '../maps/shared/types';
 import { DECK_DEPTH, UNDERPASS_WALL } from './terrain-gen';
 import { TWIN_OVERLAP, twinAt } from './twin-decks';
 import { farShadowCaster } from './far-shadow';
@@ -134,8 +138,11 @@ export class Builder {
 
   constructor(private readonly ts: number) {}
 
-  /** Sweep the segment a -> b of a cross section along `rows`. `wall`: uv = (along, height), else (across, along). */
-  strip(rows: Row[], a: SP, b: SP, color: RGB, wall = true): void {
+  /**
+   * Sweep the segment a -> b of a cross section along `rows`. `wall`: uv = (along, height), else (across, along).
+   * `rel`: the height is the profile's own (over each row), so the texture's bands follow the rows up a grade.
+   */
+  strip(rows: Row[], a: SP, b: SP, color: RGB, wall = true, rel = false): void {
     const v0 = this.pos.length / 3;
     for (const r of rows) {
       for (const [off, dy, frac] of [a, b]) {
@@ -143,7 +150,7 @@ export class Builder {
         const y = r.y + dy;
         this.pos.push(r.x + r.tz * l, y, r.z - r.tx * l);
         this.col.push(...color);
-        if (wall) this.uv.push(r.d / this.ts, y / this.ts);
+        if (wall) this.uv.push(r.d / this.ts, (rel ? dy : y) / this.ts);
         else this.uv.push(l / this.ts, r.d / this.ts);
       }
     }
@@ -153,7 +160,29 @@ export class Builder {
     }
   }
 
-  /** A vertical wall along a polyline: per point (x, z, bottom, top); uv = (length, height). */
+  /** A surface through rows of points (each row the same column count, a -> b like `strip`); uv = (x, z). */
+  grid(rows: [number, number, number][][], color: RGB): void {
+    if (rows.length < 2) return;
+    const nc = rows[0].length;
+    const v0 = this.pos.length / 3;
+    for (const r of rows)
+      for (const [x, y, z] of r) {
+        this.pos.push(x, y, z);
+        this.col.push(...color);
+        this.uv.push(x / this.ts, z / this.ts);
+      }
+    for (let i = 0; i + 1 < rows.length; i++)
+      for (let j = 0; j + 1 < nc; j++) {
+        const p = v0 + i * nc + j;
+        const q = p + nc;
+        this.idx.push(p, q, q + 1, p, q + 1, p + 1);
+      }
+  }
+
+  /**
+   * A vertical wall along a polyline: per point (x, z, bottom, top); uv = (length, height). A tall wall is darker at its
+   * foot (road spray, grime), fading up over its height.
+   */
   wall(
     pts: { x: number; z: number; bot: number; top: number }[],
     color: RGB,
@@ -163,9 +192,12 @@ export class Builder {
     let len = 0;
     pts.forEach((p, i) => {
       if (i) len += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z);
+      const grime =
+        1 - 0.22 * Math.min(1, Math.max(0, (p.top - p.bot - 1) / 2));
       for (const y of [p.bot, p.top]) {
         this.pos.push(p.x, y, p.z);
-        this.col.push(...color);
+        const f = y === p.bot ? grime : 1;
+        this.col.push(color[0] * f, color[1] * f, color[2] * f);
         this.uv.push(len / this.ts, y / this.ts);
       }
     });
@@ -245,6 +277,53 @@ export class Builder {
     }
   }
 
+  /**
+   * Round ceiling luminaire hanging from the ceiling at height `y`: a grey housing (radius `r`, LAMP_DEPTH deep) with a
+   * lit disc in its underside - the light of every tunnel and underpass (`tunnelLamps`).
+   */
+  lamp(x: number, z: number, y: number, r = LAMP_R): void {
+    const N = 14;
+    const bottom = y - LAMP_DEPTH;
+    const ring = (rad: number, yy: number, color: RGB) => {
+      const v0 = this.pos.length / 3;
+      for (let i = 0; i <= N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        this.pos.push(x + Math.cos(a) * rad, yy, z + Math.sin(a) * rad);
+        this.col.push(...color);
+        this.uv.push(0, 0);
+      }
+      return v0;
+    };
+    // housing wall, then the rim between the wall and the disc
+    const top = ring(r, y, LAMP_HOUSING);
+    const low = ring(r, bottom, LAMP_HOUSING);
+    const rim = ring(r * 0.78, bottom - 0.01, LAMP_HOUSING);
+    const disc = ring(r * 0.78, bottom - 0.02, LAMP_GLOW);
+    const hub = this.pos.length / 3;
+    this.pos.push(x, bottom - 0.02, z);
+    this.col.push(...LAMP_GLOW);
+    this.uv.push(0, 0);
+    for (let i = 0; i < N; i++) {
+      this.idx.push(
+        top + i,
+        low + i,
+        low + i + 1,
+        top + i,
+        low + i + 1,
+        top + i + 1,
+      );
+      this.idx.push(
+        low + i,
+        rim + i,
+        rim + i + 1,
+        low + i,
+        rim + i + 1,
+        low + i + 1,
+      );
+      this.idx.push(hub, disc + i, disc + i + 1);
+    }
+  }
+
   empty(): boolean {
     return this.idx.length === 0;
   }
@@ -268,6 +347,12 @@ export class Builder {
     return m;
   }
 }
+
+/** Round ceiling lamp: radius, depth of the housing (m), colours. */
+const LAMP_R = 0.32;
+const LAMP_DEPTH = 0.1;
+const LAMP_HOUSING: RGB = [0.5, 0.52, 0.54];
+const LAMP_GLOW: RGB = [1, 0.96, 0.82];
 
 const CONC: RGB = [0.82, 0.8, 0.77];
 const SOFFIT: RGB = [0.42, 0.41, 0.4];
@@ -573,6 +658,9 @@ function deckBody(
   }
 }
 
+/** A return (the face's taper into the slope) needs ground at least this close to the seat (m). */
+const RETURN_FREE = 0.5;
+
 /**
  * Abutment at one end of a deck: a stone face under the slab (ground -> soffit) with returns that taper
  * into the slope on both sides, and wing walls along the road edges retaining the approach fill.
@@ -596,7 +684,14 @@ function abutment(
   const nz = -end.tx;
   const topY = end.y - SLAB_T;
   // Face: from -W-RETURN_L to W+RETURN_L across the road.
-  const wallPts: { x: number; z: number; bot: number; top: number }[] = [];
+  const wallPts: {
+    x: number;
+    z: number;
+    bot: number;
+    top: number;
+    /** A return over ground lower than the seat: nothing to retain, no wall (it would hang in the air). */
+    free?: boolean;
+  }[] = [];
   let high = 0;
   const half = W + RETURN_L;
   const n = Math.ceil((2 * half) / 1.2);
@@ -608,8 +703,9 @@ function abutment(
     const over = Math.max(0, Math.abs(l) - W);
     const t =
       over > 0 ? Math.max(g, topY + (g - topY) * (over / RETURN_L)) : topY;
-    high = Math.max(high, t - g);
-    wallPts.push({ x, z, bot: g - 0.5, top: Math.max(t, g - 0.3) });
+    const free = over > 0 && g < topY - RETURN_FREE;
+    if (!free) high = Math.max(high, t - g);
+    wallPts.push({ x, z, bot: g - 0.5, top: Math.max(t, g - 0.3), free });
   }
   // The face, its returns and the wing walls never stand in the trench of a street that passes under the deck (the
   // underpass opens through them; its own retaining walls take over).
@@ -623,7 +719,7 @@ function abutment(
   if (high >= 0.4) {
     let run: typeof wallPts = [];
     for (const p of wallPts) {
-      if (onStreet(p)) {
+      if (p.free || onStreet(p)) {
         face.wall(run, faceCol);
         run = [];
       } else run.push(p);
@@ -797,7 +893,8 @@ function* pathDecks(
     !!net.paths[q].bridge &&
     !gen.isPortalDeck(q) &&
     net.paths[q].surface === 'tarmac' &&
-    !/^(motorway|trunk)/.test(net.paths[q].kind);
+    // (ramp decks count: the on-ramp beside Highland Blvd at the start is one structure with it)
+    !/^(motorway|trunk)$/.test(net.paths[q].kind);
   const widen = decks.map(({ pi, rows }) =>
     isStreetDeck(pi)
       ? rows.map((r) => {
@@ -832,13 +929,21 @@ function* pathDecks(
     }
     return -1;
   };
+  const deckMarks = new MarkingBuilder();
   // Pass 2: surface, body, abutments.
   for (const { pi, rows } of decks) {
     yield;
     const p = net.paths[pi];
     const L = net.lengths[pi];
-    const tex = pathTexture(p.kind, p.width, world.map.cityStreets);
-    const roadMat = getRoadMaterial(tex, tex === 'road_parkway' ? 2 : 1);
+    // Decks of modelled streets: base asphalt at true scale, the paint from the marking layer (street-markings.ts).
+    const marked = !!world.map.cityStreets && hasMarkings(p, true);
+    const tex: RoadTexture = marked
+      ? baseTexture(p)
+      : pathTexture(p.kind, p.width, world.map.cityStreets);
+    const roadMat = getRoadMaterial(
+      tex,
+      tex === 'road_parkway' || tex === 'asphalt_highway' ? 2 : 1,
+    );
     const edge = (r: Row, side: number) => ({
       x: r.x + r.tz * (r.hw + 0.2) * side,
       z: r.z - r.tx * (r.hw + 0.2) * side,
@@ -846,8 +951,11 @@ function* pathDecks(
     // Inside another deck, or on a portal slab / junction plaza (the slab is the structure there): no body of its own.
     const portals = gen.portals;
     const plazas = gen.plazas;
+    // (a measured structure, MapDef.deckStructures: one slab drawn by structureDecks)
     const onSlab = (x: number, z: number) =>
-      portals.inside(x, z) || plazas.inside(x, z, 1);
+      portals.inside(x, z) ||
+      plazas.inside(x, z, 1) ||
+      gen.inDeckStructure(x, z);
     const last = rows[rows.length - 1];
     const cov: Coverage = {
       left: rows.map((r) => {
@@ -896,7 +1004,10 @@ function* pathDecks(
           r.z - r.tx * r.hw * side,
         );
         nor.push(0, 1, 0);
-        uv.push((1 - side) / 2, r.d / texLength(tex));
+        uv.push(
+          marked ? (side * r.hw) / 8 : (1 - side) / 2,
+          r.d / texLength(tex),
+        );
       }
       // Inside a junction plaza the plaza is the street surface.
       if (
@@ -925,6 +1036,29 @@ function* pathDecks(
     top.receiveShadow = true;
     top.matrixAutoUpdate = false;
     group.add(top);
+    if (marked) {
+      const keeps = (r: Row) => plazas.keepsRibbons(r.x, r.z);
+      deckMarks.addPath(
+        p,
+        rows.map((r) => {
+          const y = r.y + (keeps(r) ? 0.05 : 0.03) + stagger * 0.012;
+          return {
+            x: r.x,
+            z: r.z,
+            tx: r.tx,
+            tz: r.tz,
+            hw: r.hw,
+            d: r.d,
+            y: [y, y, y, y, y],
+            skip: plazas.inside(r.x, r.z) && !keeps(r),
+          };
+        }),
+        L,
+        straightJoint(net.paths, p, false),
+        straightJoint(net.paths, p, true),
+        mergePaint(net.paths, p),
+      );
+    }
     const mid = rows[rows.length >> 1];
     const parts = tiles.of(mid.x, mid.z);
     // Streets over the parkway and the opposite carriageway's deck beside a stage-road span (both arched, stageSpans):
@@ -936,7 +1070,9 @@ function* pathDecks(
       L >= 12 &&
       ((STREET_KINDS.has(p.kind) && !gen.isPortalDeck(pi)) ||
         (gen.isCarriagewayDeck(pi) && besideStageSpan(world, mid)));
-    deckBody(parts, rows, true, cov, arch, modern);
+    // Inside a measured structure the structure's own body carries it (one soffit, parapets on its outline only).
+    const inStructure = rows.every((r) => gen.inDeckStructure(r.x, r.z, 3.5));
+    if (!inStructure) deckBody(parts, rows, true, cov, arch, modern);
     // Wing walls retain the approach: their top follows the approach road's height going AWAY from the span
     // (the deck's own profile rises the other way - walls taken from it stand up beside the approach).
     const approach = (end: Row, inward: 1 | -1) => (s: number) =>
@@ -963,6 +1099,248 @@ function* pathDecks(
         !gen.hasApproach(pi, true),
       );
   }
+  const paint = deckMarks.build();
+  if (paint) group.add(paint);
+}
+
+/**
+ * Measured bridge structures (MapDef.deckStructures, e.g. the start's Highland Blvd bridge): ONE slab over the outline on the
+ * survey plane - paved top just under the road decks on it, soffit, fascia + parapets along its two long sides (the ends are
+ * where the roads go on: their decks keep their own abutments). The road decks inside have no body of their own (pathDecks).
+ * A four-corner outline: the end edges are the two opposite ones the roads cross most.
+ */
+function structureDecks(world: World, group: Group, tiles: TileParts): void {
+  const gen = world.gen;
+  const net = gen.paths;
+  if (!net) return;
+  const pt = { x: 0, z: 0 };
+  for (const st of gen.structures) {
+    const o = st.outline;
+    if (o.length !== 8) continue;
+    const c = [0, 1, 2, 3].map((i) => [o[i * 2], o[i * 2 + 1]]);
+    const crossings = (a: number[], b: number[]) => {
+      let n = 0;
+      net.paths.forEach((p, pi) => {
+        if (!p.bridge || p.surface !== 'tarmac') return;
+        const L = net.lengths[pi];
+        let prev: number[] | undefined;
+        for (let d = 0; d <= L; d += 1) {
+          net.pointAt(pi, d, pt);
+          const q = [pt.x, pt.z];
+          if (prev && segmentsCross(prev, q, a, b)) n++;
+          prev = q;
+        }
+      });
+      return n;
+    };
+    // ends: edges (c1, c2) + (c3, c0), or (c0, c1) + (c2, c3)
+    const endsB = crossings(c[1], c[2]) + crossings(c[3], c[0]);
+    const endsA = crossings(c[0], c[1]) + crossings(c[2], c[3]);
+    // the two long sides, both running from one end edge to the other
+    const [a0, a1, b0, b1] =
+      endsB >= endsA ? [c[0], c[1], c[3], c[2]] : [c[1], c[2], c[0], c[3]];
+    const y = (x: number, z: number) =>
+      st.plane[0] + st.plane[1] * x + st.plane[2] * z;
+    const len = Math.max(
+      Math.hypot(a1[0] - a0[0], a1[1] - a0[1]),
+      Math.hypot(b1[0] - b0[0], b1[1] - b0[1]),
+    );
+    const n = Math.max(2, Math.ceil(len / STEP) + 1);
+    const rows: Row[] = [];
+    let flip = 0;
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1);
+      const A = [a0[0] + (a1[0] - a0[0]) * u, a0[1] + (a1[1] - a0[1]) * u];
+      const B = [b0[0] + (b1[0] - b0[0]) * u, b0[1] + (b1[1] - b0[1]) * u];
+      const cx = (A[0] + B[0]) / 2;
+      const cz = (A[1] + B[1]) / 2;
+      const w = Math.hypot(A[0] - B[0], A[1] - B[1]) || 1;
+      // left of the row (tz, -tx) points to side A
+      const nx = (A[0] - B[0]) / w;
+      const nz = (A[1] - B[1]) / w;
+      rows.push({
+        x: cx,
+        y: y(cx, cz),
+        z: cz,
+        tx: -nz,
+        tz: nx,
+        d: 0,
+        hw: w / 2,
+      });
+    }
+    for (let i = 1; i < n; i++) {
+      const r = rows[i];
+      const q = rows[i - 1];
+      r.d = q.d + Math.hypot(r.x - q.x, r.z - q.z);
+      flip += (r.x - q.x) * r.tx + (r.z - q.z) * r.tz;
+    }
+    // the tangent must point along the rows: else swap the sides (left = B)
+    if (flip < 0)
+      for (const r of rows) {
+        r.tx = -r.tx;
+        r.tz = -r.tz;
+      }
+    const mid = rows[rows.length >> 1];
+    const parts = tiles.of(mid.x, mid.z);
+    // Paved top just under the road decks on it (+0.03 there).
+    const tex: RoadTexture = 'asphalt_street';
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const nor: number[] = [];
+    const idx: number[] = [];
+    rows.forEach((r, k) => {
+      for (const side of [-1, 1]) {
+        pos.push(
+          r.x + r.tz * r.hw * side,
+          r.y + 0.015,
+          r.z - r.tx * r.hw * side,
+        );
+        nor.push(0, 1, 0);
+        uv.push((side * r.hw) / 8, r.d / texLength(tex));
+      }
+      if (k < rows.length - 1) {
+        const q = k * 2;
+        idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
+      }
+    });
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+    g.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
+    g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+    g.setIndex(idx);
+    g.computeBoundingSphere();
+    const top = new Mesh(g, getRoadMaterial(tex, 1));
+    top.receiveShadow = true;
+    top.matrixAutoUpdate = false;
+    group.add(top);
+    deckBody(
+      parts,
+      rows,
+      true,
+      {
+        left: rows.map(() => false),
+        right: rows.map(() => false),
+        end0: true,
+        end1: true,
+      },
+      false,
+      world.map.bridgeStyle === 'concrete',
+    );
+  }
+}
+
+/** Segments p-q and a-b cross. */
+function segmentsCross(
+  p: number[],
+  q: number[],
+  a: number[],
+  b: number[],
+): boolean {
+  const d = (q[0] - p[0]) * (b[1] - a[1]) - (q[1] - p[1]) * (b[0] - a[0]);
+  if (Math.abs(d) < 1e-9) return false;
+  const t = ((a[0] - p[0]) * (b[1] - a[1]) - (a[1] - p[1]) * (b[0] - a[0])) / d;
+  const u = ((a[0] - p[0]) * (q[1] - p[1]) - (a[1] - p[1]) * (q[0] - p[0])) / d;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+
+/** Rise of a shallow arch soffit (see `deckBody`) and the shortest street deck that gets one. */
+const STREET_ARCH_MIN = 12;
+
+/** The ceiling over (x, z): the soffit of a stage-road span or a street deck (y of its underside), NaN under open sky. */
+function ceilingAt(world: World, x: number, z: number): number {
+  const gen = world.gen;
+  const net = gen.paths;
+  const modern = world.map.bridgeStyle === 'concrete';
+  let y = NaN;
+  const q = world.road.query(x, z, roadQ);
+  const sp =
+    q.found && q.distance <= q.halfWidth + OVERHANG
+      ? world.road.bridgeAt(q.along)
+      : undefined;
+  if (sp) {
+    const arch = !modern && sp.to - sp.from >= STAGE_ARCH_MIN;
+    const u = (2 * (q.along - sp.from)) / (sp.to - sp.from) - 1;
+    y =
+      world.road.at(q.along).y -
+      0.02 -
+      (arch ? SLAB_T + ARCH_RISE * u * u : SLAB_T);
+  }
+  if (net) {
+    net.query(x, z, ceilQ, 'tarmac', (pi) => !!net.paths[pi].bridge);
+    if (
+      ceilQ.found &&
+      ceilQ.distance <= gen.deckHalfWidth(ceilQ.path, ceilQ.along) + OVERHANG
+    ) {
+      const L = net.lengths[ceilQ.path];
+      const arch =
+        !modern &&
+        L >= STREET_ARCH_MIN &&
+        STREET_KINDS.has(net.paths[ceilQ.path].kind);
+      const u = (2 * ceilQ.along) / L - 1;
+      const d =
+        gen.pathHeight(ceilQ.path, ceilQ.along) -
+        (arch ? SLAB_T + ARCH_RISE * u * u : SLAB_T);
+      y = Number.isNaN(y) ? d : Math.min(y, d);
+    }
+  }
+  return y;
+}
+
+/** Spacing of the lamps along an underpass street (m), and the least clearance under the ceiling for one (m). */
+const UNDERPASS_LAMP_EVERY = 8;
+const UNDERPASS_LAMP_CLEAR = 3;
+
+/**
+ * Round ceiling lamps over every street that passes under a stage-road span or a street deck (the portal tunnels get theirs
+ * in `portalStructures`): along the street's centre line, two rows on a wide street, hung from the soffit.
+ */
+function underpassLamps(world: World, lights: Builder): void {
+  const gen = world.gen;
+  const net = gen.paths;
+  if (!net) return;
+  const a0 = { x: 0, z: 0 };
+  const a1 = { x: 0, z: 0 };
+  net.paths.forEach((p, pi) => {
+    if (!gen.isUnderpass(pi) || p.bridge || !STREET_KINDS.has(p.kind)) return;
+    const L = net.lengths[pi];
+    // Runs of the street with a ceiling at least UNDERPASS_LAMP_CLEAR above it (every metre).
+    let from = -1;
+    const runs: [number, number][] = [];
+    for (let a = 0; a <= L + 1; a++) {
+      const d = Math.min(a, L);
+      net.pointAt(pi, d, a0);
+      const c = ceilingAt(world, a0.x, a0.z);
+      const under =
+        !Number.isNaN(c) && c - gen.pathHeight(pi, d) >= UNDERPASS_LAMP_CLEAR;
+      if (under && from < 0) from = d;
+      if (!under && from >= 0) {
+        runs.push([from, d]);
+        from = -1;
+      }
+    }
+    if (from >= 0) runs.push([from, L]);
+    const hw = p.width / 2;
+    const rows = p.width >= 9.5 ? [-hw * 0.5, hw * 0.5] : [0];
+    for (const [r0, r1] of runs) {
+      if (r1 - r0 < 6) continue;
+      const n = Math.max(1, Math.floor((r1 - r0) / UNDERPASS_LAMP_EVERY));
+      for (let k = 0; k < n; k++) {
+        const d = r0 + ((k + 0.5) * (r1 - r0)) / n;
+        net.pointAt(pi, Math.max(0, d - 1.5), a0);
+        net.pointAt(pi, Math.min(L, d + 1.5), a1);
+        const tl = Math.hypot(a1.x - a0.x, a1.z - a0.z) || 1;
+        const tx = (a1.x - a0.x) / tl;
+        const tz = (a1.z - a0.z) / tl;
+        net.pointAt(pi, d, a0);
+        for (const off of rows) {
+          const x = a0.x + tz * off;
+          const z = a0.z - tx * off;
+          const c = ceilingAt(world, x, z);
+          if (!Number.isNaN(c)) lights.lamp(x, z, c);
+        }
+      }
+    }
+  });
 }
 
 /** Piers: column + cap beam (the collider is the column box, World.pierColliders). */
@@ -1072,7 +1450,7 @@ function portalStructures(
         BEAM,
       );
     }
-    // Fluorescent strip lights under the soffit, in two rows over the carriageways, one between every third pair of beams.
+    // Round ceiling lamps under the cross beams (every fourth), in two rows over the carriageways.
     const lanesAt = (r: (typeof src)[number]): number[] => {
       const out = [0];
       if (!net) return out;
@@ -1100,9 +1478,9 @@ function portalStructures(
       return out;
     };
     for (
-      let d = src[0].along + 1.2 + PORTAL_BEAM_GAP * 0.5;
+      let d = src[0].along + 1.2 + PORTAL_BEAM_GAP;
       d < src[src.length - 1].along - 0.6;
-      d += PORTAL_BEAM_GAP * 3
+      d += PORTAL_BEAM_GAP * 4
     ) {
       const t = Math.min(
         src.length - 1.001,
@@ -1114,17 +1492,7 @@ function portalStructures(
         for (const off of [-1.7, 1.7]) {
           const l = lat + off;
           if (l > r.latL - 0.5 || l < r.latR + 0.5) continue;
-          lights.box(
-            r.x + r.tz * l,
-            r.z - r.tx * l,
-            r.tx,
-            r.tz,
-            0.9,
-            0.08,
-            r.top - GIRDER - 0.14,
-            r.top - GIRDER - 0.04,
-            [1, 0.96, 0.82],
-          );
+          lights.lamp(r.x + r.tz * l, r.z - r.tx * l, r.top - GIRDER, 0.26);
         }
       }
     }
@@ -1298,6 +1666,7 @@ function portalStructures(
     }
 }
 const roadQ = newRoadQuery();
+const ceilQ = newPathQuery();
 
 /** Steel railing on top of a wall / parapet: posts every ~2 m and two rails, at lateral `off` (+ `frac` x hw) of the rows. */
 export function railing(
@@ -1368,17 +1737,23 @@ export function* bridgeMeshJob(
   stageSpans(world, tiles);
   yield;
   yield* pathDecks(world, group, tiles);
+  structureDecks(world, group, tiles);
   yield;
   piers(world, tiles);
   yield;
   const plates = new Plates();
   const lights = new Builder(1);
   portalStructures(world, (x, z) => tiles.of(x, z), plates, lights);
+  underpassLamps(world, lights);
   plates.flush(group);
   if (!lights.empty()) {
     // Lit fittings: unaffected by the (dark) shade under the slab.
     const m = lights.build(
-      new MeshBasicMaterial({ vertexColors: true, fog: true }),
+      new MeshBasicMaterial({
+        vertexColors: true,
+        fog: true,
+        side: DoubleSide,
+      }),
     );
     m.castShadow = false;
     m.receiveShadow = false;

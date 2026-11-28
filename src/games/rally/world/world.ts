@@ -43,6 +43,7 @@ import {
   type ScatterInstance,
 } from './scatter';
 import { overheadSigns, type OverheadSigns } from './overhead-signs';
+import { barrierLateral } from './v2/mesh';
 import { stageSigns, type StageSigns } from './stage-signs';
 import { nearestRoadPoint } from './road-distance';
 import {
@@ -64,7 +65,7 @@ import {
 } from './railways';
 import { JUNCTION_ASPHALT, mouthCorners } from './junctions';
 import { streetDetail, type StreetDetail } from './street-detail';
-import { goreCushions, goreWedges } from './gore';
+import { goreCushions, goreWedges, inGore } from './gore';
 import { streetDressingInstances } from './street-dressing';
 import {
   DECK_OVERHANG,
@@ -81,7 +82,11 @@ import {
   rockFaceColliders,
 } from './cut-wall-colliders';
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
-import { bakeGroundMoisture, type GroundMoisture } from './ground-moisture';
+import {
+  bakeGroundMoisture,
+  groundMoistureJob,
+  type GroundMoisture,
+} from './ground-moisture';
 import { cornerFanInstances, PEOPLE_ASSETS } from './corner-fans';
 import {
   serviceParkInstances,
@@ -89,6 +94,10 @@ import {
   type ServiceParkLayout,
 } from './service-park';
 import { newLakeQuery } from './lakes';
+import { netColliders, netInstances } from './v2/dressing';
+
+/** A stage-road bridge this far above a street (m) spans it: the street's sidewalks run on beneath. */
+const BENEATH_CLEARANCE = 3;
 
 /**
  * Everything about a map that is not rendering: terrain, road, scatter,
@@ -200,6 +209,11 @@ export class World implements GroundProvider {
     return (this.moistureMap ??= bakeGroundMoisture(this.gen, this.map));
   }
 
+  /** `moisture` as a time-sliced job (same result, cached the same way). */
+  *moistureJob(): Generator<void, GroundMoisture> {
+    return (this.moistureMap ??= yield* groundMoistureJob(this.gen, this.map));
+  }
+
   constructor(
     readonly map: MapDef,
     stage?: StageDef | string,
@@ -227,22 +241,31 @@ export class World implements GroundProvider {
     const cuts = this.landmarks.flatMap((l) => l.meshSink?.() ?? []);
     const meshSink = map.terrain.meshSink;
     const levelled = (x: number, z: number): number => this.gen.height(x, z);
+    // v2 maps: the network's own slab cut (NetField.meshSink: same rules on the solved sections) replaces the ribbon slab
+    const netField = this.gen.netField;
+    const slabSink = netField
+      ? (x: number, z: number) => netField.meshSink(x, z)
+      : (x: number, z: number) => this.slab.sink(x, z);
     this.gen.sink =
       cuts.length || meshSink
         ? (x, z) => {
-            let s = this.slab.sink(x, z);
+            let s = slabSink(x, z);
             for (const c of cuts) s = Math.max(s, c(x, z));
             return meshSink ? s + meshSink(x, z, levelled) : s;
           }
-        : (x, z) => this.slab.sink(x, z);
+        : slabSink;
     const rails = this.gen.railPaths();
     this.buildings = new BuildingIndex(
       (map.buildings ?? []).filter(
         (b) =>
           !this.landmarks.some((l) => l.replaces(b)) &&
-          !(rails.length && this.onTrackBed(b)),
+          !(rails.length && this.onTrackBed(b)) &&
+          !(this.gen.netField && this.onNetRoad(b)),
       ),
     );
+    // City maps: the built-up cover read lot by lot (TerrainGenerator.yardSplat).
+    if (map.terrain.lotYards)
+      this.gen.buildingDistance = (x, z) => this.buildings.distance(x, z, 16);
     const b = { ...map.bounds, ...map.scatterBounds };
     const m = RENDER_MARGIN * 0.6;
     const parkDef = this.stageDef.servicePark;
@@ -286,6 +309,8 @@ export class World implements GroundProvider {
         this.landmarks.some((l) => l.occupies(x, z, 1.5)) ||
         // No trees hanging into an underpass trench.
         this.gen.inUnderpassTrench(x, z) ||
+        // v2: nothing on a road section, junction or sidewalk corner (+ a metre).
+        !!this.gen.netField?.occupied(x, z, 1) ||
         // Nothing grows on a culvert's walls or in its gully.
         this.gen.nearCulvert(x, z, 2.5) ||
         // Nothing grows on a service park's level lot.
@@ -400,7 +425,7 @@ export class World implements GroundProvider {
     ]) {
       // A lamp post in a portal would stand up through the slab (the portal has its own strip lights).
       if (
-        inst.asset === 'street_lamp' &&
+        (inst.asset === 'street_lamp' || inst.asset === 'cobra_lamp') &&
         this.gen.portals.inside(inst.x, inst.z)
       )
         continue;
@@ -433,6 +458,18 @@ export class World implements GroundProvider {
       this.scatter.addFixed(inst, top !== undefined);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
+    // v2: lamps, street trees, parked cars, signals from the templates; barriers, parapets, walls, piers are solid.
+    if (this.gen.net && this.gen.netField) {
+      for (const inst of netInstances(
+        this.gen.net,
+        this.gen.netField,
+        map.seed,
+        (x, z, r) => this.buildings.contains(x, z, r),
+      ))
+        this.scatter.addFixed(inst);
+      for (const c of netColliders(this.gen.net, this.gen.netField))
+        this.scatter.addFixedCollider(c);
+    }
     if (map.realTrees) this.scatter.addRealTrees(map.realTrees);
     for (const inst of this.servicePark?.instances ?? [])
       this.scatter.addFixed(inst);
@@ -445,6 +482,12 @@ export class World implements GroundProvider {
           laneWalls(p, lanesNet, (pi) => this.gen.isParkwayLane(pi)),
         )
       : [];
+    // Gore wedges between the stage road and a ramp leaving / joining it (hatched paint): no barrier on them - it
+    // starts at the wedge's nose, behind the crash cushion.
+    const wedges =
+      map.goreAreas && this.gen.paths
+        ? goreWedges(this.road, this.gen.paths, map.gorePathsFromX)
+        : [];
     // A barrier on a tunnel wall's line: the wall is the barrier there.
     const onLaneWall = (x: number, z: number): boolean =>
       this.laneWalls.some((run) =>
@@ -488,7 +531,7 @@ export class World implements GroundProvider {
       mouths,
       net
         ? (x, z, along) => {
-            if (onLaneWall(x, z)) return true;
+            if (onLaneWall(x, z) || inGore(wedges, x, z)) return true;
             // The opposite carriageway is what the median barrier separates: only ramps / streets break a run.
             net.query(
               x,
@@ -506,6 +549,11 @@ export class World implements GroundProvider {
                 this.gen.pathHeight(bq.path, bq.along) - this.road.at(along).y,
               ) >= 1.5
             )
+              return false;
+            // On a city map a street alongside is a separate roadway (a service road hugging the parkway): the rail
+            // stands between them; only ramps / parkway lanes merge in.
+            const bp = net.paths[bq.path];
+            if (map.cityStreets && !bp.parkwayLane && !/_link$/.test(bp.kind))
               return false;
             // Only a road running alongside (a merge lane); a street crossing the line (a junction stub) does not.
             const L = net.lengths[bq.path];
@@ -582,8 +630,7 @@ export class World implements GroundProvider {
         net: this.gen.paths,
         roadDistance: (x, z) => near(x, z).d,
         blocked: (x, z, r) => this.buildings.contains(x, z, r),
-        underpass: (pi, a) =>
-          this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
+        underpass: (pi, a) => this.beneathStage(pi, a),
         skip: (pi) =>
           this.gen.isParkwayLane(pi) || !!this.gen.paths!.paths[pi].bare,
         deck: (pi) => this.gen.isPortalDeck(pi),
@@ -591,6 +638,9 @@ export class World implements GroundProvider {
           ? undefined
           : (x, z, pad) => this.gen.plazas.inside(x, z, pad),
         plazaCrosswalks: !!map.plazaCrosswalks?.length,
+        core: this.gen.plazas.empty
+          ? undefined
+          : (x, z, pad) => this.gen.plazas.insideCore(x, z, pad),
         corners: mouthCorners(
           this.gen.junctions.filter(
             (j) =>
@@ -615,25 +665,22 @@ export class World implements GroundProvider {
         pathHeight: (pi, a) => this.gen.pathHeight(pi, a),
         blocked: (x, z, r) =>
           this.buildings.contains(x, z, r) || this.keptClear(x, z),
-        underpass: (pi, a) =>
-          this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
         streetDetail: this.streetDetail,
         paved: (x, z) => this.gen.plazas.inside(x, z, 1),
         islands: this.gen.plazas.islands,
         signals: map.plazaSignals,
         trees: map.plazaTrees,
+        streetTrees: map.streetTrees,
         islandTop: (x, z) =>
           this.gen.plazas.surface(x, z) ?? this.gen.height(x, z),
         sidewalk: map.cityStreets?.sidewalk ?? 1.5,
         lampEvery: map.cityStreets?.lampEvery ?? 0,
       }))
         this.scatter.addFixed(inst);
-    if (map.goreAreas && this.gen.paths)
-      for (const inst of goreCushions(
-        goreWedges(this.road, this.gen.paths),
-        (x, z) => this.analytic.height(x, z),
-      ))
-        this.scatter.addFixed(inst);
+    for (const inst of goreCushions(wedges, (x, z) =>
+      this.analytic.height(x, z),
+    ))
+      this.scatter.addFixed(inst);
     this.hasDecks = this.gen.hasDecks;
     this.piers = this.deckPiers();
     for (const c of this.pierColliders(this.piers))
@@ -684,12 +731,24 @@ export class World implements GroundProvider {
       !!this.stageDef.reverse,
     );
     for (const c of this.signs.colliders) this.scatter.addFixedCollider(c);
+    const v2net = this.gen.net;
+    const v2field = this.gen.netField;
     this.overheadSigns = overheadSigns(
       map,
       this.road,
       this.analytic,
       this.gen.paths,
       this.gen.junctions,
+      v2net && v2field
+        ? (along, side) =>
+            barrierLateral(
+              v2net,
+              v2field,
+              v2net.stage,
+              along,
+              side === 1 ? 0 : 1,
+            )
+        : undefined,
     );
     for (const c of this.overheadSigns.colliders)
       this.scatter.addFixedCollider(c);
@@ -717,6 +776,65 @@ export class World implements GroundProvider {
     return false;
   }
 
+  /**
+   * v2: the probe height for a surface query. A blind probe (spawns, picks, tests) on the stage road keeps the stage road
+   * (a street deck above it is not where a car spawns), elsewhere the top surface.
+   */
+  private blindLimit(x: number, z: number, fromY: number): number {
+    if (fromY !== Infinity) return fromY;
+    const q = this.road.query(x, z, this.blindQ);
+    return q.found && q.distance <= q.halfWidth + 1 ? q.height : Infinity;
+  }
+  private blindQ = newRoadQuery();
+  /** v2: a road surface `h` is the one to use against the terrain `ground` for a probe from `limit`. */
+  private nearTop(h: number, ground: number, limit: number): boolean {
+    return limit === Infinity ? h >= ground - 1 : h >= limit - 3;
+  }
+
+  /**
+   * v2: a building (centre or a corner) standing on a road section / junction of the network. A real outline is
+   * tested at its own corners (pulled in a fifth towards their middle): the box around an L- or U-shaped block reaches
+   * over the street or yard road in its notch.
+   */
+  private onNetRoad(b: BuildingDef): boolean {
+    const f = this.gen.netField!;
+    const p = b.poly;
+    if (p && p.length >= 6) {
+      let mx = 0;
+      let mz = 0;
+      for (let i = 0; i < p.length; i += 2) {
+        mx += p[i];
+        mz += p[i + 1];
+      }
+      mx /= p.length / 2;
+      mz /= p.length / 2;
+      for (let i = 0; i < p.length; i += 2)
+        if (
+          f.occupied(
+            b.x + mx + (p[i] - mx) * 0.8,
+            b.z + mz + (p[i + 1] - mz) * 0.8,
+            0.3,
+          )
+        )
+          return true;
+      return false;
+    }
+    const c = Math.cos(b.angle);
+    const s = Math.sin(b.angle);
+    for (const [u, v] of [
+      [0, 0],
+      [0.8, 0.8],
+      [0.8, -0.8],
+      [-0.8, 0.8],
+      [-0.8, -0.8],
+    ]) {
+      const x = b.x + (u * b.w * c - v * b.d * s) / 2;
+      const z = b.z + (u * b.w * s + v * b.d * c) / 2;
+      if (f.occupied(x, z, 0.3)) return true;
+    }
+    return false;
+  }
+
   /** A catenary mast cannot stand at (x, z): the stage road, another road, a channel, a building. */
   private mastBlocked(x: number, z: number): boolean {
     const q = this.road.query(x, z, newRoadQuery());
@@ -734,6 +852,25 @@ export class World implements GroundProvider {
       return true;
     return this.buildings.contains(x, z, 1);
   }
+
+  /**
+   * Street `pi` at `a` m passes beneath the stage road: dipped under a deck, or at grade under a stage-road bridge that
+   * stands well above it (its sidewalks run on under the deck).
+   */
+  private beneathStage(pi: number, a: number): boolean {
+    if (!this.gen.isUnderpass(pi)) return false;
+    if (this.gen.underpassDipAt(pi, a) > 1) return true;
+    const pt = this.beneathPt;
+    this.gen.paths!.pointAt(pi, a, pt);
+    const q = this.road.query(pt.x, pt.z, this.beneathRq);
+    return (
+      q.found &&
+      !!this.road.bridgeAt(q.along) &&
+      q.height - this.gen.pathHeight(pi, a) > BENEATH_CLEARANCE
+    );
+  }
+  private beneathPt = { x: 0, z: 0 };
+  private beneathRq = newRoadQuery();
 
   /** A landmark keeps junction dressing off (x, z) (Landmark.keepsClear). */
   private keptClear(x: number, z: number): boolean {
@@ -1069,6 +1206,24 @@ export class World implements GroundProvider {
     const hf = this.heightfield;
     hf.splatAt(x, z, this.splatTmp);
     out.surface = SURFACES[this.gen.surfaceAt(x, z, this.splatTmp)];
+    const field = this.gen.netField;
+    if (field) {
+      // v2: the road sections are exact surfaces (kerbs, decks, tunnel floors); the terrain elsewhere.
+      const ground = hf.height(x, z);
+      const limit = this.blindLimit(x, z, fromY);
+      const top = field.top(x, z, limit);
+      // Inside a road section with the probe at about its level the section is the surface - the 1 m terrain grid only
+      // approximates it (at a tunnel portal it interpolates up to the slab, at a wall foot up to the land behind).
+      if (top && (this.nearTop(top.h, ground, limit) || ground > limit + 0.6)) {
+        out.height = top.h;
+        out.normal.set(top.nx, top.ny, top.nz);
+        out.surface = SURFACES[top.surface];
+        return out;
+      }
+      out.height = ground;
+      hf.normal(x, z, out.normal);
+      return out;
+    }
     for (const surface of this.surfaceFns) {
       const id = surface(x, z);
       if (id) {
@@ -1202,6 +1357,15 @@ export class World implements GroundProvider {
   }
 
   heightAt(x: number, z: number): number {
+    const field = this.gen.netField;
+    if (field) {
+      const limit = this.blindLimit(x, z, Infinity);
+      const top = field.top(x, z, limit);
+      const ground = this.heightfield.height(x, z);
+      return top && (this.nearTop(top.h, ground, limit) || ground > limit + 0.6)
+        ? top.h
+        : ground;
+    }
     const deck = this.gen.deckHeightAt(x, z);
     if (!Number.isNaN(deck)) return deck;
     return Math.max(

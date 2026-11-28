@@ -1,0 +1,70 @@
+{
+  "id": "jackie_2",
+  "name": "The Jackie 2",
+  "folder": "src/games/rally/maps/jackie-2",
+  "origin": [40.698, -73.863],
+  "waypoints": [
+    [40.6799051, -73.8966863],
+    [40.6988507, -73.8689168],
+    [40.714605, -73.8298097],
+    [40.7152178, -73.8283329]
+  ],
+  "osmBox": [-3300, 3700, -2400, 2400],
+  "route": {
+    "highways": true,
+    "offHighwayCost": 5
+  },
+  "routeSmoothSigma": 4,
+  "routeTolerance": 0.8,
+  "minCornerRadius": 25,
+  "corridor": {
+    "streets": 260,
+    "highways": 420
+  },
+  "dropService": [
+    "parking_aisle",
+    "driveway",
+    "drive-through",
+    "emergency_access"
+  ],
+  "terrainFrom": "src/games/rally/maps/jackie/data.json",
+  "horizonFrom": "src/games/rally/maps/jackie/horizon.json",
+  "buildingsCorridor": 320,
+  "cityBuildings": {
+    "footprints": "sources/maps/jackie/nyc-planimetrics/endbox-footprints.geojson",
+    "roadbed": "sources/maps/jackie/nyc-planimetrics/endbox-roadbed.geojson",
+    "corridor": 480,
+    "corridorFrom": 6500
+  },
+  "runout": 90,
+  "survey": {
+    "planimetrics": "sources/maps/jackie/nyc-planimetrics",
+    "centre": { "bores": true, "alongside": 25, "lanes": [[7100, 7600]] },
+    "spotHeights": "src/games/rally/maps/jackie/spot-heights.json",
+    "datum": 32.9,
+    "retainingWalls": "src/games/rally/maps/jackie/retaining-walls.json",
+    "wallsUntil": 6850,
+    "lidarWalls": 7620,
+    "lidar": {
+      "ept": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/NY_NewYorkCity/",
+      "box": [1870, 3080, -2060, -1220],
+      "corridor": 60,
+      "from": 0,
+      "tile": 64,
+      "route": true,
+      "cache": "sources/maps/jackie-2/lidar"
+    }
+  },
+  "lidarCanopy": {
+    "from": 0,
+    "to": 6600,
+    "reach": 110,
+    "verge": 30,
+    "overhang": 6.3,
+    "lawns": [[3950, 4100, 14]],
+    "minHeight": 3,
+    "minRadius": 1.2,
+    "closed": 0.5,
+    "out": "src/games/rally/maps/jackie-2/canopy.json"
+  }
+}

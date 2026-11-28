@@ -125,6 +125,10 @@ export const WET: Readonly<
   Record<SurfaceId, { mu: number; slide: number; dust: number }>
 > = {
   tarmac: { mu: 0.75, slide: 0.9, dust: 0.2 },
+  // (city surfaces of the v2 road engine: asphalt and concrete like tarmac, road paint goes greasy)
+  asphalt_city: { mu: 0.75, slide: 0.9, dust: 0.2 },
+  concrete: { mu: 0.75, slide: 0.9, dust: 0.2 },
+  paint: { mu: 0.6, slide: 0.85, dust: 0.2 },
   tarmac_gravel: { mu: 0.78, slide: 0.92, dust: 0.2 },
   rock: { mu: 0.72, slide: 0.88, dust: 0.2 },
   gravel: { mu: 0.95, slide: 1, dust: 0.25 },

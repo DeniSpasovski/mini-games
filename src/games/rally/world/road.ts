@@ -48,10 +48,16 @@ export function newRoadQuery(): RoadQuery {
 }
 
 const CELL = 16;
+/** Survey heights (RoadDef.heights) closer than this along the road (m) are joined: the correction is interpolated. */
+const HEIGHTS_GAP = 200;
+/** ... past a lone one it fades out over this distance (m). */
+const HEIGHTS_FADE = 60;
 
 export class Road {
   readonly samples: RoadSample[] = [];
   readonly length: number;
+  /** Arc length where `RoadDef.runout` begins (= `length` without one). */
+  readonly runoutFrom: number;
   /** Max distance from the centreline at which the road affects terrain. */
   readonly influence: number;
   /** Stretches on a bridge (deck over lowered ground), sorted by `from`. */
@@ -104,6 +110,51 @@ export class Road {
       });
       maxHw = Math.max(maxHw, width / 2);
     }
+    // The run-out: its own curve from the last two route points on, sampled at the main spacing (so the samples stay
+    // evenly spaced) - the route's own samples are never re-sampled.
+    let length = this.length;
+    this.runoutFrom = length;
+    if (def.runout?.length && pts.length >= 2) {
+      const tailPts = [pts[pts.length - 2], pts[pts.length - 1]].map(
+        (p) => new Vector3(p.x, 0, p.z),
+      );
+      for (const [x, z] of def.runout) tailPts.push(new Vector3(x, 0, z));
+      const tail = new CatmullRomCurve3(tailPts, false, 'centripetal');
+      // (400 table steps per segment: the first segment - the route's last one - ends exactly on a table entry)
+      tail.arcLengthDivisions = (tailPts.length - 1) * 400;
+      const lens = tail.getLengths(tail.arcLengthDivisions);
+      const total = lens[lens.length - 1];
+      const start = lens[400];
+      // (the route's spacing, stretched a hair so the last sample is the run-out's end point)
+      const nt = Math.max(1, Math.round((total - start) / (this.length / n)));
+      const step = (total - start) / nt;
+      const last = pts[pts.length - 1];
+      const hw = (last.width ?? def.width) / 2;
+      for (let k = 1; k <= nt; k++) {
+        // (clamped: start + nt * step can land a hair past the end, off three's arc table)
+        const t = tail.getUtoTmapping(
+          Math.min(1, (start + k * step) / total),
+          0,
+        );
+        tail.getPoint(t, tmp);
+        tail.getTangent(t, tan);
+        const tl = Math.hypot(tan.x, tan.z) || 1;
+        length += step;
+        dys.push(last.dy ?? 0);
+        this.samples.push({
+          x: tmp.x,
+          y: terrainHeight(tmp.x, tmp.z),
+          z: tmp.z,
+          dist: length,
+          tx: tan.x / tl,
+          tz: tan.z / tl,
+          halfWidth: hw,
+          curvature: 0,
+        });
+      }
+    }
+    this.length = length;
+    if (def.heights?.length) this.applyHeights(def.heights);
     this.smoothHeights(def.smoothing);
     if (def.maxGrade) {
       this.limitGrade(def.maxGrade);
@@ -118,6 +169,52 @@ export class Road {
     this.computeCurvature();
     this.influence = maxHw + def.shoulder + 30;
     this.buildGrid();
+  }
+
+  /**
+   * Survey heights on the carriageway (RoadDef.heights) -> a correction of the terrain heights: interpolated between
+   * points up to HEIGHTS_GAP apart, faded out over HEIGHTS_FADE past the others (several at one place: their mean).
+   */
+  private applyHeights(points: [number, number, number][]): void {
+    const s = this.samples;
+    const hits: { i: number; c: number }[] = [];
+    for (const [x, z, y] of points) {
+      let best = 0;
+      let bd = Infinity;
+      for (let i = 0; i < s.length; i++) {
+        const d = (s[i].x - x) ** 2 + (s[i].z - z) ** 2;
+        if (d < bd) [bd, best] = [d, i];
+      }
+      if (Math.sqrt(bd) <= s[best].halfWidth + 1)
+        hits.push({ i: best, c: y - s[best].y });
+    }
+    hits.sort((a, b) => a.i - b.i);
+    const at: { i: number; c: number }[] = [];
+    for (let h = 0; h < hits.length;) {
+      let e = h;
+      let sum = 0;
+      while (e < hits.length && hits[e].i - hits[h].i <= 3) sum += hits[e++].c;
+      at.push({ i: hits[h].i, c: sum / (e - h) });
+      h = e;
+    }
+    if (!at.length) return;
+    const step = this.length / (s.length - 1);
+    const gap = HEIGHTS_GAP / step;
+    const fade = HEIGHTS_FADE / step;
+    let k = 0;
+    for (let i = 0; i < s.length; i++) {
+      while (k < at.length && at[k].i <= i) k++;
+      const p = at[k - 1];
+      const n = at[k];
+      let c = 0;
+      if (p && n && n.i - p.i <= gap)
+        c = p.c + ((n.c - p.c) * (i - p.i)) / (n.i - p.i);
+      else {
+        if (p) c += p.c * (1 - smoothstep(0, fade, i - p.i));
+        if (n) c += n.c * (1 - smoothstep(0, fade, n.i - i));
+      }
+      s[i].y += c;
+    }
   }
 
   private smoothHeights(window: number): void {

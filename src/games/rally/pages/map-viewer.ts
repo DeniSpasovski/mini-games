@@ -51,7 +51,13 @@ import { buildRoadMeshSliced } from '../world/road-mesh';
 import { batchRoad } from '../world/static-batch';
 import { getTerrainMaterial } from '../world/terrain-material';
 import { canopyTone, FarForest, forestColor } from '../world/far-forest';
-import { setForest } from '../engine/world-shading';
+import {
+  DRY_ZONES,
+  setDryZones,
+  setForest,
+  type DryZone,
+} from '../engine/world-shading';
+import { nearestZones, roofZones } from '../game/rain';
 import { Horizon } from '../world/horizon';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { RENDER_MARGIN, World } from '../world/world';
@@ -929,8 +935,23 @@ void loadMap(state.map).then(async (map) => {
   }
   // Sorted at its first step: by then the opening view (overview, `along`, a camera link) is set.
   const fill = scatterFill(controls.target);
+  // The roofed zones nearest the camera (tunnels dark inside, as in the game), looked up again after a few metres.
+  const roofs = roofZones(world);
+  const nearRoofs: DryZone[] = [];
+  const roofAt = new Vector3(Infinity, 0, Infinity);
+  const roofsNear = (force = false) => {
+    const p = camera.position;
+    if (
+      !roofs.length ||
+      (!force && Math.hypot(p.x - roofAt.x, p.z - roofAt.z) < 4)
+    )
+      return;
+    roofAt.copy(p);
+    setDryZones(nearestZones(roofs, p.x, p.z, DRY_ZONES, nearRoofs));
+  };
   let statsAt = 0;
   shell.onFrame(() => {
+    roofsNear();
     const t = controls.target;
     const above =
       camera.position.y -
@@ -1050,6 +1071,7 @@ void loadMap(state.map).then(async (map) => {
     if (farForest) while (!fill.next().done);
     trees.updateNow(camera);
     farForest?.fillNow(camera.position);
+    roofsNear(true);
     return n;
   }
 
@@ -1124,6 +1146,21 @@ void loadMap(state.map).then(async (map) => {
     return out.toDataURL('image/png');
   }
 
+  /**
+   * Test hook: build terrain round the camera for up to `ms` ms in one call (a hidden preview pane renders one frame a
+   * second). True when every terrain chunk is in; call again until it is, then `look()` is quick.
+   */
+  function pump(ms = 4000): boolean {
+    const focus = new Vector3(camera.position.x, 0, camera.position.z).lerp(
+      controls.target,
+      0.3,
+    );
+    const end = performance.now() + ms;
+    while (terrain.pending > 0 && performance.now() < end)
+      terrain.update(focus, 100, 0);
+    return terrain.pending === 0;
+  }
+
   (window as unknown as Record<string, unknown>).__mapViewer = {
     world,
     terrain,
@@ -1132,5 +1169,6 @@ void loadMap(state.map).then(async (map) => {
     shell,
     look,
     topDownShot,
+    pump,
   };
 });

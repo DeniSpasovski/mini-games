@@ -57,6 +57,8 @@ import {
 /** Shared uniform objects (same references in every program). */
 /** How many roofed zones the wet shading sees at once (the nearest to the camera). */
 export const DRY_ZONES = 12;
+/** Daylight reaches this far into a tunnel from its portal before the roof's dark is full (m). */
+export const PORTAL_LIGHT = 8;
 
 export const worldUniforms = {
   wsTime: { value: 0 },
@@ -136,7 +138,8 @@ export const worldUniforms = {
   wsCarBox: { value: new Vector3(2, 1.4, 0.9) },
   /**
    * Dry zones under a roof (tunnels, bridge decks; `setDryZones`): capsules in x / z, a (x, z) to b (x, z) in `wsDryA`,
-   * radius and the roof's height (world y; dry below it) in `wsDryB` xy. `wsDryN` of them are set.
+   * radius and the roof's height (world y; dry below it) in `wsDryB` xy, the sky light the roof takes off in `wsDryB` z
+   * (a tunnel; 0 = only dry) and its portal ends in `wsDryB` w (`DryZone.ends`). `wsDryN` of them are set.
    */
   wsDryA: { value: Array.from({ length: DRY_ZONES }, () => new Vector4()) },
   wsDryB: { value: Array.from({ length: DRY_ZONES }, () => new Vector4()) },
@@ -386,16 +389,20 @@ export interface DryZone {
   bz: number;
   radius: number;
   top: number;
+  /** Share of the sky light the roof takes off below it (a tunnel's dark; 0 or unset = dry only, a bridge deck). */
+  shade?: number;
+  /** Portal ends (1 = at a, 2 = at b, 3 = both): the dark eases in over `PORTAL_LIGHT` m from a portal. */
+  ends?: number;
 }
 
-/** The roofed zones the wet shading keeps dry (at most `DRY_ZONES`: pass the nearest). */
+/** The roofed zones near the camera: dry in the rain, darker under a tunnel (at most `DRY_ZONES`: pass the nearest). */
 export function setDryZones(zones: readonly DryZone[]): void {
   const u = worldUniforms;
   const n = Math.min(DRY_ZONES, zones.length);
   for (let i = 0; i < n; i++) {
     const z = zones[i];
     u.wsDryA.value[i].set(z.ax, z.az, z.bx, z.bz);
-    u.wsDryB.value[i].set(z.radius, z.top, 0, 0);
+    u.wsDryB.value[i].set(z.radius, z.top, z.shade ?? 0, z.ends ?? 0);
   }
   u.wsDryN.value = n;
 }
@@ -997,6 +1004,28 @@ float wsDryAt( vec3 wp ) {
 	}
 	return dry;
 }
+/**
+ * Share of the light a tunnel roof takes off at wp, eased in over PORTAL_LIGHT m from a portal: of the sky light
+ * (\`DryZone.shade\`) at sun = 0, all of the sun's at sun = 1 (the shadow maps miss a bore out past the car).
+ */
+float wsRoofAt( vec3 wp, float sun ) {
+	float roof = 0.0;
+	for ( int i = 0; i < ${DRY_ZONES}; i++ ) {
+		if ( i >= wsDryN ) break;
+		vec4 b = wsDryB[ i ];
+		if ( b.z <= 0.0 || wp.y >= b.y ) continue;
+		vec2 a = wsDryA[ i ].xy;
+		vec2 ab = wsDryA[ i ].zw - a;
+		float len = max( length( ab ), 1e-3 );
+		float s = dot( wp.xz - a, ab ) / len;
+		float d = length( wp.xz - a - ab * clamp( s / len, 0.0, 1.0 ) );
+		float w = 1.0 - smoothstep( b.x - 1.0, b.x, d );
+		if ( mod( b.w, 2.0 ) > 0.5 ) w *= smoothstep( 0.0, ${PORTAL_LIGHT.toFixed(1)}, s );
+		if ( b.w > 1.5 ) w *= smoothstep( 0.0, ${PORTAL_LIGHT.toFixed(1)}, len - s );
+		roof = max( roof, w * mix( b.z, 1.0, sun ) );
+	}
+	return roof;
+}
 vec3 wsWorldPos( vec3 viewPos ) {
 	return ${WORLD_FROM_VIEW.replace('%v', 'viewPos')};
 }
@@ -1077,6 +1106,8 @@ const SUN_TERMS = /* glsl */ `
 		#else
 			directLight.color *= wsCloudShadow( wsWP );
 		#endif
+		// No sun in a tunnel (past its portals' daylight).
+		if ( wsDryN > 0 ) directLight.color *= 1.0 - wsRoofAt( wsWP, 1.0 );
 		// The sun before the shadow map and how much of it the map lets through (foliage: light through the leaves).
 		vec3 wsSunC = directLight.color;
 		float wsSelfT = 1.0;
@@ -1417,6 +1448,15 @@ function wetShading(on: boolean): void {
  * Ground: the sky light the terrain round it leaves in view (valleys, the foot of a slope; `setTerrainLight`). A
  * constant chunk so every rebuild of `lights_fragment_end` (`wetShading`, each `setWet`) keeps it.
  */
+/** Under a tunnel roof (\`wsRoofAt\`): the sky light drops, on the car too (its paint and glass mirror no sky in a bore). */
+const ROOF_SKY = /* glsl */ `
+	if ( wsDryN > 0 ) {
+		float wsRoof = wsRoofAt( wsWorldPos( geometryPosition ), 0.0 );
+		reflectedLight.indirectDiffuse *= 1.0 - wsRoof;
+		reflectedLight.indirectSpecular *= 1.0 - wsRoof;
+	}
+`;
+
 const TERRAIN_SKY = /* glsl */ `
 #if defined( RALLY_GROUND ) && defined( WS_CARD_LAMBERT )
 	reflectedLight.indirectDiffuse *= vWsCard.y;
@@ -1425,12 +1465,13 @@ const TERRAIN_SKY = /* glsl */ `
 #endif
 `;
 
-/** three's own `lights_fragment_end` + the ground's sky terms (terrain, then the forest floor) + the wet puddles' sky. */
+/** three's own `lights_fragment_end` + the ground's sky terms (terrain, then the forest floor), a tunnel roof's dark + the wet puddles' sky. */
 function lightsEnd(wet: boolean): string {
   return (
     baseLightsEnd +
     TERRAIN_SKY +
     CANOPY_FLOOR +
+    ROOF_SKY +
     CAR_SURROUND_DIFFUSE +
     (wet ? PUDDLE_SKY : '')
   );

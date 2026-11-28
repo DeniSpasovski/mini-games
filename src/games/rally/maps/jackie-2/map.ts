@@ -1,0 +1,711 @@
+import { forestEdge } from '../shared/forest-edge';
+import { buildingsFromData } from '../shared/real-map';
+import type {
+  HeightmapDef,
+  HorizonDef,
+  LakeDef,
+  LandcoverDef,
+  MapDef,
+  ScatterRule,
+} from '../shared/types';
+import type { NetworkData, NetworkPatch } from '../../world/v2/types';
+import data from './data.json';
+import horizon from './horizon.json';
+// The trees along the parkway from 1 000 to 5 600 m, where they stand and as tall as they are (USGS 2017 lidar,
+// scripts/realmap/lidar_canopy.py); that script also redraws the land cover there (woods, verge).
+import canopy from './canopy.json';
+import network from './network.json';
+// The Kew Gardens junction core: v1's survey plaza (NYC Planimetric roadbed + islands, scripts/realmap/plaza_islands.py)
+import kewGardens from '../jackie/junction.json';
+// Queens Blvd x the Jackie's lane start (R7080): v1's survey area of that junction (same script, --area)
+import laneStart from '../jackie/junction-lane-start.json';
+// Queens Blvd SE of Kew Gardens (bus lane, medians, kerbed islands): this map's own survey area (same script)
+import qbEast from './junction-qb-east.json';
+
+/**
+ * The paved triangle beside the hall's east portal (2024 aerial): the record's sidewalk strip along its south-west side
+ * widened out to the trench wall.
+ */
+const eastTriangle = {
+  kind: 'sidewalk',
+  pts: [
+    2744.2, -1810.5, 2748.2, -1811.9, 2739.2, -1838.2, 2723.9, -1833.6, 2720.8,
+    -1832.6, 2720.3, -1832.2, 2719.7, -1831.0, 2719.5, -1829.9, 2719.8, -1828.9,
+    2720.5, -1827.7, 2725.5, -1823.4, 2741.7, -1810.5,
+  ],
+};
+/**
+ * Paved forecourts the planimetric sidewalks stop short of (2024 aerial): round the office block on Union Tpke past the
+ * Austin St ramp, and the plaza with the round planter at the foot of the tower by Austin St.
+ */
+const forecourts = [
+  [
+    2566, -1640, 2556, -1690, 2536, -1680.5, 2503.8, -1654.7, 2529.2, -1628.2,
+    2545.2, -1618,
+  ],
+  [
+    2447.7, -1575, 2435.1, -1589.9, 2467.3, -1617.1, 2470, -1613.9, 2470,
+    -1619.7, 2464.1, -1626.7, 2470, -1632, 2468.3, -1632, 2435.9, -1608.6,
+    2423.3, -1600.4, 2444.5, -1575,
+  ],
+].map((area, k) => ({
+  area,
+  // (the office block's own footprint left out)
+  holes: k === 0 ? [[2507, -1659, 2537, -1680, 2556, -1654, 2525, -1633]] : [],
+}));
+// The fountain park east of Kew Gardens: lawn, footpaths, fountain (scripts/realmap/park_block.py: NYC planimetrics + OSM)
+import parkKew from './park-kew.json';
+// The city street space by the stage road's last kilometre: roadbed, sidewalks, medians (scripts/realmap/street_space.py:
+// NYC planimetrics)
+import streetSpace from './street-space.json';
+// Protected bike lanes and painted medians (scripts/realmap/nyc_lanes.py: NYC DOT Bike Routes, NYC planimetrics)
+import markings from './markings.json';
+import patches from './network-patches.json';
+import { jackie2Info as info } from './info';
+
+/**
+ * "The Jackie 2" - the Jackie Robinson Parkway on the v2 road engine (src/games/rally/world/v2/). Everything about the
+ * roads comes from `network.json` (the OpenStreetMap graph, `python scripts/realmap/network.py
+ * scripts/realmap/jackie-2.json`) + `network-patches.json` (hand edits by stable id) + the `nyc` template pack: lanes,
+ * kerbs, sidewalks, junctions, decks, the Queens Blvd tunnel, retaining walls, paint, barriers and lamps are derived.
+ * This file is gameplay and look only. World (0, 0) = 40.698 N, -73.863 E; +X east, +Z south.
+ */
+
+/** The stage starts ~33 m above sea level: y = 0 there. */
+const START_HEIGHT = 32.9;
+/** Covers where mown grass grows (detail layer). */
+const LAWN = ['grass', 'shrub', 'bare', 'cemetery'];
+
+export const jackie2Map: MapDef = {
+  ...info,
+  // one-off buildings at the Kew Gardens end (maps/jackie-2/landmarks/kew-blocks.ts)
+  landmarks: ['jackie-2-kew-buildings'],
+  network: {
+    data: network as unknown as NetworkData,
+    patches: patches as NetworkPatch[],
+    pack: 'nyc',
+    // retaining wall look per stretch (drive videos, our lane): stone + picket railing by default (the 1930s parkway,
+    // Kew Gardens); chain-link on the stone cuts through the cemeteries (2:05-2:25); board-formed concrete walls with
+    // trees at the rim below Union Tpke (4:55-5:00); a concrete wall + chain-link past the first arch (1:41-1:43);
+    wallStyles: [
+      // poured concrete cut walls with chain-link on top past the arch (video 1:40-1:44)
+      { from: 1950, to: 2100, wall: 'concrete', fence: 'chainlink' },
+      { from: 2300, to: 2950, fence: 'chainlink' },
+      // the parkway's deck over Metropolitan Ave: concrete parapets and end walls on both carriageways (video 4:42-4:44)
+      { from: 6240, to: 6345, deck: 'concrete', wall: 'concrete' },
+      // board-formed concrete to the Union Tpke overpass, tan / grey ashlar with railings on both rims past it (4:57-5:08)
+      { from: 6580, to: 6790, wall: 'concrete', fence: 'none', maxHeight: 2.6 },
+      // concrete barriers on the outer side: past the start bend (a grass verge before it, 0:16) to past the second arch
+      // (0:18-0:27), and from the ashlar cut before the Queens Blvd tunnel through the Kew Gardens interchange (5:22-5:50)
+      { from: 0, to: 50, barrier: 'none' },
+      { from: 50, to: 280, barrier: 'jersey' },
+      // the decks over Vermont Pl: a concrete Jersey parapet on the outer edge of both carriageways, the guard rail
+      // ending against it (video 1:11-1:13, opposite lane 6:38-6:42)
+      { from: 1228, to: 1290, barrier: 'jersey' },
+      // mown grass to the kerb, no rail (video 1:21-1:31 and 3:09-3:15); concrete Jersey on the outer side through the
+      // cemetery bends (1:47-2:35)
+      { from: 1500, to: 1800, barrier: 'none' },
+      { from: 2150, to: 3200, barrier: 'jersey' },
+      { from: 3950, to: 4100, barrier: 'none' },
+      // concrete on both outer sides from where the stone cut opens up to the hall (opposite lane 1:03-1:11, lidar)
+      { from: 6940, to: 7800, barrier: 'jersey' },
+      // tall tan / grey ashlar on both sides out of the Queens Blvd tunnel to the interchange (5:33-5:36)
+      { from: 7300, to: 7470, wall: 'stone', fence: 'railing' },
+      // new poured concrete walls and parapets through the interchange past the ashlar (opposite lane 0:27-0:39)
+      {
+        from: 7470,
+        to: 8000,
+        wall: 'concrete',
+        deck: 'concrete',
+        fence: 'none',
+      },
+    ],
+    // a chain-link fence on the median barrier where the parkway leaves the stone cut west of the Queens Blvd tunnel
+    // to past Park Lane's approach (opposite lane 1:05-1:20)
+    medianFences: [{ from: 6915, to: 7185 }],
+    // fences on the ground behind the outer rail (drive video): galvanised chain-link (1:14-1:17, 3:02-3:05, 3:30-3:32),
+    // dark green mesh (2:33-2:41), teal privacy slats on a low wall along the cemeteries (1:45-2:05, 2:24-2:29)
+    roadFences: [
+      { from: 1310, to: 1390, look: 'chainlink' },
+      { from: 2130, to: 2630, look: 'slatted' },
+      { from: 3005, to: 3100, look: 'slatted' },
+      { from: 3170, to: 3315, look: 'green' },
+      { from: 3745, to: 3830, look: 'chainlink' },
+      { from: 4505, to: 4570, look: 'chainlink' },
+    ],
+    // double solid white between the lanes through the cemetery bends (1:50-2:35), the exit gores hatched, the bars
+    // across the lanes past exit 3 (1:32)
+    solidLanes: [{ from: 2255, to: 3205 }],
+    // one weathered grey-brown concrete on every Jersey through the wooded parkway, no new-white / tan stretches
+    weatheredBarriers: [{ from: 0, to: 6600 }],
+    goreHatch: true,
+    laneBars: [1780],
+    // pale cement-concrete pavement with sealed joints east of the Queens Blvd tunnel (drive video 5:30-5:49, opposite
+    // lane 0:36-0:38); asphalt through the tunnel and at both portals (opposite lane 0:41-0:44 and 0:55-0:59)
+    pavement: [{ from: 7474, to: 8000, surface: 'concrete' }],
+    // the Queens Blvd tunnel's built-up steel girders: 12'-8" / 12'-10" under them on its plates (lidar deck top less
+    // the floor less the slab)
+    // (the hall is daylit from its portals and the open lanes beside it: girders and walls read grey, drive video s05)
+    tunnels: [
+      { from: 7280, to: 7460, girder: 1.1, headwall: 'stone', shade: 0.6 },
+    ],
+    // the roads beside the parkway at its level are open to it, a barrier between (USGS lidar points: nothing over 0.9 m
+    // between them at 290-342, 6 969-7 011 and 7 165-7 523 - the Union Tpke lanes at Kew)
+    openBeside: [
+      { from: 250, to: 400 },
+      { from: 6900, to: 7620 },
+    ],
+    deckStyles: [
+      // Myrtle Ave over the parkway: a painted plate-girder bridge on masonry abutments (drive video 3:34-3:36)
+      { way: '126080187', facing: 'steel', edges: [16, 12.7] },
+      // Union Tpke over the parkway: dark steel girders under the slab, mesh fence, poured concrete abutments (video
+      // our 4:55-4:56, opposite 1:33-1:35)
+      { way: '126077113', facing: 'steel', abutment: 'concrete' },
+      // the overpasses' structures wider than their streets (USGS lidar, the deck seen over the stage road): sidewalks
+      // out to the parapets; Cypress Hills St's two carriageways on one deck, the median between them closed
+      { way: '126109614', edges: [6.5, 8.4] },
+      { way: '631895243', edges: [4, 9.8] },
+      { way: '631895241', edges: [4, 7.7] },
+      { way: '5706853', edges: [13, 13] },
+    ],
+    // Queens Blvd x Union Tpke over the Queens Blvd tunnel (the end zone): one paved plaza from the survey, the OSM
+    // carriageways end on its rim (one source per junction)
+    plazas: [
+      {
+        area: kewGardens.area,
+        islands: kewGardens.islands.map((il) =>
+          il.pts[0] === 2744.19 && il.pts[1] === -1810.45 ? eastTriangle : il,
+        ),
+        crosswalks: kewGardens.crosswalks,
+      },
+      {
+        area: laneStart.area,
+        islands: laneStart.islands,
+        crosswalks: laneStart.crosswalks,
+      },
+      {
+        area: qbEast.area,
+        // (the triangle south-east of the hall's east portal is planted: lawn and a round bed, 2024 aerial; its kerb
+        // along the bus lane 1.3 m further in than the survey's outline, clear of the lane's red paint)
+        islands: qbEast.islands.map((il) =>
+          il.pts[0] === 2728.51 && il.pts[1] === -1777.52
+            ? {
+                ...il,
+                kind: 'planted',
+                pts: [
+                  2727.88,
+                  -1776.38,
+                  ...il.pts.slice(2, -4),
+                  2761.02,
+                  -1759.0,
+                ],
+              }
+            : il,
+        ),
+        crosswalks: qbEast.crosswalks,
+      },
+    ],
+    // ... and the rest of the street space beside it, paved under the street ribbons (none of it bare land)
+    streetSpace: { ...streetSpace, walk: [...streetSpace.walk, ...forecourts] },
+    parks: [parkKew],
+    bikeLanes: markings.lanes,
+    // the two red bus lanes on Queens Blvd either side of the hall (2024 aerial)
+    busLanes: [
+      [2669.2, -1813.5, 2685.6, -1803.6, 2.9],
+      [2733.2, -1777.6, 2748.2, -1769.0, 2.9],
+    ],
+    paintedMedians: markings.painted,
+    // One-off bridges (by the OSM ways beneath; each deck also covers the skewed footprint of the road below, walls
+    // included): v1's 36 m minimum span, so the cut walls of the road below end under the decks at the abutments; the
+    // videos show the roadside Jersey barrier carried over both as a concrete parapet
+    decks: [
+      // both carriageways over the cemetery road Memory Road / Highland Way II (~2 760 m, a 6 m cut): one structure,
+      // the median between the decks decked too (drive video 2:10-2:11: the median barrier runs on over it)
+      {
+        under: ['1362347043', '1126549028'],
+        length: 36,
+        median: true,
+        parapet: 'jersey',
+      },
+      // both carriageways over Forest Park Drive at ~40 degrees (OSM bridge 3 549-3 586 m; drive video 2:54-2:56)
+      { under: ['5700267'], length: 36, parapet: 'jersey' },
+    ],
+  },
+  buildings: buildingsFromData(data.buildings),
+  horizon: horizon as HorizonDef,
+  terrain: {
+    baseHeight: 0,
+    heightmap: { ...(data.heightmap as HeightmapDef), offset: START_HEIGHT },
+    layers: [{ scale: 22, amplitude: 0.12, octaves: 2 }],
+    edgeRise: 0,
+    rockSlope: [0.85, 1.25],
+    flatAreas: [],
+    lotYards: true,
+  },
+  landcover: {
+    ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
+    // Pine-needle carpet on the floor of the pine stands (world/ground-moisture.ts).
+    needles: { pine: 1 },
+    // the fountain park's lawn (the raster has it as bare / urban cells)
+    paint: parkKew.lawn.map((poly) => ({ cover: 'grass', poly })),
+    // [grass, dirt, rock, gravel]
+    splat: {
+      grass: [0.92, 0.06, 0.02, 0],
+      shrub: [0.7, 0.25, 0.05, 0],
+      pine: [0.6, 0.4, 0, 0],
+      trees: [0.78, 0.2, 0.02, 0],
+      orchard: [0.8, 0.2, 0, 0],
+      urban: [0.4, 0.1, 0.32, 0.18],
+      industrial: [0.05, 0.05, 0.4, 0.5],
+      bare: [0.2, 0.5, 0.1, 0.2],
+      water: [0.5, 0.5, 0, 0],
+      vineyard: [0.3, 0.7, 0, 0],
+      cemetery: [0.88, 0.1, 0.02, 0],
+      crop: [0.9, 0.1, 0, 0],
+      paved: [0.12, 0.08, 0.5, 0.3],
+      open: [0.92, 0.06, 0.02, 0],
+      // (lidar_canopy.py) under the parkway's woods: low green between the plants - the litter and dark humus lie under the
+      // crowns only (the canopy texture), so a sunlit gap is not bare earth (drive video 3:12, 3:27-3:34); the mown verge
+      woods: [0.72, 0.22, 0.06, 0],
+      verge: [0.95, 0.03, 0.02, 0],
+    },
+  },
+  lakes: data.lakes as LakeDef[],
+  // The stage road: the route's control points; its height line, width, banking, structures come from the network.
+  road: {
+    points: network.stage.cps.map(([x, z]) => [x, z] as [number, number]),
+    // the run-out past the route's end (its own piece: the route's samples - the Queens Blvd tunnel - stay put)
+    runout: network.stage.runout?.pts.map(
+      ([x, z]) => [x, z] as [number, number],
+    ),
+    // the narrower pavement half (lanes + median shoulder) x 2: timing, autopilot, the off-stage line
+    width: 7.6,
+    shoulder: 0,
+    ditch: 0,
+    crown: 0,
+    smoothing: 120,
+    maxGrade: 0.07,
+    gradeSmoothing: 50,
+    surface: 'tarmac',
+    texture: 'road_parkway',
+  },
+  // Every crown of the lidar within 110 m of the parkway from 1 000 to 5 600 m, where it stands (scripts/realmap/
+  // lidar_canopy.py): Forest Park, Highland Park and the cemeteries' oaks, beeches and locusts up to 25 m, evergreens
+  // among the graves. The generated woods stay beyond that band (`trees` cover); inside it the cover is `woods`.
+  realTrees: {
+    trees: canopy.trees,
+    assets: {
+      woods: ['oak_tree', 'locust_tree', 'hornbeam_tree', 'beech_tree'],
+      verge: ['oak_tree', 'locust_tree', 'hornbeam_tree'],
+      grass: ['oak_tree', 'locust_tree', 'beech_tree'],
+      shrub: ['oak_tree', 'locust_tree', 'hornbeam_tree'],
+      trees: ['oak_tree', 'locust_tree'],
+      pine: ['pine_tree'],
+      cemetery: [
+        'pine_tree',
+        'pine_tree',
+        'cypress_tree',
+        'oak_tree',
+        'beech_tree',
+      ],
+      urban: ['pale_tree', 'locust_tree', 'oak_tree'],
+      bare: ['locust_tree', 'oak_tree'],
+      industrial: ['locust_tree'],
+      paved: ['pale_tree'],
+    },
+    // (the tall crowns: species that are tall with slim trunks, not oaks blown up; no pale-barked planes in the woods -
+    // the video has none)
+    tall: {
+      height: 18,
+      assets: {
+        woods: ['beech_tree', 'locust_tree', 'beech_tree', 'hornbeam_tree'],
+        verge: ['beech_tree', 'locust_tree'],
+        grass: ['beech_tree', 'locust_tree'],
+        cemetery: ['beech_tree', 'locust_tree', 'tall_black_pine'],
+        urban: ['pale_tree', 'locust_tree'],
+      },
+    },
+    minRoadDist: 2.5,
+    minPathDist: 1.5,
+    scale: [0.4, 1.8],
+    // (the open parkland's trees - mown verge, lawns, the cemeteries - are big single specimens: few crowns there, each
+    // one broad; drive video 1:48-1:52, 2:23-2:26)
+    coverScale: {
+      verge: [0.85, 1.9],
+      grass: [0.85, 1.9],
+      cemetery: [0.8, 1.8],
+    },
+    tilt: 1.5,
+    sink: 0.2,
+    // (upright trunks: the crowns spread over the right lane, the trunks barely lean - drive video)
+    lean: { deg: [0, 3], within: 12 },
+  },
+  scatter: [
+    {
+      asset: 'oak_tree',
+      cover: ['trees'],
+      density: 12,
+      minRoadDist: 3.2,
+      maxSlope: 0.7,
+      scale: [0.8, 1.35],
+      tilt: 3,
+      sink: 0.25,
+    },
+    {
+      asset: 'birch_tree',
+      cover: ['trees'],
+      density: 3,
+      minRoadDist: 3.2,
+      mask: { scale: 200, threshold: 0.1 },
+      scale: [0.8, 1.2],
+      tilt: 3,
+      sink: 0.25,
+    },
+    {
+      asset: 'pine_tree',
+      cover: ['trees', 'pine'],
+      density: 3,
+      minRoadDist: 3.5,
+      mask: { scale: 260, threshold: 0.3 },
+      scale: [0.7, 1.1],
+      tilt: 2,
+      sink: 0.3,
+    },
+    {
+      asset: 'bush',
+      cover: ['trees', 'woods'],
+      density: 6,
+      minRoadDist: 2,
+      scale: [0.8, 1.4],
+      sink: 0.1,
+    },
+    // Industrial yards: pallet stacks, drums, crates, IBC tanks and a parked stacker (SimReady props), in clusters.
+    {
+      asset: 'pallet_stack',
+      cover: ['industrial'],
+      density: 1.6,
+      minRoadDist: 4,
+      minPathDist: 3,
+      mask: { scale: 30, threshold: 0.0 },
+      scale: [1, 1],
+    },
+    {
+      asset: 'drum',
+      cover: ['industrial'],
+      density: 1.2,
+      minRoadDist: 4,
+      minPathDist: 3,
+      mask: { scale: 30, threshold: 0.05 },
+      scale: [1, 1],
+    },
+    {
+      asset: 'crate',
+      cover: ['industrial'],
+      density: 0.35,
+      minRoadDist: 4,
+      minPathDist: 3,
+      mask: { scale: 30, threshold: 0.1 },
+      scale: [1, 1],
+    },
+    {
+      asset: 'ibc_tank',
+      cover: ['industrial'],
+      density: 0.2,
+      minRoadDist: 4,
+      minPathDist: 3,
+      mask: { scale: 30, threshold: 0.1 },
+      scale: [1, 1],
+    },
+    {
+      asset: 'forklift',
+      cover: ['industrial'],
+      density: 0.06,
+      minRoadDist: 4,
+      minPathDist: 3,
+      mask: { scale: 30, threshold: 0.1 },
+      scale: [1, 1],
+    },
+    {
+      asset: 'oak_tree',
+      cover: ['cemetery', 'grass'],
+      density: 1.2,
+      minRoadDist: 4,
+      mask: { scale: 160, threshold: -0.05 },
+      scale: [0.7, 1.15],
+      tilt: 3,
+      sink: 0.2,
+    },
+    {
+      asset: 'pine_tree',
+      cover: ['cemetery'],
+      density: 0.8,
+      minRoadDist: 4,
+      scale: [0.6, 0.95],
+      sink: 0.25,
+    },
+    // Street trees in the built-up grid.
+    {
+      asset: 'birch_tree',
+      cover: ['urban'],
+      density: 0.9,
+      minRoadDist: 4,
+      minPathDist: 2.5,
+      scale: [0.7, 1],
+      sink: 0.1,
+    },
+    {
+      asset: 'rock_small',
+      cover: ['trees', 'shrub', 'woods'],
+      density: 0.6,
+      minRoadDist: 1.4,
+      scale: [0.6, 1.2],
+      alignToGround: true,
+      sink: 0.08,
+    },
+    {
+      asset: 'spring_grass',
+      cover: LAWN,
+      density: 200,
+      detail: true,
+      minRoadDist: 1,
+      maxSlope: 0.5,
+      scale: [0.7, 1.3],
+    },
+    // the mown verge: an even short sward, few tufts on it (drive video)
+    {
+      asset: 'spring_grass',
+      cover: ['verge'],
+      density: 70,
+      detail: true,
+      minRoadDist: 1,
+      maxSlope: 0.5,
+      scale: [0.55, 0.9],
+    },
+    // ferns in drifts on the woods floor (Forest Park, video 3:27-3:34): unfurling in spring, dead bracken in autumn
+    ...(
+      [
+        ['fern', ['spring'], [0.55, 0.8]],
+        ['fern', ['summer'], [0.8, 1.15]],
+        ['fern_autumn', ['autumn'], [0.8, 1.1]],
+      ] as const
+    ).map(([asset, season, scale]): ScatterRule => ({
+      asset,
+      season: [...season],
+      cover: ['woods'],
+      density: 30,
+      detail: true,
+      mask: { scale: 26, threshold: 0.1 },
+      minRoadDist: 2,
+      maxSlope: 0.45,
+      scale: [scale[0], scale[1]],
+      sink: 0.05,
+    })),
+    {
+      asset: 'grass_tuft',
+      cover: ['trees', 'pine', 'orchard'],
+      density: 140,
+      detail: true,
+      minRoadDist: 1,
+      scale: [0.7, 1.3],
+    },
+    // The lidar woods' understorey: shrubs and brambles under the crowns (video 3:27-3:32, 3:54-3:59).
+    {
+      asset: 'thicket_shrub',
+      cover: ['woods'],
+      density: 4,
+      minRoadDist: 2,
+      mask: { scale: 40, threshold: -0.1 },
+      scale: [0.7, 1.2],
+      sink: 0.15,
+    },
+    {
+      asset: 'bramble_shrub',
+      cover: ['woods'],
+      density: 3,
+      minRoadDist: 1.5,
+      mask: { scale: 30, threshold: 0 },
+      scale: [0.8, 1.3],
+      sink: 0.1,
+    },
+    // Where the road cuts a wood: a closed belt of shrubs and young trees from the ground up along the verge (drive video
+    // 2:56, 3:19, 3:51-4:02: no sky through the first 20 m). Denser than the shared `forestEdge`, and on the parkway's
+    // cut / fill banks too (steeper than its 37 deg limit).
+    ...forestEdge({
+      woods: ['trees', 'pine'],
+      young: ['birch_tree', 'oak_tree'],
+      open: ['shrub'],
+    }),
+    ...(
+      [
+        ['thicket_shrub', 12, 1.6, 22, [0.9, 1.5]],
+        ['hazelnut_tree', 5, 2.5, 24, [0.8, 1.3]],
+        ['bush', 8, 1.4, 18, [0.8, 1.4]],
+        ['bramble_shrub', 5, 1.4, 14, [0.9, 1.4]],
+        ['hornbeam_tree', 1.6, 2.5, 22, [0.4, 0.7]],
+        ['locust_tree', 1.2, 2.5, 22, [0.4, 0.7]],
+        ['oak_tree', 1.2, 3, 22, [0.35, 0.55]],
+      ] as const
+    ).map(([asset, density, minRoadDist, maxRoadDist, scale]): ScatterRule => ({
+      asset,
+      cover: ['woods'],
+      density,
+      minRoadDist,
+      maxRoadDist,
+      mask: { scale: 22, threshold: -0.35, group: 13 },
+      scale: [...scale],
+      maxSlope: 0.55,
+      lean: { deg: [0, 3], within: 12 },
+      sink: 0.15,
+    })),
+  ],
+  roadside: [
+    // Curve warning boards on the outside of the tight bends (drive videos: US black arrows on yellow, behind the barriers;
+    // rows of them in the cemetery curves 2 600-2 900 m, the same bends that get the double lane line, `solidLaneRadius`).
+    // The run-out's ramps past the finish (7 500 m) get none.
+    {
+      asset: 'chevron_sign_us',
+      to: 7500,
+      every: 16,
+      maxRadius: 130,
+      side: 'outside',
+      // (rows seen from the lane, as in the video 1:52-2:32: on the right just behind the Jersey, in front of the fences;
+      // on the median barrier itself for the right-hand bends)
+      offset: 1.5,
+      offsetLeft: 0.45,
+      faceRoad: true,
+    },
+    // Tall twin-arm masts on the median barrier past the Queens Blvd tunnel (drive video 5:37-5:49).
+    {
+      asset: 'twin_lamp',
+      every: 46,
+      side: 'left',
+      offset: 0.45,
+      from: 7340,
+      to: 7800,
+      faceRoad: true,
+    },
+    // Crowds at the start, the splits and the finish (behind the barriers).
+    {
+      asset: 'spectator',
+      at: [150, 180, 210, 1600, 3050, 4450, 5900, 7440, 7460],
+      side: 'both',
+      offset: 3.6,
+      count: 6,
+      spread: 12,
+      faceRoad: true,
+    },
+  ],
+  // Signs on posts (drive video): the EXIT signs at the gore noses of exits 2-5 (1:07, 1:30, 2:44, 3:24), SPEED LIMIT
+  // 45 (1:24, 3:33), curve warnings with their 25 MPH plates (1:03, 2:23)
+  props: [
+    ...(
+      [
+        [1098, -8.9, 0],
+        [1734, -7.2, 1],
+        [3291, -7.7, 2],
+        [4373, -9.8, 3],
+        [1578, -7.6, 4],
+        [4597, -7.6, 4],
+        [1050, -7.2, 5],
+        [2990, -7.2, 5],
+      ] as const
+    ).map(([along, lateral, variant]) => ({
+      asset: 'us_road_sign',
+      along,
+      lateral,
+      variant,
+      rotY: 180,
+    })),
+  ],
+  // Overhead signs: road names only, no shields; steel truss beams on lattice legs (drive videos 5:10, 5:41-5:46).
+  overheadSigns: {
+    lattice: true,
+    signs: [
+      // exit 2 (drive video 1:04), the exit 4 advance gantry with its winding-road warning (1:49), exit 4 a quarter mile
+      // on (2:24) and at the exit (2:43)
+      {
+        along: 1040,
+        boards: [
+          {
+            tab: 'EXIT 2',
+            lines: ['Vermont Pl'],
+            small: 'NEXT RIGHT',
+            arrow: 'right',
+          },
+        ],
+      },
+      {
+        along: 2231,
+        boards: [
+          { lines: [], winding: 25 },
+          { tab: 'EXIT 4', lines: ['Forest Park Dr'], small: '1/2 MILE' },
+        ],
+      },
+      {
+        along: 3015,
+        boards: [
+          { tab: 'EXIT 4', lines: ['Forest Park Dr'], small: 'RIGHT LANE' },
+        ],
+      },
+      {
+        along: 3250,
+        boards: [{ tab: 'EXIT 4', lines: ['Forest Park Dr'], arrow: 'right' }],
+      },
+      // Metropolitan Ave advance board (drive video 4:05): a right cantilever ~30 m before the NYAR rail bridge (OSM, 5 445 m).
+      {
+        along: 5410,
+        span: 'cantilever',
+        boards: [
+          {
+            tab: 'EXIT 6',
+            lines: ['Metropolitan Ave', 'Queens Blvd'],
+            small: '1/2 MILE',
+          },
+        ],
+      },
+      // The guide gantry in Kew Gardens (drive video 5:10): over the lane-start junction at Queens Blvd, where v1 has it.
+      {
+        along: 7094,
+        boards: [
+          {
+            tab: 'EXITS 8 E-W',
+            lines: ['Grand Central Pkwy', 'Eastern Long Island'],
+            small: '3/4 MILE',
+            arrow: 'down',
+          },
+          {
+            tab: 'EXIT 7',
+            lines: ['Van Wyck Expwy', 'Bronx'],
+            small: '1/4 MILE',
+            arrow: 'right',
+          },
+        ],
+      },
+      // The second guide gantry, out of the Queens Blvd tunnel before the finish (v1's place).
+      {
+        along: 7433,
+        boards: [
+          { tab: 'EXITS 8 E-W', lines: ['Grand Central Pkwy'], arrow: 'down' },
+          { tab: 'EXIT 7', lines: ['Van Wyck Expwy', 'Bronx'], arrow: 'right' },
+        ],
+      },
+      // The split past the finish (drive video 5:41, ~160 m past the Queens Blvd tunnel exit): over the run-out.
+      {
+        along: 7655,
+        boards: [
+          {
+            tab: 'EXIT 8 E',
+            lines: ['Grand Central Pkwy', 'Eastern Long Island'],
+            arrow: 'down',
+          },
+          {
+            tab: 'EXIT 7',
+            lines: ['Van Wyck Expwy', 'Bronx'],
+            arrow: 'right',
+          },
+        ],
+      },
+    ],
+  },
+  country: 'us',
+};

@@ -7,8 +7,10 @@ import {
 } from 'three';
 import { getTexture } from '../engine/textures';
 import { CROSS_LEN, KERB_H, KERB_W } from './street-detail';
+import { hasMarkings } from './street-markings';
 import type { World } from './world';
 import { GroundTerrain } from './heightfield';
+import { inArea, wayInArea, type MeshArea } from './mesh-area';
 
 /**
  * Kerbs + sidewalks along the streets near the stage road and zebra crosswalks at their junctions
@@ -18,6 +20,9 @@ import { GroundTerrain } from './heightfield';
 
 const TILE = 256;
 const STEP = 4;
+/** Driveway kerb cut: the kerb drops to this height (m) across the driveway, over a ramp this long each side (m). */
+const CUT_H = 0.025;
+const CUT_RAMP = 1;
 /** Length of a dropped kerb at a sidewalk's free end (m). */
 const DROP = 1.5;
 /** A run end this close to the end of a link (m) carries on into it; spacing of a link's rows (m). */
@@ -41,9 +46,12 @@ class Acc {
 const KERB: [number, number, number] = [0.66, 0.65, 0.62];
 const WALK: [number, number, number] = [0.9, 0.89, 0.86];
 const EARTH: [number, number, number] = [0.32, 0.29, 0.25];
+/** Tree lawn between the kerb and the sidewalk (tints the sidewalk texture). */
+const LAWN: [number, number, number] = [0.42, 0.54, 0.27];
 
 export function* streetDetailMeshJob(
   world: World,
+  area?: MeshArea,
 ): Generator<void, Group | undefined> {
   const cfg = world.map.cityStreets;
   const net = world.gen.paths;
@@ -103,7 +111,8 @@ export function* streetDetailMeshJob(
     tz: number;
     d: number;
   };
-  // A bank beside the street (the land blends back up from the edge) buried the flat sidewalk: lift it clear.
+  // A bank beside the street (the land blends back up from the edge) buried the flat sidewalk: lift it clear. `w`: the
+  // width from the kerb to the back of the sidewalk (tree lawn + sidewalk).
   const row = (
     x: number,
     z: number,
@@ -113,13 +122,14 @@ export function* streetDetailMeshJob(
     d: number,
     side: number,
     deck: boolean,
+    w = W,
   ): Row => {
     let land = -Infinity;
     if (!deck)
-      for (const o of [KERB_W + W * 0.5, KERB_W + W])
+      for (const o of [KERB_W + w * 0.5, KERB_W + w])
         land = Math.max(land, hf.height(x + tz * side * o, z - tx * side * o));
     const top = KERB_H + Math.min(0.6, Math.max(0, land + 0.02 - y - KERB_H));
-    const o = KERB_W + W;
+    const o = KERB_W + w;
     const foot = deck
       ? -0.3
       : Math.min(
@@ -128,22 +138,30 @@ export function* streetDetailMeshJob(
         );
     return { x, z, y, top, foot, tx, tz, d };
   };
-  // Kerb face, kerb top, sidewalk and a buried outer face swept along the rows.
-  const sweep = (rows: Row[], side: number) => {
+  /**
+   * Kerb face, kerb top, (tree lawn,) sidewalk and a buried outer face swept along `rows` (outward = left of travel when
+   * side is +1). `lawn` m of grass between the kerb and the paving (PathDef.lawn), `Wd` the sidewalk width.
+   */
+  const sweep = (rows: Row[], side: number, Wd = W, lawn = 0) => {
     if (rows.length < 2) return;
     const acc = tileOf(rows[0].x, rows[0].z);
     // Profile: (outward offset from the street edge, height above it); outward = away from the street centre.
+    const L = lawn > 0.2 ? lawn : 0;
     const prof: [number, number][] = [
       [0, 0],
       [0, KERB_H],
       [KERB_W, KERB_H],
-      [KERB_W + W, KERB_H],
-      [KERB_W + W, -0.3],
+      ...(L ? [[KERB_W + L, KERB_H] as [number, number]] : []),
+      [KERB_W + L + Wd, KERB_H],
+      [KERB_W + L + Wd, -0.3],
     ];
-    const cols = [KERB, KERB, WALK, EARTH];
+    const cols = L
+      ? [KERB, KERB, LAWN, WALK, EARTH]
+      : [KERB, KERB, WALK, EARTH];
     const nors: [number, number][] = [
       [-1, 0],
       [0, 1],
+      ...(L ? [[0, 1] as [number, number]] : []),
       [0, 1],
       [1, 0],
     ];
@@ -190,8 +208,8 @@ export function* streetDetailMeshJob(
       for (const [o, dy] of [
         [0, r.foot],
         [0, r.top],
-        [KERB_W + W, r.top],
-        [KERB_W + W, r.foot],
+        [KERB_W + L + Wd, r.top],
+        [KERB_W + L + Wd, r.foot],
       ]) {
         acc.pos.push(r.x + ox * o, r.y + dy, r.z + oz * o);
         acc.nor.push(r.tx * dir, 0, r.tz * dir);
@@ -205,6 +223,7 @@ export function* streetDetailMeshJob(
   };
   let n = 0;
   for (const run of detail.runs) {
+    if (!wayInArea(area, net, run.path, run.from, run.to, 10)) continue;
     const PL = net.lengths[run.path];
     const c0 = run.from <= 0.01 ? cont(run.path, false) : undefined;
     const c1 = run.to >= PL - 0.01 ? cont(run.path, true) : undefined;
@@ -242,7 +261,21 @@ export function* streetDetailMeshJob(
     at.push(run.to);
     if (free0) at.push(run.from + drop);
     if (free1) at.push(run.to - drop);
+    // ... and the edges of the driveway cuts and their ramps
+    for (const [k0, k1] of run.cuts ?? [])
+      for (const a of [k0 - CUT_RAMP, k0, k1, k1 + CUT_RAMP])
+        if (a > run.from && a < run.to) at.push(a);
     at.sort((p, q) => p - q);
+    /** Kerb drop at `d`: 1 = full kerb, 0 = flush (a driveway). */
+    const kerbAt = (d: number): number => {
+      let f = 1;
+      for (const [k0, k1] of run.cuts ?? []) {
+        const out = Math.max(k0 - d, d - k1, 0);
+        f = Math.min(f, Math.min(1, out / CUT_RAMP));
+      }
+      return f;
+    };
+    const lawn = net.paths[run.path].lawn?.[run.side > 0 ? 0 : 1] ?? 0;
     const rows: Row[] = [];
     for (const [i, d] of at.entries()) {
       if (i > 0 && d - at[i - 1] < 0.05) continue;
@@ -266,7 +299,20 @@ export function* streetDetailMeshJob(
       const z = pt.z - tx * lat;
       // Street surface height at the edge (the ribbon / deck surface sits 3 cm above its ground / profile).
       const y = surfaceY(run.path, d, x, z);
-      const r = row(x, z, y, tx, tz, d, run.side, onDeck(run.path));
+      const r = row(
+        x,
+        z,
+        y,
+        tx,
+        tz,
+        d,
+        run.side,
+        onDeck(run.path),
+        run.width + lawn,
+      );
+      // A driveway's kerb cut, then a free end's dropped kerb.
+      const fc = kerbAt(d);
+      if (fc < 1) r.top = CUT_H + (r.top - CUT_H) * fc;
       const f = Math.min(
         1,
         free0 ? (d - run.from) / drop : 1,
@@ -275,8 +321,60 @@ export function* streetDetailMeshJob(
       r.top = 0.02 + (r.top - 0.02) * f;
       rows.push(r);
     }
-    sweep(rows, run.side);
+    sweep(rows, run.side, run.width, lawn);
     if (++n % 40 === 0) yield;
+  }
+  // Rounded kerb corners (street-detail.ts `Corner`): the kerb + sidewalk swept round the fillet arc, and the sliver between
+  // the arc and the corner point of the two kerb lines paved (the corner of the block was cut off).
+  const fills = new Map<string, Acc>();
+  for (const c of detail.corners) {
+    if (!inArea(area, c.cx, c.cz, c.cx, c.cz, c.radius + 10)) continue;
+    const N = Math.max(4, Math.ceil((Math.abs(c.sweep) * c.radius) / 0.8));
+    const sgn = Math.sign(c.sweep) || 1;
+    const rows: Row[] = [];
+    let side = 1;
+    for (let k = 0; k <= N; k++) {
+      const al = c.a0 + (c.sweep * k) / N;
+      const x = c.cx + Math.cos(al) * c.radius;
+      const z = c.cz + Math.sin(al) * c.radius;
+      const tx = -Math.sin(al) * sgn;
+      const tz = Math.cos(al) * sgn;
+      // outward (away from the street) is towards the arc's centre: the sidewalk lies inside the block corner
+      const ox = (c.cx - x) / c.radius;
+      const oz = (c.cz - z) / c.radius;
+      if (k === 0) side = tz * ox - tx * oz > 0 ? 1 : -1;
+      rows.push(
+        row(x, z, hf.height(x, z) + 0.03, tx, tz, k, side, false, c.width),
+      );
+    }
+    sweep(rows, side, c.width);
+    // the paved sliver: a fan from the corner point over the arc
+    const acc =
+      fills.get(`${Math.floor(c.px / TILE)},${Math.floor(c.pz / TILE)}`) ??
+      new Acc();
+    fills.set(`${Math.floor(c.px / TILE)},${Math.floor(c.pz / TILE)}`, acc);
+    const v0 = acc.pos.length / 3;
+    const pts: [number, number][] = [[c.px, c.pz]];
+    for (let k = 0; k <= N; k++) {
+      const al = c.a0 + (c.sweep * k) / N;
+      pts.push([
+        c.cx + Math.cos(al) * c.radius,
+        c.cz + Math.sin(al) * c.radius,
+      ]);
+    }
+    for (const [x, z] of pts) {
+      acc.pos.push(x, hf.height(x, z) + 0.03, z);
+      acc.nor.push(0, 1, 0);
+      acc.col.push(1, 1, 1);
+      acc.uv.push(x / 8, z / 8);
+    }
+    for (let k = 1; k < pts.length - 1; k++) {
+      const cross =
+        (pts[k][0] - c.px) * (pts[k + 1][1] - c.pz) -
+        (pts[k][1] - c.pz) * (pts[k + 1][0] - c.px);
+      if (cross < 0) acc.idx.push(v0, v0 + k, v0 + k + 1);
+      else acc.idx.push(v0, v0 + k + 1, v0 + k);
+    }
   }
   // Kerb returns: the sidewalk follows each rounded junction corner from the street edge (B) onto the stage road
   // edge (A), its kerb dropping to the road there (no step left standing at the stage road).
@@ -357,6 +455,8 @@ export function* streetDetailMeshJob(
   group.name = 'street-detail';
   const mat = new MeshStandardMaterial({
     map: getTexture('sidewalk'),
+    bumpMap: getTexture('sidewalk'),
+    bumpScale: 1,
     vertexColors: true,
     roughness: 0.95,
     metalness: 0,
@@ -379,10 +479,43 @@ export function* streetDetailMeshJob(
     group.add(m);
     yield;
   }
+  if (fills.size) {
+    const asphalt = new MeshStandardMaterial({
+      map: getTexture('junction_asphalt'),
+      bumpMap: getTexture('junction_asphalt'),
+      bumpScale: 1.2,
+      roughness: 0.86,
+      metalness: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2,
+      side: 2,
+    });
+    for (const acc of fills.values()) {
+      const g = new BufferGeometry();
+      g.setAttribute(
+        'position',
+        new BufferAttribute(new Float32Array(acc.pos), 3),
+      );
+      g.setAttribute(
+        'normal',
+        new BufferAttribute(new Float32Array(acc.nor), 3),
+      );
+      g.setAttribute('uv', new BufferAttribute(new Float32Array(acc.uv), 2));
+      g.setIndex(acc.idx);
+      g.computeBoundingSphere();
+      const m = new Mesh(g, asphalt);
+      m.receiveShadow = true;
+      m.matrixAutoUpdate = false;
+      group.add(m);
+    }
+    yield;
+  }
   // Crosswalks: an alpha-tested zebra quad over the street surface; stop lines across the arriving half of the street.
   const cw = new Acc();
   const sl = new Acc();
   for (const c of detail.crossings) {
+    if (!wayInArea(area, net, c.path, c.at, c.at, 20)) continue;
     const p = net.paths[c.path];
     const hw = p.width / 2;
     net.pointAt(c.path, c.at - 1.5, pt);
@@ -409,8 +542,9 @@ export function* streetDetailMeshJob(
     // Wound to face up (a back face gets its normal flipped: the zebras were lit from below, dark green-grey).
     cw.idx.push(v0, v0 + 2, v0 + 1, v0, v0 + 3, v0 + 2);
     // Stop line 0.9 m short of the crosswalk, 0.45 m deep, on the right-hand half of the arriving traffic: that is the
-    // +left half of a street whose junction is at its start, the -left half at its end.
-    if (!p.oneway) {
+    // +left half of a street whose junction is at its start, the -left half at its end. (A modelled street gets its
+    // stop bar from the marking layer, street-glyphs.ts, laid out on its lanes.)
+    if (!p.oneway && !hasMarkings(p)) {
       const half = c.atEnd ? -1 : 1;
       const out = c.atEnd ? -1 : 1;
       const s0 = CROSS_LEN / 2 + 0.9;

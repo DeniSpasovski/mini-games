@@ -918,6 +918,41 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'cylinder', r: 0.12, h: 8 }],
   },
   {
+    id: 'cobra_lamp',
+    name: 'Highway lamp',
+    category: 'props',
+    description:
+      'Galvanised ~10 m highway mast, a long arm over the lanes (+Z) and a cobra-head housing. Solid pole.',
+    variants: 1,
+    lods: [
+      { maxDistance: 140, castShadow: true },
+      { maxDistance: 800, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.16, h: 10 }],
+  },
+  {
+    id: 'twin_lamp',
+    name: 'Median highway lamp',
+    category: 'props',
+    description:
+      'Galvanised ~12 m mast for a median barrier, an arm over each carriageway (+Z / -Z) with a flat head. Solid pole.',
+    variants: 1,
+    lods: [
+      { maxDistance: 140, castShadow: true },
+      { maxDistance: 800, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.17, h: 12 }],
+  },
+  {
+    id: 'tree_pit',
+    name: 'Street tree pit',
+    category: 'props',
+    description:
+      'Square soil pit with a granite edging round a street tree, flat on the sidewalk. No collider.',
+    variants: 1,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
     id: 'traffic_signal',
     name: 'Traffic signal',
     category: 'props',
@@ -1680,6 +1715,26 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants: 2,
     lods: [{ maxDistance: 500, castShadow: true }],
     breakable: { r: 0.65, h: 1.6, slow: 0.93 },
+  },
+  {
+    id: 'chevron_sign_us',
+    name: 'Chevron sign (US)',
+    category: 'markers',
+    description:
+      'US curve warning board: a black arrow on retroreflective yellow, on two posts. Variant 0 points left, 1 points right. Breakable like the chevron sign.',
+    variants: 2,
+    lods: [{ maxDistance: 500, castShadow: true }],
+    breakable: { r: 0.65, h: 1.6, slow: 0.93 },
+  },
+  {
+    id: 'us_road_sign',
+    name: 'US road sign',
+    category: 'markers',
+    description:
+      'US post-mounted road signs, one per variant: 0-3 the green EXIT 2-5 gore sign on two posts (EXIT 2 with a 25 MPH plate), 4 SPEED LIMIT 45, 5 curve right and 6 winding road diamonds with a 25 MPH plate. Front faces +Z.',
+    variants: 7,
+    lods: [{ maxDistance: 500, castShadow: true }],
+    breakable: { r: 0.5, h: 2.2, slow: 0.93 },
   },
 ];
 

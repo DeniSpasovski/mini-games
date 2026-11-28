@@ -60,9 +60,14 @@ import {
   pathTexture,
 } from './junctions';
 import { plazaMeshJob } from './plaza-mesh';
+import { mergePaint } from './merge-paint';
+import { junctionGlyphs } from './street-glyphs';
+import { baseTexture, hasMarkings, straightJoint } from './street-markings';
+import { type MarkRow, MarkingBuilder } from './street-markings-mesh';
 import { stageSignMeshJob } from './stage-sign-mesh';
 import { buildingMeshJob } from './building-mesh';
 import { waterMeshJob } from './water-mesh';
+import { netMeshJob } from './v2/mesh';
 import { reedBedMeshJob } from './reed-bed';
 import type { World } from './world';
 import { GroundTerrain } from './heightfield';
@@ -88,7 +93,10 @@ const ACROSS = [-1.04, -0.66, -0.33, 0, 0.33, 0.66, 1.04];
 export const texLength = (t: RoadTexture): number =>
   t === 'road_parkway' || t === 'road_street4'
     ? 12
-    : t === 'road_street' || t === 'road_city'
+    : t === 'road_street' ||
+        t === 'road_city' ||
+        t === 'asphalt_street' ||
+        t === 'asphalt_highway'
       ? 8
       : 7;
 export { pathTexture };
@@ -126,8 +134,8 @@ export function getRoadMaterial(
               map: getTexture(texture),
               // Relief from the texture itself: gravel stones / tarmac grain catch a low sun.
               bumpMap: getTexture(texture),
-              bumpScale: texture === 'road' ? 2.2 : 1.2,
-              roughness: texture === 'road' ? 0.93 : 0.86,
+              bumpScale: 1.2,
+              roughness: 0.86,
             }),
       metalness: 0,
       polygonOffset: true,
@@ -668,6 +676,22 @@ function drivenLine(samples: readonly RoadSample[]): Float32Array {
 export function* roadMeshJob(world: World): Generator<void, Group> {
   const group = new Group();
   group.name = 'road';
+  // Road engine v2 (MapDef.network): one job draws every road, junction, wall and structure (world/v2/mesh.ts); the
+  // stage road and path ribbons below are left out.
+  if (world.gen.net) {
+    const net = yield* timed('net', netMeshJob(world));
+    if (net) group.add(net);
+  } else yield* stageRoadJob(world, group);
+  const paths = world.gen.net
+    ? undefined
+    : yield* timed('paths', pathMeshesJob(world));
+  if (paths) group.add(paths);
+  yield* restJob(world, group);
+  return group;
+}
+
+/** The stage road ribbon, one mesh per segment, and the dirt fade at its surface changes. */
+function* stageRoadJob(world: World, group: Group): Generator<void> {
   const samples = world.road.samples;
   // Analytic sampling: same values as the heightfield at grid points, without
   // generating the 1 m cache along the whole road at load.
@@ -893,8 +917,10 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   }
   const dirt = surfaceFadeMesh(world, line);
   if (dirt) group.add(dirt);
-  const paths = yield* timed('paths', pathMeshesJob(world));
-  if (paths) group.add(paths);
+}
+
+/** Everything but the stage road and path ribbons: barriers, kerbs, plazas, walls, bridges, buildings ... */
+function* restJob(world: World, group: Group): Generator<void> {
   const barriers = yield* timed('barriers', barrierMeshJob(world));
   if (barriers) group.add(barriers);
   const streets = yield* timed('streetDetail', streetDetailMeshJob(world));
@@ -935,7 +961,6 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (water) group.add(water);
   const reedBeds = yield* timed('reedBeds', reedBedMeshJob(world));
   if (reedBeds) group.add(reedBeds);
-  return group;
 }
 
 const PATH_ACROSS = [-1, -0.5, 0, 0.5, 1];
@@ -1002,6 +1027,34 @@ const PATH_STEP = 3; // m between ribbon rows
 /** A foot way lies on the ground (no levelled bed under it): rows this close, or it sank into a bank's brow between them. */
 const FOOT_STEP = 1;
 const PATH_TILE = 256; // m, one merged mesh per tile
+/** Widest gap between a ribbon's columns (m): a wide way (a lane start, a boulevard) lies on curved ground. */
+const PATH_COL_GAP = 1.5;
+/** Lateral columns of a ribbon `width` m wide, -1 .. 1 (PATH_ACROSS for a street up to 6 m). */
+function pathAcross(width: number): number[] {
+  const n = Math.max(4, Math.ceil(width / PATH_COL_GAP));
+  return n === 4
+    ? PATH_ACROSS
+    : Array.from({ length: n + 1 }, (_, i) => -1 + (2 * i) / n);
+}
+/** A ribbon over another street's ground less than this below its own line keeps its line (m). */
+const AT_GRADE_RIBBON = 1;
+/** A street's end lies inside the street it meets for at most this long (m). */
+const MEET_REACH = 30;
+
+/**
+ * Where the paint of a street starts (`atEnd` false) / ends: past the rows at that end that lie inside another street
+ * (`MarkRow.skip`), m along. A stop bar stands before them, not in the cross street.
+ */
+function freeFrom(rows: readonly MarkRow[], atEnd: boolean): number {
+  const n = rows.length;
+  const L = rows[n - 1].d;
+  for (let k = 0; k < n; k++) {
+    const r = rows[atEnd ? n - 1 - k : k];
+    if (!r.skip) return r.d;
+    if ((atEnd ? L - r.d : r.d) > MEET_REACH) break;
+  }
+  return atEnd ? L : 0;
+}
 
 /**
  * Paved non-stage roads (village streets, motorway, ...) as terrain-hugging ribbons,
@@ -1045,7 +1098,58 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     }
   >();
   const mouths = junctionMouths(world);
-  const cols = PATH_ACROSS.length;
+  const markings = new MarkingBuilder();
+  // Lane lines stop where another street's carriageway crosses or meets this one (at its level, not along it): NYC paints
+  // no lines inside an intersection, and the ways' paint crossed in a mesh of lines. Driveways / service ways do not
+  // break a street's lines (except in a junction box that keeps its ribbons, MapDef.ribbonAreas).
+  const xq = newPathQuery();
+  const xa = { x: 0, z: 0 };
+  const xb = { x: 0, z: 0 };
+  const crossed = (
+    pi: number,
+    x: number,
+    z: number,
+    tx: number,
+    tz: number,
+    y: number,
+  ): boolean => {
+    const net = world.gen.paths!;
+    const plazas = world.gen.plazas;
+    const box = !plazas.empty && plazas.keepsRibbons(x, z);
+    net.query(
+      x,
+      z,
+      xq,
+      'tarmac',
+      (qi) =>
+        qi !== pi &&
+        !net.paths[qi].bridge &&
+        (box || net.paths[qi].kind !== 'service'),
+    );
+    if (!xq.found || xq.distance > net.halfWidthAt(xq.path, xq.along))
+      return false;
+    if (Math.abs(world.gen.pathHeight(xq.path, xq.along) - y) > 1.5)
+      return false;
+    const L = net.lengths[xq.path];
+    net.pointAt(xq.path, Math.max(0, xq.along - 2), xa);
+    net.pointAt(xq.path, Math.min(L, xq.along + 2), xb);
+    const l = Math.hypot(xb.x - xa.x, xb.z - xa.z) || 1;
+    return Math.abs(((xb.x - xa.x) * tx + (xb.z - xa.z) * tz) / l) < 0.9;
+  };
+  // (x, z) on the ribbon of another ground street than `pi`
+  const oq = newPathQuery();
+  const onOther = (pi: number, x: number, z: number): boolean => {
+    const net = world.gen.paths!;
+    net.query(x, z, oq, 'tarmac', (qi) => qi !== pi && !net.paths[qi].bridge);
+    return oq.found && oq.distance <= net.halfWidthAt(oq.path, oq.along);
+  };
+  // the crosswalks per street (street-detail.ts): stop bars stand before them
+  const crossingsOf = new Map<number, { at: number; atEnd: boolean }[]>();
+  for (const c of world.streetDetail?.crossings ?? []) {
+    const list = crossingsOf.get(c.path) ?? [];
+    list.push(c);
+    crossingsOf.set(c.path, list);
+  }
   // The neighbour point beyond an end where exactly one other way of the same kind continues (an OSM joint): the
   // end row is mitred to the mean direction, so a bend at the joint leaves no wedge of bare ground in the street.
   const beyond = (p: PathDef, atEnd: boolean): [number, number] | undefined => {
@@ -1135,11 +1239,15 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     }
     const mid = pts[pts.length >> 1];
     // A lane in the highway's cut (MapDef.parkwayLanes) is a carriageway: lane markings, no centre line.
-    const tex = world.gen.isParkwayLane(world.gen.paths!.paths.indexOf(p))
+    // Streets that carry the street model: base asphalt at true scale, the lines come from the marking layer.
+    const isLane = world.gen.isParkwayLane(world.gen.paths!.paths.indexOf(p));
+    const tex: RoadTexture = isLane
       ? 'road_parkway'
       : p.surface === 'dirt'
         ? 'road'
-        : pathTexture(p.kind, p.width, world.map.cityStreets);
+        : world.map.cityStreets && hasMarkings(p)
+          ? baseTexture(p)
+          : pathTexture(p.kind, p.width, world.map.cityStreets);
     const over = !!p.widenEnd?.over;
     const key = `${tex}:${over ? 'over:' : ''}${Math.floor(mid[0] / PATH_TILE)},${Math.floor(mid[1] / PATH_TILE)}`;
     let tile = tiles.get(key);
@@ -1149,8 +1257,6 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         (tile = { tex, over, pos: [], nor: [], uv: [], jw: [], idx: [] }),
       );
     const v0 = tile.pos.length / 3;
-    // (each row: the columns, then its two skirt vertices)
-    const stride = cols + 2;
     const rowTan: [number, number][] = [];
     const plazas = world.gen.plazas;
     const before = beyond(p, false);
@@ -1159,6 +1265,13 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     const pi = net.paths.indexOf(p);
     // (the carriageways / parkway lanes run down in the trench under a plaza: drawn)
     const onTop = !world.gen.isCarriageway(pi);
+    const marked =
+      !!world.map.cityStreets && hasMarkings(p) && !world.gen.isParkwayLane(pi);
+    const markRows: MarkRow[] = [];
+    const across = pathAcross(p.width);
+    const cols = across.length;
+    // (each row: the columns, then its two skirt vertices)
+    const stride = cols + 2;
     // Where a paved way overlaps an earlier one (a fork's shared start, a way doubled in the map data) it lies 1.5 cm
     // under it: two ribbons at one height flickered between their textures.
     for (let r = 0; r < pts.length; r++) {
@@ -1178,13 +1291,14 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       // a pit at a deck end, the trench under a portal slab) the ribbon stays on it - sagging with the land let the
       // terrain show through the lanes.
       const prof = world.gen.pathHeight(pi, along);
+      const rowTops: number[] = [];
       let near = false;
       if (tex === 'road_tarmac') {
         net.query(pts[r][0], pts[r][1], pqEdge, 'tarmac', (i) => i < pi);
         near = pqEdge.found && pqEdge.distance < pqEdge.halfWidth + hw;
       }
       for (let c = 0; c < cols; c++) {
-        const lat = PATH_ACROSS[c] * hw;
+        const lat = across[c] * hw;
         const x = pts[r][0] + tz * lat;
         const z = pts[r][1] - tx * lat;
         // Same 3 cm lift as the stage ribbon (polygon offset decides who is on top) - but sunk under the
@@ -1197,12 +1311,17 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           !rq.found ||
           (rq.distance > rq.halfWidth + 1 &&
             !(world.road.bridges.length && world.road.bridgeAt(rq.along)));
+        // Where it overlaps a lower street at grade the ground there is the nearer one's (TerrainGenerator.carvePaths):
+        // the higher ribbon stays on its line and covers it (its edge sagged onto the lower one, the ground showed through).
+        const overlap =
+          ground < prof && ground > prof - AT_GRADE_RIBBON && onOther(pi, x, z);
         // (a foot way lies on the ground: a trail climbing the stage road's cut bank stood up off it as a wall)
         const y =
-          free &&
-          p.width > FOOT_WIDTH &&
-          ground < prof - 0.15 &&
-          (ground > prof - 3 || world.gen.portals.inside(x, z))
+          overlap ||
+          (free &&
+            p.width > FOOT_WIDTH &&
+            ground < prof - 0.15 &&
+            (ground > prof - 3 || world.gen.portals.inside(x, z)))
             ? prof
             : ground;
         // (not past the stage road's start / finish: the street carrying on from it is the only surface there)
@@ -1295,16 +1414,15 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth + 0.3)
             under = 0.015;
         }
-        tile.pos.push(
-          x,
+        const vy =
           top -
-            under +
-            (over && rq.found && onStageSpan(world, rq.along)
-              ? OVER_LIFT *
-                Math.min(1, Math.max(0, (rq.halfWidth + 6 - rq.distance) / 3))
-              : 0),
-          z,
-        );
+          under +
+          (over && rq.found && onStageSpan(world, rq.along)
+            ? OVER_LIFT *
+              Math.min(1, Math.max(0, (rq.halfWidth + 6 - rq.distance) / 3))
+            : 0);
+        tile.pos.push(x, vy, z);
+        rowTops.push(vy);
         // (a straight-on road keeps its own wheel paths through the mouth: only its edges blend)
         // Over the stage road its start is the junction asphalt (as is the stage road there), fading into its own
         // wheel paths: no seam where the two textures meet.
@@ -1312,7 +1430,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         tile.jw.push(
           Math.max(
             MOUTH_TEX.has(tex) &&
-              !(Math.abs(PATH_ACROSS[c]) < 0.75 && nearThrough(mouths, x, z))
+              !(Math.abs(across[c]) < 0.75 && nearThrough(mouths, x, z))
               ? junctionBlend(mouths, x, z)
               : 0,
             over ? Math.min(1, Math.max(0, 1 - (fromEnd - 3) / OVER_FADE)) : 0,
@@ -1320,18 +1438,35 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         );
         // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
-        let u = 1 - (PATH_ACROSS[c] + 1) / 2;
+        // (modelled streets: metres across, so the same asphalt at any width)
+        let u = marked ? lat / 8 : 1 - (across[c] + 1) / 2;
         // An edge lying on another paved way (a fork, a crossing): no dusty edge band in the middle of the paving -
         // mirrored back over the next column instead (plain asphalt, same scale).
         if (tex === 'road_tarmac' && (c === 0 || c === cols - 1)) {
           net.query(x, z, pqEdge, 'tarmac', (i) => i !== pi);
           if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth - 0.2)
-            u = 2 * (1 - (PATH_ACROSS[c === 0 ? 1 : c - 1] + 1) / 2) - u;
+            u = 2 * (1 - (across[c === 0 ? 1 : c - 1] + 1) / 2) - u;
         }
         // A foot way on the gravel shader: u + 2 asks for one trodden earth tread instead of wheel ruts (gravel-road.ts).
         if (tex === 'road' && p.width <= FOOT_WIDTH) u += 2;
         tile.uv.push(u, pts[r][2] / texLength(tex));
       }
+      if (marked)
+        markRows.push({
+          x: pts[r][0],
+          z: pts[r][1],
+          tx,
+          tz,
+          hw,
+          d: pts[r][2],
+          y: rowTops,
+          skip:
+            (onTop &&
+              !plazas.empty &&
+              plazas.inside(pts[r][0], pts[r][1]) &&
+              !plazas.keepsRibbons(pts[r][0], pts[r][1])) ||
+            crossed(pi, pts[r][0], pts[r][1], tx, tz, prof),
+        });
       // The slab's skirts (world/road-slab.ts): from each edge out and down under the ground past the chamfer.
       const base = v0 + r * stride;
       for (const side of [-1, 1]) {
@@ -1413,6 +1548,25 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       }
       if (atEnd) quads(row, toe);
       else quads(toe, row);
+    }
+    if (marked) {
+      const len = pts[pts.length - 1][2];
+      markings.addPath(
+        p,
+        markRows,
+        len,
+        straightJoint(paths, p, false),
+        straightJoint(paths, p, true),
+        mergePaint(paths, p),
+      );
+      markings.addGlyphs(
+        p,
+        markRows,
+        junctionGlyphs(p, len, crossingsOf.get(pi) ?? [], p.width, [
+          freeFrom(markRows, false),
+          freeFrom(markRows, true),
+        ]),
+      );
     }
     yield;
   }
@@ -1528,7 +1682,11 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   for (const t of tiles.values()) {
     const mat = getRoadMaterial(
       t.tex,
-      t.over ? 3 : t.tex === 'road_parkway' ? 2 : 1,
+      t.over
+        ? 3
+        : t.tex === 'road_parkway' || t.tex === 'asphalt_highway'
+          ? 2
+          : 1,
       MOUTH_TEX.has(t.tex) ? junctionTex : undefined,
     );
     const g = new BufferGeometry();
@@ -1544,5 +1702,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     group.add(mesh);
     yield;
   }
+  // The paint of the modelled streets.
+  const paint = markings.build();
+  if (paint) group.add(paint);
   return group;
 }

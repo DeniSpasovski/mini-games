@@ -5,8 +5,9 @@ import { newRoadQuery, type Road } from './road';
  * Parkway lanes (`MapDef.parkwayLanes`): roads that run down in the divided highway's cut beside its carriageways,
  * parallel to the stage road (the inner Union Turnpike lanes beside the Jackie). OSM maps them as ordinary streets,
  * so they are found here by kind / name + running parallel within `reach` m of the stage road, flagged
- * `parkwayLane` (TerrainGenerator.isCarriageway then treats them as carriageways) and moved sideways where OSM
- * draws them overlapping the stage road or a carriageway: the road edges end up GAP apart, room for the barrier.
+ * `parkwayLane` (TerrainGenerator.isCarriageway then treats them as carriageways) and moved sideways so the road edges
+ * end up GAP apart, room for the barrier: out where OSM draws them overlapping the stage road or a carriageway, in (at
+ * most PULL m, eased in from the lane's ends) where a gap is wider - the cut closes up on a narrow stage road.
  *
  * Pure (no scene): node tests run it.
  */
@@ -15,6 +16,9 @@ import { newRoadQuery, type Road } from './road';
 const GAP = 1.2;
 /** Free gap between a lane and the at-grade street outside it (m): the retaining wall + its footing. */
 const WALL_GAP = 1.8;
+/** Furthest a lane is pulled in towards the stage road (m), and the length over which the pull eases in from its ends. */
+const PULL = 1;
+const PULL_EASE = 25;
 /** Share of a road's length that must run parallel within reach. */
 const MIN_SHARE = 0.7;
 
@@ -95,14 +99,24 @@ export function markParkwayLanes(
   });
   const lanes = paths.filter((_, i) => isLane[i]);
   if (!lanes.length) return paths;
-  /** Move the nodes of `p` outward (away from the stage road) by what `need` asks for at each node. */
+  /**
+   * Move the nodes of `p` outward (away from the stage road) by what `need` asks for at each node; `pull(along)` > 0
+   * lets a negative need move the node inward, by at most that much.
+   */
   const push = (
     p: PathDef,
     need: (x: number, z: number, ox: number, oz: number) => number,
+    pull?: (along: number) => number,
   ): PathDef => {
     const pts = p.pts.slice();
     let moved = false;
+    let along = 0;
     for (let k = 0; k < pts.length; k += 2) {
+      if (k > 0)
+        along += Math.hypot(
+          p.pts[k] - p.pts[k - 2],
+          p.pts[k + 1] - p.pts[k - 1],
+        );
       road.query(pts[k], pts[k + 1], rq);
       if (!rq.found || rq.distance > rule.reach || rq.distance < 1) continue;
       const s = road.samples[rq.index];
@@ -110,8 +124,10 @@ export function markParkwayLanes(
       // Outward = away from the stage road: left (tz, -tx) times the side.
       const ox = s.tz * side;
       const oz = -s.tx * side;
-      const m = need(pts[k], pts[k + 1], ox, oz);
-      if (m <= 0) continue;
+      let m = need(pts[k], pts[k + 1], ox, oz);
+      if (m < 0 && pull) m = Math.max(m, -pull(along));
+      else if (m <= 0) continue;
+      if (Math.abs(m) < 0.01) continue;
       pts[k] += ox * m;
       pts[k + 1] += oz * m;
       moved = true;
@@ -140,21 +156,28 @@ export function markParkwayLanes(
     (p) =>
       !p.bridge && p.surface === 'tarmac' && /^(motorway|trunk)$/.test(p.kind),
   );
-  // 2. The lanes: edges GAP clear of the stage road and of the carriageway between.
+  // 2. The lanes: edges GAP clear of the stage road and of the carriageway between (pulled in where wider).
   const done = out.map((p, i) => {
     if (!isLane[i]) return p;
     const hw = p.width / 2;
-    const moved = push(p, (x, z, ox, oz) => {
-      let need = rq.halfWidth + hw + GAP - rq.distance;
-      for (const c of carriageways) {
-        const [d, px, pz] = nearest(c.pts, x, z);
-        if (d >= c.width / 2 + hw + GAP) continue;
-        // Only a carriageway between the lane and the stage road (it lies on the inner side of this node).
-        if ((x - px) * ox + (z - pz) * oz < 0) continue;
-        need = Math.max(need, c.width / 2 + hw + GAP - d);
-      }
-      return need;
-    });
+    const L = polyLength(p.pts);
+    const pull = (a: number): number =>
+      PULL * Math.min(1, Math.max(0, Math.min(a, L - a) / PULL_EASE));
+    const moved = push(
+      p,
+      (x, z, ox, oz) => {
+        let need = rq.halfWidth + hw + GAP - rq.distance;
+        for (const c of carriageways) {
+          const [d, px, pz] = nearest(c.pts, x, z);
+          if (d >= c.width / 2 + hw + GAP) continue;
+          // Only a carriageway between the lane and the stage road (it lies on the inner side of this node).
+          if ((x - px) * ox + (z - pz) * oz < 0) continue;
+          need = Math.max(need, c.width / 2 + hw + GAP - d);
+        }
+        return need;
+      },
+      pull,
+    );
     // Never joined to the stage road as a side road (it runs beside it, separated by a barrier).
     return { ...moved, parkwayLane: true, junction: false };
   });

@@ -10,6 +10,7 @@ import {
 } from 'three';
 import { worldUniforms, type DryZone } from '../engine/world-shading';
 import type { World } from '../world/world';
+import { tunnelRoofs } from '../world/v2/mesh';
 import type { QualityName } from '../engine/quality';
 import { Rng } from '../../../shared/rng';
 
@@ -313,9 +314,10 @@ function curtainMaterial(
 }
 
 /**
- * The stage road's roofed stretches, where no rain falls (engine/world-shading.ts `setDryZones`): its tunnels (the
- * slab over it, dry below the slab) and the ground under its bridge decks (dry below the deck). Capsules ~12 m long
- * along the road.
+ * The roofed stretches (engine/world-shading.ts `setDryZones`): no rain falls there. The stage road's tunnels (the slab
+ * over it, dry below the slab - still lit: a zone covers the stage carriageway only, the other one under the same roof
+ * would stay lit) and the ground under its bridge decks (dry below the deck), and on a road-network map every bore, dark
+ * inside too (world/v2/mesh.ts `tunnelRoofs`). Capsules ~12 m long.
  */
 export function roofZones(world: World): DryZone[] {
   const out: DryZone[] = [];
@@ -359,6 +361,7 @@ export function roofZones(world: World): DryZone[] {
   }
   for (const sp of world.road.bridges)
     stretch(sp.from, sp.to, (d) => world.road.at(d).y - 0.4, 0.5);
+  if (world.gen.net) out.push(...tunnelRoofs(world.gen.net));
   return out;
 }
 

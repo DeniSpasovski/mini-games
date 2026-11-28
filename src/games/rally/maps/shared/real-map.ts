@@ -225,8 +225,15 @@ export function fitBridgesToStreets(
   /** Along / lateral (+ = left of travel) of a point against the segments of the route within [a0, a1]. */
   const project = (x: number, z: number, a0: number, a1: number) => {
     let best = { d: Infinity, along: 0, lat: 0, cos: 0, tx: 0, tz: 0 };
-    for (let i = 0; i + 1 < route.length; i++) {
-      if (cum[i + 1] < a0 || cum[i] > a1) continue;
+    // (cum rises: start at the first segment that reaches a0, a binary search - the hot loop of a map's load)
+    let i = 0;
+    for (let hi = route.length - 1; i < hi;) {
+      const m = (i + hi) >> 1;
+      if (cum[m + 1] < a0) i = m + 1;
+      else hi = m;
+    }
+    for (; i + 1 < route.length && cum[i] <= a1; i++) {
+      if (cum[i + 1] < a0) continue;
       const ex = route[i + 1][0] - route[i][0];
       const ez = route[i + 1][1] - route[i][1];
       const l2 = ex * ex + ez * ez || 1e-9;

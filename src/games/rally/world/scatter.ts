@@ -388,7 +388,12 @@ export class ScatterField {
       const x = t[i] + u(1) - 0.5;
       const z = t[i + 1] + u(2) - 0.5;
       const cover = lc?.coverAt(x, z);
-      const list = cover === undefined ? undefined : def.assets[cover];
+      const list =
+        cover === undefined
+          ? undefined
+          : def.tall && t[i + 2] >= def.tall.height
+            ? (def.tall.assets[cover] ?? def.assets[cover])
+            : def.assets[cover];
       if (!list?.length) continue;
       if (!this.inBounds(x, z) || this.excluded(x, z)) continue;
       const asset = list[Math.floor(u(3) * list.length)];
@@ -453,10 +458,10 @@ export class ScatterField {
           tiltZ: Math.sin(tiltA) * tiltM,
         });
       }
-      const scale = Math.min(
-        def.scale[1],
-        Math.max(def.scale[0], t[i + 2] / typeHeight(asset)),
-      );
+      const [sLo, sHi] =
+        (cover !== undefined ? def.coverScale?.[cover] : undefined) ??
+        def.scale;
+      const scale = Math.min(sHi, Math.max(sLo, t[i + 2] / typeHeight(asset)));
       const inst: ScatterInstance = {
         asset,
         variant: 0,
@@ -1378,8 +1383,12 @@ export function roadsideInstances(
           const da =
             count > 1 ? (i / (count - 1) - 0.5) * (rule.spread ?? 0) : 0;
           const p = road.at(along + da);
+          const off =
+            side > 0 && rule.offsetLeft !== undefined
+              ? rule.offsetLeft
+              : rule.offset;
           const lat =
-            side * (p.halfWidth + rule.offset + rng.next() * (rule.depth ?? 0));
+            side * (p.halfWidth + off + rng.next() * (rule.depth ?? 0));
           // left = (tz, -tx)
           const x = p.x + p.tz * lat;
           const z = p.z - p.tx * lat;
@@ -1393,7 +1402,7 @@ export function roadsideInstances(
           const sc = rule.scale ? rng.range(rule.scale[0], rule.scale[1]) : 1;
           // Chevrons: variant 0 points left, 1 points right (as seen by the driver).
           const variant =
-            rule.asset === 'chevron_sign'
+            rule.asset === 'chevron_sign' || rule.asset === 'chevron_sign_us'
               ? p.curvature > 0
                 ? 0
                 : 1
