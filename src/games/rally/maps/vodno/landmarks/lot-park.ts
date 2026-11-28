@@ -1139,6 +1139,15 @@ function gardenPieces(out: Piece[], trees: ParkPlant[]): void {
   gardenGrass(plant, out);
 }
 
+/** On the stone steps of the lot's east end (`TAIL`): in its strip, from the wall corner Gc up to the lot. */
+function onTailSteps(p: V2): boolean {
+  if (!inPoly(TAIL.poly, p[0], p[1])) return false;
+  const [fx, fz] = TAIL.from;
+  const dir = unitV(TAIL.to[0] - fx, TAIL.to[1] - fz);
+  const along = (q: V2): number => (q[0] - fx) * dir[0] + (q[1] - fz) * dir[1];
+  return along(p) > along(GP.Gc) - 0.5;
+}
+
 /** Drifts of dry grass through the garden's and the island's green (patches a few metres across), clear of its paths, gazebo and benches. */
 const grassNoise = new Noise2D(4127);
 function gardenGrass(
@@ -1163,6 +1172,8 @@ function gardenGrass(
           (a, i) => segDist(p, a, verge[(i + 1) % verge.length]) > 1.5,
         );
       if (!inGarden(p[0], p[1]) && !onIsland) continue;
+      // (not on the stone steps at the lot's east end)
+      if (onTailSteps(p)) continue;
       const n =
         grassNoise.noise2(p[0] / 6, p[1] / 6) +
         0.25 * grassNoise.noise2(p[0] / 1.7, p[1] / 1.7);
@@ -1588,7 +1599,7 @@ export function drawGarden(l: Local, gy: LocalGround): void {
       yF + 0.1,
     );
   }
-  // The lot's east end: a short flight of shallow stone steps from the lot down the middle of the grass strip, grass on below.
+  // The lot's east end: a short flight of shallow stone steps from the lot down the strip, wall to wall, grass on below.
   const [fx, fz] = TAIL.from;
   const dir = unitV(TAIL.to[0] - fx, TAIL.to[1] - fz);
   const L = Math.hypot(TAIL.to[0] - fx, TAIL.to[1] - fz);
@@ -1608,16 +1619,16 @@ export function drawGarden(l: Local, gy: LocalGround): void {
         r < 12 &&
         inPoly(
           TAIL.poly,
-          c[0] - dir[1] * s * (r + 0.6),
-          c[1] + dir[0] * s * (r + 0.6),
+          c[0] - dir[1] * s * (r + 0.1),
+          c[1] + dir[0] * s * (r + 0.1),
         )
       )
-        r += 0.25;
+        r += 0.05;
       return r;
     };
-    // (one flight about 3.6 m wide down the middle of the strip, grass either side)
-    const ra = Math.min(1.8, reach(1));
-    const rb = Math.min(1.8, reach(-1));
+    // (the full width of the strip, up to its walls: no grass beside the flight)
+    const ra = reach(1);
+    const rb = reach(-1);
     if (ra + rb < 1) continue;
     const pa: V2 = [c[0] - dir[1] * ra, c[1] + dir[0] * ra];
     const pb: V2 = [c[0] + dir[1] * rb, c[1] - dir[0] * rb];
